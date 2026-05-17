@@ -10,7 +10,8 @@
 create table tenants (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  line_channel_id text unique,
+  line_channel_id text unique,           -- LINE Developer Console 的 numeric channel ID
+  line_bot_user_id text unique,          -- bot 的 LINE user ID(U 開頭),webhook destination 欄位查表用
   line_channel_secret text,
   line_channel_access_token text,
   rich_menu_id text,
