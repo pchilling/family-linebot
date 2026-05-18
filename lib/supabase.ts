@@ -47,25 +47,44 @@ export async function upsertUser(params: {
   pictureUrl?: string | null;
   status?: 'active' | 'blocked' | 'left';
 }): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
+  // update-first pattern:null 的 displayName / pictureUrl 不會 overwrite existing
+  const updateData: Record<string, unknown> = {
+    status: params.status ?? 'active',
+  };
+  if (params.displayName) updateData.display_name = params.displayName;
+  if (params.pictureUrl) updateData.picture_url = params.pictureUrl;
+
+  const { data: updated, error: upErr } = await supabaseAdmin
     .from('users')
-    .upsert(
-      {
-        tenant_id: params.tenantId,
-        line_user_id: params.lineUserId,
-        display_name: params.displayName ?? null,
-        picture_url: params.pictureUrl ?? null,
-        status: params.status ?? 'active',
-      },
-      { onConflict: 'tenant_id,line_user_id' },
-    )
-    .select('id')
-    .single();
-  if (error) {
-    console.error('[upsertUser]', error);
+    .update(updateData)
+    .eq('tenant_id', params.tenantId)
+    .eq('line_user_id', params.lineUserId)
+    .select('id');
+  if (upErr) {
+    console.error('[upsertUser update]', upErr);
     return null;
   }
-  return data.id as string;
+  if (updated && updated.length > 0) {
+    return (updated[0] as { id: string }).id;
+  }
+
+  // 沒既有 row → insert(follow event 第一次來會走這條)
+  const { data: inserted, error: insErr } = await supabaseAdmin
+    .from('users')
+    .insert({
+      tenant_id: params.tenantId,
+      line_user_id: params.lineUserId,
+      display_name: params.displayName ?? null,
+      picture_url: params.pictureUrl ?? null,
+      status: params.status ?? 'active',
+    })
+    .select('id')
+    .single();
+  if (insErr) {
+    console.error('[upsertUser insert]', insErr);
+    return null;
+  }
+  return (inserted as { id: string }).id;
 }
 
 export type ClassRow = {
