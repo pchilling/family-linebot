@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup:rich-menu": "tsx scripts/setup-rich-menu.ts"
+    "setup:rich-menu": "tsx --env-file=.env.local scripts/setup-rich-menu.ts"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.7.0",
