@@ -30,6 +30,7 @@ type OrderDetail = {
   created_at: string;
   updated_at: string;
   users: {
+    line_user_id: string;
     display_name: string | null;
     full_name: string | null;
     phone: string | null;
@@ -44,7 +45,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
       `id, order_no, status, payment_status, payment_method, total_twd,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note,
        paid_at, shipped_at, created_at, updated_at,
-       users(display_name, full_name, phone),
+       users(line_user_id, display_name, full_name, phone),
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku))`,
     )
     .eq('tenant_id', TENANT_ID)
@@ -133,10 +134,28 @@ export default async function OrderDetailPage({
 
       <section style={section}>
         <h2 style={h2}>客戶</h2>
-        <div style={{ fontSize: 14 }}>
+        <div style={{ fontSize: 14, display: 'grid', gap: 6 }}>
           <div>姓名:{o.users?.full_name ?? o.users?.display_name ?? '—'}</div>
           <div>LINE 顯示名:{o.users?.display_name ?? '—'}</div>
           <div>會員電話:{o.users?.phone ?? '—'}</div>
+          <div style={{ paddingTop: 6, borderTop: '1px dashed #ddd', marginTop: 4 }}>
+            LINE userId:
+            <code
+              style={{
+                marginLeft: 8,
+                padding: '2px 6px',
+                background: '#f0f0f0',
+                borderRadius: 3,
+                fontSize: 12,
+                userSelect: 'all',
+              }}
+            >
+              {o.users?.line_user_id ?? '—'}
+            </code>
+            <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
+              (LINE@ Manager 搜尋此 ID 找到對話)
+            </span>
+          </div>
         </div>
       </section>
 
