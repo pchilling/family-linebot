@@ -119,6 +119,79 @@ create trigger classes_updated_at before update on classes
   for each row execute function set_updated_at();
 
 -- ====================
+-- products:商品資料庫(線 2 月 1)
+-- ====================
+create table products (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  sku text,                               -- 內部品號
+  name text not null,
+  description text,
+  price_twd int not null,                 -- 售價
+  cost_twd int,                           -- 成本(內部,不對外)
+  stock int not null default 0,           -- 庫存
+  image_url text,
+  category text,                          -- 精油 / 保養品 / 保健 / 配件
+  status text not null default 'active',  -- active / discontinued
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, sku)
+);
+
+create index products_tenant_status_idx on products(tenant_id, status);
+create index products_category_idx on products(tenant_id, category);
+
+create trigger products_updated_at before update on products
+  for each row execute function set_updated_at();
+
+-- ====================
+-- orders:訂單主檔(線 2 月 1)
+-- ====================
+create table orders (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  user_id uuid references users(id) on delete restrict,
+  order_no text,                          -- 顯示用 ORD-20260519-001
+  status text not null default 'open',    -- open / paid / shipped / completed / cancelled
+  payment_status text default 'pending',  -- pending / paid / refunded
+  payment_method text,                    -- bank / cash / line_pay
+  total_twd int not null default 0,
+  shipping_recipient text,
+  shipping_phone text,
+  shipping_address text,
+  tracking_no text,
+  note text,
+  paid_at timestamptz,
+  shipped_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, order_no)
+);
+
+create index orders_tenant_status_idx on orders(tenant_id, status);
+create index orders_user_idx on orders(user_id);
+create index orders_created_idx on orders(tenant_id, created_at desc);
+
+create trigger orders_updated_at before update on orders
+  for each row execute function set_updated_at();
+
+-- ====================
+-- order_items:訂單明細
+-- ====================
+create table order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders(id) on delete cascade,
+  product_id uuid not null references products(id) on delete restrict,
+  qty int not null,
+  price_at_purchase int not null,         -- snapshot,商品改價也不變
+  subtotal_twd int not null,
+  created_at timestamptz not null default now()
+);
+
+create index order_items_order_idx on order_items(order_id);
+create index order_items_product_idx on order_items(product_id);
+
+-- ====================
 -- TODO (admin panel 需要時開):
 -- - Row Level Security policies
 -- - 對應的 supabase auth role

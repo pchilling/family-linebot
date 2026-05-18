@@ -75,3 +75,64 @@ export async function deleteClass(formData: FormData) {
   await supabaseAdmin.from('classes').delete().eq('id', id);
   revalidatePath('/admin/classes');
 }
+
+// ====================
+// Products CRUD(線 2 月 1)
+// ====================
+
+function numOrNull(v: FormDataEntryValue | null): number | null {
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+export async function createProduct(formData: FormData) {
+  const sku = String(formData.get('sku') || '').trim() || null;
+  const name = String(formData.get('name')).trim();
+  const description = String(formData.get('description') || '').trim() || null;
+  const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
+  const cost_twd = numOrNull(formData.get('cost_twd'));
+  const stock = numOrNull(formData.get('stock')) ?? 0;
+  const image_url = String(formData.get('image_url') || '').trim() || null;
+  const category = String(formData.get('category') || '').trim() || null;
+
+  await supabaseAdmin.from('products').insert({
+    tenant_id: TENANT_ID,
+    sku,
+    name,
+    description,
+    price_twd,
+    cost_twd,
+    stock,
+    image_url,
+    category,
+    status: 'active',
+  });
+  revalidatePath('/admin/products');
+}
+
+export async function updateProduct(formData: FormData) {
+  const id = String(formData.get('id'));
+  const sku = String(formData.get('sku') || '').trim() || null;
+  const name = String(formData.get('name')).trim();
+  const description = String(formData.get('description') || '').trim() || null;
+  const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
+  const cost_twd = numOrNull(formData.get('cost_twd'));
+  const stock = numOrNull(formData.get('stock')) ?? 0;
+  const image_url = String(formData.get('image_url') || '').trim() || null;
+  const category = String(formData.get('category') || '').trim() || null;
+  const status = String(formData.get('status') || 'active');
+
+  await supabaseAdmin
+    .from('products')
+    .update({ sku, name, description, price_twd, cost_twd, stock, image_url, category, status })
+    .eq('id', id);
+  revalidatePath('/admin/products');
+}
+
+export async function deleteProduct(formData: FormData) {
+  const id = String(formData.get('id'));
+  await supabaseAdmin.from('products').delete().eq('id', id);
+  revalidatePath('/admin/products');
+}

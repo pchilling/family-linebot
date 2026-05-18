@@ -30,6 +30,18 @@ export default async function AdminLayout({
           >
             Admin
           </Link>
+          <Link
+            href="/admin/classes"
+            style={{ fontSize: 13, textDecoration: 'none', color: '#555' }}
+          >
+            課程
+          </Link>
+          <Link
+            href="/admin/products"
+            style={{ fontSize: 13, textDecoration: 'none', color: '#555' }}
+          >
+            商品
+          </Link>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 13, color: '#666' }}>{user.email}</span>
           <form action={signOut} style={{ margin: 0 }}>
