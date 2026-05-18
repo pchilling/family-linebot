@@ -180,6 +180,7 @@ create trigger orders_updated_at before update on orders
   for each row execute function set_updated_at();
 
 -- 自動產 order_no(before insert)
+-- pg_advisory_xact_lock 避免並發 race;max(seq) 避免刪單後 count 撞號
 create or replace function generate_order_no()
 returns trigger as $$
 declare
@@ -188,7 +189,9 @@ declare
 begin
   if new.order_no is null or new.order_no = '' then
     ym := to_char(now() at time zone 'Asia/Taipei', 'YYYYMM');
-    select count(*) + 1 into cnt
+    -- 同 tenant + 年月只允許一個 transaction 進來算編號
+    perform pg_advisory_xact_lock(hashtext(new.tenant_id::text || ym));
+    select coalesce(max(substring(order_no from 'OW-\d{6}-(\d+)$')::int), 0) + 1 into cnt
       from orders
       where tenant_id = new.tenant_id
         and order_no like 'OW-' || ym || '-%';
@@ -269,17 +272,29 @@ create trigger order_items_refresh_total
 create table stock_movements (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references tenants(id) on delete cascade,
-  product_id uuid not null references products(id) on delete cascade,
-  qty_delta int not null,                 -- 正 = 進貨;負 = 出貨 / 損耗
+  product_id uuid not null references products(id) on delete restrict,
+  qty_delta int not null check (qty_delta != 0),  -- 正 = 進貨;負 = 出貨 / 損耗
   reason text not null
     check (reason in ('order', 'order_cancel', 'restock', 'damage', 'manual_adjust', 'inventory_count')),
-  reference_id uuid,                      -- 例 order_id(如 reason='order')
+  reference_id uuid,                      -- order_id when reason='order';null otherwise
   note text,
   created_at timestamptz not null default now()
 );
 
 create index stock_movements_product_idx on stock_movements(product_id, created_at desc);
 create index stock_movements_tenant_idx on stock_movements(tenant_id, created_at desc);
+
+-- append-only:禁止 UPDATE,要修正請新 insert 一筆 manual_adjust
+create or replace function prevent_stock_movement_update()
+returns trigger as $$
+begin
+  raise exception 'stock_movements is append-only. Insert a correction movement instead.';
+end;
+$$ language plpgsql;
+
+create trigger stock_movements_no_update
+  before update on stock_movements
+  for each row execute function prevent_stock_movement_update();
 
 -- stock_movements insert / delete → 同步 products.stock
 create or replace function update_product_stock()
@@ -299,17 +314,26 @@ create trigger stock_movements_sync_stock
   for each row execute function update_product_stock();
 
 -- order_items insert → 自動寫 stock_movements(qty_delta = -qty)
+-- order_items update qty → 補一筆 manual_adjust 差異
 create or replace function order_item_to_stock_movement()
 returns trigger as $$
 begin
-  insert into stock_movements (tenant_id, product_id, qty_delta, reason, reference_id)
-    values (new.tenant_id, new.product_id, -new.qty, 'order', new.order_id);
+  if tg_op = 'INSERT' then
+    insert into stock_movements (tenant_id, product_id, qty_delta, reason, reference_id)
+      values (new.tenant_id, new.product_id, -new.qty, 'order', new.order_id);
+  elsif tg_op = 'UPDATE' then
+    if new.qty != old.qty then
+      insert into stock_movements (tenant_id, product_id, qty_delta, reason, reference_id, note)
+        values (new.tenant_id, new.product_id, old.qty - new.qty, 'manual_adjust', new.order_id,
+                'order_item qty: ' || old.qty || ' -> ' || new.qty);
+    end if;
+  end if;
   return null;
 end;
 $$ language plpgsql;
 
 create trigger order_items_stock_out
-  after insert on order_items
+  after insert or update on order_items
   for each row execute function order_item_to_stock_movement();
 
 -- order_items delete → 反向加回 stock
@@ -325,6 +349,30 @@ $$ language plpgsql;
 create trigger order_items_stock_reverse
   after delete on order_items
   for each row execute function order_item_reverse_stock_movement();
+
+-- orders.status 改 cancelled/refunded → 退每個 order_item 庫存
+-- 從 cancel 變回正常 → 再次扣回庫存(支援「復活訂單」流程)
+create or replace function handle_order_cancel()
+returns trigger as $$
+begin
+  if new.status in ('cancelled', 'refunded')
+     and old.status not in ('cancelled', 'refunded') then
+    insert into stock_movements (tenant_id, product_id, qty_delta, reason, reference_id, note)
+      select tenant_id, product_id, qty, 'order_cancel', order_id, 'order ' || new.status
+        from order_items where order_id = new.id;
+  elsif old.status in ('cancelled', 'refunded')
+        and new.status not in ('cancelled', 'refunded') then
+    insert into stock_movements (tenant_id, product_id, qty_delta, reason, reference_id, note)
+      select tenant_id, product_id, -qty, 'order', order_id, 'order reactivated from ' || old.status
+        from order_items where order_id = new.id;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger orders_handle_cancel
+  after update of status on orders
+  for each row execute function handle_order_cancel();
 
 -- ====================
 -- RLS(Row Level Security)
