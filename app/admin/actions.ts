@@ -136,3 +136,41 @@ export async function deleteProduct(formData: FormData) {
   await supabaseAdmin.from('products').delete().eq('id', id);
   revalidatePath('/admin/products');
 }
+
+// ====================
+// Orders 改狀態(線 2 月 1)
+// 改 status='cancelled' / 'refunded' 會觸發 handle_order_cancel trigger 自動退庫存
+// ====================
+
+function strOrNull(v: FormDataEntryValue | null): string | null {
+  const s = String(v ?? '').trim();
+  return s || null;
+}
+
+export async function updateOrder(formData: FormData) {
+  const id = String(formData.get('id'));
+  const status = String(formData.get('status') || 'open');
+  const payment_status = String(formData.get('payment_status') || 'pending');
+  const payment_method = strOrNull(formData.get('payment_method'));
+  const shipping_recipient = strOrNull(formData.get('shipping_recipient'));
+  const shipping_phone = strOrNull(formData.get('shipping_phone'));
+  const shipping_address = strOrNull(formData.get('shipping_address'));
+  const tracking_no = strOrNull(formData.get('tracking_no'));
+  const note = strOrNull(formData.get('note'));
+
+  await supabaseAdmin
+    .from('orders')
+    .update({
+      status,
+      payment_status,
+      payment_method,
+      shipping_recipient,
+      shipping_phone,
+      shipping_address,
+      tracking_no,
+      note,
+    })
+    .eq('id', id);
+  revalidatePath(`/admin/orders/${id}`);
+  revalidatePath('/admin/orders');
+}
