@@ -74,14 +74,6 @@ function getPostbackReply(data: string): string {
         '(內容更新功能建置中)',
       ].join('\n');
 
-    case 'advanced':
-      return [
-        '🎓 進階教室',
-        '',
-        '組織內部進階培訓資訊與報名入口。',
-        '初期請點【💬 專屬客服】詢問,後續會改為關鍵字觸發。',
-      ].join('\n');
-
     case 'contact':
       return [
         '💬 專屬客服',
@@ -90,6 +82,7 @@ function getPostbackReply(data: string): string {
         '• 訂單 / 出貨進度 → 請提供訂單編號或下單姓名',
         '• 課程報名 / 變更 → 請提供姓名 + 課程名稱',
         '• 商品諮詢 → 直接描述需求,我們幫你推薦',
+        '• 進階教室 / 組織內部培訓 → 請輸入「進階」我們會跟你聯繫',
         '',
         '— 客服時間 —',
         '週一至週五 10:00 – 18:00',

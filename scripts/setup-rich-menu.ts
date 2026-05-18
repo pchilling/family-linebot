@@ -74,7 +74,8 @@ async function main() {
       // 下排
       {
         bounds: { x: 0, y: H, width: BOT_W, height: H },
-        action: { type: 'postback' as const, data: 'action=advanced', displayText: '🎓 進階教室' },
+        // 會員中心走 LIFF webview(URI 開 LIFF 短連結)
+        action: { type: 'uri' as const, uri: 'https://liff.line.me/2010125926-mRl3l3lO', label: '👤 會員中心' },
       },
       {
         bounds: { x: BOT_W, y: H, width: BOT_W, height: H },
