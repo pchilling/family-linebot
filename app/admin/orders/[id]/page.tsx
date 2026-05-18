@@ -135,27 +135,26 @@ export default async function OrderDetailPage({
       <section style={section}>
         <h2 style={h2}>客戶</h2>
         <div style={{ fontSize: 14, display: 'grid', gap: 6 }}>
-          <div>姓名:{o.users?.full_name ?? o.users?.display_name ?? '—'}</div>
-          <div>LINE 顯示名:{o.users?.display_name ?? '—'}</div>
-          <div>會員電話:{o.users?.phone ?? '—'}</div>
-          <div style={{ paddingTop: 6, borderTop: '1px dashed #ddd', marginTop: 4 }}>
-            LINE userId:
+          <div>姓名(填):{o.users?.full_name ?? '—'}</div>
+          <div>
+            <strong>LINE 顯示名:</strong>
             <code
               style={{
-                marginLeft: 8,
-                padding: '2px 6px',
-                background: '#f0f0f0',
+                marginLeft: 6,
+                padding: '2px 8px',
+                background: '#fff7d6',
                 borderRadius: 3,
-                fontSize: 12,
+                fontSize: 14,
                 userSelect: 'all',
               }}
             >
-              {o.users?.line_user_id ?? '—'}
+              {o.users?.display_name ?? '—'}
             </code>
             <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>
-              (LINE@ Manager 搜尋此 ID 找到對話)
+              ← LINE@ Manager 用這個搜尋對話
             </span>
           </div>
+          <div>會員電話:{o.users?.phone ?? '—'}</div>
         </div>
       </section>
 

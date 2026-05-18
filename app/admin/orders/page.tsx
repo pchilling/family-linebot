@@ -98,7 +98,14 @@ export default async function OrdersListPage() {
                 </Link>
               </td>
               <td style={td}>
-                {o.users?.full_name ?? o.users?.display_name ?? '(無名)'}
+                <div style={{ fontWeight: 500 }}>
+                  {o.users?.display_name ?? '(無 LINE 名)'}
+                </div>
+                {o.users?.full_name && (
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    填:{o.users.full_name}
+                  </div>
+                )}
               </td>
               <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>
                 NT$ {o.total_twd.toLocaleString()}
