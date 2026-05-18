@@ -28,7 +28,8 @@ create table users (
   line_user_id text not null,
   display_name text,
   picture_url text,
-  status text not null default 'active', -- active / blocked / left
+  status text not null default 'active'
+    check (status in ('active', 'blocked', 'left')),
   added_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (tenant_id, line_user_id)
@@ -44,7 +45,7 @@ create table messages (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references tenants(id) on delete cascade,
   user_id uuid references users(id) on delete set null,
-  direction text not null,         -- inbound / outbound
+  direction text not null check (direction in ('inbound', 'outbound')),
   event_type text,                 -- message / follow / unfollow / postback
   message_type text,               -- text / image / sticker / video / audio / location / file
   content jsonb,                   -- parsed payload(text / postback data 等)
@@ -107,7 +108,8 @@ create table classes (
   price_twd int,
   signup_url text,
   description text,
-  status text not null default 'open',    -- open / full / cancelled
+  status text not null default 'open'
+    check (status in ('open', 'full', 'cancelled')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -220,7 +222,8 @@ begin
 end;
 $$ language plpgsql;
 
-create trigger orders_set_timestamps before update on orders
+create trigger orders_set_timestamps
+  before update of payment_status, status on orders
   for each row execute function set_order_timestamps();
 
 -- ====================
@@ -337,9 +340,17 @@ create trigger order_items_stock_out
   for each row execute function order_item_to_stock_movement();
 
 -- order_items delete → 反向加回 stock
+-- 但若 order 已 cancelled/refunded(handle_order_cancel 已退過),skip 避免雙重退貨
+-- 若 order 也 cascade 被刪(select 回 null),仍會退貨 — 正確邏輯
 create or replace function order_item_reverse_stock_movement()
 returns trigger as $$
+declare
+  current_order_status text;
 begin
+  select status into current_order_status from orders where id = old.order_id;
+  if current_order_status in ('cancelled', 'refunded') then
+    return null;
+  end if;
   insert into stock_movements (tenant_id, product_id, qty_delta, reason, reference_id, note)
     values (old.tenant_id, old.product_id, old.qty, 'order_cancel', old.order_id, 'order_item deleted');
   return null;
@@ -349,6 +360,47 @@ $$ language plpgsql;
 create trigger order_items_stock_reverse
   after delete on order_items
   for each row execute function order_item_reverse_stock_movement();
+
+-- order_items 防呆:禁改 product_id / order_id / tenant_id
+-- 要改請刪掉重 insert
+create or replace function prevent_order_item_critical_change()
+returns trigger as $$
+begin
+  if new.product_id != old.product_id then
+    raise exception 'order_items.product_id cannot be changed. Delete and re-insert.';
+  end if;
+  if new.order_id != old.order_id then
+    raise exception 'order_items.order_id cannot be changed.';
+  end if;
+  if new.tenant_id != old.tenant_id then
+    raise exception 'order_items.tenant_id cannot be changed.';
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger order_items_prevent_critical_change
+  before update on order_items
+  for each row execute function prevent_order_item_critical_change();
+
+-- order_items.tenant_id 必須跟 orders.tenant_id 一致(防 app code bug 破 RLS 隔離)
+create or replace function check_order_item_tenant()
+returns trigger as $$
+declare
+  expected_tenant uuid;
+begin
+  select tenant_id into expected_tenant from orders where id = new.order_id;
+  if expected_tenant != new.tenant_id then
+    raise exception 'order_items.tenant_id (%) must match orders.tenant_id (%)',
+      new.tenant_id, expected_tenant;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger order_items_check_tenant
+  before insert or update on order_items
+  for each row execute function check_order_item_tenant();
 
 -- orders.status 改 cancelled/refunded → 退每個 order_item 庫存
 -- 從 cancel 變回正常 → 再次扣回庫存(支援「復活訂單」流程)
