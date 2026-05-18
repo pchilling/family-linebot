@@ -40,6 +40,8 @@ export default function MemberPage() {
 
   async function onSubmit(formData: FormData) {
     setSaving(true);
+    setError('');
+    setSavedAt(null);
     try {
       formData.set('idToken', idToken);
       await saveProfile(formData);
@@ -73,6 +75,12 @@ export default function MemberPage() {
       {savedAt && (
         <div style={savedBanner}>
           已儲存 ✓ {savedAt.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+        </div>
+      )}
+
+      {error && (
+        <div style={errorBanner}>
+          錯誤:{error}
         </div>
       )}
 
@@ -181,4 +189,13 @@ const savedBanner: React.CSSProperties = {
   borderRadius: 6,
   marginBottom: 16,
   fontSize: 13,
+};
+const errorBanner: React.CSSProperties = {
+  background: '#fee',
+  color: '#a00',
+  padding: '8px 12px',
+  borderRadius: 6,
+  marginBottom: 16,
+  fontSize: 13,
+  whiteSpace: 'pre-wrap',
 };
