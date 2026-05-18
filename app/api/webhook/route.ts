@@ -45,10 +45,10 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
   const lineUserId =
     'source' in event && event.source.type === 'user' ? event.source.userId : null;
 
-  // 取 profile(follow / 文字訊息 才取,其他 event 不打 profile API 省 quota)
+  // 只在 follow event 才打 LINE getProfile API(省 ~300ms);後續 message/postback 假設 user 已 upsert 過
   let displayName: string | null = null;
   let pictureUrl: string | null = null;
-  if (lineUserId && (event.type === 'follow' || event.type === 'message')) {
+  if (lineUserId && event.type === 'follow') {
     try {
       const profile = await lineClient.getProfile(lineUserId);
       displayName = profile.displayName;
@@ -71,7 +71,6 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
     });
   }
 
-  // log inbound
   const messageType =
     event.type === 'message'
       ? event.message.type
@@ -85,36 +84,45 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
         ? event.postback
         : null;
 
-  await logMessage({
-    tenantId,
-    userId,
-    direction: 'inbound',
-    eventType: event.type,
-    messageType: messageType ?? undefined,
-    content,
-    rawEvent: event,
-  });
-
-  // reply(postback 從 DB 拉真資料,其他事件用 describeEvent fallback)
   const replyText = await buildReplyText(tenantId, event);
-  if (replyText && 'replyToken' in event && event.replyToken) {
-    try {
-      await lineClient.replyMessage({
-        replyToken: event.replyToken,
-        messages: [{ type: 'text', text: replyText }],
-      });
-      await logMessage({
+  const canReply = replyText && 'replyToken' in event && event.replyToken;
+
+  // inbound log + reply + outbound log 全部並發,降 critical path latency
+  const tasks: Promise<unknown>[] = [
+    logMessage({
+      tenantId,
+      userId,
+      direction: 'inbound',
+      eventType: event.type,
+      messageType: messageType ?? undefined,
+      content,
+      rawEvent: event,
+    }),
+  ];
+
+  if (canReply) {
+    const replyToken = event.replyToken;
+    tasks.push(
+      lineClient
+        .replyMessage({
+          replyToken,
+          messages: [{ type: 'text', text: replyText }],
+        })
+        .catch((e) => console.error('[webhook] reply failed', e)),
+    );
+    tasks.push(
+      logMessage({
         tenantId,
         userId,
         direction: 'outbound',
         eventType: 'reply',
         messageType: 'text',
         content: { text: replyText },
-      });
-    } catch (e) {
-      console.error('[webhook] reply failed', e);
-    }
+      }),
+    );
   }
+
+  await Promise.allSettled(tasks);
 }
 
 /**
