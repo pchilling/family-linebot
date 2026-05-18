@@ -97,11 +97,15 @@ export async function getClassesForCurrentMonth(tenantId: string): Promise<Class
   const monthStart = new Date(Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth(), 1) - twOffsetMs).toISOString();
   const monthEnd = new Date(Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth() + 1, 1) - twOffsetMs).toISOString();
 
+  // 只列未來 + 今天(scheduled_at >= now),過去場次過濾掉
+  const nowIso = now.toISOString();
+  const effectiveStart = nowIso > monthStart ? nowIso : monthStart;
+
   const { data, error } = await supabaseAdmin
     .from('classes')
     .select('*, regions(name)')
     .eq('tenant_id', tenantId)
-    .gte('scheduled_at', monthStart)
+    .gte('scheduled_at', effectiveStart)
     .lt('scheduled_at', monthEnd)
     .neq('status', 'cancelled')
     .order('scheduled_at', { ascending: true });
