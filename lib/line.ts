@@ -14,6 +14,7 @@ export const lineClient = new MessagingApiClient({
 /**
  * LINE webhook 簽章驗證
  * LINE 用 channel secret 對 request body 做 HMAC-SHA256 base64,放 x-line-signature header
+ * 用 timingSafeEqual 比對避免 timing attack
  */
 export function verifySignature(rawBody: string, signature: string | null): boolean {
   if (!signature || !channelSecret) return false;
@@ -21,7 +22,10 @@ export function verifySignature(rawBody: string, signature: string | null): bool
     .createHmac('SHA256', channelSecret)
     .update(rawBody)
     .digest('base64');
-  return signature === expected;
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length) return false;
+  return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
 /**
