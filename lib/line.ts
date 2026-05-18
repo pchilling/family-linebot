@@ -118,8 +118,9 @@ export function formatMonthlyClassesText(classes: ClassRow[]): string {
 
   const byRegion: Record<string, ClassRow[]> = {};
   for (const c of classes) {
-    if (!byRegion[c.region]) byRegion[c.region] = [];
-    byRegion[c.region].push(c);
+    const region = c.regions?.name ?? '其他';
+    if (!byRegion[region]) byRegion[region] = [];
+    byRegion[region].push(c);
   }
 
   const regions = ['台北', '台中', '高雄', '台南'];

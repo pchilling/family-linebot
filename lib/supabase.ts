@@ -71,7 +71,8 @@ export async function upsertUser(params: {
 export type ClassRow = {
   id: string;
   tenant_id: string;
-  region: string;
+  region_id: string;
+  regions: { name: string } | null;     // joined from regions table
   name: string;
   instructor: string | null;
   scheduled_at: string;
@@ -86,7 +87,7 @@ export type ClassRow = {
 
 /**
  * 取本月開課的所有 class(以台灣時區為準)
- * 排除 cancelled,依 scheduled_at 排序
+ * Join regions 拿地點 name,排除 cancelled,依 scheduled_at 排序
  */
 export async function getClassesForCurrentMonth(tenantId: string): Promise<ClassRow[]> {
   const now = new Date();
@@ -98,7 +99,7 @@ export async function getClassesForCurrentMonth(tenantId: string): Promise<Class
 
   const { data, error } = await supabaseAdmin
     .from('classes')
-    .select('*')
+    .select('*, regions(name)')
     .eq('tenant_id', tenantId)
     .gte('scheduled_at', monthStart)
     .lt('scheduled_at', monthEnd)

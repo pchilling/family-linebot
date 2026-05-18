@@ -73,13 +73,31 @@ create trigger users_updated_at before update on users
   for each row execute function set_updated_at();
 
 -- ====================
+-- regions:地點(台北 / 台中 / 高雄 / 台南,以後可加分館)
+-- ====================
+create table regions (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  name text not null,                     -- 台北 / 台中 / 高雄 / 台南
+  address text,
+  google_maps_url text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, name)
+);
+
+create trigger regions_updated_at before update on regions
+  for each row execute function set_updated_at();
+
+-- ====================
 -- classes:本月課程(三合一教室 月 1 功能)
--- 提案 v5 第 136 行:分台北 / 台中 / 高雄 / 台南 四區,每月 16 場次
+-- 不分課/活動/進階,用 is_paid 區分付費 / 免費。
+-- 系列課 v1 不在 schema 處理(每場一筆,admin batch input 之後做)。
 -- ====================
 create table classes (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references tenants(id) on delete cascade,
-  region text not null,                   -- 台北 / 台中 / 高雄 / 台南
+  region_id uuid not null references regions(id) on delete restrict,
   name text not null,
   instructor text,
   scheduled_at timestamptz not null,
@@ -95,7 +113,7 @@ create table classes (
 );
 
 create index classes_tenant_scheduled_idx on classes (tenant_id, scheduled_at);
-create index classes_region_idx on classes (tenant_id, region, scheduled_at);
+create index classes_region_scheduled_idx on classes (region_id, scheduled_at);
 
 create trigger classes_updated_at before update on classes
   for each row execute function set_updated_at();
