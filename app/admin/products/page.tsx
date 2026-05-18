@@ -177,6 +177,7 @@ export default async function ProductsPage() {
                   <span style={labelText}>狀態</span>
                   <select name="status" defaultValue={p.status} style={input}>
                     <option value="active">上架</option>
+                    <option value="inactive">暫停</option>
                     <option value="discontinued">下架</option>
                   </select>
                 </label>
