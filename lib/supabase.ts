@@ -68,6 +68,49 @@ export async function upsertUser(params: {
   return data.id as string;
 }
 
+export type ClassRow = {
+  id: string;
+  tenant_id: string;
+  region: string;
+  name: string;
+  instructor: string | null;
+  scheduled_at: string;
+  duration_min: number | null;
+  capacity: number | null;
+  is_paid: boolean;
+  price_twd: number | null;
+  signup_url: string | null;
+  description: string | null;
+  status: string;
+};
+
+/**
+ * 取本月開課的所有 class(以台灣時區為準)
+ * 排除 cancelled,依 scheduled_at 排序
+ */
+export async function getClassesForCurrentMonth(tenantId: string): Promise<ClassRow[]> {
+  const now = new Date();
+  // Asia/Taipei 月初 / 月末 — Vercel server runs UTC,計算用 UTC offset
+  const twOffsetMs = 8 * 60 * 60 * 1000;
+  const twNow = new Date(now.getTime() + twOffsetMs);
+  const monthStart = new Date(Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth(), 1) - twOffsetMs).toISOString();
+  const monthEnd = new Date(Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth() + 1, 1) - twOffsetMs).toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from('classes')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .gte('scheduled_at', monthStart)
+    .lt('scheduled_at', monthEnd)
+    .neq('status', 'cancelled')
+    .order('scheduled_at', { ascending: true });
+  if (error) {
+    console.error('[getClassesForCurrentMonth]', error);
+    return [];
+  }
+  return (data ?? []) as ClassRow[];
+}
+
 export async function logMessage(params: {
   tenantId: string;
   userId: string | null;

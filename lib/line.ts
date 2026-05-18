@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { messagingApi, WebhookEvent } from '@line/bot-sdk';
+import type { ClassRow } from './supabase';
 
 const { MessagingApiClient } = messagingApi;
 
@@ -100,4 +101,74 @@ function getPostbackReply(data: string): string {
     default:
       return `[未識別 postback: ${data}]`;
   }
+}
+
+/**
+ * 把 DB classes 列表組成本月課程 reply text(以台灣時區顯示)。
+ * 分台北 / 台中 / 高雄 / 台南 四區。
+ */
+export function formatMonthlyClassesText(classes: ClassRow[]): string {
+  if (classes.length === 0) {
+    return [
+      '📅 本月課程',
+      '',
+      '本月尚未公告課程,請留言詢問或關注最新消息。',
+    ].join('\n');
+  }
+
+  const byRegion: Record<string, ClassRow[]> = {};
+  for (const c of classes) {
+    if (!byRegion[c.region]) byRegion[c.region] = [];
+    byRegion[c.region].push(c);
+  }
+
+  const regions = ['台北', '台中', '高雄', '台南'];
+  const lines: string[] = ['📅 本月課程'];
+
+  for (const region of regions) {
+    const rows = byRegion[region];
+    if (!rows || rows.length === 0) continue;
+    lines.push('');
+    lines.push(`【${region}】`);
+    for (const c of rows) {
+      lines.push(`• ${formatClassLine(c)}`);
+    }
+  }
+
+  // 非標準區域 fallback
+  for (const region of Object.keys(byRegion)) {
+    if (regions.includes(region)) continue;
+    lines.push('');
+    lines.push(`【${region}】`);
+    for (const c of byRegion[region]) {
+      lines.push(`• ${formatClassLine(c)}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('想預約 / 報名請直接留言。');
+  return lines.join('\n');
+}
+
+function formatClassLine(c: ClassRow): string {
+  const dt = new Date(c.scheduled_at);
+  const dateStr = dt.toLocaleDateString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    month: 'numeric',
+    day: 'numeric',
+  });
+  const wd = dt.toLocaleDateString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    weekday: 'narrow',
+  });
+  const timeStr = dt.toLocaleTimeString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const priceTag = c.is_paid
+    ? ` (收費 NT$ ${c.price_twd ?? '-'})`
+    : '';
+  return `${dateStr}(${wd}) ${timeStr} ${c.name}${priceTag}`;
 }

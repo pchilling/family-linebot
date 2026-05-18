@@ -73,7 +73,35 @@ create trigger users_updated_at before update on users
   for each row execute function set_updated_at();
 
 -- ====================
--- TODO (Step 6+ admin panel 需要時開):
+-- classes:本月課程(三合一教室 月 1 功能)
+-- 提案 v5 第 136 行:分台北 / 台中 / 高雄 / 台南 四區,每月 16 場次
+-- ====================
+create table classes (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  region text not null,                   -- 台北 / 台中 / 高雄 / 台南
+  name text not null,
+  instructor text,
+  scheduled_at timestamptz not null,
+  duration_min int default 90,
+  capacity int,
+  is_paid boolean not null default false,
+  price_twd int,
+  signup_url text,
+  description text,
+  status text not null default 'open',    -- open / full / cancelled
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index classes_tenant_scheduled_idx on classes (tenant_id, scheduled_at);
+create index classes_region_idx on classes (tenant_id, region, scheduled_at);
+
+create trigger classes_updated_at before update on classes
+  for each row execute function set_updated_at();
+
+-- ====================
+-- TODO (admin panel 需要時開):
 -- - Row Level Security policies
 -- - 對應的 supabase auth role
 -- ====================

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WebhookEvent } from '@line/bot-sdk';
-import { describeEvent, lineClient, verifySignature } from '@/lib/line';
-import { getTenantByBotUserId, logMessage, upsertUser } from '@/lib/supabase';
+import { describeEvent, formatMonthlyClassesText, lineClient, verifySignature } from '@/lib/line';
+import { getClassesForCurrentMonth, getTenantByBotUserId, logMessage, upsertUser } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 
@@ -95,8 +95,8 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
     rawEvent: event,
   });
 
-  // reply(echo 或 follow 歡迎)
-  const replyText = describeEvent(event);
+  // reply(postback 從 DB 拉真資料,其他事件用 describeEvent fallback)
+  const replyText = await buildReplyText(tenantId, event);
   if (replyText && 'replyToken' in event && event.replyToken) {
     try {
       await lineClient.replyMessage({
@@ -115,6 +115,28 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
       console.error('[webhook] reply failed', e);
     }
   }
+}
+
+/**
+ * 決定回覆文字:postback 特定 action 從 DB 拉真資料,其餘 fallback 到 describeEvent 的 placeholder。
+ */
+async function buildReplyText(tenantId: string, event: WebhookEvent): Promise<string> {
+  if (event.type !== 'postback') return describeEvent(event);
+
+  const params = new URLSearchParams(event.postback.data);
+  const action = params.get('action');
+
+  if (action === 'monthly-classes') {
+    try {
+      const classes = await getClassesForCurrentMonth(tenantId);
+      return formatMonthlyClassesText(classes);
+    } catch (e) {
+      console.error('[buildReplyText monthly-classes]', e);
+      return describeEvent(event);
+    }
+  }
+
+  return describeEvent(event);
 }
 
 // LINE 平台 Verify 按鈕打 GET
