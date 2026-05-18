@@ -5,6 +5,17 @@
 -- ============================================
 
 -- ====================
+-- 通用函數(必須先 declared,後面 trigger 才能用)
+-- ====================
+create or replace function set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+-- ====================
 -- tenants:租戶(家裡 = 第一筆,之後 Monica 9 位銀級下線)
 -- ====================
 create table tenants (
@@ -57,16 +68,8 @@ create index messages_tenant_created_idx on messages (tenant_id, created_at desc
 create index messages_user_created_idx on messages (user_id, created_at desc);
 
 -- ====================
--- updated_at 自動更新 trigger
+-- updated_at triggers(set_updated_at 已 declared 在 schema 頂端)
 -- ====================
-create or replace function set_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
-
 create trigger tenants_updated_at before update on tenants
   for each row execute function set_updated_at();
 
