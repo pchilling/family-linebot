@@ -30,6 +30,23 @@ export type User = {
   status: 'active' | 'blocked' | 'left';
 };
 
+export type TenantBySlug = {
+  id: string;
+  slug: string;
+  name: string;
+  plan: string;
+};
+
+export async function getTenantBySlug(slug: string): Promise<TenantBySlug | null> {
+  const { data, error } = await supabaseAdmin
+    .from('tenants')
+    .select('id, slug, name, plan')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (error) return null;
+  return (data as TenantBySlug | null) ?? null;
+}
+
 export async function getTenantByBotUserId(botUserId: string): Promise<Tenant | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')

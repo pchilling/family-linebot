@@ -87,6 +87,18 @@ function numOrNull(v: FormDataEntryValue | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// tenant_id from formData(舊 routes 沒帶 fallback env)
+function tenantIdFromForm(formData: FormData): string {
+  const fromForm = String(formData.get('tenant_id') || '').trim();
+  return fromForm || TENANT_ID;
+}
+
+function revalidateProductRoutes(formData: FormData) {
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  if (slug) revalidatePath(`/admin/${slug}/products`);
+  revalidatePath('/admin/products'); // legacy
+}
+
 export async function createProduct(formData: FormData) {
   const sku = String(formData.get('sku') || '').trim() || null;
   const name = String(formData.get('name')).trim();
@@ -98,7 +110,7 @@ export async function createProduct(formData: FormData) {
   const category = String(formData.get('category') || '').trim() || null;
 
   await supabaseAdmin.from('products').insert({
-    tenant_id: TENANT_ID,
+    tenant_id: tenantIdFromForm(formData),
     sku,
     name,
     description,
@@ -109,7 +121,7 @@ export async function createProduct(formData: FormData) {
     category,
     status: 'active',
   });
-  revalidatePath('/admin/products');
+  revalidateProductRoutes(formData);
 }
 
 export async function updateProduct(formData: FormData) {
@@ -128,13 +140,13 @@ export async function updateProduct(formData: FormData) {
     .from('products')
     .update({ sku, name, description, price_twd, cost_twd, stock, image_url, category, status })
     .eq('id', id);
-  revalidatePath('/admin/products');
+  revalidateProductRoutes(formData);
 }
 
 export async function deleteProduct(formData: FormData) {
   const id = String(formData.get('id'));
   await supabaseAdmin.from('products').delete().eq('id', id);
-  revalidatePath('/admin/products');
+  revalidateProductRoutes(formData);
 }
 
 // ====================
