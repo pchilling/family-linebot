@@ -473,12 +473,11 @@ create trigger platform_users_updated_at before update on platform_users
 create index platform_users_merged_idx on platform_users(merged_into_user_id)
   where merged_into_user_id is not null;
 
--- 確保 Peter 在 platform_users 內(若還沒加好友 users 沒記就走這條)
-insert into platform_users (line_user_id, display_name, status)
-  values ('U25423dee75701ec1e3b8bdae2f826924', 'Peter', 'active')
-  on conflict (line_user_id) do nothing;
-
 -- 搬 users → platform_users(id 保持一致,便於後續 FK 對應)
+-- 注意:如果 Peter (admin) 還沒加 LINE@ 好友,users 表內就沒他 row,
+--      tenant_members 那筆 owner insert 會 0 筆。Peter 加好友後 webhook 會記入 users,
+--      再手動 INSERT from users 補上即可。不要寫 placeholder hardcode 「Peter」
+--      避免 platform_users.id 跟 users.id 不一致(B fix migration 已踩過坑)。
 insert into platform_users (id, line_user_id, display_name, picture_url, created_at, updated_at)
   select id, line_user_id, display_name, picture_url, added_at, updated_at
     from users
@@ -539,3 +538,66 @@ alter table orders add column if not exists source text not null default 'manual
 -- 新表 RLS enable
 alter table platform_users enable row level security;
 alter table tenant_members enable row level security;
+
+-- ====================
+-- Phase 5.1:STALL_ARCHITECTURE v1.1 delta(2026-05-19)
+-- - 雙入口架構(公開網站 + LIFF)準備
+-- - 多 auth provider 預埋(Phase 2 啟用 email / google)
+-- - SEO / 分享 預埋
+-- - Guest checkout 預埋
+-- - products.slug for URL route
+-- - Cyndi tenant 建立(Peter 代管)
+-- ====================
+
+-- platform_users 加 auth provider 欄位
+alter table platform_users add column if not exists primary_auth_provider text default 'line'
+  check (primary_auth_provider in ('line', 'email', 'google'));
+alter table platform_users add column if not exists email_verified boolean default false;
+
+-- platform_user_auth_methods(Phase 1 schema 預埋,Phase 2 才寫邏輯)
+create table if not exists platform_user_auth_methods (
+  id uuid primary key default gen_random_uuid(),
+  platform_user_id uuid not null references platform_users(id) on delete cascade,
+  provider text not null check (provider in ('line', 'email', 'google')),
+  provider_id text not null,
+  password_hash text,
+  verified boolean default false,
+  created_at timestamptz not null default now(),
+  unique (provider, provider_id)
+);
+alter table platform_user_auth_methods enable row level security;
+
+-- tenants 加 SEO / 分享 欄位
+alter table tenants add column if not exists description text;
+alter table tenants add column if not exists og_image_url text;
+alter table tenants add column if not exists brand_color text;
+
+-- products 加 slug(URL 友善路由 /[slug]/p/[slug])
+-- partial unique index:既有 row 都 NULL,not unique 衝突
+alter table products add column if not exists slug text;
+create unique index if not exists products_tenant_slug_unique on products(tenant_id, slug)
+  where slug is not null;
+
+-- orders 加 guest checkout 欄位
+alter table orders add column if not exists guest_email text;
+alter table orders add column if not exists guest_phone text;
+
+-- ====================
+-- Cyndi tenant(Phase 4-Alpha,Peter 代管,暫不接 LINE Bot)
+-- ====================
+insert into tenants (slug, name, owner_user_id, plan, features, status)
+  values (
+    'cyndi',
+    'Cyndi 童裝代購',
+    (select id from platform_users where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924'),
+    'pro',
+    '{"catalog": true}'::jsonb,
+    'active'
+  )
+  on conflict (slug) do nothing;
+
+insert into tenant_members (tenant_id, user_id, role)
+  select t.id, t.owner_user_id, 'owner'
+    from tenants t
+    where t.slug = 'cyndi' and t.owner_user_id is not null
+  on conflict (tenant_id, user_id) do nothing;

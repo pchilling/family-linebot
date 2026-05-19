@@ -1,8 +1,13 @@
 # Stall 架構決定文件
 
 > 給 Claude Code 的執行用技術 spec。
-> 這份文件描述 Stall(Peter 的多租戶電商平台)的架構決定。
 > 商業 context 請看 `Stall_README.md`。
+>
+> **v1.1 更新(2026-05-19):**
+> - 加入「公開網站 + LIFF」雙入口架構
+> - 路由結構重新規劃
+> - Identity 系統擴充(支援多 auth provider)
+> - 優先順序調整:oilswa / Cyndi 優先,New Era Oil 暫緩
 
 ---
 
@@ -11,437 +16,341 @@
 **Stall = family-linebot 的進化版**,不是新專案。
 
 ```
-family-linebot(現況,Phase 3 deployed)
+family-linebot(Phase 3 deployed, Phase A migration 完成)
     ↓ 演化為
 Stall(同一個 codebase,擴大為 multi-tenant 電商平台)
 ```
 
-**所有現有的 family-linebot 程式碼、schema、deployment** 都會逐步遷移到 Stall 架構。
+**所有現有 family-linebot 程式碼、schema、deployment** 都會逐步遷移到 Stall 架構。
 
-不需要建新 repo、不需要新 Supabase 專案、不需要新 Vercel deployment。**就是 in-place migration**。
+不需要新 repo、新 Supabase、新 Vercel。**就是 in-place migration**。
 
 ---
 
-## 二、核心架構決定(已 lock,不要動)
+## 二、入口策略(v1.1 更新)
 
-以下 6 個架構決定**已經對齊**,Claude Code 在實作時請遵循,不要自作主張改動:
+Stall 支援**三個入口**,服務不同來源的用戶:
+
+### 入口 A:公開網站(任何人都能看)
+
+```
+stall.com/[slug]                  ← 攤位首頁,SEO 友善
+stall.com/[slug]/p/[product]      ← 商品詳情
+stall.com/[slug]/about            ← 關於攤位
+```
+
+**主要服務**:
+- IG bio link 點進來的人
+- 朋友分享連結進來的人
+- Google 搜尋進來的人
+- 沒有 LINE 但想買東西的人
+
+**特性**:
+- 不需登入就能瀏覽
+- 要加購物車 / 結帳才需要登入
+- SEO 完整(meta tags、Open Graph、structured data)
+
+### 入口 B:LINE LIFF(LINE 用戶專屬)
+
+```
+liff.line.me/{liffId}             ← LIFF 入口
+   ↓ 內部 redirect
+stall.com/m/[slug]                ← LIFF mobile 版
+stall.com/m/[slug]/cart           ← LIFF 購物車
+stall.com/m/member                ← (現有)會員資料
+```
+
+**主要服務**:
+- LINE@ 好友
+- LINE Bot Rich Menu 點進來的人
+
+**特性**:
+- 自動帶 LINE 身份
+- 精簡 UI(適合手機)
+- 走 LINE Pay 自然
+
+### 入口 C:管理員後台
+
+```
+stall.com/admin/[tenant]/...      ← 各 tenant 管理員工後台
+```
+
+**主要服務**:
+- 員工(小編、會計、出貨)
+- Tenant owner(Peter / Cyndi)
+
+---
+
+## 三、核心架構決定(已 lock,不要動)
+
+以下 7 個架構決定**已經對齊**,Claude Code 在實作時請遵循:
 
 ### 決定 1:「人」採 **混合架構**(平台層 + tenant 層)
 
-**Rationale**:Peter 要看跨 tenant 的全景,但每個 tenant 又要能對「同一個人」有自己的標注。
-
 ```
 platform_users          ← 平台層,記錄「人」的 identity
-  └── id, line_user_id, phone, display_name
+  └── id, line_user_id, phone, display_name, email
 
 tenant_customers        ← tenant 層,記錄該 tenant 對這個人的標注
   └── tenant_id, platform_user_id (FK),
       display_name, tags, total_spent
 ```
 
-**規則**:
-- 同一個 line_user_id → 一個 platform_user(去重)
-- Cyndi、oilswa、Kim 各自的 tenant_customers 表獨立
-- 跨 tenant 全景只有 platform admin (Peter) 看得到
-
 ### 決定 2:Tenant 功能分層用 **Feature Flag**
-
-不做 module loader 系統,用 JSONB 欄位:
 
 ```sql
 tenants.features jsonb default '{}'::jsonb
--- 例:{"catalog": true, "advanced_classroom": true, "neo_extensions": true}
+-- 例:{"catalog": true, "advanced_classroom": true}
 ```
 
-程式碼用 `tenant.features.catalog` 控制功能顯示。
+### 決定 3:Catalog **Schema 留 hook,功能 Phase 2 才做**
 
-### 決定 3:Catalog(跨 tenant 賣商品)**Schema 留 hook,功能 Phase 2 才做**
-
-`products` 表預埋三個欄位,Phase 1 全部 null:
-
-```sql
-source_product_id uuid references products(id)   -- 原商品
-source_tenant_id uuid references tenants(id)     -- 原 tenant
-revenue_share_pct int check (revenue_share_pct between 0 and 100)
-```
-
-**Phase 1 不寫 catalog 邏輯**,只是 schema 有欄位。
+`products` 表預埋 `source_product_id` / `source_tenant_id` / `revenue_share_pct`。
 
 ### 決定 4:金流 **Phase 1 不做平台金流**
 
-每個 tenant 用自己的方式收錢(轉帳、ECPay、超商各自開戶)。
-系統只記訂單狀態(`payment_status='paid'`),真正金流走外面。
+每個 tenant 自己用自己的金流。Stall 不當金流中介。
 
-**Stall 不當金流中介**(避免第三方支付牌照問題)。
+### 決定 5:Theme 系統 — Phase 1 走簡版,Phase 2 才上 3 套主題
 
-### 決定 5:Theme 系統 — Phase 1 走簡版 LIFF,Phase 2+ 才上 3 套主題
+**Phase 1**:oilswa / cyndi 都用 `theme_id='default'`,只改 4 個 token(logo、主色、banner、tagline)。
 
-**Phase 1**(現在):
-- oilswa 的「商品專區」走 LINE Bot Rich Menu → LIFF 簡版頁面
-- 不上 3 套主題系統
-- `tenant_themes` 表可建,但 oilswa / cyndi 都用 `theme_id='default'`
-
-**Phase 2+**(半年後):
-- 找設計師完成 3 套主題(Apothecary / Editorial / Corner Store)
-- 開始啟動 Stall 對外品牌
+**Phase 2+**:找設計師完成 3 套主題(Apothecary / Editorial / Corner Store)。
 
 ### 決定 6:**所有人(Peter / Kim / Cyndi / oilswa)都是 tenant**
 
-不要有「特殊存在」。Peter 個人攤位 = `tenant_id = 'peter-personal'`。
-oilswa 家族事業 = `tenant_id = 'oilswa'`。
-Cyndi 童裝 = `tenant_id = 'cyndi'`。
+不要有「特殊存在」。架構統一。
 
-架構統一,沒例外。
-
-### 決定 7:Theme 可自訂的範圍採 **4 層分層**
+### 決定 7:Theme 可自訂分 **4 層分層**
 
 | Tier | 可改 |
 |---|---|
 | Free | 4 個 token:logo、主色、banner、tagline |
-| Plus | + 字體組(從 3 套選)、按鈕風格、product card 風格 |
-| Pro | + hero 排版、section 順序、自訂頁面、custom domain |
-| Enterprise | 客製設計(找 NEOP 簽合約,不在系統內) |
+| Plus | + 字體組、按鈕風格、product card 風格 |
+| Pro | + hero 排版、section 順序、自訂頁面 |
+| Enterprise | 客製設計(找 NEOP 簽合約) |
 
-**永遠鎖死的**:字體本身、商品 card 構圖邏輯、響應式、動畫、結帳流程 UI、分享卡版型。
-
-**oilswa 暫定走 Enterprise tier**(家族客製),不套用標準主題系統。
+**永遠鎖死的**:字體本身、商品 card 構圖、響應式、動畫、結帳流程 UI。
 
 ---
 
-## 三、完整 Schema(Stall v1)
+## 四、路由結構(v1.1 新增)
 
-下面是 Stall 完整 schema。Claude Code 接到指示時,**請按照此 schema 規劃實作**,不要擅自加表或改欄位。
+### 完整路由樹
 
-### Platform Layer
+```
+公開頁面(不需登入):
+  /                                ← Stall 首頁(暫時 placeholder)
+  /[slug]                          ← 攤位首頁
+  /[slug]/p/[product]              ← 商品詳情
+  /[slug]/about                    ← 關於攤位
 
-```sql
--- ====================
--- platform_users:所有用 Stall 的「人」
--- ====================
-create table platform_users (
-  id uuid primary key default gen_random_uuid(),
-  line_user_id text unique,              -- LINE 帳號 ID(主要識別)
-  phone text,                             -- 手機(輔助識別)
-  email text,
-  display_name text,
-  picture_url text,
-  
-  -- merge 機制(未來合併重複帳號)
-  merged_into_user_id uuid references platform_users(id),
-  
-  status text not null default 'active'
-    check (status in ('active', 'merged', 'deleted')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+需要登入(會員區):
+  /login                           ← 登入頁(LINE Login 為主)
+  /[slug]/cart                     ← 購物車
+  /[slug]/checkout                 ← 結帳
+  /account                         ← 我的會員(跨 tenant 個人資料)
+  /account/orders                  ← 我的所有訂單(跨 tenant)
+  /[slug]/account                  ← 在這個 tenant 的會員(訂單、標籤)
 
--- ====================
--- tenants:所有攤位
--- ====================
-create table tenants (
-  id uuid primary key default gen_random_uuid(),
-  
-  -- 基本識別
-  slug text unique not null,              -- URL slug:cyndi, oilswa, kim-closet
-  name text not null,
-  owner_user_id uuid not null references platform_users(id),
-  
-  -- 商業設定
-  plan text not null default 'free'
-    check (plan in ('free', 'plus', 'pro', 'enterprise')),
-  status text not null default 'active'
-    check (status in ('active', 'hibernated', 'suspended', 'deleted')),
-  features jsonb not null default '{}'::jsonb,
-  
-  -- Theme(Phase 1 用 default,Phase 2+ 才啟用 3 套主題)
-  theme_id text default 'default'
-    check (theme_id in ('default', 'apothecary', 'editorial', 'corner-store')),
-  theme_overrides jsonb default '{}'::jsonb,
-  
-  -- LINE@ 整合
-  line_channel_id text unique,
-  line_bot_user_id text unique,
-  line_channel_secret text,
-  line_channel_access_token text,
-  rich_menu_id text,
-  
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+LIFF 入口(LINE 內專屬):
+  /m/[slug]                        ← LIFF 攤位首頁
+  /m/[slug]/p/[product]            ← LIFF 商品詳情
+  /m/[slug]/cart                   ← LIFF 購物車
+  /m/[slug]/checkout               ← LIFF 結帳(LINE Pay)
+  /m/member                        ← (現有)LIFF 會員資料
 
--- ====================
--- tenant_members:誰可以管理哪個 tenant
--- ====================
-create table tenant_members (
-  id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(id) on delete cascade,
-  user_id uuid not null references platform_users(id) on delete cascade,
-  role text not null default 'staff'
-    check (role in ('owner', 'admin', 'staff')),
-  created_at timestamptz not null default now(),
-  unique (tenant_id, user_id)
-);
+API:
+  /api/webhook                     ← (現有)LINE Bot webhook
+  /api/auth/...                    ← Auth 相關(Supabase Auth)
+  /api/orders                      ← 訂單 API
+  /api/products                    ← 商品 API
+
+管理員後台:
+  /admin/login                     ← (現有)管理員登入
+  /admin/[tenant]/classes          ← 課程管理(只 oilswa 用)
+  /admin/[tenant]/products         ← 商品管理
+  /admin/[tenant]/orders           ← 訂單管理
+  /admin/[tenant]/customers        ← 客戶管理
+  /admin/[tenant]/inventory        ← 庫存管理
 ```
 
-### Tenant Layer
+### 關鍵原則:Public 跟 LIFF 是「同一個 codebase 的兩個渲染版本」
 
-```sql
--- ====================
--- tenant_customers:tenant 對「人」的標注
--- ====================
-create table tenant_customers (
-  id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(id) on delete cascade,
-  platform_user_id uuid not null references platform_users(id),
-  
-  -- tenant 自己對這個人的標注
-  display_name text,
-  note text,
-  tags text[],
-  
-  -- 聚合資料(trigger 維護)
-  total_orders int not null default 0,
-  total_spent_twd int not null default 0,
-  first_seen_at timestamptz not null default now(),
-  last_seen_at timestamptz not null default now(),
-  
-  updated_at timestamptz not null default now(),
-  unique (tenant_id, platform_user_id)
-);
+商品資料只一份,佈局有兩種(`PublicLayout` vs `LiffLayout`)。共用 component,不寫兩份。
 
--- ====================
--- products(預埋 catalog hook)
--- ====================
-create table products (
-  id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(id) on delete cascade,
-  
-  sku text,
-  name text not null,
-  description text,
-  price_twd int not null check (price_twd >= 0),
-  cost_twd int check (cost_twd >= 0),
-  stock int not null default 0,
-  image_url text,
-  category text,
-  status text not null default 'active'
-    check (status in ('active', 'inactive', 'discontinued')),
-  
-  -- 🎯 Catalog hook(Phase 2 啟用)
-  source_product_id uuid references products(id),
-  source_tenant_id uuid references tenants(id),
-  revenue_share_pct int check (revenue_share_pct between 0 and 100),
-  
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (tenant_id, sku)
-);
+---
 
--- ====================
--- orders(預埋 source 區分)
--- ====================
-create table orders (
-  id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references tenants(id) on delete cascade,
-  platform_user_id uuid references platform_users(id),
-  
-  order_no text not null,
-  
-  -- 🎯 來源區分
-  source text not null default 'manual'
-    check (source in ('web', 'liff', 'manual', 'line_chat')),
-  
-  status text not null default 'open'
-    check (status in ('open', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded')),
-  payment_status text not null default 'pending'
-    check (payment_status in ('pending', 'paid', 'failed', 'refunded')),
-  payment_method text,
-  total_twd int not null default 0 check (total_twd >= 0),
-  
-  shipping_recipient text,
-  shipping_phone text,
-  shipping_address text,
-  tracking_no text,
-  note text,
-  
-  paid_at timestamptz,
-  shipped_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (tenant_id, order_no)
-);
+## 五、Identity 系統(v1.1 新增)
 
--- order_items, stock_movements, classes, regions
--- ... 沿用現有 family-linebot 設計,但 user_id 改成 platform_user_id
-```
+### Phase 1:LINE-only(現在到 Week 4-6)
 
-### 不在 Phase 1 做但 schema 預留位
+只支援 LINE 一種登入方式:
+- LIFF(LINE 內 webview)
+- LINE Login Web(網頁版,公開頁面用)
+
+兩種登入都拿 `line_user_id`,寫到 `platform_users.line_user_id`。
+
+### Phase 2:多 provider(Week 7-12,或更晚)
+
+支援 email 註冊、Google Login(未來)。
+
+**需要新增** `platform_user_auth_methods` 表(Phase 1 schema 預埋,但只用 'line')。
+
+### Identity Linking(Phase 2+)
+
+問題:同一個 Kim,從 IG 點 link 進來用 email 註冊,後來又加 LINE@ 用 LIFF。
+→ 系統要認得「這兩個 identity 是同一個 Kim」。
+
+**解法**:
+- 同 email 第二次 OAuth → 自動 link
+- 同 phone → 提示用戶手動 confirm
+- 都沒有共通點 → 視為不同人,未來提供「合併帳號」功能
+
+**Phase 1 不做這個**,先讓兩個 identity 並存。
+
+---
+
+## 六、完整 Schema(Stall v1)
+
+詳見 repo 內 `db/schema.sql`。重點:
+
+- `platform_users`(已加 `primary_auth_provider` / `email_verified`)
+- `platform_user_auth_methods`(Phase 1 schema 預埋)
+- `tenants`(已加 `slug` / `plan` / `features` / `description` / `og_image_url` / `brand_color`)
+- `tenant_members`
+- `tenant_customers`(Phase B code refactor 時建,目前用 `users` 表暫代)
+- `products`(已加 catalog hook + `slug` URL friendly)
+- `orders`(已加 `source` + `guest_email` / `guest_phone`)
+
+### Phase 2+ 預留(現在不建)
 
 ```
 catalogs                  ← Phase 2(代銷系統)
 catalog_listings          ← Phase 2
 product_images            ← Phase 2(多圖)
 product_variants          ← Phase 2(SKU 變體)
-share_cards               ← Phase 2(分享卡)
+share_cards               ← Phase 2(分享卡引擎)
 inquiries                 ← Phase 2(詢問系統)
-tenant_themes_advanced    ← Phase 2(主題進階設定)
 pv_records                ← Phase 3(NEO 特用)
 ```
 
-**Phase 1 不要建這些表**。但**現有表的設計要避免日後加這些表時要 migration**(就是上面 schema 預埋的 `source_*` 欄位、`features` jsonb 這些)。
+---
+
+## 七、Phase 規劃(v1.1 重新排序)
+
+**優先順序:oilswa(家族)→ Cyndi(接案)→ 公開網站(IG 鋪路)**
+
+> ⚠️ New Era Oil 不在此時程內。等 Phase 5 後再評估。
+
+### Phase 4-Alpha(Week 1-2):oilswa / Cyndi 的核心 admin
+
+**目標**:員工(小編、會計、出貨)可以開始用系統,**取代手寫 / Excel**。
+
+**Tasks**:
+1. ✅ 跑 Phase 4 SQL:products / orders / order_items / stock_movements
+2. ✅ 建 Cyndi tenant(`slug='cyndi'`, `plan='pro'`)
+3. ⏳ `/admin/[tenant]/products` 商品 CRUD(route 改 tenant-aware)
+4. ⏳ `/admin/[tenant]/orders` 訂單管理
+5. ⏳ `/admin/[tenant]/customers` 客戶名單(tenant_customers)
+6. ⏳ `/admin/[tenant]/inventory` 庫存追蹤(stock_movements)
+
+**對應提案**:家族提案 5.2「愛油哇商行管理系統」月 1-2 ✅
+
+### Phase 4-Beta(Week 3-4):LIFF 商品端(給 LINE 用戶)
+
+**目標**:三合一 LINE 用戶可以從 Rich Menu 看商品。
+
+**Tasks**:現有 `/m/shop` 路由 → 改為 `/m/[slug]`(tenant-aware)+ 商品詳情 + 購物車 + 結帳。
+
+**Note**:Cyndi 沒有 LINE Bot,**這階段不需要 LIFF 入口**。
+
+### Phase 4-Gamma(Week 5-8):公開網站入口(給 IG / 路人)
+
+**目標**:任何人從 IG / 連結進來都能看商品。
+
+**Tasks**:
+1. `/[slug]` 公開攤位首頁(SEO 完整)
+2. `/[slug]/p/[product]` 公開商品詳情
+3. `/login` 登入頁(只支援 LINE Login)
+4. `/[slug]/cart` 購物車(需登入)
+5. `/[slug]/checkout` 結帳(需登入,暫不接金流)
+6. `/account` 跨 tenant 個人資料
+7. `/account/orders` 跨 tenant 訂單歷史
+8. SEO 基礎(meta tags、Open Graph、structured data)
+9. Vercel domain 設定子網域
+
+### Phase 4-Delta(Week 9-12):驗收 + 員工適應 + 微調
+
+員工真實用後台 1-2 週收痛點 → 改 admin UX → 跟爸媽 review → 評估 Phase 5 啟動條件。
+
+### Phase 5(待評估):email 註冊 + 美感主題 + 金流
+
+**啟動條件**:
+- 爸媽對 Phase 4 滿意
+- Cyndi 系統穩定運作
+- 找到設計師合作
+- New Era Oil 第一個商品時程明朗
 
 ---
 
-## 四、現有 family-linebot 的遷移路徑
-
-family-linebot 目前 schema(Phase 3 完成):
-
-```
-tenants                 ← 已有,缺 plan/status/features/theme_id
-users                   ← 要拆成 platform_users + tenant_customers
-messages                ← 沿用,user_id 改 FK platform_users
-regions, classes        ← 沿用,加 tenant_id
-products, orders, ...   ← 還沒建(這次 Phase 4 才建,直接套 Stall schema)
-```
-
-### 遷移步驟(by Claude Code 執行)
-
-**Step 1**:建 `platform_users` 表
-```sql
-create table platform_users (...);  -- 如上 schema
-```
-
-**Step 2**:把現有 `users` 的資料搬到 `platform_users`
-```sql
-insert into platform_users (id, line_user_id, display_name, picture_url, created_at)
-select id, line_user_id, display_name, picture_url, added_at
-from users;
-```
-
-**Step 3**:`users` 表改名 `tenant_customers`,加 `platform_user_id` FK
-```sql
-alter table users rename to tenant_customers;
-alter table tenant_customers add column platform_user_id uuid references platform_users(id);
-update tenant_customers set platform_user_id = id;  -- 同 id,因為剛搬過去
--- 之後可以把 line_user_id, display_name, picture_url 從 tenant_customers 移除
--- (這些資訊只在 platform_users 表存)
-```
-
-**Step 4**:`tenants` 表 alter add 新欄位
-```sql
-alter table tenants add column slug text;
-alter table tenants add column owner_user_id uuid references platform_users(id);
-alter table tenants add column plan text default 'free' check (plan in ('free','plus','pro','enterprise'));
-alter table tenants add column status text default 'active' check (status in ('active','hibernated','suspended','deleted'));
-alter table tenants add column features jsonb default '{}'::jsonb;
-alter table tenants add column theme_id text default 'default' check (theme_id in ('default','apothecary','editorial','corner-store'));
-alter table tenants add column theme_overrides jsonb default '{}'::jsonb;
-
--- 設定現有 tenant slug + plan
-update tenants set slug = 'oilswa', plan = 'enterprise' where name like '%三合一%';
-```
-
-**Step 5**:建 `tenant_members` 表
-```sql
-create table tenant_members (...);
--- 把 Peter 加為現有 tenant 的 owner
-```
-
-**Step 6**:建 Phase 4 新表(products / orders / order_items / stock_movements)
-**直接套 Stall schema**,不要套舊版本。`user_id` 全部用 `platform_user_id`。
-
-**Step 7**:更新 family-linebot 程式碼
-- webhook handler:upsert 改為先寫 platform_users,再寫 tenant_customers
-- LIFF /m/member:讀寫改為 platform_users(基本資料)+ tenant_customers(tenant 內標注)
-- admin pages:沿用,但 query 要 join platform_users + tenant_customers
-
----
-
-## 五、Phase 4 工作範圍(現在到三個月內)
-
-### 必做(對齊家族 + Cyndi 需求)
-
-**For oilswa(家族,Enterprise tier)**:
-1. ✅ Phase 4.1:products / orders / order_items / stock_movements 套 Stall schema
-2. ✅ Phase 4.2:`/admin/products` CRUD(管理員建商品)
-3. ✅ Phase 4.3:`/admin/orders` CRUD(員工管訂單、出貨、對帳)
-4. ✅ Phase 4.4:LIFF `/m/shop` 商品專區(簡版,給 LINE Bot Rich Menu 第 3 格用)
-5. ✅ Phase 4.5:LIFF `/m/checkout` 下單(不接金流,只開單,後台手動標已收款)
-6. ✅ Phase 4.6:小編 / 會計 / 出貨 admin dashboard(查單、印面單、對帳)
-
-**For Cyndi(Pro tier)**:
-7. ✅ Phase 4.7:把 Cyndi 開為 tenant `slug='cyndi'`, `plan='pro'`
-8. ✅ Phase 4.8:Cyndi 走同一套 admin pages,只是 tenant_id 不同
-9. ✅ Phase 4.9:Cyndi 不需要 LIFF 商品專區(她沒有 LINE Bot),走網頁版 `stall.com/cyndi`(暫時 vercel domain)
-
-### 不做(Phase 5+)
-
-❌ 3 套美感主題(設計師還沒找)
-❌ 分享卡引擎
-❌ Catalog 跨 tenant 賣商品
-❌ 平台金流
-❌ 對外正式啟用「Stall」品牌名
-
----
-
-## 六、Claude Code 的行動準則
+## 八、Claude Code 的行動準則(v1.1 更新)
 
 ### DO
 
-✅ 嚴格遵守 Stall schema(尤其 platform_users / tenant_customers 拆分)
-✅ 所有新表都帶 `tenant_id`(除了 platform layer 的表)
+✅ 嚴格遵守 Stall schema(platform_users / tenant_customers 拆分)
+✅ 所有新表帶 `tenant_id`(除 platform layer)
 ✅ Multi-tenant 從第一行 code 就考慮
 ✅ 用 RLS(現在全 deny,只 server actions 用 service_role)
-✅ 對外品牌名仍叫各自的(oilswa、cyndi),不要對外露出「Stall」
+✅ **公開頁面跟 LIFF 共用 component,不要寫兩份**
+✅ **公開頁面要做 SEO**(meta、OG、structured data)
+✅ 每個 tenant 用 slug 路由(`/[slug]`, `/m/[slug]`)
+✅ 對外品牌名仍叫各自的(oilswa、cyndi),Stall 對外品牌等 Phase 5
 ✅ 每次新功能完成,update `progress.md`
-✅ 商業敏感資訊(doTERRA 政策、家族關係)**不要寫進 commit message 或 public code**
+✅ 商業敏感資訊不要寫進 commit message 或 public code
 
 ### DON'T
 
 ❌ 不要建 catalog / share_cards / inquiries 這些 Phase 2 表
 ❌ 不要做 3 套主題系統(等設計師)
-❌ 不要試圖整合金流(Phase 2 才評估)
+❌ 不要試圖整合金流(Phase 4 不接,Phase 5 才評估)
 ❌ 不要在 oilswa 系統裡寫 doTERRA 業績計算邏輯(政策紅線)
-❌ 不要把 PII(姓名、電話、地址)log 到任何外部服務
-❌ 不要建立「Peter 個人」以外的 super admin role(平台主只有一個)
+❌ 不要把 PII log 到外部服務
+❌ **不要在 Phase 4 開放 email 註冊**(等 Phase 5)
+❌ **不要在公開頁面顯示「Stall」品牌**(等 Phase 5)
+❌ 不要建立「Peter 個人」以外的 super admin role
 
 ---
 
-## 七、紅線(必避,跟 SPEC.md 一致)
+## 九、紅線(必避)
 
 1. **doTERRA 政策**:第 5.C / 5.D / 5.E / 10.A / 10.B.7 條
-   - 不做 PV 追蹤 / 計算機 / LRP 養成 / 精油消化為輔銷品
-   - 任何「自動計算下線業績、分潤」邏輯都不寫進 code
-2. **資料保護**:用戶 PII 只內部用,不分享第三方
+2. **資料保護**:PII 不分享第三方
 3. **權限隔離**:RLS 全 enable + tenant_id 一致性檢查
-4. **法律歸屬**:Stall 不當金流中介(避免第三方支付牌照)
+4. **法律歸屬**:Stall 不當金流中介
 
 ---
 
-## 八、跟其他文件的關係
+## 十、跟其他文件的關係
 
 | 文件 | 用途 | 主要讀者 |
 |---|---|---|
-| `Stall_README.md` | 商業策略 / 為什麼存在 | Peter 自己回顧 |
-| `CONTEXT_BUSINESS_ECOSYSTEM.md` | NEOP / New Era Oil / 家族關係 | Claude Code 理解大圖 |
+| `Stall_README.md` | 商業策略 | Peter 自己回顧 |
 | `SPEC.md` | family-linebot 工程規格 | Claude Code 實作參考 |
-| `progress.md` | 開發進度 + flows | Claude Code 知道做到哪 |
+| `progress.md` | 開發進度 | Claude Code 知道做到哪 |
 | **`STALL_ARCHITECTURE.md`(本檔)** | **Stall 架構決定 + 遷移路徑** | **Claude Code 接到 Stall 任務時的 source of truth** |
 
-當 SPEC.md 與本檔衝突時,**以本檔為準**(因為 family-linebot 正在演化為 Stall)。
+衝突時以本檔為準。
 
 ---
 
-## 九、給 Claude Code 的開場提示
+## 十一、版本歷史
 
-每次開啟 Claude Code session 跟它說:
-
-> 「請先讀 `STALL_ARCHITECTURE.md` 和 `progress.md`,理解專案架構和目前進度。然後執行任務:[具體任務]」
-
-這樣它就有完整上下文。
+| 版本 | 日期 | 變更 |
+|---|---|---|
+| 1.0 | 2026-05-19 | 初版 |
+| 1.1 | 2026-05-19 | 加雙入口架構、Phase 重新排序、Phase A migration 已完成 |
 
 ---
 
-*版本:1.0*
-*日期:2026-05-19*
 *作者:Peter + Claude(Sonnet 4.7)架構討論結果*
