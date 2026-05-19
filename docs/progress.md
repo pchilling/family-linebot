@@ -44,12 +44,40 @@
 | 3.5 | Vercel env(`NEXT_PUBLIC_LIFF_ID` + `LIFF_CHANNEL_ID`) | (Vercel Dashboard) |
 | 3.6 | error banner fix(submit 失敗時可見訊息) | `11f736c` |
 
+### Stall Phase A 平台層 schema migration(2026-05-19)
+
+family-linebot 演化為 Stall(多租戶電商平台)第一步 — schema 拆分平台層 + tenant 層。oilswa 為第一個 Stall tenant。
+
+| 階段 | 內容 | Commit |
+|---|---|---|
+| A.1 | `platform_users`(跨 tenant 人)+ 搬 users 過去 + `tenant_members` + tenants 加 slug/plan/features 等 | `4abb3c4` |
+| A.2 | review round 2 修(`pg_advisory_xact_lock` / slug fallback / merged partial index) | `899901f` |
+| A.3 | v1.1 delta:雙入口架構 + auth provider 預埋 + SEO 欄位 + products.slug + guest checkout 預埋 + Cyndi tenant(Peter 代管) | `51c7e03` / `0ae4da4` |
+
+oilswa tenant `8106161d-ad82-4bad-ba61-da1aac65bb2c` (slug=oilswa, plan=enterprise)
+Cyndi tenant `8c032fc3-880a-4e96-9dc4-73684511f192`(slug=cyndi, plan=pro, Peter 代管)
+
 ### Outstanding
 
-- ⏳ Phase 4:報名活動 / 出席記錄 / 商品 / 訂單
-- ⏳ Phase 5:最新消息 LIFF 時間軸 + 進階教室實作
-- ⏳ Phase 6:小編 / 會計 / 出貨 admin pages(線 2)
-- ⏳ Phase 7:multi-tenant 真實複製給下線領袖
+**Phase 4-Alpha 進度(STALL_ARCHITECTURE v1.1 第七章)**:
+- ✅ Phase 4 SQL(products / orders / order_items / stock_movements)
+- ✅ Cyndi tenant 建立(slug=cyndi)
+- ⏳ `/admin/[tenant]/products` CRUD(現有路由改 tenant-aware)
+- ⏳ `/admin/[tenant]/orders` 管理
+- ⏳ `/admin/[tenant]/customers` 客戶名單(tenant_customers,但需 Phase B rename users → tenant_customers 才能用)
+- ⏳ `/admin/[tenant]/inventory` 庫存追蹤
+
+**Phase 4-Beta**(LIFF tenant-aware)/ **Phase 4-Gamma**(公開網站)/ **Phase 4-Delta**(驗收)、**Phase 5**(email + 主題 + 金流)— 詳見 STALL_ARCHITECTURE.md。
+
+**Stall Phase B code refactor 待做**:
+- users → tenant_customers rename
+- orders.user_id → platform_user_id rename + data migration
+- webhook / LIFF / admin code 改引用 platform_user_id
+
+**Tech debt**:
+- Peter platform_users.id (`59f07f39-...`)跟 users.id (`c5a10ccb-...`)沒對齊(Phase A migration 內 placeholder INSERT 順序問題;Option B fix SQL 未跑)— Phase B code refactor 時用 `line_user_id` 重建 mapping
+- Peter platform_users.display_name 是 hardcode 「Peter」不是 LINE 真實「P🐻」(同根因)
+- Phase 2 啟用 email / Google auth 時,需 backfill 既有 platform_users 的 LINE auth method 到 `platform_user_auth_methods` 表
 
 ### ⚠️ 兩條線進度差(2026-05-19 狀態)
 
