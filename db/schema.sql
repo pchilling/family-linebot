@@ -602,3 +602,72 @@ insert into tenant_members (tenant_id, user_id, role)
     from tenants t
     where t.slug = 'cyndi' and t.owner_user_id is not null
   on conflict (tenant_id, user_id) do nothing;
+
+-- ====================
+-- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
+-- Stage A:加 product_variants + order_items / stock_movements 加 variant_id +
+--          seed default variants(每個既有 product 1 個 'default' variant)+ backfill
+-- Stage B (下 session):admin / LIFF / inventory / orders code refactor 全 ref variant_id
+-- Stage C:drop deprecated products.sku/price/cost/stock
+--
+-- 兼容性:order_items.variant_id 暫 nullable(legacy product_id 仍 work);Stage C 改 not null
+-- ====================
+
+create table product_variants (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  product_id uuid not null references products(id) on delete cascade,
+  sku text not null,
+  variant_name text not null default 'default',   -- 顯示用 e.g. '黑 M' / '50ml'
+  attributes jsonb default '{}'::jsonb,            -- 結構化 e.g. {"color":"黑","size":"M"}
+  price_twd int not null check (price_twd >= 0),
+  cost_twd int check (cost_twd >= 0),
+  stock int not null default 0,
+  image_url text,
+  scan_id text,                                    -- 條碼(選填)
+  status text not null default 'active'
+    check (status in ('active', 'inactive', 'discontinued')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, sku)
+);
+
+create index product_variants_product_idx on product_variants(product_id);
+create index product_variants_tenant_status_idx on product_variants(tenant_id, status);
+
+create trigger product_variants_updated_at before update on product_variants
+  for each row execute function set_updated_at();
+
+alter table product_variants enable row level security;
+
+-- seed default variants(每個既有 product 1 個 'default' variant,複製欄位過去)
+insert into product_variants (tenant_id, product_id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)
+  select tenant_id, id,
+         coalesce(sku, 'AUTO-' || substring(id::text, 1, 8)) as sku,
+         'default',
+         price_twd, cost_twd, stock, image_url, status
+    from products
+  on conflict (tenant_id, sku) do nothing;
+
+-- order_items 加 variant_id(nullable 暫兼容,Stage C 改 not null)
+alter table order_items add column if not exists variant_id uuid references product_variants(id) on delete restrict;
+create index if not exists order_items_variant_idx on order_items(variant_id);
+
+-- backfill order_items.variant_id 用 product_id lookup default variant
+update order_items oi
+  set variant_id = pv.id
+  from product_variants pv
+  where oi.variant_id is null
+    and pv.product_id = oi.product_id
+    and pv.variant_name = 'default';
+
+-- stock_movements 加 variant_id(同上 nullable 兼容)
+alter table stock_movements add column if not exists variant_id uuid references product_variants(id) on delete restrict;
+create index if not exists stock_movements_variant_idx on stock_movements(variant_id);
+
+update stock_movements sm
+  set variant_id = pv.id
+  from product_variants pv
+  where sm.variant_id is null
+    and pv.product_id = sm.product_id
+    and pv.variant_name = 'default';
