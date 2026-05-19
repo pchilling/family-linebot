@@ -1,6 +1,24 @@
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
-import { createProduct, deleteProduct, updateProduct } from '../../actions';
+import {
+  createProduct,
+  createVariant,
+  deleteProduct,
+  deleteVariant,
+  updateProduct,
+  updateVariant,
+} from '../../actions';
+
+type Variant = {
+  id: string;
+  sku: string;
+  variant_name: string;
+  price_twd: number;
+  cost_twd: number | null;
+  stock: number;
+  image_url: string | null;
+  status: string;
+};
 
 type Product = {
   id: string;
@@ -13,212 +31,141 @@ type Product = {
   image_url: string | null;
   category: string | null;
   status: string;
+  product_variants: Variant[];
 };
 
-async function getProducts(tenantId: string): Promise<Product[]> {
+async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      'id, sku, name, description, price_twd, cost_twd, stock, image_url, category, status',
+      `id, sku, name, description, price_twd, cost_twd, stock, image_url, category, status,
+       product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
     )
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
-  return (data ?? []) as Product[];
+  return (data ?? []) as unknown as Product[];
 }
 
-const section: React.CSSProperties = {
-  marginBottom: 32,
-  padding: 16,
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  background: '#fafafa',
-};
+const section: React.CSSProperties = { marginBottom: 24, padding: 16, border: '1px solid #ddd', borderRadius: 6, background: '#fafafa' };
 const h2: React.CSSProperties = { fontSize: 16, marginBottom: 12 };
-const formGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(3, 1fr)',
-  gap: 12,
-};
-const label: React.CSSProperties = { fontSize: 13 };
-const labelText: React.CSSProperties = {
-  display: 'block',
-  marginBottom: 4,
-  color: '#444',
-};
-const input: React.CSSProperties = {
-  width: '100%',
-  padding: 6,
-  fontSize: 14,
-  border: '1px solid #ccc',
-  borderRadius: 4,
-  boxSizing: 'border-box',
-};
-const btn: React.CSSProperties = {
-  padding: 10,
-  background: '#000',
-  color: '#fff',
-  border: 0,
-  cursor: 'pointer',
-  fontSize: 14,
-  borderRadius: 4,
-};
-const btnDanger: React.CSSProperties = {
-  padding: '6px 12px',
-  background: 'none',
-  color: '#d00',
-  border: '1px solid #d00',
-  cursor: 'pointer',
-  fontSize: 12,
-  borderRadius: 4,
-};
-const listItem: React.CSSProperties = {
-  padding: 14,
-  border: '1px solid #e5e5e5',
-  marginBottom: 10,
-  borderRadius: 6,
-  background: '#fff',
-};
+const h3: React.CSSProperties = { fontSize: 13, marginBottom: 8, marginTop: 16, color: '#444' };
+const formGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 };
+const label: React.CSSProperties = { fontSize: 12 };
+const labelText: React.CSSProperties = { display: 'block', marginBottom: 3, color: '#555' };
+const input: React.CSSProperties = { width: '100%', padding: 5, fontSize: 13, border: '1px solid #ccc', borderRadius: 3, boxSizing: 'border-box' };
+const btn: React.CSSProperties = { padding: 8, background: '#000', color: '#fff', border: 0, cursor: 'pointer', fontSize: 13, borderRadius: 3 };
+const btnSmall: React.CSSProperties = { padding: '4px 10px', background: '#000', color: '#fff', border: 0, cursor: 'pointer', fontSize: 12, borderRadius: 3 };
+const btnDanger: React.CSSProperties = { padding: '4px 10px', background: 'none', color: '#d00', border: '1px solid #d00', cursor: 'pointer', fontSize: 11, borderRadius: 3 };
+const productCard: React.CSSProperties = { padding: 16, border: '1px solid #e5e5e5', marginBottom: 16, borderRadius: 6, background: '#fff' };
+const variantRow: React.CSSProperties = { padding: 10, border: '1px solid #eee', marginBottom: 6, borderRadius: 4, background: '#fafafa' };
+const variantGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr auto auto', gap: 6, alignItems: 'end' };
 
-export default async function ProductsPage({
-  params,
-}: {
-  params: Promise<{ tenant: string }>;
-}) {
+export default async function ProductsPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
-  const products = await getProducts(tenant.id);
+  const products = await getProductsWithVariants(tenant.id);
 
   return (
-    <main style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 20 }}>
-        {tenant.name} · 商品管理
-      </h1>
+    <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 22, marginBottom: 20 }}>{tenant.name} · 商品管理</h1>
 
       <section style={section}>
-        <h2 style={h2}>新增商品</h2>
+        <h2 style={h2}>新增商品(系統會自動建一個 default variant)</h2>
         <form action={createProduct} style={formGrid}>
           <input type="hidden" name="tenant_id" value={tenant.id} />
           <input type="hidden" name="tenant_slug" value={tenant.slug} />
-          <label style={label}>
-            <span style={labelText}>商品名稱 *</span>
-            <input name="name" required style={input} />
-          </label>
-          <label style={label}>
-            <span style={labelText}>SKU 品號</span>
-            <input name="sku" style={input} />
-          </label>
-          <label style={label}>
-            <span style={labelText}>分類</span>
-            <input
-              name="category"
-              list="categories"
-              style={input}
-              placeholder="精油 / 保養品 / 保健 / 配件"
-            />
-            <datalist id="categories">
-              <option value="精油" />
-              <option value="保養品" />
-              <option value="保健" />
-              <option value="配件" />
-            </datalist>
-          </label>
-          <label style={label}>
-            <span style={labelText}>售價 TWD *</span>
-            <input name="price_twd" type="number" required style={input} />
-          </label>
-          <label style={label}>
-            <span style={labelText}>成本 TWD(內部)</span>
-            <input name="cost_twd" type="number" style={input} />
-          </label>
-          <label style={label}>
-            <span style={labelText}>庫存</span>
-            <input name="stock" type="number" defaultValue={0} style={input} />
-          </label>
-          <label style={{ ...label, gridColumn: '1 / -1' }}>
-            <span style={labelText}>圖片 URL</span>
-            <input name="image_url" type="url" style={input} />
-          </label>
-          <label style={{ ...label, gridColumn: '1 / -1' }}>
-            <span style={labelText}>描述</span>
-            <textarea name="description" rows={3} style={{ ...input, fontFamily: 'inherit' }} />
-          </label>
-          <button type="submit" style={{ ...btn, gridColumn: '1 / -1' }}>
-            新增
-          </button>
+          <label style={label}><span style={labelText}>商品名稱 *</span><input name="name" required style={input} /></label>
+          <label style={label}><span style={labelText}>SKU(default variant 用)</span><input name="sku" style={input} /></label>
+          <label style={label}><span style={labelText}>分類</span><input name="category" list="cats" style={input} /></label>
+          <datalist id="cats"><option value="精油" /><option value="保養品" /><option value="保健" /><option value="配件" /><option value="童裝" /></datalist>
+          <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} /></label>
+          <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
+          <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
+          <label style={{ ...label, gridColumn: '1 / -1' }}><span style={labelText}>圖片 URL</span><input name="image_url" type="url" style={input} /></label>
+          <label style={{ ...label, gridColumn: '1 / -1' }}><span style={labelText}>描述</span><textarea name="description" rows={2} style={{ ...input, fontFamily: 'inherit' }} /></label>
+          <button type="submit" style={{ ...btn, gridColumn: '1 / -1' }}>新增商品 + default variant</button>
         </form>
       </section>
 
-      <section style={section}>
-        <h2 style={h2}>現有商品 ({products.length})</h2>
-        {products.length === 0 && <p style={{ color: '#666' }}>(尚無資料)</p>}
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {products.map((p) => (
-            <li key={p.id} style={listItem}>
-              <form action={updateProduct} style={formGrid}>
-                <input type="hidden" name="id" value={p.id} />
-                <input type="hidden" name="tenant_id" value={tenant.id} />
+      <h2 style={{ ...h2, fontSize: 18 }}>現有商品 ({products.length})</h2>
+      {products.length === 0 && <p style={{ color: '#666' }}>(尚無商品)</p>}
+
+      {products.map((p) => (
+        <article key={p.id} style={productCard}>
+          {/* product-level edit form */}
+          <form action={updateProduct} style={formGrid}>
+            <input type="hidden" name="id" value={p.id} />
+            <input type="hidden" name="tenant_id" value={tenant.id} />
+            <input type="hidden" name="tenant_slug" value={tenant.slug} />
+            <label style={label}><span style={labelText}>商品名稱</span><input name="name" defaultValue={p.name} style={input} /></label>
+            <label style={label}><span style={labelText}>SKU(legacy)</span><input name="sku" defaultValue={p.sku ?? ''} style={input} /></label>
+            <label style={label}><span style={labelText}>分類</span><input name="category" defaultValue={p.category ?? ''} style={input} /></label>
+            <label style={label}><span style={labelText}>售價(legacy)</span><input name="price_twd" type="number" defaultValue={p.price_twd} style={input} /></label>
+            <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={p.cost_twd ?? ''} style={input} /></label>
+            <label style={label}><span style={labelText}>庫存(legacy)</span><input name="stock" type="number" defaultValue={p.stock} style={input} /></label>
+            <label style={{ ...label, gridColumn: '1 / 3' }}><span style={labelText}>圖片 URL</span><input name="image_url" type="url" defaultValue={p.image_url ?? ''} style={input} /></label>
+            <label style={label}><span style={labelText}>狀態</span>
+              <select name="status" defaultValue={p.status} style={input}>
+                <option value="active">上架</option>
+                <option value="inactive">暫停</option>
+                <option value="discontinued">下架</option>
+              </select>
+            </label>
+            <label style={{ ...label, gridColumn: '1 / -1' }}><span style={labelText}>描述</span><textarea name="description" defaultValue={p.description ?? ''} rows={2} style={{ ...input, fontFamily: 'inherit' }} /></label>
+            <button type="submit" style={{ ...btnSmall, gridColumn: '1 / 2' }}>儲存商品</button>
+          </form>
+
+          <form action={deleteProduct} style={{ marginTop: 6 }}>
+            <input type="hidden" name="id" value={p.id} />
+            <input type="hidden" name="tenant_slug" value={tenant.slug} />
+            <button type="submit" style={btnDanger}>刪除整個商品 + 所有變體</button>
+          </form>
+
+          {/* variants subsection */}
+          <h3 style={h3}>變體 ({p.product_variants.length})</h3>
+          {p.product_variants.map((v) => (
+            <div key={v.id} style={variantRow}>
+              <form action={updateVariant} style={variantGrid}>
+                <input type="hidden" name="id" value={v.id} />
                 <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                <label style={label}>
-                  <span style={labelText}>名稱</span>
-                  <input name="name" defaultValue={p.name} style={input} />
-                </label>
-                <label style={label}>
-                  <span style={labelText}>SKU</span>
-                  <input name="sku" defaultValue={p.sku ?? ''} style={input} />
-                </label>
-                <label style={label}>
-                  <span style={labelText}>分類</span>
-                  <input name="category" defaultValue={p.category ?? ''} style={input} />
-                </label>
-                <label style={label}>
-                  <span style={labelText}>售價</span>
-                  <input name="price_twd" type="number" defaultValue={p.price_twd} style={input} />
-                </label>
-                <label style={label}>
-                  <span style={labelText}>成本</span>
-                  <input name="cost_twd" type="number" defaultValue={p.cost_twd ?? ''} style={input} />
-                </label>
-                <label style={label}>
-                  <span style={labelText}>庫存</span>
-                  <input name="stock" type="number" defaultValue={p.stock} style={input} />
-                </label>
-                <label style={{ ...label, gridColumn: '1 / 3' }}>
-                  <span style={labelText}>圖片 URL</span>
-                  <input name="image_url" type="url" defaultValue={p.image_url ?? ''} style={input} />
-                </label>
-                <label style={label}>
-                  <span style={labelText}>狀態</span>
-                  <select name="status" defaultValue={p.status} style={input}>
+                <label style={label}><span style={labelText}>SKU</span><input name="sku" defaultValue={v.sku} required style={input} /></label>
+                <label style={label}><span style={labelText}>變體名(例 藍 M / 50ml)</span><input name="variant_name" defaultValue={v.variant_name} required style={input} /></label>
+                <label style={label}><span style={labelText}>售價</span><input name="price_twd" type="number" defaultValue={v.price_twd} required style={input} /></label>
+                <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={v.cost_twd ?? ''} style={input} /></label>
+                <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={v.stock} style={input} /></label>
+                <label style={label}><span style={labelText}>狀態</span>
+                  <select name="status" defaultValue={v.status} style={input}>
                     <option value="active">上架</option>
                     <option value="inactive">暫停</option>
                     <option value="discontinued">下架</option>
                   </select>
                 </label>
-                <label style={{ ...label, gridColumn: '1 / -1' }}>
-                  <span style={labelText}>描述</span>
-                  <textarea
-                    name="description"
-                    defaultValue={p.description ?? ''}
-                    rows={2}
-                    style={{ ...input, fontFamily: 'inherit' }}
-                  />
-                </label>
-                <button type="submit" style={{ ...btn, gridColumn: '1 / 3' }}>
-                  儲存
-                </button>
+                <button type="submit" style={btnSmall}>存</button>
               </form>
-              <form action={deleteProduct} style={{ marginTop: 8 }}>
-                <input type="hidden" name="id" value={p.id} />
+              <form action={deleteVariant} style={{ marginTop: 6 }}>
+                <input type="hidden" name="id" value={v.id} />
                 <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                <button type="submit" style={btnDanger}>
-                  刪除
-                </button>
+                <button type="submit" style={btnDanger}>刪變體</button>
               </form>
-            </li>
+            </div>
           ))}
-        </ul>
-      </section>
+
+          {/* 新增 variant form */}
+          <form action={createVariant} style={{ ...variantGrid, marginTop: 12, padding: 10, background: '#eef7ff', border: '1px dashed #6cf', borderRadius: 4 }}>
+            <input type="hidden" name="product_id" value={p.id} />
+            <input type="hidden" name="tenant_id" value={tenant.id} />
+            <input type="hidden" name="tenant_slug" value={tenant.slug} />
+            <label style={label}><span style={labelText}>SKU *</span><input name="sku" required style={input} /></label>
+            <label style={label}><span style={labelText}>變體名 * (例 粉 L)</span><input name="variant_name" required style={input} /></label>
+            <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} defaultValue={p.price_twd} /></label>
+            <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
+            <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
+            <span /> {/* spacer for status column alignment */}
+            <button type="submit" style={btnSmall}>+ 新增</button>
+          </form>
+        </article>
+      ))}
     </main>
   );
 }

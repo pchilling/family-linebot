@@ -104,6 +104,21 @@ export async function upsertUser(params: {
   return (inserted as { id: string }).id;
 }
 
+export type VariantRow = {
+  id: string;
+  product_id: string;
+  tenant_id: string;
+  sku: string;
+  variant_name: string;
+  attributes: Record<string, unknown> | null;
+  price_twd: number;
+  cost_twd: number | null;
+  stock: number;
+  image_url: string | null;
+  scan_id: string | null;
+  status: string;
+};
+
 export type ClassRow = {
   id: string;
   tenant_id: string;

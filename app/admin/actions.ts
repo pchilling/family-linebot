@@ -113,6 +113,7 @@ function revalidateProductRoutes(formData: FormData) {
 }
 
 export async function createProduct(formData: FormData) {
+  const tenantId = tenantIdFromForm(formData);
   const sku = String(formData.get('sku') || '').trim() || null;
   const name = String(formData.get('name')).trim();
   const description = String(formData.get('description') || '').trim() || null;
@@ -122,18 +123,95 @@ export async function createProduct(formData: FormData) {
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const category = String(formData.get('category') || '').trim() || null;
 
-  await supabaseAdmin.from('products').insert({
-    tenant_id: tenantIdFromForm(formData),
-    sku,
-    name,
-    description,
+  const { data: product, error } = await supabaseAdmin
+    .from('products')
+    .insert({
+      tenant_id: tenantId,
+      sku,
+      name,
+      description,
+      price_twd,
+      cost_twd,
+      stock,
+      image_url,
+      category,
+      status: 'active',
+    })
+    .select('id')
+    .single();
+  if (error || !product) {
+    console.error('[createProduct]', error);
+    revalidateProductRoutes(formData);
+    return;
+  }
+
+  // 同步建 default variant(沿用 product 同 sku;sku 為 null 就 AUTO 補)
+  const variantSku = sku || `AUTO-${product.id.slice(0, 8)}`;
+  const { error: vErr } = await supabaseAdmin.from('product_variants').insert({
+    tenant_id: tenantId,
+    product_id: product.id,
+    sku: variantSku,
+    variant_name: 'default',
     price_twd,
     cost_twd,
     stock,
     image_url,
-    category,
     status: 'active',
   });
+  if (vErr) console.error('[createProduct default variant]', vErr);
+
+  revalidateProductRoutes(formData);
+}
+
+// ====================
+// Variant CRUD(Phase 5.2 Stage B)
+// ====================
+
+export async function createVariant(formData: FormData) {
+  const tenantId = tenantIdFromForm(formData);
+  const product_id = String(formData.get('product_id'));
+  const sku = String(formData.get('sku')).trim();
+  const variant_name = String(formData.get('variant_name') || '').trim() || 'default';
+  const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
+  const cost_twd = numOrNull(formData.get('cost_twd'));
+  const stock = numOrNull(formData.get('stock')) ?? 0;
+  const image_url = String(formData.get('image_url') || '').trim() || null;
+  const scan_id = String(formData.get('scan_id') || '').trim() || null;
+
+  await supabaseAdmin.from('product_variants').insert({
+    tenant_id: tenantId,
+    product_id,
+    sku,
+    variant_name,
+    price_twd,
+    cost_twd,
+    stock,
+    image_url,
+    scan_id,
+    status: 'active',
+  });
+  revalidateProductRoutes(formData);
+}
+
+export async function updateVariant(formData: FormData) {
+  const id = String(formData.get('id'));
+  const sku = String(formData.get('sku')).trim();
+  const variant_name = String(formData.get('variant_name') || '').trim() || 'default';
+  const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
+  const cost_twd = numOrNull(formData.get('cost_twd'));
+  const stock = numOrNull(formData.get('stock')) ?? 0;
+  const status = String(formData.get('status') || 'active');
+
+  await supabaseAdmin
+    .from('product_variants')
+    .update({ sku, variant_name, price_twd, cost_twd, stock, status })
+    .eq('id', id);
+  revalidateProductRoutes(formData);
+}
+
+export async function deleteVariant(formData: FormData) {
+  const id = String(formData.get('id'));
+  await supabaseAdmin.from('product_variants').delete().eq('id', id);
   revalidateProductRoutes(formData);
 }
 
