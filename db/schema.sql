@@ -665,9 +665,15 @@ update order_items oi
 alter table stock_movements add column if not exists variant_id uuid references product_variants(id) on delete restrict;
 create index if not exists stock_movements_variant_idx on stock_movements(variant_id);
 
+-- stock_movements 是 append-only(prevent_stock_movement_update trigger 禁 UPDATE),
+-- backfill 暫關 trigger 再開
+alter table stock_movements disable trigger stock_movements_no_update;
+
 update stock_movements sm
   set variant_id = pv.id
   from product_variants pv
   where sm.variant_id is null
     and pv.product_id = sm.product_id
     and pv.variant_name = 'default';
+
+alter table stock_movements enable trigger stock_movements_no_update;
