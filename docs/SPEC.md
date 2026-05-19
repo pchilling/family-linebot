@@ -94,12 +94,21 @@ messages
 ## 六、路由結構
 
 ```
-/                       首頁(placeholder)
-/api/webhook            LINE webhook(POST event / GET 平台 verify)
-/admin/login            管理員登入(Supabase Auth)
-/admin/classes          課程 CRUD(列表 + 新增 + inline 編輯 / 刪除)
-/m/member               LIFF 會員專區(用戶填 / 改自己會員資料)
+/                            首頁(placeholder)
+/api/webhook                 LINE webhook(POST event / GET 平台 verify)
+/admin                       redirect → /admin/oilswa/products(預設 tenant)
+/admin/login                 管理員登入(Supabase Auth)
+/admin/[tenant]/classes      課程 CRUD
+/admin/[tenant]/products     商品 CRUD + nested variants(色 × 尺寸 × SKU)
+/admin/[tenant]/orders       訂單列表
+/admin/[tenant]/orders/[id]  訂單詳情 + 改狀態
+/admin/[tenant]/customers    客戶名單 + 訂單統計
+/admin/[tenant]/inventory    庫存追蹤 + 異動歷史
+/m/member                    LIFF 會員專區
+/m/shop                      LIFF 商品瀏覽 + 購物車 + 下單(legacy,Stage C 改 tenant-aware)
 ```
+
+對齊 STALL_ARCHITECTURE.md v1.1 第四章雙入口架構(`/[slug]` 公開網站 + `/m/[slug]` LIFF 入口 + `/admin/[tenant]` 後台)。
 
 ---
 
@@ -113,8 +122,17 @@ messages
 
 ## 八、開發狀態
 
-- ✅ **v1 平台部署**(2026-05-19):Next.js + Vercel + Supabase + LINE webhook + Rich Menu
+- ✅ **v1 平台部署**(2026-05-18):Next.js + Vercel + Supabase + LINE webhook + Rich Menu
 - ✅ **Phase 1**:本月課程從 DB 拉(filter future + Asia/Taipei tz)
-- ✅ **Phase 2**:`/admin/classes` CRUD(login + middleware + server actions)
+- ✅ **Phase 2**:admin classes CRUD(login + middleware + server actions)
 - ✅ **Phase 3**:`/m/member` LIFF 會員專區(填 / 改個資)
-- ⏳ **Phase 4 (next)**:課程報名 / 出席記錄 / 商品 / 訂單(月 1-3 milestone 後續)
+- ✅ **Phase 4a/b/c**:線 2 月 1 — products / orders / order_items / stock_movements schema + admin CRUD + LIFF `/m/shop` 下單流程
+- ✅ **Stall Phase A**(2026-05-19):平台層 schema migration — `platform_users` / `tenant_members` / tenants 加 slug/plan/features 等 + Cyndi tenant 建立(Peter 代管)
+- ✅ **Phase 4-Alpha**:admin routes 全 tenant-aware(`/admin/[tenant]/products/orders/classes/customers/inventory`)
+- ✅ **Variant Stage A**:`product_variants` 表 + seed default + `order_items` / `stock_movements` 加 variant_id + backfill
+- ✅ **Variant Stage B**:admin/products page 加 nested variant CRUD UI
+- ⏳ **Variant Stage C(下波)**:LIFF / inventory / orders detail 切 variant_id;trigger 切 variant.stock
+- ⏳ **Phase 4-Gamma**:公開網站 `/[slug]` + LINE Login + guest checkout
+- ⏳ **Phase 5(待評估)**:email 註冊 + 美感主題 + 金流
+
+詳細 commit 紀錄 + Outstanding 見 `progress.md`。Stall 架構 source of truth 為 `STALL_ARCHITECTURE.md`(SPEC 與其衝突時以 STALL 為準)。

@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-19
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-19(Stage B 收尾)
 
 ---
 
@@ -57,42 +57,81 @@ family-linebot 演化為 Stall(多租戶電商平台)第一步 — schema 拆分
 oilswa tenant `8106161d-ad82-4bad-ba61-da1aac65bb2c` (slug=oilswa, plan=enterprise)
 Cyndi tenant `8c032fc3-880a-4e96-9dc4-73684511f192`(slug=cyndi, plan=pro, Peter 代管)
 
+### Phase 4-Alpha admin tenant-aware(2026-05-19)
+
+對齊 STALL_ARCHITECTURE v1.1 第七章 Phase 4-Alpha 6 個 task,oilswa + Cyndi 平行。
+
+| 階段 | 內容 | Commit |
+|---|---|---|
+| 4α.1 | `/admin/[tenant]/products` prototype + getTenantBySlug helper + tenant layout nav | `cc8420f` |
+| 4α.2 | `/admin/[tenant]/classes` + `/orders` + `/orders/[id]` 全 migrate + 舊 routes redirect | `38b01b7` |
+| 4α.3 | `/admin/[tenant]/customers`(列 users + aggregate 訂單數/累積消費)+ `/admin/[tenant]/inventory`(低庫存警告 + stock_movements 異動表) | `303e33c` |
+
+URL pattern:
+- 預設 `/admin` → redirect `/admin/oilswa/products`
+- oilswa:課程 / 商品 / 訂單 / 客戶 / 庫存
+- cyndi:課程 / 商品 / 訂單 / 客戶 / 庫存(課程 tab 對 cyndi 空)
+- 舊 routes 全 redirect 預設 tenant
+
+### Variant 重構 Stage A 平台層 schema(2026-05-19)
+
+對齊 GraceHan 拆 product / variant 兩層,給 Cyndi 童裝色 × 尺寸 × SKU 各自庫存。
+
+| 階段 | 內容 | Commit |
+|---|---|---|
+| 5.2.A | `product_variants` 表 + seed default variants from products + alter order_items/stock_movements 加 variant_id + backfill | `15b1e63` / `f8c8e0e` |
+
+兼容性:
+- `order_items.variant_id` / `stock_movements.variant_id` 暫 nullable
+- 既有 `products.sku` / `price_twd` / `stock` 保留(legacy)
+- Stage C 才切 not null + deprecate
+
+### Variant 重構 Stage B admin UI(2026-05-19)
+
+| 階段 | 內容 | Commit |
+|---|---|---|
+| 5.2.B | `VariantRow` type + variant CRUD actions + `createProduct` 同步建 default variant + admin/products page 加 nested variant inline 編輯/新增/刪 | `0e98cea` |
+
 ### Outstanding
 
-**Phase 4-Alpha 進度(STALL_ARCHITECTURE v1.1 第七章)**:
-- ✅ Phase 4 SQL(products / orders / order_items / stock_movements)
-- ✅ Cyndi tenant 建立(slug=cyndi)
-- ⏳ `/admin/[tenant]/products` CRUD(現有路由改 tenant-aware)
-- ⏳ `/admin/[tenant]/orders` 管理
-- ⏳ `/admin/[tenant]/customers` 客戶名單(tenant_customers,但需 Phase B rename users → tenant_customers 才能用)
-- ⏳ `/admin/[tenant]/inventory` 庫存追蹤
+**Phase 4-Alpha 完成 ✅**(6 個 task 全 done)
 
-**Phase 4-Beta**(LIFF tenant-aware)/ **Phase 4-Gamma**(公開網站)/ **Phase 4-Delta**(驗收)、**Phase 5**(email + 主題 + 金流)— 詳見 STALL_ARCHITECTURE.md。
+**Phase 4-Beta / Variant Stage C(下波合併)**:
+- LIFF `/m/shop` placeOrder 用 variant_id 而非 product_id
+- LIFF 商品詳情顯示 variant 選擇器(色 / 尺寸下拉)
+- inventory page 改列 variants 不是 products
+- orders detail 顯示 variant_name(join product_variants)
+- stock_movements trigger 切 variant.stock(目前 trigger 還 update products.stock)
+- Stage C 收尾後 deprecate products.sku / price_twd / cost_twd / stock(改 view 或 drop)
 
-**Stall Phase B code refactor 待做**:
-- users → tenant_customers rename
-- orders.user_id → platform_user_id rename + data migration
-- webhook / LIFF / admin code 改引用 platform_user_id
+**Phase 4-Gamma(公開網站,Week 5-8)**:
+- `/[slug]` 攤位首頁 + SEO
+- `/[slug]/p/[product]` 商品詳情公開版
+- `/login` LINE Login + `/account` 跨 tenant 個資 + `/account/orders` 訂單歷史
+- guest checkout(orders.guest_email / guest_phone 已預埋)
+
+**Phase 4-Delta(Week 9-12)**:員工驗收 + UX 微調
+
+**Phase 5(待評估)**:email 註冊 + 3 套美感主題 + 金流(ECPay / LINE Pay)
+
+**Stall Phase B users → tenant_customers rename(待 Variant Stage C 一併)**
 
 **Tech debt**:
-- Peter platform_users.id (`59f07f39-...`)跟 users.id (`c5a10ccb-...`)沒對齊(Phase A migration 內 placeholder INSERT 順序問題;Option B fix SQL 未跑)— Phase B code refactor 時用 `line_user_id` 重建 mapping
-- Peter platform_users.display_name 是 hardcode 「Peter」不是 LINE 真實「P🐻」(同根因)
+- Peter platform_users.id (`59f07f39-...`)跟 users.id (`c5a10ccb-...`)沒對齊(Phase A placeholder 順序問題;Option B fix SQL 未跑)— code refactor 用 `line_user_id` 重建 mapping
+- Peter platform_users.display_name = hardcode 「Peter」(同根因,真實 LINE 名是 P🐻)
+- `product_variants.stock` 跟 `products.stock` 暫雙寫(Stage C trigger 切到 variant 層才同步)
 - Phase 2 啟用 email / Google auth 時,需 backfill 既有 platform_users 的 LINE auth method 到 `platform_user_auth_methods` 表
 
-### ⚠️ 兩條線進度差(2026-05-19 狀態)
-
-提案 v5 第 60 行寫「兩條線同時推進」,但實際 v1 + Phase 1-3 完成度:
+### 線 1 / 線 2 進度(2026-05-19 Stage B 收尾)
 
 | 線 | 進度 |
 |---|---|
-| 線 1(三合一 LINE@) | 月 1 約 **60%**(學員資料庫 LIFF + 本月課程,缺出席紀錄) |
-| 線 2(愛油哇後台) | **0%**(商品 / 訂單 / 客戶 / 出貨 全未動) |
+| 線 1(三合一 LINE@) | 月 1 約 **60%**(學員資料庫 LIFF + 本月課程,缺出席紀錄 / 報名活動) |
+| 線 2(愛油哇後台) | 月 1 **80%**(商品 + 訂單 + 客戶 + 庫存 admin + LIFF 商品瀏覽下單 + variant 拆細;缺 LIFF 變體選擇 / 出貨流程細化) |
 
-線 2(爸媽最有感的後台)還沒啟動。**Peter 需要回頭跟家人 sync 預期**:
-- 「線 1 先做完月 1,線 2 從下個月開始」 — 或
-- 「下週交錯啟動線 2,週末規劃 schema + 工程清單」
+線 2 大進展。**Cyndi tenant(童裝)也可直接用同套 admin** — variant Stage B 讓 Cyndi 可加多色 × 多尺寸 product。
 
-不要等三個月到了才發現線 2 沒做完。
+下個 milestone:Variant Stage C 切 LIFF + inventory + orders → 線 2 月 1 真正收尾 + Phase 4-Gamma 公開網站開始。
 
 ---
 
@@ -327,4 +366,14 @@ f5bab8e  feat: 本月課程只列未來 + 今天
 f56f242  feat: LIFF 會員專區(Phase 3)
 6a9d69b  refactor: Rich Menu 第 4 格改「會員中心」(LIFF URI)
 11f736c  fix: LIFF form 加 inline error banner
+4abb3c4  feat: Stall Phase A migration — platform 層 schema
+899901f  fix: Phase A round 2(pg_advisory_xact_lock / slug fallback / merged index)
+51c7e03  feat: STALL_ARCHITECTURE v1.1 — 雙入口 + Cyndi tenant + schema delta
+0ae4da4  fix: Cyndi tenant features 從 {catalog:true} 改 {}
+cc8420f  feat: Phase 4-Alpha task 3 — /admin/[tenant]/products tenant-aware
+38b01b7  feat: Phase 4-Alpha task 3-4 完整 — admin routes tenant-aware
+303e33c  feat: Phase 4-Alpha task 5+6 — customers + inventory pages
+15b1e63  feat: Phase 5.2 Variant Stage A schema(product_variants + backfill)
+f8c8e0e  fix: stock_movements backfill 暫關 append-only trigger
+0e98cea  feat: Variant Stage B — admin/products page 加 nested variant CRUD
 ```

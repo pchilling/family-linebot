@@ -29,31 +29,48 @@ npm run dev           # http://localhost:3000
 
 ```
 app/
-  api/webhook/route.ts    LINE webhook handler
-  admin/                  管理員後台(Supabase Auth)
-    login/                登入
-    classes/              課程 CRUD
+  api/webhook/route.ts             LINE webhook handler
+  admin/
+    login/                         管理員登入(Supabase Auth)
+    [tenant]/                      tenant-aware admin(layout 有 nav)
+      classes/                     課程 CRUD(oilswa 用)
+      products/                    商品 + nested variants CRUD
+      orders/                      訂單列表
+      orders/[id]/                 訂單詳情 + 改狀態
+      customers/                   客戶名單 + 訂單統計
+      inventory/                   庫存追蹤 + 異動歷史
+    {classes,products,orders}/     legacy routes redirect 預設 tenant
   m/
-    member/               LIFF 會員專區(用戶填會員資料)
+    member/                        LIFF 會員專區
+    shop/                          LIFF 商品瀏覽 + 購物車 + 下單(legacy,Stage C 改 tenant-aware)
 lib/
-  line.ts                 LINE SDK + 簽章驗證 + describeEvent
-  supabase.ts             admin client(service_role)+ classes / users helper
-  supabase-server.ts      SSR-aware client(cookie session,給 admin 用)
-db/schema.sql             Postgres schema
-scripts/setup-rich-menu.ts  Rich Menu 建立 / 上傳 script
-middleware.ts             refresh session + protect /admin/*
+  line.ts                          LINE SDK + 簽章驗證 + describeEvent
+  supabase.ts                      admin client(service_role)+ helpers
+  supabase-server.ts               SSR-aware client(cookie session)
+db/schema.sql                      Postgres schema(累積 SQL,fresh deploy)
+scripts/setup-rich-menu.ts         Rich Menu 建立 / 上傳 script
+middleware.ts                      refresh session + protect /admin/*
 docs/
-  SPEC.md                 規格(功能 milestone + Rich Menu + tech stack)
-  progress.md             進度 + flows + 部署紀錄
+  STALL_ARCHITECTURE.md            Stall 架構決定(source of truth)
+  Stall_README.md                  Stall 商業策略
+  SPEC.md                          family-linebot 工程規格
+  progress.md                      進度 + flows + 部署紀錄
 ```
 
 ## 進度
 
-v1 平台上線(2026-05-18)+ Phase 1-3 完成(本月課程 from DB / admin CRUD / LIFF 會員專區)。完整 timeline 見 `docs/progress.md`。
+- v1 平台上線(2026-05-18)
+- Phase 1-3 完成:本月課程 / admin CRUD / LIFF 會員專區
+- Phase 4a-c 完成:線 2 月 1(商品 / 訂單 / 庫存 + LIFF 下單)
+- Stall Phase A 完成:platform_users / tenant_customers 拆分 + Cyndi tenant
+- Phase 4-Alpha 完成:admin routes 全 tenant-aware(`/admin/[tenant]/...`)
+- Variant Stage A+B 完成:product / variant 兩層(對齊 GraceHan)
+
+下一個 milestone:Variant Stage C(LIFF / inventory / orders 切 variant_id)+ Phase 4-Gamma(公開網站)。詳見 `docs/progress.md`。
 
 ## 設計
 
-- **Multi-tenant**:從 day 1 用 `tenant_id` 隔離,未來複製給下線領袖不需重做架構
+- **Multi-tenant** + **Stall 平台架構**:詳見 `docs/STALL_ARCHITECTURE.md`(source of truth)
 - **Rich Menu**:5 格(本月課程 / 最新消息 / 商品專區 / 會員中心 / 專屬客服)— 詳見 `docs/SPEC.md` 第三章
 - **3 個月 milestone**:詳見 `docs/SPEC.md` 第二章
 

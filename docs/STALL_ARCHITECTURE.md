@@ -247,13 +247,15 @@ pv_records                ← Phase 3(NEO 特用)
 
 **目標**:員工(小編、會計、出貨)可以開始用系統,**取代手寫 / Excel**。
 
-**Tasks**:
+**Tasks**(全 ✅ done 2026-05-19):
 1. ✅ 跑 Phase 4 SQL:products / orders / order_items / stock_movements
 2. ✅ 建 Cyndi tenant(`slug='cyndi'`, `plan='pro'`)
-3. ⏳ `/admin/[tenant]/products` 商品 CRUD(route 改 tenant-aware)
-4. ⏳ `/admin/[tenant]/orders` 訂單管理
-5. ⏳ `/admin/[tenant]/customers` 客戶名單(tenant_customers)
-6. ⏳ `/admin/[tenant]/inventory` 庫存追蹤(stock_movements)
+3. ✅ `/admin/[tenant]/products` 商品 CRUD + nested variants(色 × 尺寸 × SKU)
+4. ✅ `/admin/[tenant]/orders` 列表 + `/orders/[id]` 詳情 + 改狀態
+5. ✅ `/admin/[tenant]/customers` 客戶名單 + 訂單統計 + 累積消費
+6. ✅ `/admin/[tenant]/inventory` 庫存追蹤 + 低庫存警告 + 異動歷史
+7. ✅ `/admin/[tenant]/classes` 課程 CRUD(oilswa 用)
+8. ✅ Variant Stage A+B:`product_variants` 表 + admin nested CRUD UI
 
 **對應提案**:家族提案 5.2「愛油哇商行管理系統」月 1-2 ✅
 
