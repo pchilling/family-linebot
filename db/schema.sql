@@ -585,13 +585,14 @@ alter table orders add column if not exists guest_phone text;
 -- ====================
 -- Cyndi tenant(Phase 4-Alpha,Peter 代管,暫不接 LINE Bot)
 -- ====================
+-- features 留空 jsonb(Phase 1 沒任何 flag 控制邏輯,真要啟用 catalog 等 Phase 2 再加)
 insert into tenants (slug, name, owner_user_id, plan, features, status)
   values (
     'cyndi',
     'Cyndi 童裝代購',
     (select id from platform_users where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924'),
     'pro',
-    '{"catalog": true}'::jsonb,
+    '{}'::jsonb,
     'active'
   )
   on conflict (slug) do nothing;
