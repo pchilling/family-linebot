@@ -444,3 +444,86 @@ alter table products enable row level security;
 alter table orders enable row level security;
 alter table order_items enable row level security;
 alter table stock_movements enable row level security;
+
+-- ====================
+-- Phase 5:Stall 平台層 migration
+-- (對齊 STALL_ARCHITECTURE Step 1, 2, 4, 5;oilswa 為第一個 Stall tenant)
+-- Step 3 / 6(users→tenant_customers rename + orders.platform_user_id)留 code refactor session 才做
+-- ====================
+
+-- platform_users:平台層「人」(跨 tenant)
+create table platform_users (
+  id uuid primary key default gen_random_uuid(),
+  line_user_id text unique,
+  phone text,
+  email text,
+  display_name text,
+  picture_url text,
+  merged_into_user_id uuid references platform_users(id),
+  status text not null default 'active'
+    check (status in ('active', 'merged', 'deleted')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create trigger platform_users_updated_at before update on platform_users
+  for each row execute function set_updated_at();
+
+-- 搬 users → platform_users(id 保持一致,便於後續 FK 對應)
+insert into platform_users (id, line_user_id, display_name, picture_url, created_at, updated_at)
+  select id, line_user_id, display_name, picture_url, added_at, updated_at
+    from users
+  on conflict (line_user_id) do nothing;
+
+-- tenants 加 Stall 欄位
+alter table tenants add column if not exists slug text;
+alter table tenants add column if not exists owner_user_id uuid references platform_users(id);
+alter table tenants add column if not exists plan text default 'free'
+  check (plan in ('free', 'plus', 'pro', 'enterprise'));
+alter table tenants add column if not exists status text default 'active'
+  check (status in ('active', 'hibernated', 'suspended', 'deleted'));
+alter table tenants add column if not exists features jsonb default '{}'::jsonb;
+alter table tenants add column if not exists theme_id text default 'default'
+  check (theme_id in ('default', 'apothecary', 'editorial', 'corner-store'));
+alter table tenants add column if not exists theme_overrides jsonb default '{}'::jsonb;
+
+-- oilswa 設 slug / plan / owner
+update tenants
+  set slug = 'oilswa',
+      plan = 'enterprise',
+      owner_user_id = (select id from platform_users where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924')
+  where id = '8106161d-ad82-4bad-ba61-da1aac65bb2c';
+
+alter table tenants alter column slug set not null;
+alter table tenants add constraint tenants_slug_unique unique (slug);
+
+-- tenant_members:誰可以管哪個 tenant
+create table tenant_members (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  user_id uuid not null references platform_users(id) on delete cascade,
+  role text not null default 'staff'
+    check (role in ('owner', 'admin', 'staff')),
+  created_at timestamptz not null default now(),
+  unique (tenant_id, user_id)
+);
+
+-- Peter 為 oilswa owner
+insert into tenant_members (tenant_id, user_id, role)
+  select '8106161d-ad82-4bad-ba61-da1aac65bb2c', id, 'owner'
+    from platform_users
+    where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924';
+
+-- products 預埋 catalog hook(Phase 2 才寫邏輯,Phase 1 全 null)
+alter table products add column if not exists source_product_id uuid references products(id);
+alter table products add column if not exists source_tenant_id uuid references tenants(id);
+alter table products add column if not exists revenue_share_pct int
+  check (revenue_share_pct between 0 and 100);
+
+-- orders 加 source(web / liff / manual / line_chat 區分)
+alter table orders add column if not exists source text not null default 'manual'
+  check (source in ('web', 'liff', 'manual', 'line_chat'));
+
+-- 新表 RLS enable
+alter table platform_users enable row level security;
+alter table tenant_members enable row level security;
