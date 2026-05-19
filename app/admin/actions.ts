@@ -7,6 +7,19 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
 
+// tenant_id 從 formData 取(舊 routes 沒帶就 fallback env)
+function tIdFromForm(formData: FormData): string {
+  const fromForm = String(formData.get('tenant_id') || '').trim();
+  return fromForm || TENANT_ID;
+}
+
+// revalidate 新 + 舊 admin path
+function revalForRoute(formData: FormData, suffix: string) {
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  if (slug) revalidatePath(`/admin/${slug}/${suffix}`);
+  revalidatePath(`/admin/${suffix}`); // legacy
+}
+
 export async function signIn(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const email = String(formData.get('email'));
@@ -40,7 +53,7 @@ export async function createClass(formData: FormData) {
   const duration_min = Number(formData.get('duration_min') || 90);
 
   await supabaseAdmin.from('classes').insert({
-    tenant_id: TENANT_ID,
+    tenant_id: tIdFromForm(formData),
     region_id,
     name,
     scheduled_at,
@@ -50,7 +63,7 @@ export async function createClass(formData: FormData) {
     duration_min,
     status: 'open',
   });
-  revalidatePath('/admin/classes');
+  revalForRoute(formData, 'classes');
 }
 
 export async function updateClass(formData: FormData) {
@@ -67,13 +80,13 @@ export async function updateClass(formData: FormData) {
     .from('classes')
     .update({ region_id, name, scheduled_at, instructor, is_paid, price_twd })
     .eq('id', id);
-  revalidatePath('/admin/classes');
+  revalForRoute(formData, 'classes');
 }
 
 export async function deleteClass(formData: FormData) {
   const id = String(formData.get('id'));
   await supabaseAdmin.from('classes').delete().eq('id', id);
-  revalidatePath('/admin/classes');
+  revalForRoute(formData, 'classes');
 }
 
 // ====================
@@ -183,6 +196,11 @@ export async function updateOrder(formData: FormData) {
       note,
     })
     .eq('id', id);
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  if (slug) {
+    revalidatePath(`/admin/${slug}/orders/${id}`);
+    revalidatePath(`/admin/${slug}/orders`);
+  }
   revalidatePath(`/admin/orders/${id}`);
   revalidatePath('/admin/orders');
 }
