@@ -469,6 +469,15 @@ create table platform_users (
 create trigger platform_users_updated_at before update on platform_users
   for each row execute function set_updated_at();
 
+-- 追溯被 merge 帳號用(partial index 省空間)
+create index platform_users_merged_idx on platform_users(merged_into_user_id)
+  where merged_into_user_id is not null;
+
+-- 確保 Peter 在 platform_users 內(若還沒加好友 users 沒記就走這條)
+insert into platform_users (line_user_id, display_name, status)
+  values ('U25423dee75701ec1e3b8bdae2f826924', 'Peter', 'active')
+  on conflict (line_user_id) do nothing;
+
 -- 搬 users → platform_users(id 保持一致,便於後續 FK 對應)
 insert into platform_users (id, line_user_id, display_name, picture_url, created_at, updated_at)
   select id, line_user_id, display_name, picture_url, added_at, updated_at
@@ -493,6 +502,9 @@ update tenants
       plan = 'enterprise',
       owner_user_id = (select id from platform_users where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924')
   where id = '8106161d-ad82-4bad-ba61-da1aac65bb2c';
+
+-- 防呆:任何漏 set 的 tenant 自動帶 fallback slug
+update tenants set slug = 'tenant-' || substring(id::text, 1, 8) where slug is null;
 
 alter table tenants alter column slug set not null;
 alter table tenants add constraint tenants_slug_unique unique (slug);
