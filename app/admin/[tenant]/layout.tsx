@@ -49,6 +49,18 @@ export default async function TenantAdminLayout({
         >
           訂單
         </Link>
+        <Link
+          href={`/admin/${tenant.slug}/customers`}
+          style={{ color: '#555', textDecoration: 'none' }}
+        >
+          客戶
+        </Link>
+        <Link
+          href={`/admin/${tenant.slug}/inventory`}
+          style={{ color: '#555', textDecoration: 'none' }}
+        >
+          庫存
+        </Link>
       </nav>
       {children}
     </div>
