@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21(Admin 介面 + 訂單體驗強化:nav + settings + contact_info + lookup + copy button)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21(Phase 6.1 教室簽到 + 修 deploy 卡住的 type error)
 
 ---
 
@@ -244,6 +244,53 @@ alter table tenants add column if not exists contact_info text;
 - Settings save 沒 toast / 錯誤訊息展示(server action 回 ok/error 但 UI 沒顯示)
 - Tenant switcher 列**所有** active tenant(沒做 tenant_members 過濾);多人登入時要加 RBAC
 - Order lookup 電話比對**完全相等**(沒 normalize 格式,`0900-000-000` ≠ `0900000000`)
+
+### Phase 6.1 教室簽到(2026-05-21,線 1 三合一愛油哇月 1 補完)
+
+學員透過教室 QR Code 自助簽到 + admin 手動補簽(Wave 3 還沒做)。設計上**只走 QR**:中老年學員不打 keyword、不點 Rich Menu 學東西,QR 是最簡單的 in-person 觸發。
+
+**Schema(Phase 6.1)**:
+- `attendances` 表(tenant_id / class_id / user_id / checked_in_at / method / created_by / note)
+- `unique(class_id, user_id)` 防同人同課重簽
+- `method` 4 種:liff / qr / manual / admin
+- `created_by → platform_users`:manual / admin 才填(audit 用)
+- `check_attendance_tenant` trigger:tenant_id 必須跟 classes.tenant_id 跟 users.tenant_id **兩邊都一致**(對齊 order_items_check_tenant pattern + 多檢查 user,防 oilswa 學員被誤建到 cyndi 簽到)
+- `user_id → users(id)`:跟 orders/messages 一致,等 Phase B 一次全 migrate 到 platform_user_id
+
+**Code**:
+- `app/m/checkin/page.tsx`(client LIFF,新):
+  - 沒 `?class_id` → 顯示「請掃教室 QR Code」引導
+  - 有 `?class_id` → 自動簽到,結果以綠卡(✓ 簽到成功)/ 紅卡(已簽 / 找不到 / 已取消)顯示
+  - 全在 LIFF 內,學員體驗:掃 QR → 看到結果 → 結束
+- `app/m/checkin/actions.ts`(server,新):
+  - verifyIdToken(用 NEXT_PUBLIC_LIFF_ID_CHECKIN / LIFF_CHANNEL_ID_CHECKIN fallback 既有 LIFF_CHANNEL_ID)
+  - `loadTodayClasses`(目前 page 沒呼叫,留給未來 admin / debug)
+  - `checkin`:check class + insert attendance,23505 unique violation 回友善「已簽過」
+
+**入口**:
+- 教室 QR Code:`https://liff.line.me/2010125926-M0ozLk50?class_id={class.id UUID}` — 老師印貼教室
+- ❌ Keyword「簽到」**沒做**(設計決定:老人不打字)
+- ❌ Rich Menu 一格**沒做**(保留「📰 最新消息」placeholder)
+- ⏳ Admin 手動勾 — Wave 3 還沒做
+
+**Setup**:
+- LIFF channel:`2010125926-M0ozLk50`,endpoint `/m/checkin`(同 LINE Login channel,LIFF_CHANNEL_ID 共用)
+- env vars:本機 `.env` + Vercel production 都加 `NEXT_PUBLIC_LIFF_ID_CHECKIN=2010125926-M0ozLk50`
+
+### 修 deploy 卡住的 type error(2026-05-21)
+
+**重大發現**:5/20 那批 5 個 commit(Phase 4-Gamma 公開網站 + admin 改造 + spec)推上 GitHub 後,**Vercel build 一直靜默失敗**,因此 production 一直跑舊版(Variant Stage B)。今天才發現 — Webhook 沒回應簽到 keyword、`/m/checkin` 404、追下去才看出 deploy 沒過。
+
+**3 個 TypeScript build error 修了**:
+1. `app/[slug]/order/[order_no]/page.tsx`:`Row` type 跟 supabase 回傳結構不合(OrderDetail 有 items 但 DB 是 order_items)→ 改用 `Omit<OrderDetail, 'items'>` + cast through unknown
+2. `app/admin/[tenant]/settings/actions.ts`:React 19 `<form action>` 要 `Promise<void>`,改 `throw on error` 取代 return result 物件(失去 toast 能力,Wave 4 加 useActionState 補)
+3. `app/m/checkin/actions.ts`:supabase 對 *-to-one regions join 推成 array → cast through unknown 繞過
+
+**Bonus fix**:
+- `package.json` setup:rich-menu 改用 `.env`(專案早已從 .env.local 遷移)
+- Rich Menu uploader 重跑 + 拿到新 richMenuId(`richmenu-c3bb1b7a3bc4e5415b663de524c1359b`,update 進 tenants.rich_menu_id)
+
+**Lesson**:Vercel build status 沒在 watch — 之後 push 後要 curl 確認(`curl -s -o /dev/null -w "%{http_code}" production-url/some-new-route`)。或啟 GitHub Actions / Vercel Slack webhook。
 
 ### Outstanding
 
