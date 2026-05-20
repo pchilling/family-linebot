@@ -644,6 +644,65 @@ insert into tenant_members (tenant_id, user_id, role)
 alter table tenants add column if not exists contact_info text;
 
 -- ====================
+-- Phase 6.1:教室簽到 + 出席紀錄(2026-05-21,線 1 三合一愛油哇月 1 補完)
+-- 學員 LIFF 自助簽到 + 老師 admin 手動勾;一個學員同一堂課 unique
+-- method 來源:
+--   - liff   = 從 Rich Menu / keyword 進 /m/checkin 主動按按鈕(無 query)
+--   - qr     = 掃教室 QR(URL 帶 ?class_id=xxx,LIFF 自動簽)
+--   - manual = admin 手動勾(老師後台幫沒帶手機的學員補簽)
+--   - admin  = admin 後台批次補登
+-- user_id → users(id):跟 orders.user_id / messages.user_id 一致。
+--           Phase B 會一次 migrate 全部到 platform_user_id(等 migration plan + staging 測)
+-- ====================
+create table if not exists attendances (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  class_id uuid not null references classes(id) on delete restrict,
+  user_id uuid not null references users(id) on delete restrict,
+  checked_in_at timestamptz not null default now(),
+  method text not null default 'liff'
+    check (method in ('liff', 'qr', 'manual', 'admin')),
+  created_by uuid references platform_users(id),  -- manual/admin 時記是誰加的,liff/qr = null
+  note text,
+  unique (class_id, user_id)
+);
+
+create index if not exists attendances_class_idx on attendances(class_id);
+create index if not exists attendances_user_idx on attendances(user_id);
+create index if not exists attendances_tenant_created_idx on attendances(tenant_id, checked_in_at desc);
+
+-- attendances.tenant_id 必須跟 classes.tenant_id + users.tenant_id 兩邊都一致
+-- (防 app code bug:oilswa 學員被誤建到 cyndi 簽到、或反過來)
+-- 對齊 order_items_check_tenant pattern,但多檢查 user
+create or replace function check_attendance_tenant()
+returns trigger as $$
+declare
+  class_tenant uuid;
+  user_tenant uuid;
+begin
+  select tenant_id into class_tenant from classes where id = new.class_id;
+  if class_tenant != new.tenant_id then
+    raise exception 'attendances.tenant_id (%) must match classes.tenant_id (%)',
+      new.tenant_id, class_tenant;
+  end if;
+
+  select tenant_id into user_tenant from users where id = new.user_id;
+  if user_tenant != new.tenant_id then
+    raise exception 'attendances.tenant_id (%) must match users.tenant_id (%)',
+      new.tenant_id, user_tenant;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger attendances_check_tenant
+  before insert or update on attendances
+  for each row execute function check_attendance_tenant();
+
+alter table attendances enable row level security;
+
+-- ====================
 -- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
 -- Stage A:加 product_variants + order_items / stock_movements 加 variant_id +
 --          seed default variants(每個既有 product 1 個 'default' variant)+ backfill
