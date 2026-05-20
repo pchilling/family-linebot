@@ -28,43 +28,18 @@ export function verifySignature(rawBody: string, signature: string | null): bool
   return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
-// 教室簽到 LIFF URL(env 未設時 fallback,提示客服)
-const CHECKIN_LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID_CHECKIN ?? '';
-const CHECKIN_LIFF_URL = CHECKIN_LIFF_ID
-  ? `https://liff.line.me/${CHECKIN_LIFF_ID}`
-  : '';
-
-function getCheckinReply(): string {
-  if (!CHECKIN_LIFF_URL) {
-    return '✋ 簽到功能設定中,請稍候再試。';
-  }
-  return [
-    '✋ 教室簽到',
-    '',
-    '點下方連結進入簽到頁面:',
-    CHECKIN_LIFF_URL,
-    '',
-    '(到教室現場也可直接掃 QR code 自動簽到)',
-  ].join('\n');
-}
-
 /**
  * 取 event 的回覆文字
- * - message:text 訊息 keyword 觸發(簽到 / sign in)+ echo fallback
+ * - message:echo
  * - follow:歡迎
  * - postback:根據 action= 切 Rich Menu handler
+ *
+ * 簽到不走 keyword(老人不打字),只走教室 QR → /m/checkin?class_id=xxx
  */
 export function describeEvent(event: WebhookEvent): string {
   switch (event.type) {
     case 'message':
-      if (event.message.type === 'text') {
-        const text = event.message.text.trim();
-        // keyword 簽到 / sign in / checkin / check in(中英大小寫包容)
-        if (/^(簽到|sign[- ]?in|check[- ]?in)$/i.test(text)) {
-          return getCheckinReply();
-        }
-        return `你說:${event.message.text}`;
-      }
+      if (event.message.type === 'text') return `你說:${event.message.text}`;
       return `[收到 ${event.message.type} 訊息]`;
     case 'follow':
       return '歡迎加入!請點下方主選單開始使用 🙂';
