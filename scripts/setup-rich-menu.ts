@@ -51,17 +51,6 @@ async function main() {
   const BOT_W = 1250;
   const H = 843;
 
-  // 簽到 LIFF(2026-05-21 替換原本「最新消息」格)
-  const checkinLiffId = process.env.NEXT_PUBLIC_LIFF_ID_CHECKIN;
-  if (!checkinLiffId) {
-    console.warn(
-      '⚠️  NEXT_PUBLIC_LIFF_ID_CHECKIN 沒設,Rich Menu「簽到」格會用 placeholder URL',
-    );
-  }
-  const checkinUri = checkinLiffId
-    ? `https://liff.line.me/${checkinLiffId}`
-    : 'https://example.com/checkin-liff-not-set';
-
   const richMenu = {
     size: { width: 2500, height: 1686 },
     selected: true,
@@ -74,9 +63,9 @@ async function main() {
         action: { type: 'postback' as const, data: 'action=monthly-classes', displayText: '📅 本月課程' },
       },
       {
-        // 第 2 格:✋ 簽到(2026-05-21 替換原 placeholder「📰 最新消息」)
+        // 第 2 格:📰 最新消息 placeholder。簽到改走 keyword「簽到」+ QR 掃 LIFF
         bounds: { x: TOP_W1, y: 0, width: TOP_W2, height: H },
-        action: { type: 'uri' as const, uri: checkinUri, label: '✋ 簽到' },
+        action: { type: 'postback' as const, data: 'action=news', displayText: '📰 最新消息' },
       },
       {
         // 商品專區:URI action 開 LIFF /m/shop(自製 LIFF shop,Phase 4c 上線)
