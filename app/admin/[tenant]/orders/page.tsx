@@ -8,6 +8,8 @@ type OrderRow = {
   status: string;
   payment_status: string;
   total_twd: number;
+  source: string;
+  shipping_recipient: string | null;
   created_at: string;
   users: { display_name: string | null; full_name: string | null } | null;
 };
@@ -16,7 +18,7 @@ async function getOrders(tenantId: string): Promise<OrderRow[]> {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, created_at, users(display_name, full_name)',
+      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, created_at, users(display_name, full_name)',
     )
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
@@ -29,6 +31,12 @@ function statusLabel(s: string): string {
 }
 function statusColor(s: string): string {
   return ({ open: '#666', paid: '#0070f3', shipped: '#06c755', delivered: '#0a7038', cancelled: '#999', refunded: '#d00' }[s]) ?? '#666';
+}
+function sourceLabel(s: string): string {
+  return ({ web: '網站', liff: 'LIFF', manual: '手動', line_chat: 'LINE 對話' }[s]) ?? s;
+}
+function sourceColor(s: string): string {
+  return ({ web: '#7c3aed', liff: '#06c755', manual: '#9ca3af', line_chat: '#f59e0b' }[s]) ?? '#666';
 }
 function formatTw(iso: string): string {
   return new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -53,6 +61,7 @@ export default async function OrdersListPage({ params }: { params: Promise<{ ten
         <thead>
           <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
             <th style={th}>訂單編號</th>
+            <th style={th}>來源</th>
             <th style={th}>客戶</th>
             <th style={{ ...th, textAlign: 'right' }}>金額</th>
             <th style={th}>狀態</th>
@@ -69,9 +78,25 @@ export default async function OrdersListPage({ params }: { params: Promise<{ ten
                 </Link>
               </td>
               <td style={td}>
-                <div style={{ fontWeight: 500 }}>{o.users?.display_name ?? '(無 LINE 名)'}</div>
-                {o.users?.full_name && (
-                  <div style={{ fontSize: 12, color: '#888' }}>填:{o.users.full_name}</div>
+                <span style={{ display: 'inline-block', padding: '2px 8px', background: sourceColor(o.source) + '22', color: sourceColor(o.source), borderRadius: 3, fontSize: 12 }}>
+                  {sourceLabel(o.source)}
+                </span>
+              </td>
+              <td style={td}>
+                {o.users?.display_name ? (
+                  <>
+                    <div style={{ fontWeight: 500 }}>{o.users.display_name}</div>
+                    {o.users.full_name && (
+                      <div style={{ fontSize: 12, color: '#888' }}>填:{o.users.full_name}</div>
+                    )}
+                  </>
+                ) : o.shipping_recipient ? (
+                  <>
+                    <div style={{ fontWeight: 500 }}>{o.shipping_recipient}</div>
+                    <div style={{ fontSize: 12, color: '#888' }}>訪客</div>
+                  </>
+                ) : (
+                  <div style={{ color: '#888' }}>(無客戶資料)</div>
                 )}
               </td>
               <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString()}</td>

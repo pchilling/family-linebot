@@ -9,6 +9,7 @@ type OrderItem = {
   price_at_purchase: number;
   subtotal_twd: number;
   products: { name: string; sku: string | null } | null;
+  product_variants: { variant_name: string; sku: string } | null;
 };
 
 type OrderDetail = {
@@ -18,11 +19,14 @@ type OrderDetail = {
   payment_status: string;
   payment_method: string | null;
   total_twd: number;
+  source: string;
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
   tracking_no: string | null;
   note: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
   paid_at: string | null;
   shipped_at: string | null;
   created_at: string;
@@ -40,16 +44,23 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      `id, order_no, status, payment_status, payment_method, total_twd,
+      `id, order_no, status, payment_status, payment_method, total_twd, source,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note,
-       paid_at, shipped_at, created_at, updated_at,
+       guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
        users(line_user_id, display_name, full_name, phone),
-       order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku))`,
+       order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
     )
     .eq('tenant_id', tenantId)
     .eq('id', id)
     .maybeSingle();
   return (data ?? null) as unknown as OrderDetail | null;
+}
+
+function sourceLabel(s: string): string {
+  return ({ web: '網站', liff: 'LIFF', manual: '手動', line_chat: 'LINE 對話' }[s]) ?? s;
+}
+function sourceColor(s: string): string {
+  return ({ web: '#7c3aed', liff: '#06c755', manual: '#9ca3af', line_chat: '#f59e0b' }[s]) ?? '#666';
 }
 
 function formatTw(iso: string | null): string {
@@ -79,7 +90,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ te
         ← 返回 {tenant.name} 訂單列表
       </Link>
 
-      <h1 style={{ fontSize: 22, marginTop: 12, marginBottom: 4 }}>訂單 {o.order_no}</h1>
+      <h1 style={{ fontSize: 22, marginTop: 12, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+        訂單 {o.order_no}
+        <span style={{ display: 'inline-block', padding: '2px 10px', background: sourceColor(o.source) + '22', color: sourceColor(o.source), borderRadius: 3, fontSize: 13, fontWeight: 500 }}>
+          {sourceLabel(o.source)}
+        </span>
+      </h1>
       <p style={{ color: '#666', fontSize: 13, marginBottom: 24 }}>
         建立 {formatTw(o.created_at)} · 最後更新 {formatTw(o.updated_at)}
       </p>
@@ -96,17 +112,29 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ te
             </tr>
           </thead>
           <tbody>
-            {o.order_items.map((it) => (
-              <tr key={it.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={td}>
-                  {it.products?.name ?? '(已刪)'}
-                  {it.products?.sku && <span style={{ color: '#999', fontSize: 12, marginLeft: 8 }}>SKU {it.products.sku}</span>}
-                </td>
-                <td style={{ ...td, textAlign: 'right' }}>NT$ {it.price_at_purchase.toLocaleString()}</td>
-                <td style={{ ...td, textAlign: 'right' }}>{it.qty}</td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 500 }}>NT$ {it.subtotal_twd.toLocaleString()}</td>
-              </tr>
-            ))}
+            {o.order_items.map((it) => {
+              // 優先顯示 variant SKU(更精準,出貨對得到);只有 variant 不存在時 fallback 到 product.sku
+              const displaySku = it.product_variants?.sku ?? it.products?.sku ?? null;
+              const variantName = it.product_variants?.variant_name;
+              return (
+                <tr key={it.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={td}>
+                    <div>
+                      {it.products?.name ?? '(已刪)'}
+                      {variantName && variantName !== 'default' && (
+                        <span style={{ marginLeft: 8, padding: '2px 8px', background: '#eef2ff', color: '#4338ca', borderRadius: 3, fontSize: 12, fontWeight: 500 }}>
+                          {variantName}
+                        </span>
+                      )}
+                    </div>
+                    {displaySku && <span style={{ color: '#999', fontSize: 12 }}>SKU {displaySku}</span>}
+                  </td>
+                  <td style={{ ...td, textAlign: 'right' }}>NT$ {it.price_at_purchase.toLocaleString()}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{it.qty}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 500 }}>NT$ {it.subtotal_twd.toLocaleString()}</td>
+                </tr>
+              );
+            })}
             <tr>
               <td colSpan={3} style={{ ...td, textAlign: 'right', fontWeight: 600 }}>總計</td>
               <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontSize: 16 }}>NT$ {o.total_twd.toLocaleString()}</td>
@@ -117,17 +145,25 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ te
 
       <section style={section}>
         <h2 style={h2}>客戶</h2>
-        <div style={{ fontSize: 14, display: 'grid', gap: 6 }}>
-          <div>姓名(填):{o.users?.full_name ?? '—'}</div>
-          <div>
-            <strong>LINE 顯示名:</strong>
-            <code style={{ marginLeft: 6, padding: '2px 8px', background: '#fff7d6', borderRadius: 3, fontSize: 14, userSelect: 'all' }}>
-              {o.users?.display_name ?? '—'}
-            </code>
-            <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>← LINE@ Manager 用這個搜尋對話</span>
+        {o.users ? (
+          <div style={{ fontSize: 14, display: 'grid', gap: 6 }}>
+            <div>姓名(填):{o.users.full_name ?? '—'}</div>
+            <div>
+              <strong>LINE 顯示名:</strong>
+              <code style={{ marginLeft: 6, padding: '2px 8px', background: '#fff7d6', borderRadius: 3, fontSize: 14, userSelect: 'all' }}>
+                {o.users.display_name ?? '—'}
+              </code>
+              <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>← LINE@ Manager 用這個搜尋對話</span>
+            </div>
+            <div>會員電話:{o.users.phone ?? '—'}</div>
           </div>
-          <div>會員電話:{o.users?.phone ?? '—'}</div>
-        </div>
+        ) : (
+          <div style={{ fontSize: 14, display: 'grid', gap: 6 }}>
+            <div style={{ color: '#888', fontSize: 12 }}>(訪客結帳,無 LINE 會員資料 — 客人聯絡資料看下方寄送資訊)</div>
+            {o.guest_email && <div>Email:<code style={{ marginLeft: 6, padding: '2px 8px', background: '#fff7d6', borderRadius: 3, fontSize: 14, userSelect: 'all' }}>{o.guest_email}</code></div>}
+            {o.guest_phone && <div>聯絡電話:{o.guest_phone}</div>}
+          </div>
+        )}
       </section>
 
       <section style={section}>
