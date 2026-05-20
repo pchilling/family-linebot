@@ -100,16 +100,28 @@ tenant_customers        ← tenant 層,記錄該 tenant 對這個人的標注
 
 ```sql
 tenants.features jsonb default '{}'::jsonb
--- 例:{"catalog": true, "advanced_classroom": true}
+-- 例:{"line_bot": true, "liff": true, "catalog": true}
 ```
+
+**重要**:LINE Bot / LIFF 是 add-on,**不綁 plan**。判斷一律用 `features`,不要用 plan 名稱。
+
+- oilswa(enterprise):`{"line_bot": true, "liff": true}` — 有 Bot + LIFF
+- cyndi(pro):`{}` — 純 webapp
+- 想接 Bot 的 tenant → 聯繫 Peter / NEO 客製簽約 → 設好後 Peter 手動 update `features`
 
 ### 決定 3:Catalog **Schema 留 hook,功能 Phase 2 才做**
 
 `products` 表預埋 `source_product_id` / `source_tenant_id` / `revenue_share_pct`。
 
-### 決定 4:金流 **Phase 1 不做平台金流**
+### 決定 4:**不接金流,走「匯款 + 手動對帳」**(長期策略,不只 Phase 1)
 
-每個 tenant 自己用自己的金流。Stall 不當金流中介。
+訂單流程:
+1. 客人下單 → 訂單成立
+2. 系統顯示 tenant 的匯款帳戶資訊
+3. 客人匯款 → 賣家在 admin 自行對帳 / 確認入帳
+4. 客人在訂單頁看狀態更新
+
+Stall 不當金流中介(避免法律 / 糾紛 / 牌照成本)。匯款帳戶由 tenant 自己設定。
 
 ### 決定 5:Theme 系統 — Phase 1 走簡版,Phase 2 才上 3 套主題
 
@@ -123,12 +135,11 @@ tenants.features jsonb default '{}'::jsonb
 
 ### 決定 7:Theme 可自訂分 **4 層分層**
 
-| Tier | 可改 |
+| Tier | 可改 / 限制 |
 |---|---|
-| Free | 4 個 token:logo、主色、banner、tagline |
-| Plus | + 字體組、按鈕風格、product card 風格 |
-| Pro | + hero 排版、section 順序、自訂頁面 |
-| Enterprise | 客製設計(找 NEOP 簽合約) |
+| Free | 4 個 token:logo、主色、banner、tagline。**強制 Made with Stall 浮水印**;**無 inventory** |
+| Pro | Free + 字體組、按鈕風格;**拿掉浮水印**;**有 inventory** |
+| Enterprise | Pro + 客製設計(找 NEOP 簽合約)+ 自訂網域 |
 
 **永遠鎖死的**:字體本身、商品 card 構圖、響應式、動畫、結帳流程 UI。
 
@@ -276,7 +287,7 @@ pv_records                ← Phase 3(NEO 特用)
 2. `/[slug]/p/[product]` 公開商品詳情
 3. `/login` 登入頁(只支援 LINE Login)
 4. `/[slug]/cart` 購物車(需登入)
-5. `/[slug]/checkout` 結帳(需登入,暫不接金流)
+5. `/[slug]/checkout` 結帳 → 訂單成立後顯示匯款帳戶(無金流,手動對帳,見決定 4)
 6. `/account` 跨 tenant 個人資料
 7. `/account/orders` 跨 tenant 訂單歷史
 8. SEO 基礎(meta tags、Open Graph、structured data)
@@ -286,13 +297,14 @@ pv_records                ← Phase 3(NEO 特用)
 
 員工真實用後台 1-2 週收痛點 → 改 admin UX → 跟爸媽 review → 評估 Phase 5 啟動條件。
 
-### Phase 5(待評估):email 註冊 + 美感主題 + 金流
+### Phase 5(待評估):Self-serve sign-up + 美感主題
 
 **啟動條件**:
-- 爸媽對 Phase 4 滿意
-- Cyndi 系統穩定運作
-- 找到設計師合作
+- 對外開放需求出現(目前都是自己人 / 自己接案,Peter 代建 tenant 即可,**未開放 self-serve**)
+- 找到設計師合作 3 套主題
 - New Era Oil 第一個商品時程明朗
+
+**不做的事**:金流(長期不接,見決定 4)、email 註冊(LINE Login 為主)
 
 ---
 
@@ -310,12 +322,18 @@ pv_records                ← Phase 3(NEO 特用)
 ✅ 對外品牌名仍叫各自的(oilswa、cyndi),Stall 對外品牌等 Phase 5
 ✅ 每次新功能完成,update `progress.md`
 ✅ 商業敏感資訊不要寫進 commit message 或 public code
+✅ LINE Bot / LIFF 啟用判斷用 `tenants.features`,**不要用 plan 名稱**
+✅ Pro 訂單流程走「匯款 + 手動對帳」,不要嘗試接金流
 
 ### DON'T
 
 ❌ 不要建 catalog / share_cards / inquiries 這些 Phase 2 表
 ❌ 不要做 3 套主題系統(等設計師)
-❌ 不要試圖整合金流(Phase 4 不接,Phase 5 才評估)
+❌ 不要試圖整合金流(**長期不接**,見決定 4)
+❌ 不要建 Plus 相關 UI / 邏輯(plan 只有 Free / Pro / Enterprise)
+❌ Free tenant 公開網站 footer **必須**保留「Made with Stall」浮水印(Pro / Enterprise 拿掉)
+❌ Free tenant **不開放 `/admin/[tenant]/inventory`**(Pro 以上才有,gating 用 plan)
+❌ 不要在系統內提供「啟用 LINE Bot」按鈕(走 NEO 外部客製簽約流程)
 ❌ 不要在 oilswa 系統裡寫 doTERRA 業績計算邏輯(政策紅線)
 ❌ 不要把 PII log 到外部服務
 ❌ **不要在 Phase 4 開放 email 註冊**(等 Phase 5)

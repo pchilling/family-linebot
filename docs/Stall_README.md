@@ -106,10 +106,9 @@ New Era Oil 有「中央商品目錄」（Catalog），C 分享者（Stall tenan
 
 | Tier | 真實人選 | 賣什麼 | 使用週期 | 方案 |
 |---|---|---|---|---|
-| **0 階段性賣家** | Kim、二手朋友 | 自己的二手 | 1–3 個月一波，凍結 | Free |
-| **1 個人代購** | 小安（女裝） | 開團一波波 | 持續但不穩定 | Plus |
-| **2 品牌代購** | Cyndi（童裝） | 持續代購 | 長期穩定 | Pro |
-| **3 小品牌 / 完整事業** | New Era Oil、未來客戶 | 自家產品 | 永續 | Enterprise + 客製 |
+| **0 個人 / 休閒** | Kim（二手 / 偶爾代購）、自己人朋友 | 自己的東西 / 隨意 | 不定 | Free |
+| **1 代購 / 賣家** | Cyndi（童裝，先 Pro 之後升 Enterprise） | 持續代購 / 開團 | 持續 | Pro |
+| **2 品牌 / 完整事業** | 愛油哇、New Era Oil、未來客戶 | 自家產品 | 永續 | Enterprise + 客製 |
 
 ---
 
@@ -117,14 +116,15 @@ New Era Oil 有「中央商品目錄」（Catalog），C 分享者（Stall tenan
 
 | 方案 | 月費（暫定） | 主要解鎖 |
 |---|---|---|
-| **Free** | $0 | 完整功能 + 預設主題 + 分享卡（含浮水印） |
-| **Plus** | ~$149 | + Logo、自訂色、進階分享卡模板、去浮水印 |
-| **Pro** | ~$399 | + 完整主題自訂、LINE Pay、超商取貨、電子發票、自訂網域選項 |
-| **Enterprise** | 自訂 | + 客製設計、完整白牌、API、優先支援 |
+| **Free** | $0 | 公開網站 + 商品 + 購物車 + 訂單 + 基本 admin（**無 inventory**）+ 預設主題 + **Made with Stall 浮水印** |
+| **Pro** | 待定 | Free + inventory + 拿掉浮水印 + 字體組 / 按鈕風格客製 |
+| **Enterprise** | 自訂 | Pro + LIFF + 客製設計、完整白牌、優先支援、自訂網域 |
 
-**Peter 的核心種子（你熟的朋友）終身免費**，條件：保留「Made with Stall」浮水印 + 開攤後至少分享一次。**他們是行銷預算，不是付費用戶。**
+**LINE Bot 為獨立 add-on 服務**（不在 plan 內）。想接 Bot 直接聯繫 Peter / NEO 客製簽約，系統內用 `tenants.features` jsonb（`line_bot` / `liff`）控制是否啟用。
 
-**經濟邏輯**：本來就要為自己跟 New Era Oil 做這個工具。朋友/陌生人 SaaS 收費是 bonus，不是 KPI。
+**結帳流程**：所有 plan **不接金流**。訂單成立 → 系統顯示匯款帳戶 → 賣家在 admin 自行對帳 → 客人看訂單狀態。
+
+**目前階段**：自己人系統（家族 + 自己接案客戶）。**未公開 self-serve sign-up**，新 tenant 由 Peter 代建。
 
 ---
 
@@ -244,12 +244,12 @@ NEO（母公司 / 整合行銷工作室）
 
 **架構同時支援所有人，但上線分波（避免一次同時被四種使用者撕裂）**
 
-| 週 | 上線者 | 重點 |
+| 階段 | 上線者 | 重點 |
 |---|---|---|
-| **1–2** | Peter + Kim | MVP，Tier 0 二手攤，純網站，無 LINE 整合 |
-| **3–4** | New Era Oil | 加 LIFF、LINE Pay、超商取貨、Catalog 系統 |
-| **5–6** | 小安 | Tier 1 預購、開團 |
-| **7–8** | Cyndi 遷移 | 從現有客製系統搬到 Stall Pro |
+| **已完成** | 愛油哇（Enterprise） | LINE Bot + LIFF + Admin |
+| **進行中** | Cyndi（Pro） | Admin 已通，公開網站開發中（Phase 4-Gamma） |
+| **下一波** | Kim（Pro，pending） | 公開網站上線後再啟用 tenant |
+| **未排程** | New Era Oil、外部接案 | 等基礎建設穩定再評估 |
 
 ---
 
@@ -267,7 +267,7 @@ NEO（母公司 / 整合行銷工作室）
 ## 12. 還沒決定的事
 
 - [ ] 正式品牌名（目前 `Stall` 是內部代號）
-- [ ] 各 tier 確切定價（目前是暫定數字）
+- [ ] Pro / Enterprise 確切定價（目前都待定）
 - [ ] 「賣掉了」分享卡的細節（馬賽克、Sold tag、社會證明感）
 - [ ] 分享 onboarding UX（賣家上架後怎麼「忍不住按分享」）
 - [ ] LINE OA 統一 vs 各自——傾向統一，待最終確認
