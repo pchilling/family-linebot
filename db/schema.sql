@@ -302,14 +302,24 @@ create trigger stock_movements_no_update
   before update on stock_movements
   for each row execute function prevent_stock_movement_update();
 
--- stock_movements insert / delete → 同步 products.stock
+-- stock_movements insert / delete → 同步 variant.stock(有 variant_id 用 variant,沒 fallback product)
+-- Stage C 之後:新訂單 stock_movements 一定帶 variant_id,所以一律走 variant 分支
+-- legacy fallback 保留給沒有 variant_id 的舊資料(理論上 backfill 完都該有)
 create or replace function update_product_stock()
 returns trigger as $$
 begin
   if tg_op = 'INSERT' then
-    update products set stock = stock + new.qty_delta where id = new.product_id;
+    if new.variant_id is not null then
+      update product_variants set stock = stock + new.qty_delta where id = new.variant_id;
+    else
+      update products set stock = stock + new.qty_delta where id = new.product_id;
+    end if;
   elsif tg_op = 'DELETE' then
-    update products set stock = stock - old.qty_delta where id = old.product_id;
+    if old.variant_id is not null then
+      update product_variants set stock = stock - old.qty_delta where id = old.variant_id;
+    else
+      update products set stock = stock - old.qty_delta where id = old.product_id;
+    end if;
   end if;
   return null;
 end;
@@ -604,6 +614,36 @@ insert into tenant_members (tenant_id, user_id, role)
   on conflict (tenant_id, user_id) do nothing;
 
 -- ====================
+-- Kim tenant(2026-05-21,Peter 代管,Free 階,純自己人 / 二手 / 偶爾代購)
+-- 無 LINE Bot / 無 LIFF / 無 inventory(plan=free gating)/ 公開網站 footer 帶浮水印
+-- order_prefix 在 Phase 5.3 加好後寫進來,fresh deploy 沒問題
+-- ====================
+insert into tenants (slug, name, owner_user_id, plan, features, status, order_prefix)
+  values (
+    'kim',
+    'Kim 個人賣場',
+    (select id from platform_users where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924'),
+    'free',
+    '{}'::jsonb,
+    'active',
+    'KM'
+  )
+  on conflict (slug) do nothing;
+
+insert into tenant_members (tenant_id, user_id, role)
+  select t.id, t.owner_user_id, 'owner'
+    from tenants t
+    where t.slug = 'kim' and t.owner_user_id is not null
+  on conflict (tenant_id, user_id) do nothing;
+
+-- ====================
+-- Phase 5.4:tenant 聯絡資訊(2026-05-21)
+-- 客人在訂單成立頁可看到「聯絡賣家」區塊。
+-- 單一 free text 欄位,賣家自行寫(LINE / 電話 / Email / IG 等)。
+-- ====================
+alter table tenants add column if not exists contact_info text;
+
+-- ====================
 -- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
 -- Stage A:加 product_variants + order_items / stock_movements 加 variant_id +
 --          seed default variants(每個既有 product 1 個 'default' variant)+ backfill
@@ -677,3 +717,54 @@ update stock_movements sm
     and pv.variant_name = 'default';
 
 alter table stock_movements enable trigger stock_movements_no_update;
+
+-- ====================
+-- Phase 5.3:每 tenant 自己的訂單 prefix(2026-05-21)
+-- 原本 hardcoded 'OW',現在從 tenants.order_prefix 動態查
+-- ====================
+
+alter table tenants add column if not exists order_prefix text;
+update tenants set order_prefix = 'OW' where slug = 'oilswa' and order_prefix is null;
+update tenants set order_prefix = 'CY' where slug = 'cyndi' and order_prefix is null;
+alter table tenants alter column order_prefix set not null;
+do $$ begin
+  alter table tenants add constraint tenants_order_prefix_format
+    check (order_prefix ~ '^[A-Z]{2,5}$');
+exception when duplicate_object then null;
+end $$;
+
+-- 重新定義 trigger function(從 tenant 查 prefix)
+create or replace function generate_order_no()
+returns trigger as $$
+declare
+  ym text;
+  prefix text;
+  cnt int;
+begin
+  if new.order_no is null or new.order_no = '' then
+    ym := to_char(now() at time zone 'Asia/Taipei', 'YYYYMM');
+
+    select order_prefix into prefix from tenants where id = new.tenant_id;
+    if prefix is null then
+      raise exception 'tenant % missing order_prefix', new.tenant_id;
+    end if;
+
+    perform pg_advisory_xact_lock(hashtext(new.tenant_id::text || ym));
+    select coalesce(max(substring(order_no from prefix || '-\d{6}-(\d+)$')::int), 0) + 1 into cnt
+      from orders
+      where tenant_id = new.tenant_id
+        and order_no like prefix || '-' || ym || '-%';
+    new.order_no := prefix || '-' || ym || '-' || lpad(cnt::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+-- Backfill 既有 OW 訂單為各 tenant 真正的 prefix
+-- (oilswa.prefix='OW' 不變;非 OW prefix 的 tenant 訂單會被改名)
+update orders o
+  set order_no = t.order_prefix || substring(o.order_no from 3)
+  from tenants t
+  where o.tenant_id = t.id
+    and o.order_no like 'OW-%'
+    and t.order_prefix != 'OW';
