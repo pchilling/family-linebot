@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-19(Stage B 收尾)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21(Admin 介面 + 訂單體驗強化:nav + settings + contact_info + lookup + copy button)
 
 ---
 
@@ -92,6 +92,159 @@ URL pattern:
 |---|---|---|
 | 5.2.B | `VariantRow` type + variant CRUD actions + `createProduct` 同步建 default variant + admin/products page 加 nested variant inline 編輯/新增/刪 | `0e98cea` |
 
+### 商業模式策略調整(2026-05-20)
+
+Stall 商業模式從原本 4 階(Free/Plus/Pro/Enterprise)收斂為 **Pro + Enterprise 2 階**。LINE Bot 改為獨立 add-on 服務(走 NEO 外部簽約),用 `tenants.features` jsonb 判斷,**不綁 plan**。所有 plan 不接金流,走「匯款 + 手動對帳」(長期策略,不是 Phase 1 限制)。
+
+| 項目 | 變更 |
+|---|---|
+| Plan 階級 | 4 階 → 2 階(Pro / Enterprise) |
+| LINE Bot | plan 內建 → `features.line_bot` add-on,聯繫 NEO 客製 |
+| LIFF | Phase 內建 → `features.liff` add-on,Enterprise 預設帶 |
+| 金流 | Phase 1 不做 → **長期不接**,顯示匯款帳戶 + 手動對帳 |
+| Self-serve sign-up | Phase 5 規劃 → 需要時才做(目前自己人 / 接案) |
+| Theme | 4 層 → 2 層(Pro / Enterprise) |
+
+各 tenant 對應:
+- oilswa = Enterprise,`features={"line_bot": true, "liff": true}`
+- cyndi = Pro(之後升 Enterprise),`features={}`,核心場景是 Phase 4-Gamma 公開網站
+- Kim = Pro(pending,公開網站上線後啟用)
+
+文件更新:`Stall_README.md`(§4/5/10/12)、`STALL_ARCHITECTURE.md`(決定 2/4/7、Phase 七、§八 DO/DON'T)。
+
+**待跑 SQL**:oilswa `features` backfill 加 `{"line_bot": true, "liff": true}`(Peter 自己在 Supabase Studio 跑)。
+
+### Phase 4-Gamma 開工(2026-05-20)
+
+公開網站第一波,只服務「自己人 / 接案」客戶,guest checkout 為主(LINE Login 留到需要時)。對齊 STALL_ARCHITECTURE §七 Phase 4-Gamma + 商業模式策略調整。
+
+| 子階段 | 內容 | 檔案 |
+|---|---|---|
+| **Gamma.1** | `/[slug]` 攤位首頁 + 主題 wrapper(brand_color null fallback)+ 商品列表 grid + 「攤位準備中」empty state | `app/[slug]/layout.tsx` + `app/[slug]/page.tsx` + `lib/supabase.ts`(加 `getTenantPublic` / `getActiveProducts`) |
+| **Gamma.2** | `/[slug]/p/[product]` 商品詳情(server)+ Variant 選擇器(radio,client)+ SEO metadata | `app/[slug]/p/[product]/page.tsx` + `variant-selector.tsx` + `lib/supabase.ts`(加 `getProductBySlug`) |
+| **Gamma.3a** | 購物車狀態(localStorage,tenant 隔離 key)+ sticky header CartLink + variant-selector「加入購物車」啟用 | `app/[slug]/cart-state.tsx` + 改 `layout.tsx` / `variant-selector.tsx` / 商品詳情 page |
+| **Gamma.3b** | `/[slug]/cart` 購物車頁(qty 增減 / 移除 / 小計 / 前往結帳) | `app/[slug]/cart/page.tsx` |
+| **Gamma.3c** | `/[slug]/checkout` 結帳表單(client)+ `createOrder` server action(從 DB 重拉 price 防竄改 + 庫存檢查)+ `/[slug]/order/[order_no]` 訂單成立頁 | `app/[slug]/checkout/page.tsx` + `actions.ts` + `app/[slug]/order/[order_no]/page.tsx` |
+| **Gamma.5 部分** | 商品頁加 schema.org Product / AggregateOffer JSON-LD(Google rich result) | 改 `app/[slug]/p/[product]/page.tsx` |
+
+下單完整 flow:
+```
+/[slug] → 點商品 → /[slug]/p/[product] → variant 選擇 + 加入購物車
+   ↓
+/[slug]/cart → 改數量 / 移除 / 前往結帳
+   ↓
+/[slug]/checkout → 填收件資料 + 送出
+   ↓
+createOrder server action(driver:從 DB 重拉 variant price/stock 驗證 → insert orders + order_items
+   → DB triggers 自動產 order_no / 算 total / 寫 stock_movements / 扣庫存)
+   ↓
+clear() 清前端購物車 → router.push
+   ↓
+/[slug]/order/OW-202605-NNNN(訂單成立 + 「賣家會私訊匯款資訊」黃色提醒)
+```
+
+新訂單在 admin `/admin/[tenant]/orders` 直接看得到(`source='web'`)。
+
+**未做(等需要再做)**:
+- LINE Login + `/account` + `/account/orders`(Gamma.4)— 目前都是自己人,guest checkout 夠
+- Vercel custom domain(Gamma.9)— 等對外開放再設
+- sitemap.xml / robots.txt — 對外才需要
+- cart / checkout / order 頁面 noindex meta — 本地測試先不處理
+
+### 分級調整 v2(2026-05-21):Free 階復活
+
+5/20 收斂成 2 階(Pro / Enterprise)後,5/21 為「自己人 / 個人 / 二手」用例(主要 target = Kim)再加回 **Free**。最終 3 階:Free / Pro / Enterprise。
+
+| 維度 | Free | Pro | Enterprise |
+|---|---|---|---|
+| 公開網站 + 商品 + 訂單 flow | ✅ | ✅ | ✅ |
+| Admin(products / orders / customers / classes) | ✅ | ✅ | ✅ |
+| **inventory(`/admin/[tenant]/inventory`)** | **❌** | ✅ | ✅ |
+| 公開網站 **Made with Stall 浮水印** | **強制** | 拿掉 | 拿掉 |
+| 字體組 / 按鈕風格 | ❌ | ✅ | ✅ |
+| 客製設計 + 自訂網域 | ❌ | ❌ | ✅ |
+| LINE Bot / LIFF(features add-on) | 不開放 | 可加購 | 預設帶 |
+
+tenant 對應更新:
+- oilswa = **Enterprise**,features={line_bot, liff}
+- cyndi = **Pro**(之後升 Enterprise),features={}
+- Kim = **Free**(pending,還沒建 tenant),features={}
+
+**code gating 還沒實作**:目前 `tenants.plan` / `features` 都還沒用來真正鎖功能,Free / Pro 看到的 admin 一樣。要鎖 inventory + 加浮水印是後續 code 工程。
+
+文件更新:`Stall_README.md`(§4/§5)、`STALL_ARCHITECTURE.md`(決定 7、§八 DON'T)。
+
+### 5/21 整波收尾(2026-05-21):admin + Variant Stage C 部分 + Free gating + Kim tenant
+
+完整 Phase 4-Gamma admin 端 + 部分 Variant Stage C + Free gating 落地 + Kim tenant 建立。
+
+**Code 改動**:
+
+| 主題 | 檔案 | 重點 |
+|---|---|---|
+| Admin source-aware | `app/admin/[tenant]/orders/page.tsx` + `[id]/page.tsx` | 列表加「來源」欄(web/liff/manual);訪客客戶 fallback `shipping_recipient`;詳情加 source badge + 訪客客戶資訊區 + order_items 顯示 variant_name |
+| Inventory variant 改造 | `app/admin/[tenant]/inventory/page.tsx`(rewrite) | 改讀 `product_variants`、低庫存 per-variant、異動列加 variant badge |
+| Free gating(inventory) | 同上 | plan='free' 顯示鎖頭頁(沒查 DB,直接 return) |
+| Free gating(浮水印) | `app/[slug]/layout.tsx` | footer plan='free' 顯示「Made with Stall」細字 |
+
+**DB SQL(已跑)**:
+
+- `tenants.order_prefix` 欄位 + format check(`^[A-Z]{2,5}$`)+ generate_order_no trigger 改動態查(取代 hardcoded 'OW')+ backfill 既有 OW 訂單到各 tenant prefix
+- `update_product_stock` trigger 改寫 `product_variants.stock`(有 variant_id 用 variant、fallback products)
+- Kim tenant INSERT + tenant_members(Peter 為 owner)
+
+**schema.sql 同步更新**:Phase 5.3(order_prefix)、update_product_stock 重寫、Kim tenant block 全進 schema.sql,constraint add 用 `do $$ ... exception when duplicate_object ... end $$` 包起來避免 rerun 撞。
+
+**目前 3 個 tenant 狀態**:
+
+| Slug | Plan | Prefix | Features | Owner | 用途 |
+|---|---|---|---|---|---|
+| oilswa | enterprise | OW | `{line_bot, liff}` | Peter | 家族(三合一愛油哇) |
+| cyndi | pro | CY | `{}` | Peter 代管 | 接案(童裝代購) |
+| kim | free | KM | `{}` | Peter 代管 | 自己人(二手,slug placeholder) |
+
+**新 Tech debt**:
+
+- `products.stock` 之後不再被 trigger 更新(全寫 variant.stock);現有 admin product CRUD 還在 read / write `products.stock`,Stage C 結尾 deprecate 時要全清(legacy fallback 還在 trigger 內,沒 variant_id 的舊資料仍寫 product.stock,需 audit)
+- Free gating 只擋 inventory + footer 浮水印;**Pro 的字體 / 按鈕風格 客製** 還是 spec 概念,沒 code gate
+- Kim slug='kim' 是 placeholder(正常 SaaS 該本人選);沒 admin UI 改 slug,要跑 update SQL,且會 break 既有 URL
+- 沒 admin tenant settings 頁(brand_color / description / payment_info 都靠 SQL 設)
+
+### Admin 介面 + 訂單體驗強化(2026-05-21)
+
+整波收尾後續微調:admin 跨 tenant 操作順暢度 + 客人下單後 UX 完整。
+
+**Admin 介面**:
+
+- **Admin nav 改 2 列**(`app/admin/[tenant]/layout.tsx` + 新 `nav-links.tsx`):Row 1 = tenant 名 + plan badge(free 灰 / pro 藍 / enterprise 紫)+ `slug · prefix` + 「切到 X」其他 tenant + 預覽公開頁 ↗;Row 2 = 商品 / 訂單 / 客戶 / 庫存 🔒 / 課程 / 設定
+- **Nav active 高亮**(`nav-links.tsx` client component,用 `usePathname()`):active = 粗體 + 黑色 + 下方黑線
+- **Tenant settings 頁**(`app/admin/[tenant]/settings/page.tsx` + `actions.ts` 新):
+  - 可改:`name` / `description` / `brand_color`(color picker)/ `og_image_url` / `contact_info`
+  - Read-only 顯示:`plan` / `slug` / `order_prefix` / `features` / `status`
+  - `plan` / `features` / `slug` 不能在這裡改(需 NEO 介入)
+- **`getAllActiveTenants()` helper**(`lib/supabase.ts`)+ `TenantBySlug` 加 `order_prefix` 欄
+
+**訂單體驗**:
+
+- **`tenants.contact_info`** 欄位(Phase 5.4):free text 多行,賣家自寫 LINE / 電話 / Email / IG 等
+  - Settings 「對外聯絡資訊」textarea
+  - 訂單成立頁加「聯絡賣家」白卡(`whiteSpace: pre-wrap` 保留換行)
+- **Order lookup 頁**(`app/[slug]/order-lookup/page.tsx` + `actions.ts` 新):
+  - Guest 用 `order_no` + (Email 或電話)查訂單,比對成功跳 `/[slug]/order/[order_no]`
+  - **錯誤訊息統一**「找不到訂單,請確認...」(無論 order_no 錯 / Email 錯都同訊息,避免 enumeration)
+  - Tenant layout footer 加「查我的訂單 →」連結
+- **訂單成立頁加「📋 複製」按鈕**(`copy-button.tsx` 新,client + Clipboard API + execCommand fallback);加提醒「請保留此編號,日後可在『查我的訂單』查」
+
+**DB SQL 已跑**:
+```sql
+alter table tenants add column if not exists contact_info text;
+```
+
+**新 tech debt**:
+- Settings save 沒 toast / 錯誤訊息展示(server action 回 ok/error 但 UI 沒顯示)
+- Tenant switcher 列**所有** active tenant(沒做 tenant_members 過濾);多人登入時要加 RBAC
+- Order lookup 電話比對**完全相等**(沒 normalize 格式,`0900-000-000` ≠ `0900000000`)
+
 ### Outstanding
 
 **Phase 4-Alpha 完成 ✅**(6 個 task 全 done)
@@ -104,11 +257,13 @@ URL pattern:
 - stock_movements trigger 切 variant.stock(目前 trigger 還 update products.stock)
 - Stage C 收尾後 deprecate products.sku / price_twd / cost_twd / stock(改 view 或 drop)
 
-**Phase 4-Gamma(公開網站,Week 5-8)**:
-- `/[slug]` 攤位首頁 + SEO
-- `/[slug]/p/[product]` 商品詳情公開版
-- `/login` LINE Login + `/account` 跨 tenant 個資 + `/account/orders` 訂單歷史
-- guest checkout(orders.guest_email / guest_phone 已預埋)
+**Phase 4-Gamma(公開網站)**(2026-05-20 Gamma.1-3 + 部分 Gamma.5 完成 ✅):
+- ✅ `/[slug]` 攤位首頁(Gamma.1)
+- ✅ `/[slug]/p/[product]` 商品詳情 + variant 選擇器(Gamma.2)
+- ✅ `/[slug]/cart` + `/checkout` + `/order/[order_no]` guest checkout 完整 flow(Gamma.3)
+- ✅ 商品 JSON-LD structured data(Gamma.5 部分)
+- ⏳ `/login` LINE Login + `/account` 跨 tenant 個資 + `/account/orders` 訂單歷史(Gamma.4,等需要)
+- ⏳ Vercel custom domain + sitemap / robots / noindex(Gamma.5 剩下,等對外開放)
 
 **Phase 4-Delta(Week 9-12)**:員工驗收 + UX 微調
 
