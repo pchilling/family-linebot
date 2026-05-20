@@ -88,7 +88,8 @@ export async function loadTodayClasses(idToken: string): Promise<ClassListItem[]
     scheduled_at: string;
     regions: { name: string } | null;
   };
-  const rows = (classes as Row[] | null) ?? [];
+  // supabase 對 *-to-one join 有時推成 array,unknown 繞過
+  const rows = ((classes as unknown) as Row[] | null) ?? [];
   if (rows.length === 0) return [];
 
   // 一次查該 user 對這些 class 的簽到紀錄

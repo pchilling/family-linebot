@@ -42,7 +42,8 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
 
   if (error || !data) return null;
 
-  type Row = OrderDetail & {
+  // DB 回傳結構跟 OrderDetail 不同(有 order_items 而非 items),用 Omit 拆掉
+  type Row = Omit<OrderDetail, 'items'> & {
     order_items: {
       qty: number;
       price_at_purchase: number;
@@ -51,7 +52,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
       product_variants: { variant_name: string } | null;
     }[] | null;
   };
-  const row = data as Row;
+  const row = data as unknown as Row;
   const items: OrderItemRow[] = (row.order_items ?? []).map((i) => ({
     qty: i.qty,
     price_at_purchase: i.price_at_purchase,
