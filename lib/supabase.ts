@@ -35,16 +35,41 @@ export type TenantBySlug = {
   slug: string;
   name: string;
   plan: string;
+  order_prefix: string;
 };
 
 export async function getTenantBySlug(slug: string): Promise<TenantBySlug | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan')
+    .select('id, slug, name, plan, order_prefix')
     .eq('slug', slug)
     .maybeSingle();
   if (error) return null;
   return (data as TenantBySlug | null) ?? null;
+}
+
+export type TenantListItem = {
+  slug: string;
+  name: string;
+  plan: string;
+  order_prefix: string;
+};
+
+/**
+ * Admin nav 用:列所有 active tenant(切換用)。
+ * 目前自己人系統,沒做 per-user 過濾(等 Phase 5 self-serve sign-up 才接 tenant_members)。
+ */
+export async function getAllActiveTenants(): Promise<TenantListItem[]> {
+  const { data, error } = await supabaseAdmin
+    .from('tenants')
+    .select('slug, name, plan, order_prefix')
+    .eq('status', 'active')
+    .order('name');
+  if (error) {
+    console.error('[getAllActiveTenants]', error);
+    return [];
+  }
+  return (data ?? []) as TenantListItem[];
 }
 
 export async function getTenantByBotUserId(botUserId: string): Promise<Tenant | null> {
@@ -186,4 +211,148 @@ export async function logMessage(params: {
     raw_event: params.rawEvent ?? null,
   });
   if (error) console.error('[logMessage]', error);
+}
+
+// ====================
+// Phase 4-Gamma 公開網站(Gamma.1)
+// ====================
+
+export type TenantPublic = {
+  id: string;
+  slug: string;
+  name: string;
+  plan: string;
+  description: string | null;
+  brand_color: string | null;
+  og_image_url: string | null;
+};
+
+/**
+ * 公開頁面用:依 slug 拿 tenant(僅 status='active'),含 brand / SEO 欄位。
+ * 跟 getTenantBySlug 分開,避免動到既有 admin 路由的 type。
+ */
+export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
+  const { data, error } = await supabaseAdmin
+    .from('tenants')
+    .select('id, slug, name, plan, description, brand_color, og_image_url, status')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (error || !data) return null;
+  if ((data as { status?: string }).status && (data as { status?: string }).status !== 'active') return null;
+  const { status: _status, ...rest } = data as TenantPublic & { status?: string };
+  return rest as TenantPublic;
+}
+
+export type ProductPublic = {
+  id: string;
+  slug: string | null;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  min_price_twd: number; // 該 product 所有 active variant 的最低價(展示用)
+};
+
+/**
+ * 列出某 tenant 所有 active product,順便算出每個 product 的 variant 最低價。
+ * 沒 active variant 的 product → min_price_twd = 0(在 UI 上 hide 價格)。
+ */
+export async function getActiveProducts(tenantId: string): Promise<ProductPublic[]> {
+  const { data, error } = await supabaseAdmin
+    .from('products')
+    .select('id, slug, name, description, image_url, category, product_variants(price_twd, status)')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('[getActiveProducts]', error);
+    return [];
+  }
+  type Row = {
+    id: string;
+    slug: string | null;
+    name: string;
+    description: string | null;
+    image_url: string | null;
+    category: string | null;
+    product_variants: { price_twd: number; status: string }[] | null;
+  };
+  return (data as Row[] | null ?? []).map((p) => {
+    const active = (p.product_variants ?? []).filter((v) => v.status === 'active');
+    const min = active.length > 0 ? Math.min(...active.map((v) => v.price_twd)) : 0;
+    return {
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      description: p.description,
+      image_url: p.image_url,
+      category: p.category,
+      min_price_twd: min,
+    };
+  });
+}
+
+// ====================
+// Phase 4-Gamma(Gamma.2):商品詳情頁
+// ====================
+
+export type VariantPublic = {
+  id: string;
+  sku: string;
+  variant_name: string;
+  attributes: Record<string, unknown> | null;
+  price_twd: number;
+  stock: number;
+  image_url: string | null;
+  status: string;
+};
+
+export type ProductDetail = {
+  id: string;
+  slug: string | null;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  variants: VariantPublic[]; // 只含 active variants
+};
+
+/**
+ * 拿 tenant 內某個 product(by slug),含 active variants。
+ * 找不到 / inactive / 跨 tenant → null。
+ */
+export async function getProductBySlug(
+  tenantId: string,
+  productSlug: string,
+): Promise<ProductDetail | null> {
+  const { data, error } = await supabaseAdmin
+    .from('products')
+    .select(
+      'id, slug, name, description, image_url, category, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)',
+    )
+    .eq('tenant_id', tenantId)
+    .eq('slug', productSlug)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error || !data) return null;
+  type Row = {
+    id: string;
+    slug: string | null;
+    name: string;
+    description: string | null;
+    image_url: string | null;
+    category: string | null;
+    product_variants: VariantPublic[] | null;
+  };
+  const row = data as Row;
+  const variants = (row.product_variants ?? []).filter((v) => v.status === 'active');
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    image_url: row.image_url,
+    category: row.category,
+    variants,
+  };
 }
