@@ -108,7 +108,7 @@ export default async function TenantAdminLayout({
                 style={{
                   width: 44,
                   height: 44,
-                  borderRadius: radius.md,
+                  borderRadius: '50%',
                   objectFit: 'cover',
                   border: `1px solid ${colors.border}`,
                   flexShrink: 0,
@@ -120,7 +120,7 @@ export default async function TenantAdminLayout({
                 style={{
                   width: 44,
                   height: 44,
-                  borderRadius: radius.md,
+                  borderRadius: '50%',
                   background: colors.bgSubtle,
                   border: `1px solid ${colors.border}`,
                   flexShrink: 0,
@@ -219,7 +219,7 @@ export default async function TenantAdminLayout({
                       style={{
                         width: 22,
                         height: 22,
-                        borderRadius: 4,
+                        borderRadius: '50%',
                         objectFit: 'cover',
                         border: `1px solid ${colors.border}`,
                         flexShrink: 0,
@@ -231,7 +231,7 @@ export default async function TenantAdminLayout({
                       style={{
                         width: 22,
                         height: 22,
-                        borderRadius: 4,
+                        borderRadius: '50%',
                         background: colors.bgSubtle,
                         border: `1px solid ${colors.border}`,
                         flexShrink: 0,

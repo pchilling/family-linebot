@@ -137,7 +137,7 @@ export function LogoUploader({ tenantSlug, currentLogoUrl }: Props) {
             style={{
               width: 80,
               height: 80,
-              borderRadius: 12,
+              borderRadius: '50%',
               objectFit: 'cover',
               border: '1px solid #e4e4e7',
             }}
