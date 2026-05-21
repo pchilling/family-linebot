@@ -30,7 +30,9 @@ export function verifySignature(rawBody: string, signature: string | null): bool
 
 /**
  * 取 event 的回覆文字
- * - message text:keyword 觸發 / echo fallback
+ * - message text:keyword 命中才回(不再 echo「你說:XX」,避免吵)
+ *   → 學員在 support mode 內打字 silent 紀錄 + broadcast,bot 不講話
+ * - non-text message:silent(LINE@ Manager 直接看)
  * - follow:歡迎
  * - postback:根據 action= 切 Rich Menu handler
  *
@@ -40,11 +42,9 @@ export function describeEvent(event: WebhookEvent): string {
   switch (event.type) {
     case 'message':
       if (event.message.type === 'text') {
-        const reply = getKeywordReply(event.message.text);
-        if (reply) return reply;
-        return `你說:${event.message.text}`;
+        return getKeywordReply(event.message.text) ?? '';
       }
-      return `[收到 ${event.message.type} 訊息]`;
+      return '';
     case 'follow':
       return '歡迎加入!請點下方主選單開始使用 🙂';
     case 'unfollow':
@@ -52,7 +52,7 @@ export function describeEvent(event: WebhookEvent): string {
     case 'postback':
       return getPostbackReply(event.postback.data);
     default:
-      return `[event: ${event.type}]`;
+      return '';
   }
 }
 
