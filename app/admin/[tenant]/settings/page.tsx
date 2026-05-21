@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SettingsForm } from './settings-form';
+import { LogoUploader } from './logo-uploader';
 
 type TenantFull = {
   id: string;
@@ -8,6 +9,7 @@ type TenantFull = {
   description: string | null;
   brand_color: string | null;
   og_image_url: string | null;
+  logo_url: string | null;
   contact_info: string | null;
   plan: string;
   slug: string;
@@ -20,7 +22,7 @@ async function getTenantFull(slug: string): Promise<TenantFull | null> {
   const { data } = await supabaseAdmin
     .from('tenants')
     .select(
-      'id, name, description, brand_color, og_image_url, contact_info, plan, slug, order_prefix, features, status',
+      'id, name, description, brand_color, og_image_url, logo_url, contact_info, plan, slug, order_prefix, features, status',
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -52,6 +54,11 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
   return (
     <main style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, marginBottom: 20 }}>{tenant.name} · 攤位設定</h1>
+
+      <section style={section}>
+        <h2 style={h2}>Logo</h2>
+        <LogoUploader tenantSlug={tenant.slug} currentLogoUrl={tenant.logo_url} />
+      </section>
 
       <section style={section}>
         <h2 style={h2}>品牌資訊</h2>

@@ -63,3 +63,59 @@ export async function updateTenantSettings(
 
   return { status: 'success', ts: Date.now() };
 }
+
+// ========================
+// Logo upload(2026-05-21,Phase 7.1)
+// 用 Supabase Storage bucket "tenant-assets" 存,public bucket。
+// 客端 react-image-crop 已 crop 成 256×256 jpeg blob,server 只需要 upload + 寫 logo_url。
+// ========================
+export type UploadLogoResult =
+  | { ok: true; url: string }
+  | { ok: false; error: string };
+
+export async function uploadLogo(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const file = formData.get('file');
+
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
+  if (file.size > 2 * 1024 * 1024) return { ok: false, error: '檔案太大(裁切後應 < 2MB)' };
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  // path 加 timestamp 避免 CDN cache 殘留舊圖
+  const path = `${tenant.id}/logo-${Date.now()}.jpg`;
+
+  const { error: upErr } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .upload(path, file, {
+      contentType: 'image/jpeg',
+      upsert: false,
+    });
+
+  if (upErr) {
+    console.error('[uploadLogo upload]', upErr);
+    return { ok: false, error: '上傳失敗:' + upErr.message };
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+
+  const { error: updateErr } = await supabaseAdmin
+    .from('tenants')
+    .update({ logo_url: publicUrl })
+    .eq('id', tenant.id);
+
+  if (updateErr) {
+    console.error('[uploadLogo update tenant]', updateErr);
+    return { ok: false, error: '儲存連結失敗' };
+  }
+
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  revalidatePath(`/admin/${slug}`);
+
+  return { ok: true, url: publicUrl };
+}
