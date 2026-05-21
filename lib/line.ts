@@ -30,7 +30,7 @@ export function verifySignature(rawBody: string, signature: string | null): bool
 
 /**
  * 取 event 的回覆文字
- * - message:echo
+ * - message text:keyword 觸發 / echo fallback
  * - follow:歡迎
  * - postback:根據 action= 切 Rich Menu handler
  *
@@ -39,7 +39,11 @@ export function verifySignature(rawBody: string, signature: string | null): bool
 export function describeEvent(event: WebhookEvent): string {
   switch (event.type) {
     case 'message':
-      if (event.message.type === 'text') return `你說:${event.message.text}`;
+      if (event.message.type === 'text') {
+        const reply = getKeywordReply(event.message.text);
+        if (reply) return reply;
+        return `你說:${event.message.text}`;
+      }
       return `[收到 ${event.message.type} 訊息]`;
     case 'follow':
       return '歡迎加入!請點下方主選單開始使用 🙂';
@@ -50,6 +54,34 @@ export function describeEvent(event: WebhookEvent): string {
     default:
       return `[event: ${event.type}]`;
   }
+}
+
+/**
+ * Text message keyword 觸發。沒命中回 null,讓 caller 走 echo fallback。
+ * Keyword 比對 trim + lowercase(英文)+ 完全相等。
+ */
+function getKeywordReply(text: string): string | null {
+  const t = text.trim();
+  if (t === '真人' || /^human$/i.test(t) || /^客服$/.test(t)) {
+    return [
+      '🙋 真人客服',
+      '',
+      '已收到您的訊息,客服上線後會盡快回覆您。',
+      '',
+      '客服時間:週一至週五 10:00 – 18:00',
+      '非營業時間留言一樣會被處理,謝謝您的耐心 🙏',
+    ].join('\n');
+  }
+  if (t === '進階' || /^advance(d)?$/i.test(t)) {
+    return [
+      '🌿 進階教室',
+      '',
+      '進階教室是給已參加過基礎課的學員深入學習芳療 / 精油應用的課程系列。',
+      '',
+      '想了解更多請輸入「真人」,我們會聯繫您介紹適合的場次。',
+    ].join('\n');
+  }
+  return null;
 }
 
 /**

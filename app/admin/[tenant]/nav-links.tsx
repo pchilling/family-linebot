@@ -58,6 +58,7 @@ export function NavLinks({
           { key: 'attendances', label: '出席', href: `/admin/${tenantSlug}/attendances` },
         ]
       : []),
+    { key: 'news', label: '最新消息', href: `/admin/${tenantSlug}/news` },
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 
