@@ -8,6 +8,7 @@ import {
   updateProduct,
   updateVariant,
 } from '../../actions';
+import { ProductImageUploader } from './image-uploader';
 
 type Variant = {
   id: string;
@@ -82,8 +83,10 @@ export default async function ProductsPage({ params }: { params: Promise<{ tenan
           <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} /></label>
           <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
           <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
-          <label style={{ ...label, gridColumn: '1 / -1' }}><span style={labelText}>圖片 URL</span><input name="image_url" type="url" style={input} /></label>
           <label style={{ ...label, gridColumn: '1 / -1' }}><span style={labelText}>描述</span><textarea name="description" rows={2} style={{ ...input, fontFamily: 'inherit' }} /></label>
+          <p style={{ ...label, gridColumn: '1 / -1', color: '#71717a', margin: 0 }}>
+            建立後在下方商品卡片有「上傳商品圖」按鈕(4:5 直式 + 裁切)
+          </p>
           <button type="submit" style={{ ...btn, gridColumn: '1 / -1' }}>新增商品 + default variant</button>
         </form>
       </section>
@@ -93,18 +96,28 @@ export default async function ProductsPage({ params }: { params: Promise<{ tenan
 
       {products.map((p) => (
         <article key={p.id} style={productCard}>
-          {/* product-level edit form */}
+          {/* 商品圖上傳器(獨立於文字表單,即傳即儲存) */}
+          <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #f0f0f0' }}>
+            <ProductImageUploader
+              productId={p.id}
+              tenantSlug={tenant.slug}
+              currentImageUrl={p.image_url}
+              productName={p.name}
+            />
+          </div>
+
+          {/* product-level edit form(image_url 隱藏帶舊值給 updateProduct,實際更新走 uploader) */}
           <form action={updateProduct} style={formGrid}>
             <input type="hidden" name="id" value={p.id} />
             <input type="hidden" name="tenant_id" value={tenant.id} />
             <input type="hidden" name="tenant_slug" value={tenant.slug} />
+            <input type="hidden" name="image_url" value={p.image_url ?? ''} />
             <label style={label}><span style={labelText}>商品名稱</span><input name="name" defaultValue={p.name} style={input} /></label>
             <label style={label}><span style={labelText}>SKU(legacy)</span><input name="sku" defaultValue={p.sku ?? ''} style={input} /></label>
             <label style={label}><span style={labelText}>分類</span><input name="category" defaultValue={p.category ?? ''} style={input} /></label>
             <label style={label}><span style={labelText}>售價(legacy)</span><input name="price_twd" type="number" defaultValue={p.price_twd} style={input} /></label>
             <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={p.cost_twd ?? ''} style={input} /></label>
             <label style={label}><span style={labelText}>庫存(legacy)</span><input name="stock" type="number" defaultValue={p.stock} style={input} /></label>
-            <label style={{ ...label, gridColumn: '1 / 3' }}><span style={labelText}>圖片 URL</span><input name="image_url" type="url" defaultValue={p.image_url ?? ''} style={input} /></label>
             <label style={label}><span style={labelText}>狀態</span>
               <select name="status" defaultValue={p.status} style={input}>
                 <option value="active">上架</option>
