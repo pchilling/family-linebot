@@ -111,11 +111,30 @@ export default async function ClassesPage({ params }: { params: Promise<{ tenant
                 <label style={{ ...label, alignSelf: 'end' }}><input name="is_paid" type="checkbox" defaultChecked={c.is_paid} /> 收費</label>
                 <button type="submit" style={{ ...btn, gridColumn: '1 / 3' }}>儲存</button>
               </form>
-              <form action={deleteClass} style={{ marginTop: 8 }}>
-                <input type="hidden" name="id" value={c.id} />
-                <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                <button type="submit" style={btnDanger}>刪除</button>
-              </form>
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <a
+                  href={`/admin/${tenant.slug}/classes/${c.id}/qr`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: '6px 12px',
+                    background: '#fff',
+                    color: '#0070f3',
+                    border: '1px solid #0070f3',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    textDecoration: 'none',
+                    fontWeight: 500,
+                  }}
+                >
+                  📱 簽到 QR
+                </a>
+                <form action={deleteClass} style={{ display: 'inline' }}>
+                  <input type="hidden" name="id" value={c.id} />
+                  <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                  <button type="submit" style={btnDanger}>刪除</button>
+                </form>
+              </div>
             </li>
           ))}
         </ul>
