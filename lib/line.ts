@@ -58,27 +58,19 @@ export function describeEvent(event: WebhookEvent): string {
 
 /**
  * Text message keyword 觸發。沒命中回 null,讓 caller 走 echo fallback。
- * Keyword 比對 trim + lowercase(英文)+ 完全相等。
+ *
+ * 注:「真人」keyword 已拿掉(2026-05-21)— 改用客服 postback + Quick Reply 按鈕 explicit flow。
+ * 避免學員打字當作客服請求被誤 capture。
  */
 function getKeywordReply(text: string): string | null {
   const t = text.trim();
-  if (t === '真人' || /^human$/i.test(t) || /^客服$/.test(t)) {
-    return [
-      '🙋 真人客服',
-      '',
-      '已收到您的訊息,客服上線後會盡快回覆您。',
-      '',
-      '客服時間:週一至週五 10:00 – 18:00',
-      '非營業時間留言一樣會被處理,謝謝您的耐心 🙏',
-    ].join('\n');
-  }
   if (t === '進階' || /^advance(d)?$/i.test(t)) {
     return [
       '🌿 進階教室',
       '',
       '進階教室是給已參加過基礎課的學員深入學習芳療 / 精油應用的課程系列。',
       '',
-      '想了解更多請輸入「真人」,我們會聯繫您介紹適合的場次。',
+      '想了解更多請點主選單「💬 專屬客服」聯繫我們。',
     ].join('\n');
   }
   return null;
@@ -117,21 +109,66 @@ function getPostbackReply(data: string): string {
         '💬 專屬客服',
         '',
         '— 常見問題 —',
-        '• 訂單 / 出貨進度 → 請提供訂單編號或下單姓名',
-        '• 課程報名 / 變更 → 請提供姓名 + 課程名稱',
-        '• 商品諮詢 → 直接描述需求,我們幫你推薦',
-        '• 進階教室 / 組織內部培訓 → 請輸入「進階」我們會跟你聯繫',
+        '• 訂單 / 出貨進度',
+        '• 課程報名 / 變更',
+        '• 商品諮詢 / 推薦',
+        '• 進階教室 / 組織培訓',
         '',
         '— 客服時間 —',
         '週一至週五 10:00 – 18:00',
         '非營業時間留言我們上線會回覆 🙂',
         '',
-        '需要真人立刻處理,請輸入「真人」。',
+        '👇 想開始請按下方按鈕',
+      ].join('\n');
+
+    case 'start_support':
+      return [
+        '🙋 我們在聽',
+        '',
+        '請描述您的問題,我們收到後會盡快回覆。',
+        '',
+        '(接下來 30 分鐘內您打的訊息會被標記為客服請求,客服上線就會看到)',
+      ].join('\n');
+
+    case 'cancel_support':
+      return [
+        '好的 👌',
+        '',
+        '有需要再點主選單的「💬 專屬客服」即可。',
       ].join('\n');
 
     default:
       return `[未識別 postback: ${data}]`;
   }
+}
+
+/**
+ * 客服 postback 用的 Quick Reply 按鈕 — 「我要詢問」/「取消」
+ * 學員按客服 → bot 回 FAQ + 這兩個 chip 在輸入框上方
+ * 按「我要詢問」 → action=start_support → 進 support mode
+ * 按「取消」 → action=cancel_support → 不進
+ */
+export function getContactQuickReplyItems(): messagingApi.QuickReplyItem[] {
+  return [
+    {
+      type: 'action',
+      action: {
+        type: 'postback',
+        label: '📝 我要詢問',
+        data: 'action=start_support',
+        displayText: '我要詢問',
+      },
+    },
+    {
+      type: 'action',
+      action: {
+        type: 'postback',
+        label: '取消',
+        data: 'action=cancel_support',
+        displayText: '取消',
+      },
+    },
+  ];
 }
 
 /**

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WebhookEvent } from '@line/bot-sdk';
-import { describeEvent, formatMonthlyClassesText, lineClient, verifySignature } from '@/lib/line';
+import { describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, lineClient, verifySignature } from '@/lib/line';
 import { getClassesForCurrentMonth, getTenantByBotUserId, logMessage, supabaseAdmin, upsertUser } from '@/lib/supabase';
+import type { messagingApi } from '@line/bot-sdk';
 
 export const runtime = 'nodejs';
 
@@ -84,45 +85,49 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
         ? event.postback
         : null;
 
-  // Support mode 偵測:用戶觸發客服 postback 或打「真人」 → 進入 30 分鐘 support mode
-  // mode 內 inbound text → is_support=true,realtime broadcast 給 admin
+  // Support mode 偵測:explicit button flow(2026-05-21 改造)
+  // 學員按客服 → 出現 Quick Reply「我要詢問 / 取消」
+  // - 按「我要詢問」 → action=start_support → 進 30 分鐘 support mode
+  // - 按「取消」 → action=cancel_support → 清掉 mode
+  // - 不再有 keyword 自動觸發(避免打字誤觸)
   let isSupport = false;
-  if (event.type === 'postback') {
-    const params = new URLSearchParams(event.postback.data);
-    if (params.get('action') === 'contact' && userId) {
+  if (event.type === 'postback' && userId) {
+    const action = new URLSearchParams(event.postback.data).get('action');
+    if (action === 'start_support') {
       await supabaseAdmin
         .from('users')
         .update({ last_support_at: new Date().toISOString() })
+        .eq('id', userId);
+    } else if (action === 'cancel_support') {
+      await supabaseAdmin
+        .from('users')
+        .update({ last_support_at: null })
         .eq('id', userId);
     }
   } else if (event.type === 'message' && event.message.type === 'text' && userId) {
-    const text = event.message.text.trim();
-    // 「真人」keyword 也進 support mode
-    if (text === '真人' || /^human$/i.test(text) || /^客服$/.test(text)) {
-      await supabaseAdmin
-        .from('users')
-        .update({ last_support_at: new Date().toISOString() })
-        .eq('id', userId);
-      isSupport = true; // 「真人」本身也算 support 訊息
-    } else {
-      // 查 user.last_support_at 是否在 30 分鐘內
-      const { data: u } = await supabaseAdmin
-        .from('users')
-        .select('last_support_at')
-        .eq('id', userId)
-        .maybeSingle();
-      const lastAt = (u as { last_support_at?: string | null } | null)?.last_support_at;
-      if (lastAt) {
-        const ageMs = Date.now() - new Date(lastAt).getTime();
-        if (ageMs < 30 * 60 * 1000) {
-          isSupport = true;
-        }
+    // 純粹查 last_support_at 是否在 30 分鐘內,不再認 keyword
+    const { data: u } = await supabaseAdmin
+      .from('users')
+      .select('last_support_at')
+      .eq('id', userId)
+      .maybeSingle();
+    const lastAt = (u as { last_support_at?: string | null } | null)?.last_support_at;
+    if (lastAt) {
+      const ageMs = Date.now() - new Date(lastAt).getTime();
+      if (ageMs < 30 * 60 * 1000) {
+        isSupport = true;
       }
     }
   }
 
   const replyText = await buildReplyText(tenantId, event);
   const canReply = replyText && 'replyToken' in event && event.replyToken;
+  // 客服 postback 帶 Quick Reply chips(我要詢問 / 取消),其他都純文字
+  const quickReply: messagingApi.QuickReply | undefined =
+    event.type === 'postback' &&
+    new URLSearchParams(event.postback.data).get('action') === 'contact'
+      ? { items: getContactQuickReplyItems() }
+      : undefined;
 
   // inbound log + reply + outbound log 全部並發,降 critical path latency
   const tasks: Promise<unknown>[] = [
@@ -140,11 +145,16 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
 
   if (canReply) {
     const replyToken = event.replyToken;
+    const replyMessage: messagingApi.TextMessage = {
+      type: 'text',
+      text: replyText,
+      ...(quickReply ? { quickReply } : {}),
+    };
     tasks.push(
       lineClient
         .replyMessage({
           replyToken,
-          messages: [{ type: 'text', text: replyText }],
+          messages: [replyMessage],
         })
         .catch((e) => console.error('[webhook] reply failed', e)),
     );
