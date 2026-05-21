@@ -24,7 +24,7 @@ export default function ShopPage() {
   const [linePic, setLinePic] = useState('');
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [member, setMember] = useState<ShopMember | null>(null);
-  const [tenant, setTenant] = useState<ShopTenant>({ name: '商品專區', logo_url: null, banner_url: null });
+  const [tenant, setTenant] = useState<ShopTenant>({ name: '商品專區', logo_url: null, banner_url: null, payment_info: null });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
@@ -241,15 +241,64 @@ export default function ShopPage() {
   if (status === 'done') {
     return (
       <main style={page}>
-        <div style={doneBanner}>
-          <h1 style={{ fontSize: 22, margin: 0 }}>✓ 訂單已建立</h1>
-          <p style={{ marginTop: 12, fontSize: 16 }}>
-            訂單編號:<b>{orderNo}</b>
-          </p>
-          <p style={{ marginTop: 8, color: '#666', fontSize: 14 }}>
-            客服會盡快聯繫您確認付款與出貨。
+        <div style={{
+          padding: '1.75rem 1.25rem',
+          background: '#f0fdf4',
+          border: '1px solid #bbf7d0',
+          borderRadius: 12,
+          marginBottom: 16,
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>✓</div>
+          <h1 style={{ fontSize: 20, margin: 0, color: '#166534', fontWeight: 700 }}>訂單已建立</h1>
+          <p style={{ marginTop: 10, marginBottom: 0, fontSize: 14, color: '#15803d' }}>
+            訂單編號 <strong style={{ fontFamily: 'ui-monospace, monospace' }}>{orderNo}</strong>
           </p>
         </div>
+
+        {tenant.payment_info ? (
+          <div style={{
+            padding: '1.25rem',
+            background: '#fffbeb',
+            border: '1px solid #fde68a',
+            borderRadius: 12,
+            marginBottom: 14,
+          }}>
+            <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 10, fontSize: 16 }}>
+              💰 下一步:匯款
+            </div>
+            <div style={{
+              padding: '12px 14px',
+              background: '#fff',
+              border: '1px solid #fde68a',
+              borderRadius: 8,
+              color: '#78350f',
+              fontSize: 14,
+              lineHeight: 1.7,
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+            }}>
+              {tenant.payment_info}
+            </div>
+            <div style={{ marginTop: 12, color: '#92400e', fontSize: 12, lineHeight: 1.5 }}>
+              💡 建議截圖此頁,匯款後告知賣家後 5 碼。<br />
+              訂單編號 <strong>{orderNo}</strong>。
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            padding: '1rem 1.25rem',
+            background: '#f4f4f5',
+            border: '1px solid #e4e4e7',
+            borderRadius: 12,
+            marginBottom: 14,
+            fontSize: 13,
+            color: '#52525b',
+            lineHeight: 1.6,
+          }}>
+            客服會盡快聯繫您確認付款與出貨。
+          </div>
+        )}
       </main>
     );
   }

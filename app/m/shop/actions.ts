@@ -44,6 +44,7 @@ export type ShopTenant = {
   name: string;
   logo_url: string | null;
   banner_url: string | null;
+  payment_info: string | null;
 };
 
 export type ShopData = {
@@ -106,7 +107,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url')
+      .select('name, logo_url, og_image_url, payment_info')
       .eq('id', TENANT_ID)
       .maybeSingle(),
   ]);
@@ -116,7 +117,13 @@ export async function loadShopData(
     throw new Error('讀取商品失敗');
   }
 
-  const t = (tenantRes.data as { name: string; logo_url: string | null; og_image_url: string | null } | null) ?? null;
+  type TenantRow = {
+    name: string;
+    logo_url: string | null;
+    og_image_url: string | null;
+    payment_info: string | null;
+  } | null;
+  const t = (tenantRes.data as TenantRow) ?? null;
 
   return {
     products: (productsRes.data ?? []) as ShopProduct[],
@@ -125,6 +132,7 @@ export async function loadShopData(
       name: t?.name ?? '商品專區',
       logo_url: t?.logo_url ?? null,
       banner_url: t?.og_image_url ?? null,
+      payment_info: t?.payment_info ?? null,
     },
   };
 }
