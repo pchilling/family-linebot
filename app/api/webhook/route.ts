@@ -144,7 +144,73 @@ async function buildReplyText(tenantId: string, event: WebhookEvent): Promise<st
     }
   }
 
+  if (action === 'news') {
+    try {
+      const newsList = await getRecentNews(tenantId, 3);
+      return formatNewsText(newsList);
+    } catch (e) {
+      console.error('[buildReplyText news]', e);
+      return describeEvent(event);
+    }
+  }
+
   return describeEvent(event);
+}
+
+// ====================
+// 最新消息(Phase 6.3 / Bot 月 3)
+// ====================
+type NewsRow = {
+  id: string;
+  title: string;
+  body: string | null;
+  published_at: string;
+};
+
+async function getRecentNews(tenantId: string, limit: number): Promise<NewsRow[]> {
+  const { supabaseAdmin } = await import('@/lib/supabase');
+  const { data, error } = await supabaseAdmin
+    .from('news')
+    .select('id, title, body, published_at')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'published')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) {
+    console.error('[getRecentNews]', error);
+    return [];
+  }
+  return (data ?? []) as NewsRow[];
+}
+
+function formatNewsText(items: NewsRow[]): string {
+  if (items.length === 0) {
+    return [
+      '📰 最新消息',
+      '',
+      '目前無公告。',
+      '',
+      '有問題請輸入「真人」或點專屬客服。',
+    ].join('\n');
+  }
+
+  const lines: string[] = ['📰 最新消息', ''];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const dt = it.published_at
+      ? new Date(it.published_at).toLocaleDateString('zh-TW', {
+          timeZone: 'Asia/Taipei',
+          month: 'numeric',
+          day: 'numeric',
+        })
+      : '';
+    lines.push(`【${it.title}】${dt ? ' · ' + dt : ''}`);
+    if (it.body) {
+      lines.push(it.body);
+    }
+    if (i < items.length - 1) lines.push('');
+  }
+  return lines.join('\n');
 }
 
 // LINE 平台 Verify 按鈕打 GET
