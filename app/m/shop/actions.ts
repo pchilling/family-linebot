@@ -269,8 +269,14 @@ export async function placeOrder(
   // LINE push:訂單成立通知。
   // ⚠️ 不能 fire-and-forget(Vercel serverless function return 後 kill 背景 task)
   // 必須 await,push 完才能 return。增加 ~200ms 但保證送出。失敗仍不影響訂單(catch)。
+  // ⚠️ order.total_twd 在 INSERT 時是 0(由 refresh_order_total trigger 在 items 後算),
+  //    所以這裡用本地 cart × price snapshot 直接算
+  const totalForPush = cart.reduce((sum, c) => {
+    const p = products.find((pp) => pp.id === c.product_id);
+    return sum + (p?.price_twd ?? 0) * c.qty;
+  }, 0);
   try {
-    await pushOrderConfirmation(lineUserId, order.order_no, order.total_twd);
+    await pushOrderConfirmation(lineUserId, order.order_no, totalForPush);
   } catch (e) {
     console.warn('[placeOrder push]', e);
   }
