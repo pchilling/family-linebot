@@ -318,6 +318,11 @@ export async function markOrderPaid(formData: FormData) {
     revalidatePath(`/admin/${slug}/orders/${id}`);
     revalidatePath(`/admin/${slug}/orders`);
     revalidatePath(`/admin/${slug}`);
+    // return_to=list → 留在訂單列表(從 inline button 來);否則跳詳情頁(從詳情按來)
+    const returnTo = String(formData.get('return_to') || '').trim();
+    if (returnTo === 'list') {
+      redirect(`/admin/${slug}/orders?saved=${id}`);
+    }
     redirect(`/admin/${slug}/orders/${id}?saved=paid`);
   }
 }
@@ -340,6 +345,10 @@ export async function markOrderShipped(formData: FormData) {
     revalidatePath(`/admin/${slug}/orders/${id}`);
     revalidatePath(`/admin/${slug}/orders`);
     revalidatePath(`/admin/${slug}`);
+    const returnTo = String(formData.get('return_to') || '').trim();
+    if (returnTo === 'list') {
+      redirect(`/admin/${slug}/orders?saved=${id}`);
+    }
     redirect(`/admin/${slug}/orders/${id}?saved=shipped`);
   }
 }

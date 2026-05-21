@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { markOrderPaid, markOrderShipped } from '../../actions';
 
 type OrderRow = {
   id: string;
@@ -22,6 +23,7 @@ type Filters = {
   q?: string;
   from?: string;
   to?: string;
+  saved?: string; // 來自 markOrderPaid / markOrderShipped redirect 的訂單 id
 };
 
 async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
@@ -102,9 +104,26 @@ export default async function OrdersListPage({
     filters.from ||
     filters.to
   );
+  const savedId = filters.saved;
 
   return (
     <main style={{ padding: 24, maxWidth: 1080, margin: '0 auto' }}>
+      {savedId && (
+        <div
+          style={{
+            padding: '8px 14px',
+            background: '#dcfce7',
+            border: '1px solid #bbf7d0',
+            color: '#15803d',
+            fontSize: 13,
+            fontWeight: 500,
+            borderRadius: 6,
+            marginBottom: 14,
+          }}
+        >
+          ✓ 已更新訂單狀態
+        </div>
+      )}
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>
         {tenant.name} · 訂單管理{' '}
         <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>
@@ -224,6 +243,7 @@ export default async function OrdersListPage({
               <th style={th}>狀態</th>
               <th style={th}>付款</th>
               <th style={th}>建立時間</th>
+              <th style={th}>動作</th>
             </tr>
           </thead>
           <tbody>
@@ -264,6 +284,12 @@ export default async function OrdersListPage({
                 </td>
                 <td style={td}>{statusLabel(o.payment_status)}</td>
                 <td style={{ ...td, fontSize: 13, color: '#666' }}>{formatTw(o.created_at)}</td>
+                <td style={td}>
+                  <QuickAction
+                    order={o}
+                    tenantSlug={tenant.slug}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -271,4 +297,94 @@ export default async function OrdersListPage({
       )}
     </main>
   );
+}
+
+/**
+ * 訂單列表 inline quick action button:
+ * - 未付款 → 「✓ 標已付款」綠 button(直接呼叫 markOrderPaid,跳轉回此頁 ?saved=paid)
+ * - 已付款 未出貨 → 「📦 標已出貨」藍 button
+ * - 已出貨 / 已送達 / 已取消 / 已退款 → 「詳細」灰 link
+ */
+function QuickAction({
+  order,
+  tenantSlug,
+}: {
+  order: OrderRow;
+  tenantSlug: string;
+}) {
+  const linkBtn = (
+    <Link
+      href={`/admin/${tenantSlug}/orders/${order.id}`}
+      style={{
+        padding: '5px 10px',
+        background: '#fff',
+        color: '#52525b',
+        border: '1px solid #e4e4e7',
+        borderRadius: 4,
+        fontSize: 11,
+        textDecoration: 'none',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      詳細
+    </Link>
+  );
+
+  if (order.status === 'open') {
+    return (
+      <form action={markOrderPaid} style={{ display: 'flex', gap: 4 }}>
+        <input type="hidden" name="id" value={order.id} />
+        <input type="hidden" name="tenant_slug" value={tenantSlug} />
+        <input type="hidden" name="return_to" value="list" />
+        <button
+          type="submit"
+          style={{
+            padding: '5px 10px',
+            background: '#16a34a',
+            color: '#fff',
+            border: 0,
+            borderRadius: 4,
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ✓ 已收款
+        </button>
+        {linkBtn}
+      </form>
+    );
+  }
+
+  if (order.status === 'paid') {
+    return (
+      <form action={markOrderShipped} style={{ display: 'flex', gap: 4 }}>
+        <input type="hidden" name="id" value={order.id} />
+        <input type="hidden" name="tenant_slug" value={tenantSlug} />
+        <input type="hidden" name="return_to" value="list" />
+        <button
+          type="submit"
+          style={{
+            padding: '5px 10px',
+            background: '#0070f3',
+            color: '#fff',
+            border: 0,
+            borderRadius: 4,
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          📦 已出貨
+        </button>
+        {linkBtn}
+      </form>
+    );
+  }
+
+  return linkBtn;
 }
