@@ -122,6 +122,12 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
     );
   }
 
+  // Realtime broadcast:有客戶 inbound message 時 push 給 admin 看(nav badge)
+  // Fire-and-forget,不 await 避免拖累 webhook 5 秒 timeout
+  if (event.type === 'message') {
+    void broadcastNewMessage(tenantId, userId, event.message.type);
+  }
+
   await Promise.allSettled(tasks);
 }
 
@@ -181,6 +187,45 @@ async function getRecentNews(tenantId: string, limit: number): Promise<NewsRow[]
     return [];
   }
   return (data ?? []) as NewsRow[];
+}
+
+/**
+ * 透過 Supabase Realtime broadcast 通知前端 admin nav 有新客戶訊息。
+ * 用 REST API send,不需要先 subscribe channel。Fire-and-forget。
+ */
+async function broadcastNewMessage(
+  tenantId: string,
+  userId: string | null,
+  messageType: string,
+): Promise<void> {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return;
+    await fetch(`${url}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: `tenant:${tenantId}:messages`,
+            event: 'new_message',
+            payload: {
+              user_id: userId,
+              message_type: messageType,
+              at: new Date().toISOString(),
+            },
+          },
+        ],
+      }),
+    });
+  } catch (e) {
+    console.warn('[broadcastNewMessage]', e);
+  }
 }
 
 function formatNewsText(items: NewsRow[]): string {

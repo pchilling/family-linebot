@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createSupabaseBrowser } from '@/lib/supabase-browser';
 
 type Props = {
   tenantSlug: string;
+  tenantId: string;
   inventoryGated: boolean;
   hasActivities: boolean;
   ordersPending: number;
@@ -32,12 +35,39 @@ const c = {
 
 export function NavLinks({
   tenantSlug,
+  tenantId,
   inventoryGated,
   hasActivities,
   ordersPending,
   lowStock,
 }: Props) {
   const pathname = usePathname();
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  // Realtime subscribe:有新客戶訊息進來就 +1 badge
+  useEffect(() => {
+    if (!tenantId) return;
+    const supabase = createSupabaseBrowser();
+    const channel = supabase
+      .channel(`tenant:${tenantId}:messages`, {
+        config: { broadcast: { self: false } },
+      })
+      .on('broadcast', { event: 'new_message' }, () => {
+        setUnreadMessages((c) => c + 1);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tenantId]);
+
+  // 進 messages 頁就重置 badge(視為已看過)
+  useEffect(() => {
+    if (pathname === `/admin/${tenantSlug}/messages`) {
+      setUnreadMessages(0);
+    }
+  }, [pathname, tenantSlug]);
 
   const links: LinkDef[] = [
     { key: 'dashboard', label: '總覽', href: `/admin/${tenantSlug}` },
@@ -59,7 +89,12 @@ export function NavLinks({
         ]
       : []),
     { key: 'news', label: '最新消息', href: `/admin/${tenantSlug}/news` },
-    { key: 'messages', label: '客戶訊息', href: `/admin/${tenantSlug}/messages` },
+    {
+      key: 'messages',
+      label: '客戶訊息',
+      href: `/admin/${tenantSlug}/messages`,
+      badge: unreadMessages,
+    },
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 

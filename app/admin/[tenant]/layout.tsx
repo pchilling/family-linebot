@@ -326,6 +326,7 @@ export default async function TenantAdminLayout({
           </div>
           <NavLinks
             tenantSlug={tenant.slug}
+            tenantId={tenant.id}
             inventoryGated={inventoryGated}
             hasActivities={hasActivities}
             ordersPending={ordersPending}
