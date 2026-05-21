@@ -1,7 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
-import { markAttendance, unmarkAttendance } from './actions';
+import {
+  cancelReservationAdmin,
+  markAttendance,
+  markNoShow,
+  promoteWaitlist,
+  unmarkAttendance,
+} from './actions';
 
 type Props = {
   params: Promise<{ tenant: string }>;
@@ -179,13 +185,19 @@ async function DetailView({
     );
   }
 
-  // 已簽 + 全 tenant users(找出未簽的)
-  const [{ data: attRaw }, { data: usersRaw }] = await Promise.all([
+  // 平行撈:簽到 / 報名 / 全 tenant users
+  const [{ data: attRaw }, { data: resvRaw }, { data: usersRaw }] = await Promise.all([
     supabaseAdmin
       .from('attendances')
       .select('user_id, method, checked_in_at, users(display_name, full_name)')
       .eq('class_id', classId)
       .order('checked_in_at'),
+    supabaseAdmin
+      .from('reservations')
+      .select('user_id, status, position, created_at, users(display_name, full_name)')
+      .eq('class_id', classId)
+      .order('position', { ascending: true, nullsFirst: true })
+      .order('created_at'),
     supabaseAdmin
       .from('users')
       .select('id, display_name, full_name')
@@ -200,16 +212,28 @@ async function DetailView({
     checked_in_at: string;
     users: { display_name: string | null; full_name: string | null } | null;
   };
+  type ResvRow = {
+    user_id: string;
+    status: string;
+    position: number | null;
+    created_at: string;
+    users: { display_name: string | null; full_name: string | null } | null;
+  };
   type UserRow = {
     id: string;
     display_name: string | null;
     full_name: string | null;
   };
   const atts = ((attRaw as unknown) as AttRow[] | null) ?? [];
+  const resvs = ((resvRaw as unknown) as ResvRow[] | null) ?? [];
   const allUsers = ((usersRaw as unknown) as UserRow[] | null) ?? [];
 
   const signedIds = new Set(atts.map((a) => a.user_id));
   const unsigned = allUsers.filter((u) => !signedIds.has(u.id));
+
+  const confirmedResvs = resvs.filter((r) => r.status === 'confirmed');
+  const waitlistResvs = resvs.filter((r) => r.status === 'waitlist');
+  const cancelledResvs = resvs.filter((r) => r.status === 'cancelled' || r.status === 'no_show');
 
   return (
     <main style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
@@ -226,6 +250,96 @@ async function DetailView({
       <p style={{ color: '#666', fontSize: 13, marginBottom: 24 }}>
         {formatDateTime(c.scheduled_at)} · {c.regions?.name ?? '—'} · {c.instructor ?? '—'} · 容量 {c.capacity ?? '∞'}
       </p>
+
+      <section style={section}>
+        <h2 style={h2}>
+          已報名 ({confirmedResvs.length}{c.capacity ? ` / ${c.capacity}` : ''})
+        </h2>
+        {confirmedResvs.length === 0 && <p style={{ color: '#999', fontSize: 13 }}>(尚無報名)</p>}
+        {confirmedResvs.length > 0 && (
+          <ul style={listStyle}>
+            {confirmedResvs.map((r) => (
+              <li key={r.user_id} style={liStyle}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500 }}>
+                    {r.users?.full_name ?? r.users?.display_name ?? '(無名)'}
+                  </div>
+                </div>
+                <form action={markNoShow} style={{ marginRight: 6 }}>
+                  <input type="hidden" name="tenant_slug" value={slug} />
+                  <input type="hidden" name="class_id" value={classId} />
+                  <input type="hidden" name="user_id" value={r.user_id} />
+                  <button type="submit" style={btnGhost} title="標記為沒到">
+                    沒到
+                  </button>
+                </form>
+                <form action={cancelReservationAdmin}>
+                  <input type="hidden" name="tenant_slug" value={slug} />
+                  <input type="hidden" name="class_id" value={classId} />
+                  <input type="hidden" name="user_id" value={r.user_id} />
+                  <button type="submit" style={btnGhost} title="取消這筆報名 — 候補第 1 名自動升等">
+                    取消
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {waitlistResvs.length > 0 && (
+        <section style={section}>
+          <h2 style={h2}>候補 ({waitlistResvs.length})</h2>
+          <ul style={listStyle}>
+            {waitlistResvs.map((r) => (
+              <li key={r.user_id} style={liStyle}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500 }}>
+                    <span style={{ color: '#9a7400', marginRight: 8, fontFamily: 'monospace' }}>
+                      #{r.position}
+                    </span>
+                    {r.users?.full_name ?? r.users?.display_name ?? '(無名)'}
+                  </div>
+                </div>
+                <form action={promoteWaitlist} style={{ marginRight: 6 }}>
+                  <input type="hidden" name="tenant_slug" value={slug} />
+                  <input type="hidden" name="class_id" value={classId} />
+                  <input type="hidden" name="user_id" value={r.user_id} />
+                  <button type="submit" style={btnPrimary} title="升等為已報名">
+                    ↑ 升等
+                  </button>
+                </form>
+                <form action={cancelReservationAdmin}>
+                  <input type="hidden" name="tenant_slug" value={slug} />
+                  <input type="hidden" name="class_id" value={classId} />
+                  <input type="hidden" name="user_id" value={r.user_id} />
+                  <button type="submit" style={btnGhost} title="取消候補">
+                    取消
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {cancelledResvs.length > 0 && (
+        <section style={section}>
+          <h2 style={{ ...h2, color: '#888' }}>已取消 / 沒到 ({cancelledResvs.length})</h2>
+          <ul style={{ ...listStyle, opacity: 0.6 }}>
+            {cancelledResvs.map((r) => (
+              <li key={r.user_id} style={liStyle}>
+                <div style={{ flex: 1, fontSize: 13 }}>
+                  {r.users?.full_name ?? r.users?.display_name ?? '(無名)'}
+                  <span style={{ marginLeft: 8, fontSize: 11, color: '#999' }}>
+                    {r.status === 'no_show' ? '沒到' : '已取消'}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section style={section}>
         <h2 style={h2}>
