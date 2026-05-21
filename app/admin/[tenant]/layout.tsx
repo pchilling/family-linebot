@@ -99,38 +99,81 @@ export default async function TenantAdminLayout({
           >
             Stall Admin
           </div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: fontSize.lg,
-              fontWeight: fontWeight.semibold,
-              letterSpacing: '-0.01em',
-              color: colors.textPrimary,
-              lineHeight: 1.3,
-            }}
-          >
-            {tenant.name}
-          </h1>
-          <div
-            style={{
-              marginTop: space['2'],
-              display: 'flex',
-              alignItems: 'center',
-              gap: space['2'],
-              flexWrap: 'wrap',
-            }}
-          >
-            <span style={planBadge(tenant.plan)}>{tenant.plan}</span>
-            <span
-              style={{
-                fontFamily: 'var(--font-geist-mono), monospace',
-                fontSize: fontSize.xs,
-                color: colors.textMuted,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              {tenant.slug} · {tenant.order_prefix}
-            </span>
+          <div style={{ display: 'flex', gap: space['3'], alignItems: 'flex-start' }}>
+            {tenant.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={tenant.logo_url}
+                alt={`${tenant.name} logo`}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: radius.md,
+                  objectFit: 'cover',
+                  border: `1px solid ${colors.border}`,
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                aria-hidden
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: radius.md,
+                  background: colors.bgSubtle,
+                  border: `1px solid ${colors.border}`,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: colors.textDisabled,
+                  fontSize: fontSize.lg,
+                  fontWeight: fontWeight.semibold,
+                  fontFamily: 'var(--font-geist-mono), monospace',
+                }}
+              >
+                {tenant.name.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: fontSize.lg,
+                  fontWeight: fontWeight.semibold,
+                  letterSpacing: '-0.01em',
+                  color: colors.textPrimary,
+                  lineHeight: 1.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {tenant.name}
+              </h1>
+              <div
+                style={{
+                  marginTop: space['2'],
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: space['2'],
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span style={planBadge(tenant.plan)}>{tenant.plan}</span>
+              </div>
+              <div
+                style={{
+                  marginTop: 4,
+                  fontFamily: 'var(--font-geist-mono), monospace',
+                  fontSize: fontSize.xs,
+                  color: colors.textMuted,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {tenant.slug} · {tenant.order_prefix}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -159,7 +202,7 @@ export default async function TenantAdminLayout({
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    gap: space['2'],
                     padding: `${space['2']}px ${space['2']}px`,
                     borderRadius: radius.md,
                     color: colors.textSecondary,
@@ -168,12 +211,48 @@ export default async function TenantAdminLayout({
                     transition: 'background 100ms, color 100ms',
                   }}
                 >
+                  {t.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={t.logo_url}
+                      alt=""
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 4,
+                        objectFit: 'cover',
+                        border: `1px solid ${colors.border}`,
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 4,
+                        background: colors.bgSubtle,
+                        border: `1px solid ${colors.border}`,
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: colors.textDisabled,
+                        fontSize: fontSize.xs,
+                        fontWeight: fontWeight.semibold,
+                        fontFamily: 'var(--font-geist-mono), monospace',
+                      }}
+                    >
+                      {t.name.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
                   <span
                     style={{
+                      flex: 1,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      maxWidth: 140,
                     }}
                   >
                     {t.name}

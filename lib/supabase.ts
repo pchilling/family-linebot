@@ -37,12 +37,13 @@ export type TenantBySlug = {
   plan: string;
   order_prefix: string;
   features: Record<string, unknown> | null;
+  logo_url: string | null;
 };
 
 export async function getTenantBySlug(slug: string): Promise<TenantBySlug | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, order_prefix, features')
+    .select('id, slug, name, plan, order_prefix, features, logo_url')
     .eq('slug', slug)
     .maybeSingle();
   if (error) return null;
@@ -63,6 +64,7 @@ export type TenantListItem = {
   name: string;
   plan: string;
   order_prefix: string;
+  logo_url: string | null;
 };
 
 /**
@@ -72,7 +74,7 @@ export type TenantListItem = {
 export async function getAllActiveTenants(): Promise<TenantListItem[]> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('slug, name, plan, order_prefix')
+    .select('slug, name, plan, order_prefix, logo_url')
     .eq('status', 'active')
     .order('name');
   if (error) {
@@ -100,7 +102,7 @@ export async function getUserAllowedTenants(
   const { data, error } = await supabaseAdmin
     .from('platform_users')
     .select(
-      'id, tenant_members(role, tenants(slug, name, plan, order_prefix, status))',
+      'id, tenant_members(role, tenants(slug, name, plan, order_prefix, status, logo_url))',
     )
     .eq('email', authEmail)
     .maybeSingle();
@@ -120,6 +122,7 @@ export async function getUserAllowedTenants(
         plan: string;
         order_prefix: string;
         status: string;
+        logo_url: string | null;
       } | null;
     }[];
   };
@@ -132,6 +135,7 @@ export async function getUserAllowedTenants(
       name: m.tenants!.name,
       plan: m.tenants!.plan,
       order_prefix: m.tenants!.order_prefix,
+      logo_url: m.tenants!.logo_url,
       role: m.role,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
