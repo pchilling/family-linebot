@@ -19,6 +19,7 @@ export function NavLinks({ tenantSlug, inventoryGated }: Props) {
   const pathname = usePathname();
 
   const links: LinkDef[] = [
+    { key: 'dashboard', label: '總覽', href: `/admin/${tenantSlug}` },
     { key: 'products', label: '商品', href: `/admin/${tenantSlug}/products` },
     { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders` },
     { key: 'customers', label: '客戶', href: `/admin/${tenantSlug}/customers` },
@@ -28,8 +29,12 @@ export function NavLinks({ tenantSlug, inventoryGated }: Props) {
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/');
+  const dashboardHref = `/admin/${tenantSlug}`;
+  const isActive = (href: string) => {
+    // 「總覽」只 exact match,避免任何 sub-path 都把它也算 active
+    if (href === dashboardHref) return pathname === href;
+    return pathname === href || pathname.startsWith(href + '/');
+  };
 
   return (
     <div
