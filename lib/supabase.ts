@@ -36,16 +36,26 @@ export type TenantBySlug = {
   name: string;
   plan: string;
   order_prefix: string;
+  features: Record<string, unknown> | null;
 };
 
 export async function getTenantBySlug(slug: string): Promise<TenantBySlug | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, order_prefix')
+    .select('id, slug, name, plan, order_prefix, features')
     .eq('slug', slug)
     .maybeSingle();
   if (error) return null;
   return (data as TenantBySlug | null) ?? null;
+}
+
+/**
+ * 簡化的 feature flag 查詢:tenant.features.{key} === true 才回 true。
+ * features 結構:{"activities": true, "line_bot": true, "liff": true} 之類
+ */
+export function hasFeature(tenant: TenantBySlug | null | undefined, key: string): boolean {
+  if (!tenant?.features) return false;
+  return (tenant.features as Record<string, unknown>)[key] === true;
 }
 
 export type TenantListItem = {

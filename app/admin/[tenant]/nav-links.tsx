@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 type Props = {
   tenantSlug: string;
   inventoryGated: boolean;
+  hasActivities: boolean;
 };
 
 type LinkDef = {
@@ -26,7 +27,7 @@ const c = {
   accent: '#18181b',
 };
 
-export function NavLinks({ tenantSlug, inventoryGated }: Props) {
+export function NavLinks({ tenantSlug, inventoryGated, hasActivities }: Props) {
   const pathname = usePathname();
 
   const links: LinkDef[] = [
@@ -35,8 +36,13 @@ export function NavLinks({ tenantSlug, inventoryGated }: Props) {
     { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders` },
     { key: 'customers', label: '客戶', href: `/admin/${tenantSlug}/customers` },
     { key: 'inventory', label: '庫存', href: `/admin/${tenantSlug}/inventory`, gated: inventoryGated },
-    { key: 'classes', label: '課程', href: `/admin/${tenantSlug}/classes` },
-    { key: 'attendances', label: '出席', href: `/admin/${tenantSlug}/attendances` },
+    // 活動 nav 只給 features.activities 開啟的 tenant 看(目前只有 oilswa 三合一)
+    ...(hasActivities
+      ? [
+          { key: 'classes', label: '活動', href: `/admin/${tenantSlug}/classes` },
+          { key: 'attendances', label: '出席', href: `/admin/${tenantSlug}/attendances` },
+        ]
+      : []),
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 

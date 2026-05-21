@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
 import {
   card,
   colors,
@@ -60,6 +60,8 @@ export default async function TenantDashboardPage({ params }: Props) {
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
 
+  const hasActivities = hasFeature(tenant, 'activities');
+
   const { start: dayStart, end: dayEnd } = asiaTaipeiDayRange();
   const nowIso = new Date().toISOString();
   const week7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -87,20 +89,24 @@ export default async function TenantDashboardPage({ params }: Props) {
       .eq('payment_status', 'paid')
       .gte('paid_at', dayStart)
       .lt('paid_at', dayEnd),
-    supabaseAdmin
-      .from('attendances')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenant.id)
-      .gte('checked_in_at', dayStart)
-      .lt('checked_in_at', dayEnd),
-    supabaseAdmin
-      .from('classes')
-      .select('id, name, scheduled_at, capacity, status')
-      .eq('tenant_id', tenant.id)
-      .gte('scheduled_at', dayStart)
-      .lt('scheduled_at', dayEnd)
-      .neq('status', 'cancelled')
-      .order('scheduled_at'),
+    hasActivities
+      ? supabaseAdmin
+          .from('attendances')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenant.id)
+          .gte('checked_in_at', dayStart)
+          .lt('checked_in_at', dayEnd)
+      : Promise.resolve({ count: null }),
+    hasActivities
+      ? supabaseAdmin
+          .from('classes')
+          .select('id, name, scheduled_at, capacity, status')
+          .eq('tenant_id', tenant.id)
+          .gte('scheduled_at', dayStart)
+          .lt('scheduled_at', dayEnd)
+          .neq('status', 'cancelled')
+          .order('scheduled_at')
+      : Promise.resolve({ data: null }),
     supabaseAdmin
       .from('orders')
       .select('id', { count: 'exact', head: true })
@@ -120,16 +126,18 @@ export default async function TenantDashboardPage({ params }: Props) {
           .eq('tenant_id', tenant.id)
           .eq('status', 'active')
           .lte('stock', 3),
-    supabaseAdmin
-      .from('classes')
-      .select('id, name, scheduled_at, capacity, reservations!inner(status, position)')
-      .eq('tenant_id', tenant.id)
-      .gte('scheduled_at', nowIso)
-      .lt('scheduled_at', week7)
-      .neq('status', 'cancelled')
-      .in('reservations.status', ['confirmed', 'waitlist'])
-      .order('scheduled_at')
-      .limit(20),
+    hasActivities
+      ? supabaseAdmin
+          .from('classes')
+          .select('id, name, scheduled_at, capacity, reservations!inner(status, position)')
+          .eq('tenant_id', tenant.id)
+          .gte('scheduled_at', nowIso)
+          .lt('scheduled_at', week7)
+          .neq('status', 'cancelled')
+          .in('reservations.status', ['confirmed', 'waitlist'])
+          .order('scheduled_at')
+          .limit(20)
+      : Promise.resolve({ data: null }),
   ]);
 
   const ordersToday = ordersTodayResp.count ?? 0;
@@ -199,12 +207,16 @@ export default async function TenantDashboardPage({ params }: Props) {
           link={`/admin/${slug}/orders`}
           sub={`營收 NT$ ${revenueToday.toLocaleString()}`}
         />
-        <MetricCard
-          label="今日簽到"
-          value={attendancesToday}
-          link={`/admin/${slug}/attendances`}
-          sub={`課程 ${classesToday.length} 堂`}
-        />
+        {hasActivities ? (
+          <MetricCard
+            label="今日簽到"
+            value={attendancesToday}
+            link={`/admin/${slug}/attendances`}
+            sub={`活動 ${classesToday.length} 場`}
+          />
+        ) : (
+          <MetricCard label="客戶" value="—" sub="客戶名單" link={`/admin/${slug}/customers`} muted />
+        )}
         <MetricCard
           label="待付款"
           value={pendingPayment}
@@ -225,61 +237,65 @@ export default async function TenantDashboardPage({ params }: Props) {
         )}
       </section>
 
-      {/* Today's classes + Upcoming reservations (2-col grid) */}
-      <section
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-          gap: space['6'],
-          marginBottom: space['10'],
-        }}
-      >
-        <ListSection
-          title="今日課程"
-          count={classesToday.length}
-          empty="今日無課程"
-          items={classesToday.map((c) => ({
-            id: c.id,
-            primary: c.name,
-            secondary: `${formatDateTime(c.scheduled_at)}${c.capacity ? ` · 容量 ${c.capacity}` : ''}`,
-            href: `/admin/${slug}/attendances?class_id=${c.id}`,
-            cta: '簽到',
-          }))}
-        />
+      {/* 活動相關 sections — 只給 features.activities 開啟的 tenant 看 */}
+      {hasActivities && (
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gap: space['6'],
+            marginBottom: space['10'],
+          }}
+        >
+          <ListSection
+            title="今日活動"
+            count={classesToday.length}
+            empty="今日無活動"
+            items={classesToday.map((c) => ({
+              id: c.id,
+              primary: c.name,
+              secondary: `${formatDateTime(c.scheduled_at)}${c.capacity ? ` · 容量 ${c.capacity}` : ''}`,
+              href: `/admin/${slug}/attendances?class_id=${c.id}`,
+              cta: '簽到',
+            }))}
+          />
 
-        <ListSection
-          title="未來 7 天有報名"
-          count={upcomingResvs.length}
-          empty="無報名"
-          items={upcomingResvs.map((r) => ({
-            id: r.id,
-            primary: r.name,
-            secondary: `${formatDateTime(r.scheduled_at)}`,
-            stat: (
-              <>
-                <strong style={monoNum}>{r.confirmed}</strong>
-                {r.capacity && (
-                  <span style={{ color: colors.textMuted }}> / {r.capacity}</span>
-                )}
-                {r.waitlist > 0 && (
-                  <span style={{ color: colors.warning, marginLeft: 6 }}>
-                    +{r.waitlist}
-                  </span>
-                )}
-              </>
-            ),
-            href: `/admin/${slug}/attendances?class_id=${r.id}`,
-            cta: '管理',
-          }))}
-        />
-      </section>
+          <ListSection
+            title="未來 7 天有報名"
+            count={upcomingResvs.length}
+            empty="無報名"
+            items={upcomingResvs.map((r) => ({
+              id: r.id,
+              primary: r.name,
+              secondary: `${formatDateTime(r.scheduled_at)}`,
+              stat: (
+                <>
+                  <strong style={monoNum}>{r.confirmed}</strong>
+                  {r.capacity && (
+                    <span style={{ color: colors.textMuted }}> / {r.capacity}</span>
+                  )}
+                  {r.waitlist > 0 && (
+                    <span style={{ color: colors.warning, marginLeft: 6 }}>
+                      +{r.waitlist}
+                    </span>
+                  )}
+                </>
+              ),
+              href: `/admin/${slug}/attendances?class_id=${r.id}`,
+              cta: '管理',
+            }))}
+          />
+        </section>
+      )}
 
       {/* Quick actions */}
       <section>
         <div style={{ ...sectionLabel, marginBottom: space['3'] }}>快速操作</div>
         <div style={{ display: 'flex', gap: space['2'], flexWrap: 'wrap' }}>
           <QuickAction href={`/admin/${slug}/products`} label="新增商品" />
-          <QuickAction href={`/admin/${slug}/classes`} label="新增課程" />
+          {hasActivities && (
+            <QuickAction href={`/admin/${slug}/classes`} label="新增活動" />
+          )}
           <QuickAction href={`/admin/${slug}/orders`} label="所有訂單" />
           <QuickAction href={`/admin/${slug}/customers`} label="客戶名單" />
           <QuickAction href={`/admin/${slug}/settings`} label="攤位設定" />

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { getAllActiveTenants, getTenantBySlug } from '@/lib/supabase';
+import { getAllActiveTenants, getTenantBySlug, hasFeature } from '@/lib/supabase';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { signOut } from '../actions';
 import {
@@ -47,6 +47,7 @@ export default async function TenantAdminLayout({
 
   const others = allTenants.filter((t) => t.slug !== tenant.slug);
   const inventoryGated = tenant.plan === 'free';
+  const hasActivities = hasFeature(tenant, 'activities');
 
   return (
     <div
@@ -180,7 +181,11 @@ export default async function TenantAdminLayout({
           >
             主選單
           </div>
-          <NavLinks tenantSlug={tenant.slug} inventoryGated={inventoryGated} />
+          <NavLinks
+            tenantSlug={tenant.slug}
+            inventoryGated={inventoryGated}
+            hasActivities={hasActivities}
+          />
         </nav>
 
         {/* Bottom:預覽公開頁 + 登入帳號 */}
