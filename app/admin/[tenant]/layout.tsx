@@ -1,15 +1,31 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { Geist, Geist_Mono } from 'next/font/google';
 import { getAllActiveTenants, getTenantBySlug } from '@/lib/supabase';
+import {
+  colors,
+  fontFamilySans,
+  fontSize,
+  fontWeight,
+  planBadge,
+  radius,
+  sectionLabel,
+  sidebarWidth,
+  space,
+} from '@/lib/admin-theme';
 import { NavLinks } from './nav-links';
 
-function planColor(p: string): { bg: string; fg: string } {
-  return ({
-    free: { bg: '#f3f4f6', fg: '#6b7280' },
-    pro: { bg: '#dbeafe', fg: '#1d4ed8' },
-    enterprise: { bg: '#ede9fe', fg: '#6d28d9' },
-  } as Record<string, { bg: string; fg: string }>)[p] ?? { bg: '#f3f4f6', fg: '#6b7280' };
-}
+const geistSans = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist-sans',
+  display: 'swap',
+});
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
+  display: 'swap',
+});
 
 export default async function TenantAdminLayout({
   children,
@@ -26,100 +42,189 @@ export default async function TenantAdminLayout({
   if (!tenant) notFound();
 
   const others = allTenants.filter((t) => t.slug !== tenant.slug);
-  const planTone = planColor(tenant.plan);
   const inventoryGated = tenant.plan === 'free';
 
   return (
-    <div>
-      <nav
+    <div
+      className={`${geistSans.variable} ${geistMono.variable}`}
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        background: colors.bgBody,
+        fontFamily: fontFamilySans,
+        color: colors.textPrimary,
+      }}
+    >
+      {/* Sidebar */}
+      <aside
         style={{
-          background: '#f8f8f8',
-          borderBottom: '1px solid #e5e5e5',
+          width: sidebarWidth,
+          flexShrink: 0,
+          background: colors.bgCard,
+          borderRight: `1px solid ${colors.border}`,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
         }}
       >
-        {/* Row 1: tenant 身份 + 切換 + 預覽公開頁 */}
-        <div
-          style={{
-            padding: '10px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            fontSize: 13,
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ fontWeight: 600, color: '#000' }}>{tenant.name}</span>
-          <span
+        {/* Top:brand + tenant identity */}
+        <div style={{ padding: `${space['6']}px ${space['5']}px ${space['4']}px` }}>
+          <div
             style={{
-              padding: '2px 8px',
-              background: planTone.bg,
-              color: planTone.fg,
-              borderRadius: 3,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: 0.3,
-              textTransform: 'uppercase',
+              ...sectionLabel,
+              marginBottom: space['3'],
             }}
           >
-            {tenant.plan}
-          </span>
-          <span style={{ color: '#999', fontSize: 11 }}>
-            {tenant.slug} · {tenant.order_prefix}
-          </span>
+            Stall Admin
+          </div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: fontSize.lg,
+              fontWeight: fontWeight.semibold,
+              letterSpacing: '-0.01em',
+              color: colors.textPrimary,
+              lineHeight: 1.3,
+            }}
+          >
+            {tenant.name}
+          </h1>
+          <div
+            style={{
+              marginTop: space['2'],
+              display: 'flex',
+              alignItems: 'center',
+              gap: space['2'],
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={planBadge(tenant.plan)}>{tenant.plan}</span>
+            <span
+              style={{
+                fontFamily: 'var(--font-geist-mono), monospace',
+                fontSize: fontSize.xs,
+                color: colors.textMuted,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              {tenant.slug} · {tenant.order_prefix}
+            </span>
+          </div>
+        </div>
 
-          {others.length > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-              <span style={{ color: '#999' }}>切到</span>
-              {others.map((t, i) => (
-                <span key={t.slug} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {i > 0 && <span style={{ color: '#ddd' }}>·</span>}
-                  <Link
-                    href={`/admin/${t.slug}/products`}
+        {/* Tenant switcher */}
+        {others.length > 0 && (
+          <div
+            style={{
+              padding: `${space['3']}px ${space['5']}px ${space['4']}px`,
+              borderTop: `1px solid ${colors.borderSubtle}`,
+              borderBottom: `1px solid ${colors.borderSubtle}`,
+            }}
+          >
+            <div
+              style={{
+                ...sectionLabel,
+                marginBottom: space['2'],
+              }}
+            >
+              切換
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {others.map((t) => (
+                <Link
+                  key={t.slug}
+                  href={`/admin/${t.slug}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: `${space['2']}px ${space['2']}px`,
+                    borderRadius: radius.md,
+                    color: colors.textSecondary,
+                    textDecoration: 'none',
+                    fontSize: fontSize.base,
+                    transition: 'background 100ms, color 100ms',
+                  }}
+                >
+                  <span
                     style={{
-                      color: '#555',
-                      textDecoration: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: 140,
                     }}
                   >
                     {t.name}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        padding: '1px 5px',
-                        background: planColor(t.plan).bg,
-                        color: planColor(t.plan).fg,
-                        borderRadius: 2,
-                        fontWeight: 600,
-                        letterSpacing: 0.2,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {t.plan}
-                    </span>
-                  </Link>
-                </span>
+                  </span>
+                  <span style={planBadge(t.plan)}>{t.plan}</span>
+                </Link>
               ))}
-            </span>
-          )}
+            </div>
+          </div>
+        )}
 
-          <span style={{ flex: 1 }} />
+        {/* Nav links(client component) */}
+        <nav style={{ flex: 1, padding: `${space['3']}px ${space['3']}px`, overflowY: 'auto' }}>
+          <div
+            style={{
+              ...sectionLabel,
+              padding: `0 ${space['2']}px`,
+              marginBottom: space['2'],
+            }}
+          >
+            主選單
+          </div>
+          <NavLinks tenantSlug={tenant.slug} inventoryGated={inventoryGated} />
+        </nav>
 
+        {/* Bottom:預覽公開頁 */}
+        <div
+          style={{
+            padding: `${space['4']}px ${space['5']}px ${space['6']}px`,
+            borderTop: `1px solid ${colors.borderSubtle}`,
+          }}
+        >
           <a
             href={`/${tenant.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: '#0070f3', textDecoration: 'none', fontSize: 12 }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: space['1'],
+              color: colors.textSecondary,
+              textDecoration: 'none',
+              fontSize: fontSize.base,
+              transition: 'color 100ms',
+            }}
           >
-            預覽公開頁 ↗
+            預覽公開頁
+            <span
+              aria-hidden
+              style={{
+                fontSize: fontSize.sm,
+                color: colors.textMuted,
+                fontFamily: 'var(--font-geist-mono), monospace',
+              }}
+            >
+              ↗
+            </span>
           </a>
         </div>
+      </aside>
 
-        {/* Row 2: 功能 nav(active 狀態靠 client component 判斷 pathname) */}
-        <NavLinks tenantSlug={tenant.slug} inventoryGated={inventoryGated} />
-      </nav>
-      {children}
+      {/* Main content area */}
+      <main
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: `${space['8']}px ${space['10']}px ${space['12']}px`,
+        }}
+      >
+        {children}
+      </main>
     </div>
   );
 }
