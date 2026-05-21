@@ -67,7 +67,7 @@ export type TenantListItem = {
 
 /**
  * Admin nav 用:列所有 active tenant(切換用)。
- * 目前自己人系統,沒做 per-user 過濾(等 Phase 5 self-serve sign-up 才接 tenant_members)。
+ * @deprecated 用 getUserAllowedTenants 取代,避免每個登入者都看到全部 tenant
  */
 export async function getAllActiveTenants(): Promise<TenantListItem[]> {
   const { data, error } = await supabaseAdmin
@@ -80,6 +80,72 @@ export async function getAllActiveTenants(): Promise<TenantListItem[]> {
     return [];
   }
   return (data ?? []) as TenantListItem[];
+}
+
+export type AllowedTenant = TenantListItem & { role: string };
+
+/**
+ * 依 Supabase Auth email 找出該 user 在 platform_users 對應的 tenant_members,
+ * 回傳該 user 可以管理的 tenants 列表。
+ *
+ * Mapping:auth.users.email ↔ platform_users.email ↔ tenant_members
+ *
+ * email 為 null / 沒對應 platform_users / 無 tenant_members → 回 []
+ */
+export async function getUserAllowedTenants(
+  authEmail: string | null | undefined,
+): Promise<AllowedTenant[]> {
+  if (!authEmail) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from('platform_users')
+    .select(
+      'id, tenant_members(role, tenants(slug, name, plan, order_prefix, status))',
+    )
+    .eq('email', authEmail)
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) console.error('[getUserAllowedTenants]', error);
+    return [];
+  }
+
+  type Row = {
+    id: string;
+    tenant_members: {
+      role: string;
+      tenants: {
+        slug: string;
+        name: string;
+        plan: string;
+        order_prefix: string;
+        status: string;
+      } | null;
+    }[];
+  };
+  const row = data as unknown as Row;
+
+  return (row.tenant_members ?? [])
+    .filter((m) => m.tenants && m.tenants.status === 'active')
+    .map((m) => ({
+      slug: m.tenants!.slug,
+      name: m.tenants!.name,
+      plan: m.tenants!.plan,
+      order_prefix: m.tenants!.order_prefix,
+      role: m.role,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * 判斷該 user 是否有此 tenant 的存取權。
+ */
+export async function userHasTenantAccess(
+  authEmail: string | null | undefined,
+  tenantSlug: string,
+): Promise<boolean> {
+  const allowed = await getUserAllowedTenants(authEmail);
+  return allowed.some((t) => t.slug === tenantSlug);
 }
 
 export async function getTenantByBotUserId(botUserId: string): Promise<Tenant | null> {

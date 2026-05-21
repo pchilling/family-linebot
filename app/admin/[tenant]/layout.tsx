@@ -1,7 +1,7 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { getAllActiveTenants, getTenantBySlug, hasFeature } from '@/lib/supabase';
+import { getTenantBySlug, getUserAllowedTenants, hasFeature } from '@/lib/supabase';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { signOut } from '../actions';
 import {
@@ -38,14 +38,29 @@ export default async function TenantAdminLayout({
 }) {
   const { tenant: slug } = await params;
   const supabase = await createSupabaseServerClient();
-  const [{ data: { user } }, tenant, allTenants] = await Promise.all([
-    supabase.auth.getUser(),
-    getTenantBySlug(slug),
-    getAllActiveTenants(),
-  ]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Per-user access control:只能看 tenant_members 內的 tenant
+  // middleware 已擋未登入,這裡 user 一定有
+  const allowedTenants = await getUserAllowedTenants(user?.email);
+
+  // 沒任何 tenant 權限 → 登出狀態頁(redirect login 帶 error)
+  if (allowedTenants.length === 0) {
+    redirect('/admin/login?error=no_tenant_access');
+  }
+
+  // 沒這 tenant 的權限 → 跳到第一個有權限的 tenant
+  const hasAccessToThis = allowedTenants.some((t) => t.slug === slug);
+  if (!hasAccessToThis) {
+    redirect(`/admin/${allowedTenants[0].slug}`);
+  }
+
+  const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
 
-  const others = allTenants.filter((t) => t.slug !== tenant.slug);
+  const others = allowedTenants.filter((t) => t.slug !== tenant.slug);
   const inventoryGated = tenant.plan === 'free';
   const hasActivities = hasFeature(tenant, 'activities');
 
