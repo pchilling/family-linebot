@@ -792,6 +792,20 @@ alter table news enable row level security;
 alter table tenants add column if not exists logo_url text;
 
 -- ====================
+-- Phase 7.4:會員 ID + 介紹人 ID(2026-05-21,CRM 級別,不含 PV / 業績計算)
+-- 學員自填(LIFF /m/member),admin 在客戶詳情頁看到 + 顯示「我介紹進來的人」reverse 查
+-- 純 text 對應(不 FK),允許「上線還沒辦會員、下線先辦」這種倒著綁
+-- ====================
+alter table users add column if not exists member_id text;
+alter table users add column if not exists referrer_member_id text;
+create index if not exists users_member_id_idx
+  on users(tenant_id, member_id)
+  where member_id is not null;
+create index if not exists users_referrer_member_id_idx
+  on users(tenant_id, referrer_member_id)
+  where referrer_member_id is not null;
+
+-- ====================
 -- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
 -- Stage A:加 product_variants + order_items / stock_movements 加 variant_id +
 --          seed default variants(每個既有 product 1 個 'default' variant)+ backfill

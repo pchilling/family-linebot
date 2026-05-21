@@ -66,7 +66,9 @@ export default async function CustomerDetailPage({ params }: Props) {
   ] = await Promise.all([
     supabaseAdmin
       .from('users')
-      .select('id, line_user_id, display_name, full_name, phone, address, birthday, status, added_at')
+      .select(
+        'id, line_user_id, display_name, full_name, phone, address, birthday, member_id, referrer_member_id, status, added_at',
+      )
       .eq('tenant_id', tenant.id)
       .eq('id', id)
       .maybeSingle(),
@@ -101,6 +103,8 @@ export default async function CustomerDetailPage({ params }: Props) {
     phone: string | null;
     address: string | null;
     birthday: string | null;
+    member_id: string | null;
+    referrer_member_id: string | null;
     status: string;
     added_at: string;
   };
@@ -141,6 +145,30 @@ export default async function CustomerDetailPage({ params }: Props) {
   const orders = ((ordersRaw as unknown) as OrderRow[] | null) ?? [];
   const atts = ((attsRaw as unknown) as AttRow[] | null) ?? [];
   const resvs = ((resvsRaw as unknown) as ResvRow[] | null) ?? [];
+
+  // 找「我介紹進來的人」(referrer_member_id = 我的 member_id)
+  type RefereeRow = { id: string; display_name: string | null; full_name: string | null; member_id: string | null };
+  let referrals: RefereeRow[] = [];
+  if (user.member_id) {
+    const { data } = await supabaseAdmin
+      .from('users')
+      .select('id, display_name, full_name, member_id')
+      .eq('tenant_id', tenant.id)
+      .eq('referrer_member_id', user.member_id);
+    referrals = (data as RefereeRow[] | null) ?? [];
+  }
+
+  // 找「我的介紹人」(如果填的 referrer_member_id 在系統內有對應的 user)
+  let referrer: RefereeRow | null = null;
+  if (user.referrer_member_id) {
+    const { data } = await supabaseAdmin
+      .from('users')
+      .select('id, display_name, full_name, member_id')
+      .eq('tenant_id', tenant.id)
+      .eq('member_id', user.referrer_member_id)
+      .maybeSingle();
+    referrer = (data as RefereeRow | null) ?? null;
+  }
 
   // 統計(排除 cancelled/refunded 訂單)
   const activeOrders = orders.filter((o) => o.status !== 'cancelled' && o.status !== 'refunded');
@@ -193,12 +221,82 @@ export default async function CustomerDetailPage({ params }: Props) {
           <dd style={{ margin: 0 }}>{user.address ?? '—'}</dd>
           <dt style={metaKey}>生日</dt>
           <dd style={{ margin: 0 }}>{user.birthday ?? '—'}</dd>
+          <dt style={metaKey}>ID</dt>
+          <dd style={{ margin: 0 }}>
+            {user.member_id ? (
+              <code style={{ padding: '2px 8px', background: '#f3f4f6', borderRadius: 3, fontFamily: 'monospace', fontSize: 13, userSelect: 'all' }}>
+                {user.member_id}
+              </code>
+            ) : (
+              <span style={{ color: '#9ca3af' }}>—(學員未填)</span>
+            )}
+          </dd>
+          <dt style={metaKey}>介紹人 ID</dt>
+          <dd style={{ margin: 0 }}>
+            {user.referrer_member_id ? (
+              <span>
+                <code style={{ padding: '2px 8px', background: '#f3f4f6', borderRadius: 3, fontFamily: 'monospace', fontSize: 13 }}>
+                  {user.referrer_member_id}
+                </code>
+                {referrer && (
+                  <Link
+                    href={`/admin/${slug}/customers/${referrer.id}`}
+                    style={{ marginLeft: 8, color: '#0070f3', textDecoration: 'none', fontSize: 13 }}
+                  >
+                    → {referrer.full_name ?? referrer.display_name ?? '(無名)'}
+                  </Link>
+                )}
+                {!referrer && (
+                  <span style={{ marginLeft: 8, color: '#9ca3af', fontSize: 12 }}>
+                    (此 ID 尚未在系統內、可能還沒辦會員)
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span style={{ color: '#9ca3af' }}>—</span>
+            )}
+          </dd>
           <dt style={metaKey}>LINE userId</dt>
           <dd style={{ margin: 0, fontFamily: 'monospace', fontSize: 12, color: '#888' }}>
             {user.line_user_id}
           </dd>
         </dl>
       </section>
+
+      {referrals.length > 0 && (
+        <section style={section}>
+          <h2 style={h2}>我介紹進來的人 ({referrals.length})</h2>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {referrals.map((r) => (
+              <li
+                key={r.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 12px',
+                  background: '#fafafa',
+                  border: '1px solid #e4e4e7',
+                  borderRadius: 4,
+                  fontSize: 14,
+                }}
+              >
+                <Link
+                  href={`/admin/${slug}/customers/${r.id}`}
+                  style={{ flex: 1, color: '#0070f3', textDecoration: 'none', fontWeight: 500 }}
+                >
+                  {r.full_name ?? r.display_name ?? '(無名)'}
+                </Link>
+                {r.member_id && (
+                  <code style={{ fontSize: 11, color: '#71717a', fontFamily: 'monospace' }}>
+                    {r.member_id}
+                  </code>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 訂單歷史 */}
       <section style={section}>

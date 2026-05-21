@@ -127,6 +127,26 @@ export default function MemberPage() {
           />
         </label>
 
+        <label style={label}>
+          <span style={labelText}>ID(會員編號,若有的話)</span>
+          <input
+            name="member_id"
+            defaultValue={profile?.member_id ?? ''}
+            style={input}
+            placeholder="例:1234567"
+          />
+        </label>
+
+        <label style={label}>
+          <span style={labelText}>介紹人 ID</span>
+          <input
+            name="referrer_member_id"
+            defaultValue={profile?.referrer_member_id ?? ''}
+            style={input}
+            placeholder="介紹你來的人的 ID(填了之後可以記錄)"
+          />
+        </label>
+
         <button type="submit" disabled={saving} style={{ ...btn, opacity: saving ? 0.5 : 1 }}>
           {saving ? '儲存中…' : isNew ? '建立會員資料' : '更新資料'}
         </button>

@@ -33,6 +33,8 @@ export type MemberProfile = {
   phone: string | null;
   address: string | null;
   birthday: string | null;
+  member_id: string | null;
+  referrer_member_id: string | null;
 };
 
 /**
@@ -45,7 +47,7 @@ export async function loadProfile(
 
   const { data, error } = await supabaseAdmin
     .from('users')
-    .select('full_name, phone, address, birthday')
+    .select('full_name, phone, address, birthday, member_id, referrer_member_id')
     .eq('tenant_id', TENANT_ID)
     .eq('line_user_id', lineUserId)
     .maybeSingle();
@@ -68,6 +70,9 @@ export async function saveProfile(formData: FormData) {
   const address = String(formData.get('address') || '').trim() || null;
   const birthdayRaw = String(formData.get('birthday') || '').trim();
   const birthday = birthdayRaw || null;
+  const member_id = String(formData.get('member_id') || '').trim() || null;
+  const referrer_member_id =
+    String(formData.get('referrer_member_id') || '').trim() || null;
 
   // upsert by (tenant_id, line_user_id) — 既有 user 一定有,update
   const { error } = await supabaseAdmin
@@ -80,6 +85,8 @@ export async function saveProfile(formData: FormData) {
         phone,
         address,
         birthday,
+        member_id,
+        referrer_member_id,
         status: 'active',
       },
       { onConflict: 'tenant_id,line_user_id' },
