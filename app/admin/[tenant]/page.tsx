@@ -143,18 +143,6 @@ export default async function TenantDashboardPage({ params }: Props) {
       : Promise.resolve({ data: null }),
   ]);
 
-  // === DEBUG: 印 dashboard 抓資料的範圍 + 結果(臨時,確認後拿掉) ===
-  console.log('[dashboard]', {
-    tenantId: tenant.id,
-    slug,
-    dayStart,
-    dayEnd,
-    nowIso,
-    ordersTodayCount: ordersTodayResp.count,
-    ordersTodayError: (ordersTodayResp as { error?: unknown }).error,
-    revenueTodayRows: revenueTodayResp.data?.length,
-  });
-
   const ordersToday = ordersTodayResp.count ?? 0;
   const revenueToday = (
     (revenueTodayResp.data as { total_twd: number }[] | null) ?? []
@@ -201,24 +189,6 @@ export default async function TenantDashboardPage({ params }: Props) {
 
   return (
     <div style={{ maxWidth: contentMaxWidth, margin: '0 auto' }}>
-      {/* DEBUG panel (臨時) */}
-      <details style={{ marginBottom: 16, padding: 10, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, fontSize: 11, fontFamily: 'monospace' }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>🐛 DEBUG: 點開看 dashboard 抓資料的範圍</summary>
-        <pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#78350f' }}>
-{JSON.stringify({
-  tenantId: tenant.id,
-  slug,
-  serverNow: new Date().toISOString(),
-  dayStart,
-  dayEnd,
-  ordersTodayCount: ordersToday,
-  revenueToday,
-  pendingPayment,
-  pendingShip,
-}, null, 2)}
-        </pre>
-      </details>
-
       {/* Hero */}
       <header style={{ marginBottom: space['10'] }}>
         <div style={{ ...sectionLabel, marginBottom: space['2'] }}>{formatToday()}</div>

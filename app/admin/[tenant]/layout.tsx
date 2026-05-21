@@ -204,6 +204,21 @@ export default async function TenantAdminLayout({
     max-width: 100%;
     height: auto;
   }
+
+  /* === Sticky filter bar 在手機:長 list 捲動時 filter 跟著 === */
+  .admin-content form[method="GET"] {
+    position: sticky;
+    top: 8px;
+    z-index: 30;
+    background: #fafafa !important;
+    border: 1px solid #e4e4e7 !important;
+    border-radius: 10px !important;
+    padding: 10px !important;
+    margin-left: -2px;
+    margin-right: -2px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    backdrop-filter: blur(8px);
+  }
 }
           `,
         }}
