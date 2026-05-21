@@ -201,12 +201,17 @@ export async function updateVariant(formData: FormData) {
   const cost_twd = numOrNull(formData.get('cost_twd'));
   const stock = numOrNull(formData.get('stock')) ?? 0;
   const status = String(formData.get('status') || 'active');
+  const slug = String(formData.get('tenant_slug') || '').trim();
 
   await supabaseAdmin
     .from('product_variants')
     .update({ sku, variant_name, price_twd, cost_twd, stock, status })
     .eq('id', id);
   revalidateProductRoutes(formData);
+
+  if (slug) {
+    redirect(`/admin/${slug}/products?saved=variant_${id}#variant-${id}`);
+  }
 }
 
 export async function deleteVariant(formData: FormData) {
@@ -226,12 +231,18 @@ export async function updateProduct(formData: FormData) {
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const category = String(formData.get('category') || '').trim() || null;
   const status = String(formData.get('status') || 'active');
+  const slug = String(formData.get('tenant_slug') || '').trim();
 
   await supabaseAdmin
     .from('products')
     .update({ sku, name, description, price_twd, cost_twd, stock, image_url, category, status })
     .eq('id', id);
   revalidateProductRoutes(formData);
+
+  // 存後 redirect 帶 saved 參數讓 page 顯示「✓ 已儲存」banner + 滾到該商品
+  if (slug) {
+    redirect(`/admin/${slug}/products?saved=${id}#product-${id}`);
+  }
 }
 
 export async function deleteProduct(formData: FormData) {
