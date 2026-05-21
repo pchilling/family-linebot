@@ -97,7 +97,7 @@ export default async function TenantAdminLayout({
         color: colors.textPrimary,
       }}
     >
-      {/* CSS:手機版 sidebar 改為 fixed drawer,加 hamburger 按鈕 */}
+      {/* CSS:手機版 sidebar 改 fixed drawer + hamburger;內頁 RWD */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -115,7 +115,45 @@ export default async function TenantAdminLayout({
   body.sidebar-open .admin-sidebar-backdrop { display: block !important; }
   body.sidebar-open { overflow: hidden; }
   .admin-mobile-hamburger { display: inline-flex !important; }
-  .admin-content { padding: 56px 16px 32px !important; }
+  .admin-content { padding: 56px 14px 32px !important; }
+
+  /* Tables 橫向 scroll(避免 layout 破版) */
+  .admin-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-content table tbody, .admin-content table thead, .admin-content table tr {
+    display: table;
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* 表單 3-col grid 強制 1-col */
+  .admin-content form[style*="repeat(3"],
+  .admin-content form[style*="repeat(auto-fit"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* dashboard metric / list grid 同 */
+  .admin-content section[style*="repeat(auto-fit"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* h1 縮小 + 文字 wrap */
+  .admin-content h1 { font-size: 18px !important; }
+  .admin-content h2 { font-size: 15px !important; }
+
+  /* Filter bar form 自動 wrap(已 flex-wrap)+ 每個欄位 100% */
+  .admin-content form[method="GET"] input,
+  .admin-content form[method="GET"] select {
+    flex: 1 1 100% !important;
+  }
+  .admin-content form[method="GET"] button[type="submit"] {
+    flex: 1 1 100% !important;
+  }
 }
           `,
         }}
