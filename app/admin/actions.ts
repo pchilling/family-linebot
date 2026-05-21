@@ -112,6 +112,24 @@ function revalidateProductRoutes(formData: FormData) {
   revalidatePath('/admin/products'); // legacy
 }
 
+/**
+ * 從商品名產 slug:
+ * - 全英文 → 純小寫 hyphenated + 6 字隨機尾(避免撞)
+ * - 含中文 / 完全沒 ascii → 用 timestamp36 + 隨機 4 字(URL safe)
+ */
+function generateProductSlug(name: string): string {
+  const ascii = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const rand = Math.random().toString(36).slice(2, 8);
+  if (ascii.length >= 2) {
+    return `${ascii.slice(0, 32)}-${rand}`;
+  }
+  // 中文名 fallback:純隨機 8 字
+  return `${Date.now().toString(36)}${rand}`.slice(0, 12);
+}
+
 export async function createProduct(formData: FormData) {
   const tenantId = tenantIdFromForm(formData);
   const sku = String(formData.get('sku') || '').trim() || null;
@@ -123,11 +141,16 @@ export async function createProduct(formData: FormData) {
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const category = String(formData.get('category') || '').trim() || null;
 
+  // 自動產 slug:英文名直接 slugify,中文名 / 混合則用前 8 字 + 隨機尾(避免重複)
+  // tenant 內 unique(因為 products.slug 有 unique constraint per tenant)
+  const slug = generateProductSlug(name);
+
   const { data: product, error } = await supabaseAdmin
     .from('products')
     .insert({
       tenant_id: tenantId,
       sku,
+      slug,
       name,
       description,
       price_twd,

@@ -406,18 +406,34 @@ export type ProductDetail = {
  */
 export async function getProductBySlug(
   tenantId: string,
-  productSlug: string,
+  slugOrId: string,
 ): Promise<ProductDetail | null> {
-  const { data, error } = await supabaseAdmin
+  // 先試 slug
+  let { data } = await supabaseAdmin
     .from('products')
     .select(
       'id, slug, name, description, image_url, category, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)',
     )
     .eq('tenant_id', tenantId)
-    .eq('slug', productSlug)
+    .eq('slug', slugOrId)
     .eq('status', 'active')
     .maybeSingle();
-  if (error || !data) return null;
+
+  // slug 沒匹配 + 參數看起來像 UUID → 試 id(對應 createProduct 沒自動產 slug 的舊資料)
+  if (!data && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId)) {
+    const r = await supabaseAdmin
+      .from('products')
+      .select(
+        'id, slug, name, description, image_url, category, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)',
+      )
+      .eq('tenant_id', tenantId)
+      .eq('id', slugOrId)
+      .eq('status', 'active')
+      .maybeSingle();
+    data = r.data;
+  }
+
+  if (!data) return null;
   type Row = {
     id: string;
     slug: string | null;

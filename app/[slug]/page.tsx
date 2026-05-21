@@ -108,7 +108,7 @@ export default async function TenantHomePage({ params }: Props) {
             {products.map((p) => (
               <a
                 key={p.id}
-                href={p.slug ? `/${slug}/p/${p.slug}` : '#'}
+                href={`/${slug}/p/${p.slug ?? p.id}`}
                 className="product-card"
                 style={{
                   display: 'block',
