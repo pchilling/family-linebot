@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SettingsForm } from './settings-form';
 import { LogoUploader } from './logo-uploader';
+import { BannerUploader } from './banner-uploader';
 
 type TenantFull = {
   id: string;
@@ -58,6 +59,14 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
       <section style={section}>
         <h2 style={h2}>Logo</h2>
         <LogoUploader tenantSlug={tenant.slug} currentLogoUrl={tenant.logo_url} />
+      </section>
+
+      <section style={section}>
+        <h2 style={h2}>Banner / 分享圖</h2>
+        <BannerUploader
+          tenantSlug={tenant.slug}
+          currentBannerUrl={tenant.og_image_url}
+        />
       </section>
 
       <section style={section}>

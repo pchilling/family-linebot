@@ -12,31 +12,39 @@ export default async function TenantHomePage({ params }: Props) {
 
   const products = await getActiveProducts(tenant.id);
 
+  // Hero banner(用 og_image_url,1200×630 — 同時作 OG 分享圖)
+  const heroBanner = tenant.og_image_url;
+
   if (products.length === 0) {
     return (
-      <div
-        style={{
-          textAlign: 'center',
-          padding: '5rem 1.5rem',
-          color: '#6b7280',
-        }}
-      >
-        <p style={{ fontSize: '1.125rem', margin: 0 }}>攤位準備中</p>
-        <p style={{ fontSize: '0.875rem', margin: '0.5rem 0 0', color: '#9ca3af' }}>
-          商品即將上架,敬請期待
-        </p>
-      </div>
+      <>
+        {heroBanner && <HeroBanner src={heroBanner} alt={tenant.name} />}
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '5rem 1.5rem',
+            color: '#6b7280',
+          }}
+        >
+          <p style={{ fontSize: '1.125rem', margin: 0 }}>攤位準備中</p>
+          <p style={{ fontSize: '0.875rem', margin: '0.5rem 0 0', color: '#9ca3af' }}>
+            商品即將上架,敬請期待
+          </p>
+        </div>
+      </>
     );
   }
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-        gap: '1.5rem',
-      }}
-    >
+    <>
+      {heroBanner && <HeroBanner src={heroBanner} alt={tenant.name} />}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: '1.5rem',
+        }}
+      >
       {products.map((p) => (
         <a
           key={p.id}
@@ -95,6 +103,26 @@ export default async function TenantHomePage({ params }: Props) {
           </div>
         </a>
       ))}
-    </div>
+      </div>
+    </>
+  );
+}
+
+function HeroBanner({ src, alt }: { src: string; alt: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      style={{
+        width: '100%',
+        aspectRatio: '1200 / 630',
+        objectFit: 'cover',
+        borderRadius: 10,
+        display: 'block',
+        marginBottom: '2rem',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+      }}
+    />
   );
 }

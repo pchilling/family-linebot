@@ -119,3 +119,50 @@ export async function uploadLogo(formData: FormData): Promise<UploadLogoResult> 
 
   return { ok: true, url: publicUrl };
 }
+
+/**
+ * 上傳 hero banner(也作 og:image)。Phase 7.3。
+ * 1200×630 jpeg,寫 tenants.og_image_url。
+ * Path: {tenant_id}/banner-{ts}.jpg
+ */
+export async function uploadBanner(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const file = formData.get('file');
+
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
+  if (file.size > 4 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 4MB' };
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const path = `${tenant.id}/banner-${Date.now()}.jpg`;
+  const { error: upErr } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .upload(path, file, { contentType: 'image/jpeg', upsert: false });
+
+  if (upErr) {
+    console.error('[uploadBanner upload]', upErr);
+    return { ok: false, error: '上傳失敗:' + upErr.message };
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+
+  const { error: updateErr } = await supabaseAdmin
+    .from('tenants')
+    .update({ og_image_url: publicUrl })
+    .eq('id', tenant.id);
+
+  if (updateErr) {
+    console.error('[uploadBanner update]', updateErr);
+    return { ok: false, error: '儲存連結失敗' };
+  }
+
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  revalidatePath(`/admin/${slug}`);
+
+  return { ok: true, url: publicUrl };
+}
