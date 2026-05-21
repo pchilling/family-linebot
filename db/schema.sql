@@ -759,6 +759,39 @@ create trigger reservations_check_tenant
 alter table reservations enable row level security;
 
 -- ====================
+-- Phase 6.3:最新消息(2026-05-21,線 1 月 3 placeholder 接真實內容)
+-- LINE@ 用戶點 Rich Menu 第 2 格「📰 最新消息」時,webhook 撈最近 3 則 published 回覆。
+-- 不推送(避免吃 LINE broadcast quota),純公告板模式。
+-- ====================
+create table if not exists news (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  title text not null,
+  body text,
+  status text not null default 'draft'
+    check (status in ('draft', 'published', 'archived')),
+  published_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists news_tenant_published_idx
+  on news(tenant_id, published_at desc nulls last)
+  where status = 'published';
+
+create trigger news_updated_at before update on news
+  for each row execute function set_updated_at();
+
+alter table news enable row level security;
+
+-- ====================
+-- Phase 7.1:tenants.logo_url(2026-05-21)
+-- 圓形 profile 照,顯示在 admin sidebar / 公開頁 header / sidebar 切換清單。
+-- 客端 react-image-crop 1:1 → canvas 輸出 256×256 jpeg → Supabase Storage(bucket "tenant-assets")
+-- ====================
+alter table tenants add column if not exists logo_url text;
+
+-- ====================
 -- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
 -- Stage A:加 product_variants + order_items / stock_movements 加 variant_id +
 --          seed default variants(每個既有 product 1 個 'default' variant)+ backfill
