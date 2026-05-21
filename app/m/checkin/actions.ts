@@ -28,6 +28,51 @@ async function verifyIdToken(idToken: string): Promise<string> {
   return data.sub;
 }
 
+type UserRecord = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+};
+
+/**
+ * 確保 user 存在(沒加 bot 好友也能掃 QR 進來),回傳 user record。
+ * 用 displayName / pictureUrl 補資料(從客端 LIFF getProfile 帶來)。
+ */
+async function ensureUser(
+  lineUserId: string,
+  displayName: string | null,
+  pictureUrl: string | null,
+): Promise<UserRecord> {
+  // 先查
+  const { data: existing } = await supabaseAdmin
+    .from('users')
+    .select('id, full_name, phone')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .maybeSingle();
+
+  if (existing) return existing as UserRecord;
+
+  // 沒則 insert
+  const { data: created, error } = await supabaseAdmin
+    .from('users')
+    .insert({
+      tenant_id: TENANT_ID,
+      line_user_id: lineUserId,
+      display_name: displayName,
+      picture_url: pictureUrl,
+      status: 'active',
+    })
+    .select('id, full_name, phone')
+    .single();
+
+  if (error || !created) {
+    console.error('[ensureUser]', error);
+    throw new Error('建立會員資料失敗');
+  }
+  return created as UserRecord;
+}
+
 async function getUserId(lineUserId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from('users')
@@ -113,34 +158,31 @@ export async function loadTodayClasses(idToken: string): Promise<ClassListItem[]
   }));
 }
 
-export type CheckinResult =
-  | { ok: true; message: string }
-  | { ok: false; error: string };
+type ClassInfo = {
+  id: string;
+  name: string;
+  scheduled_at: string;
+};
 
-/**
- * 學員主動簽到。method = 'liff' 或 'qr'(從 URL 帶 class_id 的)。
- */
-export async function checkin(
-  idToken: string,
+export type CheckinState =
+  | { kind: 'success'; message: string }
+  | { kind: 'error'; error: string }
+  | { kind: 'need_profile'; classInfo: ClassInfo };
+
+async function doCheckin(
+  userId: string,
   classId: string,
-  method: 'liff' | 'qr' = 'liff',
-): Promise<CheckinResult> {
-  if (!classId) return { ok: false, error: '缺課程資訊' };
-
-  const lineUserId = await verifyIdToken(idToken);
-  const userId = await getUserId(lineUserId);
-  if (!userId) return { ok: false, error: '查無會員資料,請先到「會員專區」填資料' };
-
-  // 確認課程存在 + 屬於此 tenant + 沒取消
+  method: 'qr' | 'liff',
+): Promise<CheckinState> {
   const { data: cls } = await supabaseAdmin
     .from('classes')
     .select('id, name, status, scheduled_at')
     .eq('tenant_id', TENANT_ID)
     .eq('id', classId)
     .maybeSingle();
-  if (!cls) return { ok: false, error: '找不到課程' };
+  if (!cls) return { kind: 'error', error: '找不到課程' };
   const c = cls as { id: string; name: string; status: string; scheduled_at: string };
-  if (c.status === 'cancelled') return { ok: false, error: '此課程已取消' };
+  if (c.status === 'cancelled') return { kind: 'error', error: '此課程已取消' };
 
   const { error } = await supabaseAdmin.from('attendances').insert({
     tenant_id: TENANT_ID,
@@ -150,13 +192,105 @@ export async function checkin(
   });
 
   if (error) {
-    // 23505 = unique_violation(已簽過)
     if ((error as { code?: string }).code === '23505') {
-      return { ok: false, error: '你已經簽過這堂課了' };
+      return { kind: 'error', error: '你已經簽過這堂課了' };
     }
-    console.error('[checkin]', error);
-    return { ok: false, error: '簽到失敗,請稍後再試' };
+    console.error('[doCheckin]', error);
+    return { kind: 'error', error: '簽到失敗,請稍後再試' };
   }
 
-  return { ok: true, message: `✓ ${c.name} 簽到成功` };
+  return { kind: 'success', message: `✓ ${c.name} 簽到成功` };
+}
+
+/**
+ * 學員掃 QR 進來。先確保 user 存在(沒加 bot 好友也建檔),
+ * 再檢查是否填了 full_name + phone。沒填 → return need_profile,
+ * 已填 → 直接簽到。
+ */
+export async function checkinFromQr(
+  idToken: string,
+  classId: string,
+  displayName: string | null,
+  pictureUrl: string | null,
+): Promise<CheckinState> {
+  if (!classId) return { kind: 'error', error: '缺課程資訊' };
+
+  const lineUserId = await verifyIdToken(idToken);
+  const user = await ensureUser(lineUserId, displayName, pictureUrl);
+
+  const hasProfile = !!(user.full_name && user.phone);
+  if (!hasProfile) {
+    const { data: cls } = await supabaseAdmin
+      .from('classes')
+      .select('id, name, scheduled_at')
+      .eq('tenant_id', TENANT_ID)
+      .eq('id', classId)
+      .maybeSingle();
+    if (!cls) return { kind: 'error', error: '找不到課程' };
+    return {
+      kind: 'need_profile',
+      classInfo: cls as ClassInfo,
+    };
+  }
+
+  return doCheckin(user.id, classId, 'qr');
+}
+
+/**
+ * 填完 mini-form 之後存資料 + 立刻簽到。
+ */
+export async function saveProfileAndCheckin(formData: FormData): Promise<CheckinState> {
+  const idToken = String(formData.get('idToken') ?? '');
+  const classId = String(formData.get('class_id') ?? '');
+  const fullName = String(formData.get('full_name') ?? '').trim();
+  const phone = String(formData.get('phone') ?? '').trim();
+  const memberId = String(formData.get('member_id') ?? '').trim() || null;
+  const referrerMemberId =
+    String(formData.get('referrer_member_id') ?? '').trim() || null;
+
+  if (!idToken || !classId) return { kind: 'error', error: '缺必要參數' };
+  if (!fullName) return { kind: 'error', error: '請填真實姓名' };
+  if (!phone) return { kind: 'error', error: '請填電話' };
+
+  const lineUserId = await verifyIdToken(idToken);
+  const userId = await getUserId(lineUserId);
+  if (!userId) return { kind: 'error', error: '查無會員,請重新掃 QR' };
+
+  const { error: updErr } = await supabaseAdmin
+    .from('users')
+    .update({
+      full_name: fullName,
+      phone,
+      member_id: memberId,
+      referrer_member_id: referrerMemberId,
+      status: 'active',
+    })
+    .eq('id', userId);
+
+  if (updErr) {
+    console.error('[saveProfileAndCheckin update]', updErr);
+    return { kind: 'error', error: '儲存資料失敗' };
+  }
+
+  return doCheckin(userId, classId, 'qr');
+}
+
+// Legacy export(舊版 page 還可能用到)
+export type CheckinResult =
+  | { ok: true; message: string }
+  | { ok: false; error: string };
+
+export async function checkin(
+  idToken: string,
+  classId: string,
+  method: 'liff' | 'qr' = 'liff',
+): Promise<CheckinResult> {
+  if (!classId) return { ok: false, error: '缺課程資訊' };
+  const lineUserId = await verifyIdToken(idToken);
+  const userId = await getUserId(lineUserId);
+  if (!userId) return { ok: false, error: '查無會員資料,請先到「會員專區」填資料' };
+  const result = await doCheckin(userId, classId, method);
+  if (result.kind === 'success') return { ok: true, message: result.message };
+  if (result.kind === 'error') return { ok: false, error: result.error };
+  return { ok: false, error: '請先填會員資料' };
 }
