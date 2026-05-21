@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { lineClient } from '@/lib/line';
 
 const LIFF_CHANNEL_ID = process.env.LIFF_CHANNEL_ID!;
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
@@ -237,7 +238,7 @@ export async function placeOrder(
       shipping_phone: phone,
       shipping_address: address,
     })
-    .select('id, order_no')
+    .select('id, order_no, total_twd')
     .single();
   if (orderErr || !order) {
     console.error('[placeOrder insert order]', orderErr);
@@ -265,5 +266,66 @@ export async function placeOrder(
     throw new Error('建單失敗(明細):' + itemsErr.message);
   }
 
+  // LINE push:訂單成立通知(fire-and-forget,失敗不影響訂單)
+  // 量小:每筆訂單 1 則,單 tenant 200 free 額度遠遠夠
+  pushOrderConfirmation(lineUserId, order.order_no, order.total_twd).catch((e) => {
+    console.warn('[placeOrder push]', e);
+  });
+
   return { order_no: order.order_no };
+}
+
+/**
+ * 訂單建立後 LINE push 一則文字訊息給客戶:
+ *   ✓ 訂單編號 + 總計
+ *   💰 匯款資訊(從 tenants.payment_info)
+ *   訂單頁連結
+ *
+ * Fire-and-forget。失敗不影響訂單。
+ * 客戶須為 bot 好友才會收到(non-friend pushMessage 會 fail,catch 吞掉)。
+ */
+async function pushOrderConfirmation(
+  lineUserId: string,
+  orderNo: string,
+  totalTwd: number,
+): Promise<void> {
+  // 拉 tenant payment_info + slug(for order URL)
+  const { data: t } = await supabaseAdmin
+    .from('tenants')
+    .select('slug, payment_info, name')
+    .eq('id', TENANT_ID)
+    .maybeSingle();
+  const tenant = (t as { slug: string; payment_info: string | null; name: string } | null) ?? null;
+
+  const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://family-linebot-delta.vercel.app';
+  const orderUrl = tenant ? `${baseUrl}/${tenant.slug}/order/${orderNo}` : '';
+
+  const lines = [
+    '✓ 您的訂單已建立!',
+    '',
+    `訂單編號:${orderNo}`,
+    `總計:NT$ ${totalTwd.toLocaleString()}`,
+  ];
+
+  if (tenant?.payment_info) {
+    lines.push('');
+    lines.push('—— 下一步:匯款 ——');
+    lines.push(tenant.payment_info);
+    lines.push('');
+    lines.push('匯款後請按主選單「💬 專屬客服」告知後 5 碼。');
+  } else {
+    lines.push('');
+    lines.push('客服會盡快聯繫您確認付款。');
+  }
+
+  if (orderUrl) {
+    lines.push('');
+    lines.push('訂單詳情:');
+    lines.push(orderUrl);
+  }
+
+  await lineClient.pushMessage({
+    to: lineUserId,
+    messages: [{ type: 'text', text: lines.join('\n') }],
+  });
 }
