@@ -81,86 +81,19 @@ export default async function ProductDetailPage({ params }: Props) {
       >
         ← 回攤位
       </a>
-      <article
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '2.5rem',
-          alignItems: 'start',
-        }}
-      >
-        <div>
-          {item.image_url ? (
-            <img
-              src={item.image_url}
-              alt={item.name}
-              style={{
-                width: '100%',
-                aspectRatio: '4 / 5',
-                objectFit: 'cover',
-                borderRadius: 8,
-                display: 'block',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                aspectRatio: '4 / 5',
-                background: '#f3f4f6',
-                borderRadius: 8,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#9ca3af',
-              }}
-            >
-              無圖
-            </div>
-          )}
-        </div>
-        <div>
-          <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.5rem', lineHeight: 1.3 }}>
-            {item.name}
-          </h2>
-          {item.category && (
-            <div
-              style={{
-                color: '#9ca3af',
-                fontSize: '0.8125rem',
-                marginBottom: '1rem',
-              }}
-            >
-              {item.category}
-            </div>
-          )}
-          {item.description && (
-            <p
-              style={{
-                color: '#374151',
-                lineHeight: 1.6,
-                marginBottom: '1.5rem',
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {item.description}
-            </p>
-          )}
-          {item.variants.length > 0 ? (
-            <VariantSelector
-              variants={item.variants}
-              tenantSlug={slug}
-              productId={item.id}
-              productSlug={item.slug}
-              productName={item.name}
-              productImageUrl={item.image_url}
-            />
-          ) : (
-            <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>
-              無可選規格
-            </div>
-          )}
-        </div>
-      </article>
+      {/* 整個 product detail 在 VariantSelector 內(client),含圖 / 名 / 描述 / 選擇器 / cart。
+          單欄佈局(行動裝置友善),變體切換時圖會同步換。
+          server page 只負責 SEO(JSON-LD 已在上面) + 回攤位 link。 */}
+      <VariantSelector
+        variants={item.variants}
+        tenantSlug={slug}
+        productId={item.id}
+        productSlug={item.slug}
+        productName={item.name}
+        productCategory={item.category}
+        productDescription={item.description}
+        productImageUrl={item.image_url}
+      />
     </div>
   );
 }
