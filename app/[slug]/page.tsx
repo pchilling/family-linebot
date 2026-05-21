@@ -5,6 +5,10 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
+// ISR:tenant brand / 商品 列表變動不頻繁,cache 30s。第二位訪客拿 CDN 快取 → 飛快。
+// admin 改動會 revalidatePath 推送,不會看到太舊資料。
+export const revalidate = 30;
+
 export default async function TenantHomePage({ params }: Props) {
   const { slug } = await params;
   const tenant = await getTenantPublic(slug);

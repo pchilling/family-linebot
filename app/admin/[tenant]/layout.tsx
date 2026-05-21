@@ -39,34 +39,22 @@ export default async function TenantAdminLayout({
 }) {
   const { tenant: slug } = await params;
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  // Per-user access control:只能看 tenant_members 內的 tenant
-  // middleware 已擋未登入,這裡 user 一定有
-  const allowedTenants = await getUserAllowedTenants(user?.email);
+  // Perf optimization:auth 跟 tenant 互相獨立,可平行
+  const [authResp, tenant] = await Promise.all([
+    supabase.auth.getUser(),
+    getTenantBySlug(slug),
+  ]);
+  const user = authResp.data.user;
 
-  // 沒任何 tenant 權限 → 登出狀態頁(redirect login 帶 error)
-  if (allowedTenants.length === 0) {
-    redirect('/admin/login?error=no_tenant_access');
-  }
-
-  // 沒這 tenant 的權限 → 跳到第一個有權限的 tenant
-  const hasAccessToThis = allowedTenants.some((t) => t.slug === slug);
-  if (!hasAccessToThis) {
-    redirect(`/admin/${allowedTenants[0].slug}`);
-  }
-
-  const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
 
-  const others = allowedTenants.filter((t) => t.slug !== tenant.slug);
+  // allowed tenants 跟 badges 都不互相依賴(都靠 user 或 tenant.id),可平行
   const inventoryGated = tenant.plan === 'free';
   const hasActivities = hasFeature(tenant, 'activities');
 
-  // Nav badges:待處理數量,平行撈
-  const [ordersPendingResp, lowStockResp] = await Promise.all([
+  const [allowedTenants, ordersPendingResp, lowStockResp] = await Promise.all([
+    getUserAllowedTenants(user?.email),
     // 待付款訂單(status='open')
     supabaseAdmin
       .from('orders')
@@ -85,6 +73,18 @@ export default async function TenantAdminLayout({
   ]);
   const ordersPending = ordersPendingResp.count ?? 0;
   const lowStock = lowStockResp.count ?? 0;
+
+  // Access check 移到所有 query 完之後(早期 redirect 浪費上面的並行 query,但
+  // 在這裡 throw 也只是丟掉幾百 byte,效益不對等。先保持架構簡單)
+  if (allowedTenants.length === 0) {
+    redirect('/admin/login?error=no_tenant_access');
+  }
+  const hasAccessToThis = allowedTenants.some((t) => t.slug === slug);
+  if (!hasAccessToThis) {
+    redirect(`/admin/${allowedTenants[0].slug}`);
+  }
+
+  const others = allowedTenants.filter((t) => t.slug !== tenant.slug);
 
   return (
     <div

@@ -7,6 +7,9 @@ type Props = {
   params: Promise<{ slug: string; product: string }>;
 };
 
+// ISR:商品 / variant 改動不頻繁,cache 60s
+export const revalidate = 60;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, product } = await params;
   const tenant = await getTenantPublic(slug);
