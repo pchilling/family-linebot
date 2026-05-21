@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21(Phase 6.1 教室簽到 + 修 deploy 卡住的 type error)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21 下午(Admin 大改造:Dashboard / 客戶詳情 / UI redesign / 活動報名 / per-user access)
 
 ---
 
@@ -291,6 +291,106 @@ alter table tenants add column if not exists contact_info text;
 - Rich Menu uploader 重跑 + 拿到新 richMenuId(`richmenu-c3bb1b7a3bc4e5415b663de524c1359b`,update 進 tenants.rich_menu_id)
 
 **Lesson**:Vercel build status 沒在 watch — 之後 push 後要 curl 確認(`curl -s -o /dev/null -w "%{http_code}" production-url/some-new-route`)。或啟 GitHub Actions / Vercel Slack webhook。
+
+### Phase 6.1 Wave 3 + settings toast(2026-05-21 下午前段)
+
+- **/admin/[tenant]/attendances Wave 3**(`c1a4498`):
+  - 詳情頁加 3 個新 section:「已報名」/「候補」/「已取消/沒到」
+  - server actions:`promoteWaitlist` / `cancelReservationAdmin` / `markNoShow`
+  - promote 後自動 reorder waitlist position;取消 confirmed 自動 promote 第 1 個候補
+- **Settings 加 toast**(`048b687`):
+  - 拆出 client `<SettingsForm/>` 用 `useActionState`
+  - server action signature 改 `(prev, formData) => SettingsState`
+  - success 綠 banner + 儲存時間 / error 紅 banner / pending 按鈕 disabled
+
+### Phase 6.2 — 活動報名 + 候補表單(2026-05-21 下午)
+
+「活動」沿用 classes 表;新增 `reservations` 表處理報名 / 候補 / 取消 / 沒到狀態。
+
+**Schema(Phase 6.2,新表)**:
+- `reservations(tenant_id, class_id, user_id, status, position, note, created_at, updated_at)`
+- status: `confirmed / waitlist / cancelled / no_show`
+- position: waitlist 順序(1-based);其他狀態 null
+- unique(class_id, user_id)
+- check_reservation_tenant trigger:跟 attendances 同 pattern(class.tenant 跟 user.tenant 雙檢查)
+- updated_at trigger + 3 個 index + RLS
+
+**Wave 1 — 學員 LIFF**(`0b40762`):
+- `/m/events` LIFF page(新):列未來 60 天活動 + 容量 / 已報 / 候補數
+- 按鈕 4 狀態:報名 / 候補 / ✓已報名(可取消) / ⏳候補中#N(可取消)
+- `actions.ts` server actions:loadEvents / reserveSpot / cancelReservation
+- env `NEXT_PUBLIC_LIFF_ID_EVENTS` / `LIFF_CHANNEL_ID_EVENTS`(可選,fallback 用既有 LIFF)
+
+**Wave 2 — admin 報名管理**(`b17fa66`):
+- 既有 `/admin/[tenant]/attendances?class_id=xxx` 詳情頁加新 section
+- 已報名 / 候補 / 已取消沒到 各自列表 + [↑升等][沒到][取消] 按鈕
+- 取消 confirmed 自動 promote 候補 + reorder
+
+**Wave 3 候補自動 promote(trigger)— 還沒做**
+
+### Admin 大改造(2026-05-21 下午後段)
+
+UI / UX 從 inline-styles top-nav 升級為 sidebar + Geist + design tokens 統一。
+
+**Design tokens**(`lib/admin-theme.ts` 新):
+- Neutral palette(zinc-like `#18181b` primary)
+- Geist Sans + Geist Mono via `next/font/google`(無 npm install)
+- 共用 style 積木:card / h1Style / h2Style / monoNum / sectionLabel / planBadge
+- 尺寸:sidebarWidth 248、contentMaxWidth 1120
+
+**檔案重寫**:
+- `app/admin/[tenant]/layout.tsx`:248px sticky sidebar(brand label + tenant + plan badge + 切換 + nav + 預覽公開頁 + email/登出)
+- `app/admin/[tenant]/nav-links.tsx`:vertical nav,active 左側 2px bar + 灰底 + 加粗
+- `app/admin/[tenant]/page.tsx`:Dashboard(refined metric cards + 2 col list section + quick actions)
+- `app/admin/layout.tsx`:從 top header pass-through(避免 sidebar + top-nav 重複)
+- `app/admin/login/page.tsx`:套 design tokens + 「Stall Admin」brand + error code 翻譯(`no_tenant_access` / `invalid_credentials`)
+
+**Dashboard 內容**(`62c2374`):
+- Hero:日期 small caps + 大字 tenant 名
+- 4 個 metric cards:今日訂單 / 簽到(或客戶 fallback)/ 待處理 / 庫存
+- 兩欄 ListSection:今日活動 + 未來 7 天有報名
+- Quick actions
+
+**客戶詳情頁** `/admin/[tenant]/customers/[id]`(`5593b81`):
+- 4 stat cards(累積消費 / 訂單數 / 簽到次數 / 未來報名)
+- 個資區(LINE 顯示名可複製給 LINE@ Manager)
+- 訂單 / 簽到 / 報名 3 個歷史表(各 50 筆)
+- 客戶列表 page 名字變 Link
+
+### 課程 → 活動 + features.activities flag gating(2026-05-21)
+
+(`0b15867`)
+
+- UI 文字:nav「課程」→「活動」、dashboard「今日課程」→「今日活動」
+- `tenants.features.activities = true` 才看到活動 / 出席 / 簽到 metric
+- cyndi / kim 不裝 → admin 看不到活動 nav / dashboard 沒活動區
+- lib/supabase.ts:`TenantBySlug` 加 features 欄、export `hasFeature(tenant, key)` helper
+
+**SQL**:`update tenants set features = features || '{"activities":true}'::jsonb where slug = 'oilswa'`
+
+### Per-user tenant access control(2026-05-21)
+
+(`fe422da`)
+
+Mapping:Supabase Auth email ↔ `platform_users.email` ↔ `tenant_members`
+
+**新 helpers**(lib/supabase.ts):
+- `getUserAllowedTenants(email)`:回該 user 在 tenant_members 內 active 的 tenants
+- `userHasTenantAccess(email, slug)`
+
+**Layout access check**:
+- 沒任何 tenant 權限 → redirect `/admin/login?error=no_tenant_access`
+- 沒這個 tenant 權限 → redirect 第一個有權限的 tenant
+- Sidebar 切換只列 user 有權的(不再全列)
+
+`/admin` redirect:dynamic,根據 user 第一個能看的 tenant(不再 hardcode oilswa)
+
+**SQL**:
+```sql
+-- Peter (你目前 LINE-linked super admin):設 email matching Auth
+update platform_users set email = '<your-email>' where line_user_id = '<peter line id>';
+-- 額外帳號:建 platform_users + tenant_members 給特定 tenant
+```
 
 ### Outstanding
 
