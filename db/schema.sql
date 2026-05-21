@@ -703,6 +703,62 @@ create trigger attendances_check_tenant
 alter table attendances enable row level security;
 
 -- ====================
+-- Phase 6.2:活動報名 / 候補表單(2026-05-21,線 1 月 2 — 用同個 classes 表)
+-- 學員可預先報名;未來上線 LIFF /m/events 自助報名
+-- - status:confirmed(確認)/ waitlist(候補)/ cancelled(取消)/ no_show(沒到)
+-- - 滿員時自動轉 waitlist + position 編號;有人取消後 admin 手動或自動 promote
+-- - tenant_id check 跟 attendances 同 pattern
+-- ====================
+create table if not exists reservations (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  class_id uuid not null references classes(id) on delete restrict,
+  user_id uuid not null references users(id) on delete restrict,
+  status text not null default 'confirmed'
+    check (status in ('confirmed', 'waitlist', 'cancelled', 'no_show')),
+  position int,                   -- waitlist 順序(1-based);confirmed/cancelled/no_show = null
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (class_id, user_id)
+);
+
+create index if not exists reservations_class_status_idx on reservations(class_id, status);
+create index if not exists reservations_user_idx on reservations(user_id);
+create index if not exists reservations_tenant_created_idx on reservations(tenant_id, created_at desc);
+
+create trigger reservations_updated_at before update on reservations
+  for each row execute function set_updated_at();
+
+create or replace function check_reservation_tenant()
+returns trigger as $$
+declare
+  class_tenant uuid;
+  user_tenant uuid;
+begin
+  select tenant_id into class_tenant from classes where id = new.class_id;
+  if class_tenant != new.tenant_id then
+    raise exception 'reservations.tenant_id (%) must match classes.tenant_id (%)',
+      new.tenant_id, class_tenant;
+  end if;
+
+  select tenant_id into user_tenant from users where id = new.user_id;
+  if user_tenant != new.tenant_id then
+    raise exception 'reservations.tenant_id (%) must match users.tenant_id (%)',
+      new.tenant_id, user_tenant;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger reservations_check_tenant
+  before insert or update on reservations
+  for each row execute function check_reservation_tenant();
+
+alter table reservations enable row level security;
+
+-- ====================
 -- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
 -- Stage A:加 product_variants + order_items / stock_movements 加 variant_id +
 --          seed default variants(每個既有 product 1 個 'default' variant)+ backfill
