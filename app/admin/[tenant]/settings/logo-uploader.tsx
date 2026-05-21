@@ -184,7 +184,7 @@ export function LogoUploader({ tenantSlug, currentLogoUrl }: Props) {
       {imgSrc && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ fontSize: 13, color: '#52525b' }}>
-            拖曳邊框調整裁切範圍(鎖定 1:1 正方形)
+            拖曳邊框調整裁切範圍(顯示時會是圓形)
           </div>
           <div
             style={{
@@ -203,6 +203,7 @@ export function LogoUploader({ tenantSlug, currentLogoUrl }: Props) {
               onChange={(_, percent) => setCrop(percent)}
               onComplete={(c) => setCompletedCrop(c)}
               aspect={LOGO_ASPECT}
+              circularCrop
               keepSelection
               minWidth={48}
             >
