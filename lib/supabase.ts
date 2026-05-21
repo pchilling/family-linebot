@@ -280,6 +280,7 @@ export async function logMessage(params: {
   messageType?: string;
   content?: unknown;
   rawEvent?: unknown;
+  isSupport?: boolean;
 }): Promise<void> {
   const { error } = await supabaseAdmin.from('messages').insert({
     tenant_id: params.tenantId,
@@ -289,6 +290,7 @@ export async function logMessage(params: {
     message_type: params.messageType ?? null,
     content: params.content ?? null,
     raw_event: params.rawEvent ?? null,
+    is_support: params.isSupport ?? false,
   });
   if (error) console.error('[logMessage]', error);
 }

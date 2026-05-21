@@ -7,6 +7,7 @@ type MessageRow = {
   user_id: string | null;
   message_type: string | null;
   content: { text?: string; type?: string } | null;
+  is_support: boolean;
   created_at: string;
   users: { id: string; display_name: string | null; full_name: string | null } | null;
 };
@@ -14,17 +15,23 @@ type MessageRow = {
 type Filters = {
   q?: string;
   user?: string; // user id
+  scope?: string; // 'support' (default) | 'all'
 };
 
 async function getMessages(tenantId: string, f: Filters): Promise<MessageRow[]> {
   let query = supabaseAdmin
     .from('messages')
     .select(
-      'id, user_id, message_type, content, created_at, users(id, display_name, full_name)',
+      'id, user_id, message_type, content, is_support, created_at, users(id, display_name, full_name)',
     )
     .eq('tenant_id', tenantId)
     .eq('direction', 'inbound')
     .eq('event_type', 'message');
+
+  // 預設只看 support 訊息(用戶按客服後的問題)
+  if (f.scope !== 'all') {
+    query = query.eq('is_support', true);
+  }
 
   if (f.user) query = query.eq('user_id', f.user);
 
@@ -109,6 +116,7 @@ export default async function MessagesPage({
   if (!tenant) notFound();
 
   const messages = await getMessages(tenant.id, filters);
+  const scope = filters.scope ?? 'support';
   const hasAnyFilter = !!(filters.q || filters.user);
 
   // 統計近 24 小時 / 7 天
@@ -128,10 +136,47 @@ export default async function MessagesPage({
           {messages.length >= 200 ? '+,只顯示最近 200' : ''})
         </span>
       </h1>
-      <p style={{ fontSize: 13, color: '#71717a', marginBottom: 20 }}>
+      <p style={{ fontSize: 13, color: '#71717a', marginBottom: 12 }}>
         近 24 小時 <strong style={{ color: '#18181b' }}>{stats.last24h}</strong> 則 · 近 7 天{' '}
-        <strong style={{ color: '#18181b' }}>{stats.last7d}</strong> 則 · 學員從 LINE 對話打的所有訊息(含主動詢問)
+        <strong style={{ color: '#18181b' }}>{stats.last7d}</strong> 則 ·
+        {scope === 'support'
+          ? '只顯示按「客服」/「真人」後 30 分鐘內的訊息(看到就上 LINE@ Manager 回覆)'
+          : '顯示所有 inbound 訊息'}
       </p>
+
+      {/* Scope toggle */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <Link
+          href={`/admin/${tenant.slug}/messages`}
+          style={{
+            padding: '6px 12px',
+            background: scope === 'support' ? '#18181b' : '#fff',
+            color: scope === 'support' ? '#fff' : '#52525b',
+            border: `1px solid ${scope === 'support' ? '#18181b' : '#e4e4e7'}`,
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}
+        >
+          客服問題
+        </Link>
+        <Link
+          href={`/admin/${tenant.slug}/messages?scope=all`}
+          style={{
+            padding: '6px 12px',
+            background: scope === 'all' ? '#18181b' : '#fff',
+            color: scope === 'all' ? '#fff' : '#52525b',
+            border: `1px solid ${scope === 'all' ? '#18181b' : '#e4e4e7'}`,
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}
+        >
+          所有訊息
+        </Link>
+      </div>
 
       {/* Filter bar */}
       <form

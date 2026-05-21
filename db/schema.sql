@@ -806,6 +806,17 @@ create index if not exists users_referrer_member_id_idx
   where referrer_member_id is not null;
 
 -- ====================
+-- Phase 7.5:客戶訊息 support mode(2026-05-21)
+-- 學員按客服 / 打「真人」後 30 分鐘內的 inbound text 標 is_support=true
+-- Admin 預設只看 is_support=true 訊息,realtime broadcast 也只 fire support
+-- ====================
+alter table users add column if not exists last_support_at timestamptz;
+alter table messages add column if not exists is_support boolean not null default false;
+create index if not exists messages_support_idx
+  on messages(tenant_id, created_at desc)
+  where is_support = true and direction = 'inbound';
+
+-- ====================
 -- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
 -- Stage A:加 product_variants + order_items / stock_movements 加 variant_id +
 --          seed default variants(每個既有 product 1 個 'default' variant)+ backfill
