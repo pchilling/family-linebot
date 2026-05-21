@@ -285,15 +285,34 @@ export async function markOrderPaid(formData: FormData) {
   const last5 = String(formData.get('payment_last5') || '').trim() || null;
   const method = String(formData.get('payment_method') || 'bank').trim() || 'bank';
 
-  await supabaseAdmin
+  // Try with payment_last5 first; if column missing(SQL 沒跑)→ retry without
+  const fullPayload: Record<string, unknown> = {
+    status: 'paid',
+    payment_status: 'paid',
+    payment_method: method,
+  };
+  if (last5) fullPayload.payment_last5 = last5;
+
+  let { error } = await supabaseAdmin
     .from('orders')
-    .update({
-      status: 'paid',
-      payment_status: 'paid',
-      payment_method: method,
-      payment_last5: last5,
-    })
+    .update(fullPayload)
     .eq('id', id);
+
+  if (error && last5) {
+    // 可能 payment_last5 column 還沒建,retry without
+    delete fullPayload.payment_last5;
+    ({ error } = await supabaseAdmin
+      .from('orders')
+      .update(fullPayload)
+      .eq('id', id));
+    if (!error) {
+      console.warn('[markOrderPaid] payment_last5 column not in DB, saved without');
+    }
+  }
+
+  if (error) {
+    console.error('[markOrderPaid]', error);
+  }
 
   if (slug) {
     revalidatePath(`/admin/${slug}/orders/${id}`);

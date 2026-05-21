@@ -18,7 +18,7 @@ type OrderDetail = {
   status: string;
   payment_status: string;
   payment_method: string | null;
-  payment_last5: string | null;
+  payment_last5?: string | null; // 等 SQL 跑了才會有值
   total_twd: number;
   source: string;
   shipping_recipient: string | null;
@@ -45,7 +45,9 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      `id, order_no, status, payment_status, payment_method, payment_last5, total_twd, source,
+      // payment_last5 column 還沒跑 SQL,先不拉(SELECT 不存在欄位會整個 query fail → 404)
+      // SQL alter table orders add column payment_last5 跑了之後可以再加回
+      `id, order_no, status, payment_status, payment_method, total_twd, source,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
        users(line_user_id, display_name, full_name, phone),
