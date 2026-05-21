@@ -24,6 +24,7 @@ export function NavLinks({ tenantSlug, inventoryGated }: Props) {
     { key: 'customers', label: '客戶', href: `/admin/${tenantSlug}/customers` },
     { key: 'inventory', label: '庫存', href: `/admin/${tenantSlug}/inventory`, gated: inventoryGated },
     { key: 'classes', label: '課程', href: `/admin/${tenantSlug}/classes` },
+    { key: 'attendances', label: '出席', href: `/admin/${tenantSlug}/attendances` },
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 
