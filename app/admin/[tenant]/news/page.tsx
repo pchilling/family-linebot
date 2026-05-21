@@ -60,9 +60,23 @@ export default async function NewsPage({ params }: { params: Promise<{ tenant: s
   return (
     <main style={{ padding: 24, maxWidth: 820, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, marginBottom: 6 }}>{tenant.name} · 最新消息</h1>
-      <p style={{ fontSize: 13, color: '#71717a', marginBottom: 24 }}>
-        發佈的消息會在 LINE@ 用戶點 Rich Menu 第 2 格「📰 最新消息」時回覆,目前最近 3 則。
-      </p>
+      <div
+        style={{
+          padding: '10px 14px',
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: 6,
+          fontSize: 13,
+          color: '#78350f',
+          lineHeight: 1.6,
+          marginBottom: 24,
+        }}
+      >
+        <strong>運作方式:公告板,不推送通知。</strong>
+        <br />
+        上線公開的消息只有當 LINE@ 用戶**主動**點 Rich Menu 第 2 格「📰 最新消息」時才會看到(最近 3 則)。
+        Bot 不會主動推送給好友(避免吃 LINE 免費 quota)。
+      </div>
 
       {/* 新增 form */}
       <section style={section}>
@@ -84,7 +98,7 @@ export default async function NewsPage({ params }: { params: Promise<{ tenant: s
           </label>
           <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8, color: '#18181b', fontSize: 13 }}>
             <input name="publish" type="checkbox" />
-            建立後立刻發佈(學員會立刻看到)
+            建立後上線公開(可在 Rich Menu「最新消息」被讀到;不會主動推送通知)
           </label>
           <div>
             <button type="submit" style={btnPrimary}>新增</button>
