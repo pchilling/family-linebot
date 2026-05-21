@@ -1,8 +1,19 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Family LINE Bot',
-  description: 'NEO Potential Studio - 家族事業 LINE Bot',
+  title: 'Stall · LINE Bot 商務平台',
+  description: 'NEO Potential Studio — 多攤位 LINE Bot + 電商',
+  appleWebApp: {
+    capable: true,
+    title: 'Stall',
+    statusBarStyle: 'black-translucent',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#18181b',
 };
 
 export default function RootLayout({
