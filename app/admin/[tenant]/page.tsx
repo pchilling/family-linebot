@@ -85,13 +85,15 @@ export default async function TenantDashboardPage({ params }: Props) {
       .eq('tenant_id', tenant.id)
       .gte('created_at', dayStart)
       .lt('created_at', dayEnd),
+    // 今日下單總額(不管付款狀態 — 反映「真實銷售」直覺)
+    // 排除 cancelled / refunded(這些 trigger 自動退庫存,不算)
     supabaseAdmin
       .from('orders')
-      .select('total_twd')
+      .select('total_twd, status')
       .eq('tenant_id', tenant.id)
-      .eq('payment_status', 'paid')
-      .gte('paid_at', dayStart)
-      .lt('paid_at', dayEnd),
+      .gte('created_at', dayStart)
+      .lt('created_at', dayEnd)
+      .not('status', 'in', '(cancelled,refunded)'),
     hasActivities
       ? supabaseAdmin
           .from('attendances')
@@ -208,7 +210,7 @@ export default async function TenantDashboardPage({ params }: Props) {
           label="今日訂單"
           value={ordersToday}
           link={`/admin/${slug}/orders`}
-          sub={`營收 NT$ ${revenueToday.toLocaleString()}`}
+          sub={`下單 NT$ ${revenueToday.toLocaleString()}`}
         />
         {hasActivities ? (
           <MetricCard
