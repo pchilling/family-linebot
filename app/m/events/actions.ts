@@ -52,10 +52,21 @@ export type EventListItem = {
   my_position: number | null;
 };
 
+export type EventsTenant = {
+  name: string;
+  logo_url: string | null;
+};
+
+export type EventsData = {
+  tenant: EventsTenant;
+  events: EventListItem[];
+};
+
 /**
- * 列出未來 60 天內所有未取消的活動 + 容量 / 已報名 / 候補數 / 自己的狀態
+ * 列出未來 60 天內所有未取消的活動 + 容量 / 已報名 / 候補數 / 自己的狀態。
+ * 同時帶 tenant 資訊(name + logo)給 hero 用。
  */
-export async function loadEvents(idToken: string): Promise<EventListItem[]> {
+export async function loadEvents(idToken: string): Promise<EventsData> {
   const lineUserId = await verifyIdToken(idToken);
   const userId = await getUserId(lineUserId);
   if (!userId) throw new Error('查無會員資料,請先到「會員專區」填資料');
@@ -90,7 +101,16 @@ export async function loadEvents(idToken: string): Promise<EventListItem[]> {
     regions: { name: string } | null;
   };
   const rows = ((classes as unknown) as ClassRow[] | null) ?? [];
-  if (rows.length === 0) return [];
+
+  // 拉 tenant info(name + logo)給 hero 用
+  const { data: tenantRow } = await supabaseAdmin
+    .from('tenants')
+    .select('name, logo_url')
+    .eq('id', TENANT_ID)
+    .maybeSingle();
+  const tenant = ((tenantRow as { name: string; logo_url: string | null } | null) ?? { name: '活動報名', logo_url: null }) as EventsTenant;
+
+  if (rows.length === 0) return { tenant, events: [] };
 
   const classIds = rows.map((c) => c.id);
 
@@ -123,7 +143,7 @@ export async function loadEvents(idToken: string): Promise<EventListItem[]> {
     }
   }
 
-  return rows.map((c) => {
+  const events: EventListItem[] = rows.map((c) => {
     const my = myResv.get(c.id);
     return {
       id: c.id,
@@ -143,6 +163,8 @@ export async function loadEvents(idToken: string): Promise<EventListItem[]> {
       my_position: my?.position ?? null,
     };
   });
+
+  return { tenant, events };
 }
 
 export type ReserveResult =
