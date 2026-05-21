@@ -812,9 +812,13 @@ create index if not exists users_referrer_member_id_idx
 -- ====================
 alter table users add column if not exists last_support_at timestamptz;
 alter table messages add column if not exists is_support boolean not null default false;
+alter table messages add column if not exists read_at timestamptz;
 create index if not exists messages_support_idx
   on messages(tenant_id, created_at desc)
   where is_support = true and direction = 'inbound';
+create index if not exists messages_unread_support_idx
+  on messages(tenant_id, created_at desc)
+  where read_at is null and is_support = true and direction = 'inbound';
 
 -- ====================
 -- Phase 5.2:Variant 重構(對齊 GraceHan products / variants 兩層)
