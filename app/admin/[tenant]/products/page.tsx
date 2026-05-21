@@ -99,7 +99,8 @@ export default async function ProductsPage({ params }: { params: Promise<{ tenan
           {/* 商品圖上傳器(獨立於文字表單,即傳即儲存) */}
           <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #f0f0f0' }}>
             <ProductImageUploader
-              productId={p.id}
+              entity="product"
+              entityId={p.id}
               tenantSlug={tenant.slug}
               currentImageUrl={p.image_url}
               productName={p.name}
@@ -161,6 +162,19 @@ export default async function ProductsPage({ params }: { params: Promise<{ tenan
                 <input type="hidden" name="tenant_slug" value={tenant.slug} />
                 <button type="submit" style={btnDanger}>刪變體</button>
               </form>
+              {/* 變體圖(沒設則 fallback 用 product 的圖) */}
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #eee' }}>
+                <div style={{ fontSize: 11, color: '#71717a', marginBottom: 6 }}>
+                  變體圖 — 沒設就用 product 圖(色 / 尺寸款式才需要各自圖)
+                </div>
+                <ProductImageUploader
+                  entity="variant"
+                  entityId={v.id}
+                  tenantSlug={tenant.slug}
+                  currentImageUrl={v.image_url}
+                  productName={`${p.name} ${v.variant_name}`}
+                />
+              </div>
             </div>
           ))}
 

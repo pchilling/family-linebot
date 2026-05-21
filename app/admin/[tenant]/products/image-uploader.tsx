@@ -8,12 +8,16 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { uploadProductImage } from './image-actions';
+import { uploadProductImage, uploadVariantImage } from './image-actions';
 
 type Props = {
-  productId: string;
+  /** 'product' = 上傳 product.image_url;'variant' = 上傳 product_variants.image_url */
+  entity?: 'product' | 'variant';
+  /** product 模式 = product.id;variant 模式 = variant.id */
+  entityId: string;
   tenantSlug: string;
   currentImageUrl: string | null;
+  /** 顯示名稱(用於 alt 等) */
   productName: string;
 };
 
@@ -30,7 +34,8 @@ function centerInitial(imgW: number, imgH: number): Crop {
 }
 
 export function ProductImageUploader({
-  productId,
+  entity = 'product',
+  entityId,
   tenantSlug,
   currentImageUrl,
   productName,
@@ -116,9 +121,13 @@ export function ProductImageUploader({
 
       const formData = new FormData();
       formData.append('tenant_slug', tenantSlug);
-      formData.append('product_id', productId);
-      formData.append('file', blob, 'product.jpg');
-      const result = await uploadProductImage(formData);
+      const idField = entity === 'variant' ? 'variant_id' : 'product_id';
+      formData.append(idField, entityId);
+      formData.append('file', blob, `${entity}.jpg`);
+      const result =
+        entity === 'variant'
+          ? await uploadVariantImage(formData)
+          : await uploadProductImage(formData);
 
       if (result.ok) {
         setSuccess('上傳成功');
