@@ -10,17 +10,42 @@ type OrderRow = {
   total_twd: number;
   source: string;
   shipping_recipient: string | null;
+  shipping_phone: string | null;
   created_at: string;
   users: { display_name: string | null; full_name: string | null } | null;
 };
 
-async function getOrders(tenantId: string): Promise<OrderRow[]> {
-  const { data } = await supabaseAdmin
+type Filters = {
+  status?: string;
+  payment?: string;
+  source?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+};
+
+async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
+  let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, created_at, users(display_name, full_name)',
+      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, created_at, users(display_name, full_name)',
     )
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', tenantId);
+
+  if (f.status) query = query.eq('status', f.status);
+  if (f.payment) query = query.eq('payment_status', f.payment);
+  if (f.source) query = query.eq('source', f.source);
+  if (f.from) query = query.gte('created_at', `${f.from}T00:00:00+08:00`);
+  if (f.to) query = query.lt('created_at', `${f.to}T00:00:00+08:00`);
+  if (f.q) {
+    // 搜尋:order_no 或 shipping_recipient 或 shipping_phone(任一 ilike 命中)
+    const q = f.q.replace(/[%,]/g, ''); // 防 supabase or syntax 被亂寫
+    query = query.or(
+      `order_no.ilike.%${q}%,shipping_recipient.ilike.%${q}%,shipping_phone.ilike.%${q}%`,
+    );
+  }
+
+  const { data } = await query
     .order('created_at', { ascending: false })
     .limit(200);
   return (data ?? []) as unknown as OrderRow[];
@@ -45,72 +70,205 @@ function formatTw(iso: string): string {
 const th: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontWeight: 600, fontSize: 13, color: '#444' };
 const td: React.CSSProperties = { padding: '12px 8px', verticalAlign: 'middle' };
 
-export default async function OrdersListPage({ params }: { params: Promise<{ tenant: string }> }) {
+const filterInput: React.CSSProperties = {
+  padding: '6px 10px',
+  fontSize: 13,
+  border: '1px solid #e4e4e7',
+  borderRadius: 6,
+  background: '#fff',
+  color: '#18181b',
+  fontFamily: 'inherit',
+  outline: 'none',
+};
+
+export default async function OrdersListPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenant: string }>;
+  searchParams: Promise<Filters>;
+}) {
   const { tenant: slug } = await params;
+  const filters = await searchParams;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
-  const orders = await getOrders(tenant.id);
+  const orders = await getOrders(tenant.id, filters);
+
+  const hasAnyFilter = !!(
+    filters.status ||
+    filters.payment ||
+    filters.source ||
+    filters.q ||
+    filters.from ||
+    filters.to
+  );
 
   return (
     <main style={{ padding: 24, maxWidth: 1080, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 20 }}>{tenant.name} · 訂單管理 ({orders.length})</h1>
+      <h1 style={{ fontSize: 22, marginBottom: 16 }}>
+        {tenant.name} · 訂單管理{' '}
+        <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>
+          ({orders.length}
+          {orders.length >= 200 ? '+,只顯示最近 200 筆' : ''})
+        </span>
+      </h1>
 
-      {orders.length === 0 && <p style={{ color: '#666', padding: 32, textAlign: 'center' }}>(尚無訂單)</p>}
+      {/* Filter bar(server-side form,GET 帶 query params) */}
+      <form
+        method="GET"
+        action={`/admin/${tenant.slug}/orders`}
+        style={{
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          padding: 12,
+          background: '#fafafa',
+          border: '1px solid #e4e4e7',
+          borderRadius: 8,
+          marginBottom: 20,
+        }}
+      >
+        <input
+          name="q"
+          defaultValue={filters.q ?? ''}
+          placeholder="搜尋訂單號 / 姓名 / 電話"
+          style={{ ...filterInput, flex: '1 1 200px', minWidth: 160 }}
+        />
+        <select name="status" defaultValue={filters.status ?? ''} style={filterInput}>
+          <option value="">所有狀態</option>
+          <option value="open">待付款</option>
+          <option value="paid">已付款</option>
+          <option value="shipped">已出貨</option>
+          <option value="delivered">已送達</option>
+          <option value="cancelled">已取消</option>
+          <option value="refunded">已退款</option>
+        </select>
+        <select name="payment" defaultValue={filters.payment ?? ''} style={filterInput}>
+          <option value="">所有付款</option>
+          <option value="pending">未付</option>
+          <option value="paid">已付</option>
+          <option value="failed">失敗</option>
+          <option value="refunded">已退</option>
+        </select>
+        <select name="source" defaultValue={filters.source ?? ''} style={filterInput}>
+          <option value="">所有來源</option>
+          <option value="web">網站</option>
+          <option value="liff">LIFF</option>
+          <option value="manual">手動</option>
+          <option value="line_chat">LINE 對話</option>
+        </select>
+        <input
+          name="from"
+          type="date"
+          defaultValue={filters.from ?? ''}
+          style={filterInput}
+          aria-label="起始日期"
+        />
+        <span style={{ color: '#a1a1aa', fontSize: 13 }}>~</span>
+        <input
+          name="to"
+          type="date"
+          defaultValue={filters.to ?? ''}
+          style={filterInput}
+          aria-label="結束日期"
+        />
+        <button
+          type="submit"
+          style={{
+            padding: '6px 14px',
+            background: '#18181b',
+            color: '#fff',
+            border: 0,
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          查詢
+        </button>
+        {hasAnyFilter && (
+          <Link
+            href={`/admin/${tenant.slug}/orders`}
+            style={{
+              padding: '6px 12px',
+              color: '#52525b',
+              textDecoration: 'none',
+              fontSize: 13,
+              border: '1px solid #e4e4e7',
+              borderRadius: 6,
+              background: '#fff',
+            }}
+          >
+            清除
+          </Link>
+        )}
+      </form>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
-            <th style={th}>訂單編號</th>
-            <th style={th}>來源</th>
-            <th style={th}>客戶</th>
-            <th style={{ ...th, textAlign: 'right' }}>金額</th>
-            <th style={th}>狀態</th>
-            <th style={th}>付款</th>
-            <th style={th}>建立時間</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((o) => (
-            <tr key={o.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-              <td style={td}>
-                <Link href={`/admin/${tenant.slug}/orders/${o.id}`} style={{ color: '#0070f3', textDecoration: 'none', fontWeight: 500 }}>
-                  {o.order_no}
-                </Link>
-              </td>
-              <td style={td}>
-                <span style={{ display: 'inline-block', padding: '2px 8px', background: sourceColor(o.source) + '22', color: sourceColor(o.source), borderRadius: 3, fontSize: 12 }}>
-                  {sourceLabel(o.source)}
-                </span>
-              </td>
-              <td style={td}>
-                {o.users?.display_name ? (
-                  <>
-                    <div style={{ fontWeight: 500 }}>{o.users.display_name}</div>
-                    {o.users.full_name && (
-                      <div style={{ fontSize: 12, color: '#888' }}>填:{o.users.full_name}</div>
-                    )}
-                  </>
-                ) : o.shipping_recipient ? (
-                  <>
-                    <div style={{ fontWeight: 500 }}>{o.shipping_recipient}</div>
-                    <div style={{ fontSize: 12, color: '#888' }}>訪客</div>
-                  </>
-                ) : (
-                  <div style={{ color: '#888' }}>(無客戶資料)</div>
-                )}
-              </td>
-              <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString()}</td>
-              <td style={td}>
-                <span style={{ display: 'inline-block', padding: '2px 8px', background: statusColor(o.status) + '22', color: statusColor(o.status), borderRadius: 3, fontSize: 12 }}>
-                  {statusLabel(o.status)}
-                </span>
-              </td>
-              <td style={td}>{statusLabel(o.payment_status)}</td>
-              <td style={{ ...td, fontSize: 13, color: '#666' }}>{formatTw(o.created_at)}</td>
+      {orders.length === 0 && (
+        <p style={{ color: '#71717a', padding: 32, textAlign: 'center', fontSize: 14 }}>
+          {hasAnyFilter ? '(條件下無符合訂單)' : '(尚無訂單)'}
+        </p>
+      )}
+
+      {orders.length > 0 && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
+              <th style={th}>訂單編號</th>
+              <th style={th}>來源</th>
+              <th style={th}>客戶</th>
+              <th style={{ ...th, textAlign: 'right' }}>金額</th>
+              <th style={th}>狀態</th>
+              <th style={th}>付款</th>
+              <th style={th}>建立時間</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {orders.map((o) => (
+              <tr key={o.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={td}>
+                  <Link href={`/admin/${tenant.slug}/orders/${o.id}`} style={{ color: '#0070f3', textDecoration: 'none', fontWeight: 500 }}>
+                    {o.order_no}
+                  </Link>
+                </td>
+                <td style={td}>
+                  <span style={{ display: 'inline-block', padding: '2px 8px', background: sourceColor(o.source) + '22', color: sourceColor(o.source), borderRadius: 3, fontSize: 12 }}>
+                    {sourceLabel(o.source)}
+                  </span>
+                </td>
+                <td style={td}>
+                  {o.users?.display_name ? (
+                    <>
+                      <div style={{ fontWeight: 500 }}>{o.users.display_name}</div>
+                      {o.users.full_name && (
+                        <div style={{ fontSize: 12, color: '#888' }}>填:{o.users.full_name}</div>
+                      )}
+                    </>
+                  ) : o.shipping_recipient ? (
+                    <>
+                      <div style={{ fontWeight: 500 }}>{o.shipping_recipient}</div>
+                      <div style={{ fontSize: 12, color: '#888' }}>訪客</div>
+                    </>
+                  ) : (
+                    <div style={{ color: '#888' }}>(無客戶資料)</div>
+                  )}
+                </td>
+                <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString()}</td>
+                <td style={td}>
+                  <span style={{ display: 'inline-block', padding: '2px 8px', background: statusColor(o.status) + '22', color: statusColor(o.status), borderRadius: 3, fontSize: 12 }}>
+                    {statusLabel(o.status)}
+                  </span>
+                </td>
+                <td style={td}>{statusLabel(o.payment_status)}</td>
+                <td style={{ ...td, fontSize: 13, color: '#666' }}>{formatTw(o.created_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </main>
   );
 }
