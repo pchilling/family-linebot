@@ -123,6 +123,29 @@ export async function uploadLogo(formData: FormData): Promise<UploadLogoResult> 
 }
 
 /**
+ * 移除 logo:把 tenants.logo_url 設 null。
+ * 不刪 Storage 內舊圖(保留歷史,不影響成本因 free tier 量小)。
+ */
+export async function removeLogo(slug: string): Promise<UploadLogoResult> {
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ logo_url: null })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[removeLogo]', error);
+    return { ok: false, error: '移除失敗' };
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  revalidatePath(`/admin/${slug}`);
+  return { ok: true, url: '' };
+}
+
+/**
  * 上傳 hero banner(也作 og:image)。Phase 7.3。
  * 1200×630 jpeg,寫 tenants.og_image_url。
  * Path: {tenant_id}/banner-{ts}.jpg
@@ -167,4 +190,26 @@ export async function uploadBanner(formData: FormData): Promise<UploadLogoResult
   revalidatePath(`/admin/${slug}`);
 
   return { ok: true, url: publicUrl };
+}
+
+/**
+ * 移除 banner:把 tenants.og_image_url 設 null。
+ */
+export async function removeBanner(slug: string): Promise<UploadLogoResult> {
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ og_image_url: null })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[removeBanner]', error);
+    return { ok: false, error: '移除失敗' };
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  revalidatePath(`/admin/${slug}`);
+  return { ok: true, url: '' };
 }

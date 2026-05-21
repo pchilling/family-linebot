@@ -8,7 +8,7 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { uploadLogo } from './actions';
+import { uploadLogo, removeLogo } from './actions';
 
 type Props = {
   tenantSlug: string;
@@ -128,55 +128,133 @@ export function LogoUploader({ tenantSlug, currentLogoUrl }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 目前 logo + 上傳新圖 */}
+      {/* 目前 logo + 換新 + 移除 */}
       {currentLogoUrl && !imgSrc && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div
+          style={{
+            padding: 16,
+            background: '#fafafa',
+            border: '1px solid #e4e4e7',
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
           <img
             src={currentLogoUrl}
             alt="目前 logo"
             style={{
-              width: 80,
-              height: 80,
+              width: 64,
+              height: 64,
               borderRadius: '50%',
               objectFit: 'cover',
               border: '1px solid #e4e4e7',
+              flexShrink: 0,
             }}
           />
-          <div>
-            <div style={{ fontSize: 13, color: '#71717a', marginBottom: 4 }}>目前 logo</div>
-            <div style={{ fontSize: 11, color: '#a1a1aa' }}>(256×256)</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#18181b', marginBottom: 2 }}>目前 logo</div>
+            <div style={{ fontSize: 11, color: '#a1a1aa' }}>256×256 · 圓形顯示</div>
           </div>
+          <label
+            style={{
+              padding: '7px 12px',
+              background: '#18181b',
+              color: '#fff',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: 'inherit',
+            }}
+          >
+            📷 換新
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onFileChange}
+              style={{ display: 'none' }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!confirm('確定移除 logo 嗎?移除後 sidebar / 公開頁會顯示首字 fallback。')) return;
+              setUploading(true);
+              setError(null);
+              try {
+                const r = await removeLogo(tenantSlug);
+                if (r.ok) {
+                  setSuccess('已移除');
+                  setTimeout(() => window.location.reload(), 500);
+                } else {
+                  setError(r.error);
+                }
+              } catch (e: unknown) {
+                setError(e instanceof Error ? e.message : String(e));
+              } finally {
+                setUploading(false);
+              }
+            }}
+            disabled={uploading}
+            style={{
+              padding: '7px 10px',
+              background: '#fff',
+              color: '#dc2626',
+              border: '1px solid #fecaca',
+              borderRadius: 6,
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              fontSize: 12,
+              fontFamily: 'inherit',
+            }}
+          >
+            🗑️
+          </button>
         </div>
       )}
 
-      {!imgSrc && (
-        <label
+      {!imgSrc && !currentLogoUrl && (
+        <div
           style={{
-            display: 'inline-block',
-            padding: '8px 14px',
-            background: '#fff',
-            color: '#52525b',
-            border: '1px solid #e4e4e7',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-            width: 'fit-content',
+            padding: '24px 20px',
+            background: '#fafafa',
+            border: '2px dashed #d4d4d8',
+            borderRadius: 10,
+            textAlign: 'center',
           }}
         >
-          {currentLogoUrl ? '換新 logo' : '上傳 logo'}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={onFileChange}
-            style={{ display: 'none' }}
-          />
-        </label>
+          <div style={{ fontSize: 28, marginBottom: 6 }}>👤</div>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#71717a' }}>
+            還沒上傳 logo
+          </p>
+          <label
+            style={{
+              display: 'inline-block',
+              padding: '8px 16px',
+              background: '#18181b',
+              color: '#fff',
+              borderRadius: 7,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: 'inherit',
+            }}
+          >
+            📷 上傳 logo
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onFileChange}
+              style={{ display: 'none' }}
+            />
+          </label>
+        </div>
       )}
 
-      {!imgSrc && (
+      {!imgSrc && currentLogoUrl && (
         <p style={{ fontSize: 12, color: '#71717a', margin: 0 }}>
-          選一張圖片,可以裁切成正方形。建議用 logo / 商店招牌相似的圖片,顯示在公開頁 header 跟 admin sidebar。
+          顯示在公開頁 header 跟 admin sidebar。建議用 logo / 商店招牌相似的圖片。
         </p>
       )}
 

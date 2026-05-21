@@ -8,7 +8,7 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { uploadBanner } from './actions';
+import { uploadBanner, removeBanner } from './actions';
 
 type Props = {
   tenantSlug: string;
@@ -122,44 +122,140 @@ export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
     }
   }
 
+  async function handleRemove() {
+    if (!confirm('確定移除 banner 嗎?移除後公開頁就不會顯示 hero 圖,可以隨時再上傳。')) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const r = await removeBanner(tenantSlug);
+      if (r.ok) {
+        setSuccess('已移除');
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        setError(r.error);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {!imgSrc && currentBannerUrl && (
-        <div>
-          <div style={{ fontSize: 12, color: '#71717a', marginBottom: 6 }}>目前 banner</div>
+        <div
+          style={{
+            position: 'relative',
+            background: '#fafafa',
+            border: '1px solid #e4e4e7',
+            borderRadius: 12,
+            padding: 14,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#71717a',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              marginBottom: 10,
+            }}
+          >
+            目前 banner · 1200×630
+          </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentBannerUrl}
             alt="banner 預覽"
             style={{
               width: '100%',
-              maxWidth: 480,
               aspectRatio: '1200 / 630',
               objectFit: 'cover',
               borderRadius: 8,
-              border: '1px solid #e4e4e7',
               display: 'block',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
             }}
           />
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <label
+              style={{
+                flex: 1,
+                padding: '9px 14px',
+                background: '#18181b',
+                color: '#fff',
+                borderRadius: 7,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+                textAlign: 'center',
+                fontFamily: 'inherit',
+              }}
+            >
+              📷 換新圖
+              <input
+                type="file"
+                accept="image/*"
+                onChange={onFileChange}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={uploading}
+              style={{
+                padding: '9px 14px',
+                background: '#fff',
+                color: '#dc2626',
+                border: '1px solid #fecaca',
+                borderRadius: 7,
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+              }}
+            >
+              🗑️ 移除
+            </button>
+          </div>
         </div>
       )}
 
-      {!imgSrc && (
-        <div>
+      {!imgSrc && !currentBannerUrl && (
+        <div
+          style={{
+            background: '#fafafa',
+            border: '2px dashed #d4d4d8',
+            borderRadius: 12,
+            padding: '32px 20px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🖼️</div>
+          <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 500, color: '#18181b' }}>
+            還沒上傳 banner
+          </p>
+          <p style={{ margin: '0 0 16px', fontSize: 12, color: '#71717a', lineHeight: 1.5 }}>
+            橫式圖,顯示在公開頁頂部當 hero<br />
+            同時用作 LINE / IG / FB 分享預覽圖(og:image)
+          </p>
           <label
             style={{
               display: 'inline-block',
-              padding: '8px 14px',
-              background: '#fff',
-              color: '#52525b',
-              border: '1px solid #e4e4e7',
-              borderRadius: 6,
+              padding: '10px 18px',
+              background: '#18181b',
+              color: '#fff',
+              borderRadius: 8,
               cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 500,
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: 'inherit',
             }}
           >
-            {currentBannerUrl ? '換新 banner' : '上傳 banner'}
+            📷 上傳 banner
             <input
               type="file"
               accept="image/*"
@@ -167,9 +263,8 @@ export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
               style={{ display: 'none' }}
             />
           </label>
-          <p style={{ fontSize: 12, color: '#71717a', margin: '8px 0 0', lineHeight: 1.5 }}>
-            橫式圖,顯示在公開頁頂部當 hero。同時用作 LINE / IG 分享預覽圖(og:image)。
-            輸出 1200×630。建議用攤位代表性的照片或品牌視覺。
+          <p style={{ fontSize: 11, color: '#a1a1aa', margin: '12px 0 0' }}>
+            建議比例 1200×630,JPG / PNG / WebP 都可
           </p>
         </div>
       )}
