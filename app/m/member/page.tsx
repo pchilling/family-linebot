@@ -253,6 +253,31 @@ input:focus, textarea:focus { outline: none; border-color: ${c.borderFocus} !imp
           資料只用於三合一愛油哇內部聯繫,不會分享第三方。
         </p>
       </form>
+
+      {/* 快速導覽到「我的訂單」 — 既有會員才顯示 */}
+      {!isNew && (
+        <a
+          href="/m/orders"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: 18,
+            padding: '14px 16px',
+            background: c.card,
+            border: `1px solid ${c.border}`,
+            borderRadius: 12,
+            textDecoration: 'none',
+            color: c.text,
+            fontSize: 14,
+            fontWeight: 500,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+          }}
+        >
+          <span>🧾 查我的訂單</span>
+          <span style={{ color: c.textMuted, fontSize: 16 }}>›</span>
+        </a>
+      )}
     </div>
   );
 }
