@@ -7,6 +7,8 @@ type Props = {
   tenantSlug: string;
   inventoryGated: boolean;
   hasActivities: boolean;
+  ordersPending: number;
+  lowStock: number;
 };
 
 type LinkDef = {
@@ -14,6 +16,7 @@ type LinkDef = {
   label: string;
   href: string;
   gated?: boolean;
+  badge?: number;
 };
 
 // Inline tokens(client component 不能 import server-only;這幾個 const 直接寫)
@@ -27,15 +30,27 @@ const c = {
   accent: '#18181b',
 };
 
-export function NavLinks({ tenantSlug, inventoryGated, hasActivities }: Props) {
+export function NavLinks({
+  tenantSlug,
+  inventoryGated,
+  hasActivities,
+  ordersPending,
+  lowStock,
+}: Props) {
   const pathname = usePathname();
 
   const links: LinkDef[] = [
     { key: 'dashboard', label: '總覽', href: `/admin/${tenantSlug}` },
     { key: 'products', label: '商品', href: `/admin/${tenantSlug}/products` },
-    { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders` },
+    { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders`, badge: ordersPending },
     { key: 'customers', label: '客戶', href: `/admin/${tenantSlug}/customers` },
-    { key: 'inventory', label: '庫存', href: `/admin/${tenantSlug}/inventory`, gated: inventoryGated },
+    {
+      key: 'inventory',
+      label: '庫存',
+      href: `/admin/${tenantSlug}/inventory`,
+      gated: inventoryGated,
+      badge: inventoryGated ? 0 : lowStock,
+    },
     // 活動 nav 只給 features.activities 開啟的 tenant 看(目前只有 oilswa 三合一)
     ...(hasActivities
       ? [
@@ -95,7 +110,8 @@ export function NavLinks({ tenantSlug, inventoryGated, hasActivities }: Props) {
               />
             )}
             <span>{link.label}</span>
-            {isGated && (
+            {/* Badge:gated 顯示 PRO,否則有數字才顯示 */}
+            {isGated ? (
               <span
                 aria-hidden
                 style={{
@@ -107,7 +123,29 @@ export function NavLinks({ tenantSlug, inventoryGated, hasActivities }: Props) {
               >
                 PRO
               </span>
-            )}
+            ) : (link.badge ?? 0) > 0 ? (
+              <span
+                aria-label={`${link.badge} 個待處理`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 18,
+                  height: 18,
+                  padding: '0 5px',
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  borderRadius: 9,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-geist-mono), monospace',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1,
+                }}
+              >
+                {(link.badge ?? 0) > 99 ? '99+' : link.badge}
+              </span>
+            ) : null}
           </Link>
         );
       })}

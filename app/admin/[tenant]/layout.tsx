@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { getTenantBySlug, getUserAllowedTenants, hasFeature } from '@/lib/supabase';
+import { getTenantBySlug, getUserAllowedTenants, hasFeature, supabaseAdmin } from '@/lib/supabase';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { signOut } from '../actions';
 import {
@@ -64,6 +64,27 @@ export default async function TenantAdminLayout({
   const others = allowedTenants.filter((t) => t.slug !== tenant.slug);
   const inventoryGated = tenant.plan === 'free';
   const hasActivities = hasFeature(tenant, 'activities');
+
+  // Nav badges:待處理數量,平行撈
+  const [ordersPendingResp, lowStockResp] = await Promise.all([
+    // 待付款訂單(status='open')
+    supabaseAdmin
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenant.id)
+      .eq('status', 'open'),
+    // 低庫存 variant — Free 不撈
+    inventoryGated
+      ? Promise.resolve({ count: null })
+      : supabaseAdmin
+          .from('product_variants')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenant.id)
+          .eq('status', 'active')
+          .lte('stock', 3),
+  ]);
+  const ordersPending = ordersPendingResp.count ?? 0;
+  const lowStock = lowStockResp.count ?? 0;
 
   return (
     <div
@@ -307,6 +328,8 @@ export default async function TenantAdminLayout({
             tenantSlug={tenant.slug}
             inventoryGated={inventoryGated}
             hasActivities={hasActivities}
+            ordersPending={ordersPending}
+            lowStock={lowStock}
           />
         </nav>
 
