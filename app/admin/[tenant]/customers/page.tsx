@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
@@ -98,7 +99,14 @@ export default async function CustomersPage({ params }: { params: Promise<{ tena
             const stats = statsMap.get(c.id);
             return (
               <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ ...td, fontWeight: 500 }}>{c.display_name ?? '(無)'}</td>
+                <td style={{ ...td, fontWeight: 500 }}>
+                  <Link
+                    href={`/admin/${tenant.slug}/customers/${c.id}`}
+                    style={{ color: '#0070f3', textDecoration: 'none' }}
+                  >
+                    {c.display_name ?? '(無)'}
+                  </Link>
+                </td>
                 <td style={td}>{c.full_name ?? '—'}</td>
                 <td style={td}>{c.phone ?? '—'}</td>
                 <td style={{ ...td, fontSize: 13, color: '#666', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.address ?? '—'}</td>
