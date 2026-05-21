@@ -341,7 +341,6 @@ details[open] .chevron { transform: rotate(90deg); }
                           fontWeight: hasUnread ? 700 : 500,
                           fontSize: 14,
                         }}
-                        onClick={(e) => e.stopPropagation()}
                       >
                         {g.userName}
                       </Link>
