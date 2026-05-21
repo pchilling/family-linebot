@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21 下午(Admin 大改造:Dashboard / 客戶詳情 / UI redesign / 活動報名 / per-user access)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21 晚(Phase 7 個性化 — Logo / Banner / Variant 圖 + Mobile RWD + Orders filter + Nav badges)
 
 ---
 
@@ -390,6 +390,86 @@ Mapping:Supabase Auth email ↔ `platform_users.email` ↔ `tenant_members`
 -- Peter (你目前 LINE-linked super admin):設 email matching Auth
 update platform_users set email = '<your-email>' where line_user_id = '<peter line id>';
 -- 額外帳號:建 platform_users + tenant_members 給特定 tenant
+```
+
+### Phase 7 個性化 — Logo / Banner / Product 圖上傳 + 裁切(2026-05-21 晚)
+
+裝 `react-image-crop` (^11.0.10,3kb 輕量),統一 upload + crop pattern。
+用 Supabase Storage bucket `tenant-assets`(public bucket、user 手動建)。
+
+**Phase 7.1 Tenant Logo**(`82fc9e4` + `04f032e` + `9bd2e37` + `46e05c9`):
+- DB:`tenants.logo_url text`(SQL `alter table tenants add column if not exists logo_url text`)
+- settings/logo-uploader.tsx(client):
+  - 1:1 正方形裁切、`circularCrop` 顯示圓形遮罩、輸出 256×256 jpeg
+  - 5MB 上限,Canvas drawImage → toBlob → upload
+- settings/actions.ts uploadLogo:upload Storage → write `tenants.logo_url`
+  - path `{tenant_id}/logo-{ts}.jpg`(timestamp 防 CDN cache 殘留)
+- 顯示:
+  - Sidebar 頂部 44×44 圓形 + 切換列表 22×22 mini 圓
+  - 沒設 logo fallback 首字大寫 Geist Mono 灰底方塊
+  - 公開頁 layout header 36×36 圓 logo 在店名左邊
+  - 全部用 `borderRadius: '50%'`(底層裁切仍方形,CSS 變圓 — 標準做法)
+
+**Phase 7.2 Product / Variant 圖**(`8f48f84` + `14d0288` + `44fa0b4` + `d3b0038`):
+- DB:沿用既有 `products.image_url` / `product_variants.image_url`,無 schema 變
+- products/image-uploader.tsx(client,複用):
+  - 4:5 直式裁切(IG 貼文比例)、輸出 600×750 jpeg
+  - `entity` prop 切換 product / variant:傳 entityId,內部 switch action 呼叫
+  - 8MB 上限,變體預設 fallback 用 product 圖
+- products/image-actions.ts:
+  - uploadProductImage:確認 product 屬於 tenant → upload → write `products.image_url`
+  - uploadVariantImage:同 pattern,path `{tenant_id}/variants/{variant_id}-{ts}.jpg`
+- products/page.tsx:
+  - 每個 product card 頂部加 uploader(獨立於文字表單,即傳即儲)
+  - 每個 variant 列底部加 variant uploader(虛線分隔)
+  - 移除原本 URL 文字欄
+- 公開頁同步更新:
+  - 商品 grid card `aspect-ratio: 4/5`
+  - 商品詳情大圖 `aspect-ratio: 4/5 + object-fit: cover`
+  - 詳情頁 VariantSelector 重構為完整 client gallery:單欄(圖→名→類別→描述→變體→cart)
+  - **變體切換時自動換圖**(`variant.image_url ?? product.image_url` fallback)
+
+**Phase 7.3 Hero Banner**(`5ee8632`):
+- 沿用既有 `tenants.og_image_url`(同時作 OG 分享 + hero,1200×630)
+- settings/banner-uploader.tsx(client):
+  - 1200/630 ≈ 1.905 比例裁切、輸出 1200×630 jpeg
+  - 10MB 上限,「目前 banner」preview
+- settings/actions.ts uploadBanner:upload → write `tenants.og_image_url`
+- 公開頁 [slug]/page.tsx 商品列表前 render HeroBanner(aspect 1200/630 + object-fit cover + 圓角 10 + 微陰影)
+
+### Admin UX 強化(2026-05-21 晚)
+
+**Mobile RWD**(`7052326`):
+- Desktop ≥768px:sidebar 一樣 248px sticky 不變
+- Mobile <768px:sidebar 變 `position: fixed` drawer + `translateX(-100%)`
+- 左上漂浮 hamburger 40×40 按鈕 + 半透明 backdrop
+- 點 backdrop / 路由變化 自動關閉(usePathname useEffect)
+- body.overflow 鎖背景滾動
+- 實作:layout 加 inline `<style>` 用 @media + body.sidebar-open class 控制
+  client mobile-toggle.tsx 只負責 toggle class(無 React state,DOM 操作)
+
+**Orders filter / search**(`417d71c`):
+- 純 server-side(native form GET → URL query params,無 client component)
+- Filter 欄位:`q`(訂單號 / 收件人 / 電話 ilike)/ status / payment_status / source / from-to 日期
+- URL 可分享 / 加書籤 / 上一頁 work
+- 結果 200 上限,空狀態區分「條件無結果」vs「尚無訂單」
+
+**Nav badges**(`096d6d6`):
+- Sidebar nav 旁紅圓 18×18 數字 badge
+- 訂單:status='open' 計數
+- 庫存:active variant 且 stock ≤ 3(Pro+ 才有,Free 顯 PRO 灰字)
+- layout 平行撈 count,傳 props 給 NavLinks;>99 顯 99+
+
+**Login 頁 redesign**(`ae58ddd`,5/21 較早):
+- 套 admin-theme tokens + Geist 字型 +「Stall Admin」brand mark
+- ERROR_MESSAGES 翻譯 code:`no_tenant_access` / `invalid_credentials` / `signin_failed`
+
+**DB SQL 已跑**(這波):
+```sql
+alter table tenants add column if not exists logo_url text;
+-- (Storage bucket "tenant-assets" 在 Supabase Dashboard 手動建,public)
+update platform_users set email='<peter email>' where line_user_id='U25423...';
+-- + 新增 phsiung957 super admin / peter957733 → oilswa only(per-user access)
 ```
 
 ### Outstanding
