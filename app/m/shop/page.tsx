@@ -8,6 +8,7 @@ import {
   saveShopProfile,
   type ShopProduct,
   type ShopMember,
+  type ShopTenant,
   type CartItem,
 } from './actions';
 
@@ -23,6 +24,7 @@ export default function ShopPage() {
   const [linePic, setLinePic] = useState('');
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [member, setMember] = useState<ShopMember | null>(null);
+  const [tenant, setTenant] = useState<ShopTenant>({ name: '商品專區', logo_url: null, banner_url: null });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
@@ -45,6 +47,7 @@ export default function ShopPage() {
         const data = await loadShopData(tok, p.displayName, p.pictureUrl ?? null);
         setProducts(data.products);
         setMember(data.member);
+        setTenant(data.tenant);
         // Profile gate:沒填 full_name / phone 不能逛(同 /m/checkin pattern)
         const hasProfile = !!(data.member?.full_name && data.member?.phone);
         setStatus(hasProfile ? 'shop' : 'need-profile');
@@ -254,65 +257,242 @@ export default function ShopPage() {
   // shop view(含 cart drawer + checkout form)
   return (
     <main style={page}>
-      <header style={topBar}>
-        <h1 style={h1}>商品專區</h1>
-        <button
-          type="button"
-          onClick={() => setShowCheckout((v) => !v)}
-          style={cartBtn}
-          disabled={cart.length === 0}
-        >
-          🛒 {cartCount > 0 && `(${cartCount})`}
-        </button>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+.shop-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s, border-color 0.2s;
+}
+.shop-card:active {
+  transform: scale(0.98);
+}
+.shop-add-btn:active {
+  transform: scale(0.96);
+}
+@keyframes shop-fadein {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+          `,
+        }}
+      />
+
+      {/* Hero:LINE 頭像 + 招呼 + 攤位名 */}
+      <header style={{ marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          {linePic && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={linePic}
+              alt=""
+              style={{
+                width: 44, height: 44, borderRadius: '50%', objectFit: 'cover',
+                border: '1px solid #e4e4e7', flexShrink: 0,
+              }}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: '#71717a', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              {tenant.name}
+            </div>
+            <h1 style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 700, color: '#18181b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              嗨,{lineName || member?.full_name} 👋
+            </h1>
+          </div>
+        </div>
+
+        {tenant.banner_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={tenant.banner_url}
+            alt={tenant.name}
+            style={{
+              width: '100%',
+              aspectRatio: '1200 / 630',
+              objectFit: 'cover',
+              borderRadius: 10,
+              display: 'block',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              animation: 'shop-fadein 0.4s ease',
+            }}
+          />
+        )}
       </header>
 
       {error && <div style={errorBanner}>{error}</div>}
 
       {!showCheckout && (
-        <section style={{ display: 'grid', gap: 12 }}>
-          {products.length === 0 && (
-            <p style={{ color: '#666', textAlign: 'center', padding: 32 }}>
-              商品建置中
-            </p>
+        <>
+          {/* Section title */}
+          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#18181b' }}>
+              所有商品
+            </h2>
+            <span style={{ fontSize: 12, color: '#a1a1aa' }}>
+              {products.length} 件
+            </span>
+          </div>
+
+          {products.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: '3rem 1.5rem', color: '#71717a',
+              background: '#fff', border: '1px solid #e4e4e7', borderRadius: 10,
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>📦</div>
+              <p style={{ fontSize: 15, margin: 0, fontWeight: 500, color: '#18181b' }}>
+                商品建置中
+              </p>
+            </div>
+          ) : (
+            <section
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 10,
+                paddingBottom: cart.length > 0 ? 80 : 0,
+              }}
+            >
+              {products.map((p) => (
+                <article
+                  key={p.id}
+                  className="shop-card"
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #e4e4e7',
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  {p.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.image_url}
+                      alt={p.name}
+                      style={{
+                        width: '100%',
+                        aspectRatio: '4 / 5',
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: '100%',
+                      aspectRatio: '4 / 5',
+                      background: '#f4f4f5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#a1a1aa',
+                      fontSize: 12,
+                    }}>
+                      無圖
+                    </div>
+                  )}
+                  <div style={{ padding: '10px 10px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    <div
+                      style={{
+                        fontWeight: 500,
+                        fontSize: 13,
+                        lineHeight: 1.3,
+                        color: '#18181b',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        minHeight: '2.4em',
+                      }}
+                    >
+                      {p.name}
+                    </div>
+                    <div style={{ marginTop: 6, flex: 1 }}>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 14,
+                          color: '#18181b',
+                          fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+                          letterSpacing: '-0.01em',
+                        }}
+                      >
+                        NT$ {p.price_twd.toLocaleString()}
+                      </div>
+                      <div style={{
+                        fontSize: 10,
+                        color: p.stock > 0 ? '#71717a' : '#dc2626',
+                        marginTop: 1,
+                      }}>
+                        {p.stock > 0 ? `剩 ${p.stock} 件` : '售完'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addToCart(p.id)}
+                      disabled={p.stock === 0}
+                      className="shop-add-btn"
+                      style={{
+                        marginTop: 8,
+                        padding: '7px 10px',
+                        background: p.stock === 0 ? '#e4e4e7' : '#18181b',
+                        color: p.stock === 0 ? '#a1a1aa' : '#fff',
+                        border: 0,
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: p.stock === 0 ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {p.stock === 0 ? '缺貨' : '+ 加入購物車'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </section>
           )}
-          {products.map((p) => (
-            <article key={p.id} style={productCard}>
-              {p.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={p.image_url}
-                  alt={p.name}
-                  style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6 }}
-                />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{ margin: 0, fontSize: 15 }}>{p.name}</h3>
-                {p.category && (
-                  <span style={categoryTag}>{p.category}</span>
-                )}
-                {p.description && (
-                  <p style={{ margin: '6px 0', fontSize: 12, color: '#666' }}>
-                    {p.description}
-                  </p>
-                )}
-                <p style={{ margin: '4px 0', fontWeight: 600 }}>
-                  NT$ {p.price_twd.toLocaleString()}
-                </p>
-                <p style={{ margin: 0, fontSize: 12, color: p.stock > 0 ? '#666' : '#d00' }}>
-                  庫存 {p.stock}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => addToCart(p.id)}
-                style={addBtn}
-                disabled={p.stock === 0}
-              >
-                {p.stock === 0 ? '缺貨' : '+ 購物車'}
-              </button>
-            </article>
-          ))}
-        </section>
+        </>
+      )}
+
+      {/* Bottom-fixed 購物車按鈕(有東西才出現) */}
+      {!showCheckout && cart.length > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'calc(100% - 32px)',
+            maxWidth: 448,
+            zIndex: 50,
+            animation: 'shop-fadein 0.25s ease',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowCheckout(true)}
+            style={{
+              width: '100%',
+              padding: '14px 18px',
+              background: '#18181b',
+              color: '#fff',
+              border: 0,
+              borderRadius: 10,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontFamily: 'inherit',
+            }}
+          >
+            <span>🛒 購物車 {cartCount} 件</span>
+            <span>NT$ {cartTotal.toLocaleString()} →</span>
+          </button>
+        </div>
       )}
 
       {showCheckout && cart.length > 0 && (

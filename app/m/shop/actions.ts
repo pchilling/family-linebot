@@ -40,9 +40,16 @@ export type ShopMember = {
   address: string | null;
 };
 
+export type ShopTenant = {
+  name: string;
+  logo_url: string | null;
+  banner_url: string | null;
+};
+
 export type ShopData = {
   products: ShopProduct[];
   member: ShopMember | null;
+  tenant: ShopTenant;
 };
 
 /**
@@ -83,7 +90,7 @@ export async function loadShopData(
   const lineUserId = await verifyIdToken(idToken);
   await ensureUser(lineUserId, displayName, pictureUrl);
 
-  const [productsRes, memberRes] = await Promise.all([
+  const [productsRes, memberRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from('products')
       .select('id, name, description, price_twd, image_url, category, stock')
@@ -97,6 +104,11 @@ export async function loadShopData(
       .eq('tenant_id', TENANT_ID)
       .eq('line_user_id', lineUserId)
       .maybeSingle(),
+    supabaseAdmin
+      .from('tenants')
+      .select('name, logo_url, og_image_url')
+      .eq('id', TENANT_ID)
+      .maybeSingle(),
   ]);
 
   if (productsRes.error) {
@@ -104,9 +116,16 @@ export async function loadShopData(
     throw new Error('讀取商品失敗');
   }
 
+  const t = (tenantRes.data as { name: string; logo_url: string | null; og_image_url: string | null } | null) ?? null;
+
   return {
     products: (productsRes.data ?? []) as ShopProduct[],
     member: (memberRes.data as ShopMember | null) ?? null,
+    tenant: {
+      name: t?.name ?? '商品專區',
+      logo_url: t?.logo_url ?? null,
+      banner_url: t?.og_image_url ?? null,
+    },
   };
 }
 
