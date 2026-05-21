@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-21 晚(Phase 7 個性化 — Logo / Banner / Variant 圖 + Mobile RWD + Orders filter + Nav badges)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-22(Bot 月 3 收尾 + CRM 介紹網 + Realtime 客服 inbox + Perf 最佳化)
 
 ---
 
@@ -471,6 +471,107 @@ alter table tenants add column if not exists logo_url text;
 update platform_users set email='<peter email>' where line_user_id='U25423...';
 -- + 新增 phsiung957 super admin / peter957733 → oilswa only(per-user access)
 ```
+
+### Phase 6.3:最新消息(2026-05-21,Bot 月 3 收尾)
+
+LINE@ 用戶點 Rich Menu 第 2 格「📰 最新消息」改成 dynamic 撈 DB 最新 3 則 published news,
+不再 placeholder。
+
+新檔案:
+- `news` 表 + admin CRUD(app/admin/[tenant]/news/page.tsx + actions.ts)
+- webhook 加 `getRecentNews` + `formatNewsText` handler
+
+設計:
+- 公告板 mode,不主動推送(避免吃 LINE outbound quota 200/月)
+- status: draft / published / archived
+- published_at 從 draft → published 寫當前時間,降為 draft 保留歷史
+- partial index on (tenant_id, published_at desc) where status='published'
+- UI 措辭:「上線公開」而非「立刻發佈」(避免誤期推送)
+- 橘色提示框說明「公告板,不推送通知」(回應 user 用後困惑)
+
+Commits:`61a613b` news + `db47e15` nav 加最新消息 + `90d1d22` 措辭澄清
+
+### Perf 最佳化(2026-05-21 後段)
+
+User feedback「兩邊都慢、每個 page 點下去都好久」。curl 量到 cold 3.7s / warm 1.4s。
+
+**loading.tsx skeleton**(`adb6c51`):
+- `app/admin/[tenant]/loading.tsx`:hero + 4 metric cards + 2 list sections 骨架
+- `app/[slug]/loading.tsx`:banner + 4 product card 骨架
+- `@keyframes skeleton-pulse` 透過 dangerouslySetInnerHTML
+- 點下去馬上看畫面,perception 變超快
+
+**Admin layout query waterfall 拆**(`dfd3aff`):
+- 之前:auth → allowed → tenant → badges 4 個 sequential RTT
+- 改:[auth, tenant] 平行 → 後 [allowed, ordersPending, lowStock] 平行
+- 4 RTT → 2 RTT,省 ~200ms
+- Access check 移到後面(redirect 早無大效益)
+
+**公開頁 ISR**:
+- `/[slug]/page.tsx` revalidate=30 / `/[slug]/p/[product]/page.tsx` revalidate=60
+- 第二位訪客拿 CDN 快取(<400ms),不打 Supabase
+- admin revalidatePath 推 invalidate,不會看到太舊資料
+
+curl 量到:warm 從 1.4s → 0.77s(快 45%)、oilswa 0.86s → 0.45s(快 48%)。
+
+Vercel cold start ~3-4s 是 free tier 限制,需要 Pro / Edge runtime 才能再減。
+
+### Phase 7.4:CRM 介紹網(2026-05-21,純檔案不違 spec)
+
+`6ceb184`:users.member_id + referrer_member_id 兩 text 欄位
+
+- 不做 PV / 業績計算(對齊 spec 紅線)
+- 純 text 對應(不 FK),允許「上線還沒辦會員、下線先辦」這種倒著綁
+- LIFF /m/member:學員自填 ID + 介紹人 ID
+- Admin customer 詳情:顯示 ID + 介紹人 ID + 自動 reverse 查「我介紹進來的人」
+- 介紹人 ID 若 match 到系統內 user,自動 link 到該 user 詳情
+- 沒 match 顯示「此 ID 尚未在系統內、可能還沒辦會員」
+
+`995eb31`:customers 列表加 filter / search / sort(同 orders pattern)
+
+### Phase 7.5 / 7.6:客服訊息 inbox + Realtime + 未讀區分(2026-05-21~22)
+
+從「inbound 訊息全紀錄」演化到「explicit consent 客服模式 + 即時通知 + 未讀區分」。
+
+**1f07b67 — Inbox v1**:
+- /admin/[tenant]/messages 新頁面,列近 200 則 inbound message
+- 各訊息類型 badge(text / image / sticker / video / 等)
+- 文字直接顯示;非文字提示「LINE@ Manager 直接看」
+
+**b7db38c — Realtime nav badge**:
+- WebSocket 直連 Supabase Realtime,不吃 Vercel quota
+- lib/supabase-browser.ts:createBrowserClient(anon key)
+- webhook 收 inbound message → REST API broadcast 到 `tenant:{id}:messages`
+- nav-links 訂閱 channel,收到 broadcast 就 unread++
+- 進 /admin/[t]/messages 自動歸 0
+
+**a2de0a3 — Support mode**:
+- users.last_support_at + messages.is_support boolean
+- 預設只看 support 訊息(按客服後 30 分鐘窗口)
+- toggle [客服問題] / [所有訊息]
+
+**8a63d19 — Quick Reply explicit flow**:
+- 不再用 keyword 觸發 support mode
+- 按 Rich Menu「💬 專屬客服」→ bot 回 FAQ + Quick Reply chips「📝 我要詢問」/「取消」
+- 按「我要詢問」(postback action=start_support)→ users.last_support_at = now()
+- 按「取消」(action=cancel_support)→ last_support_at = null
+
+**7ec338f — 不再 echo**:
+- describeEvent text 訊息 keyword 沒命中 → 回 ''(silent)
+- non-text → '' (silent)
+- Bot 不再「你說:XXX」吵客戶
+
+**c9d3199 — Group + 未讀區分**:
+- messages.read_at timestamptz(null = 未讀)
+- groupByUser:按用戶折疊一張卡 = 一個用戶
+- <details>/<summary>(無 JS HTML 摺疊)
+- 預設 unread open / read closed
+- 卡片視覺:hasUnread = 黃底 + 紅左 border + 紅 badge「N 未讀」
+- mark-read-client.tsx(client):進頁 2 秒後 server action 自動標已讀
+
+**Bugfix**:
+- `a83666f` getMessages try/catch 防 SSR crash
+- `619b6d1` 拿掉 Server Component 內 <Link onClick>(Next.js 限制)
 
 ### Outstanding
 
