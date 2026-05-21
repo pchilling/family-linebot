@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { getAllActiveTenants, getTenantBySlug } from '@/lib/supabase';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { signOut } from '../actions';
 import {
   colors,
   fontFamilySans,
@@ -35,7 +37,9 @@ export default async function TenantAdminLayout({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant: slug } = await params;
-  const [tenant, allTenants] = await Promise.all([
+  const supabase = await createSupabaseServerClient();
+  const [{ data: { user } }, tenant, allTenants] = await Promise.all([
+    supabase.auth.getUser(),
     getTenantBySlug(slug),
     getAllActiveTenants(),
   ]);
@@ -179,11 +183,14 @@ export default async function TenantAdminLayout({
           <NavLinks tenantSlug={tenant.slug} inventoryGated={inventoryGated} />
         </nav>
 
-        {/* Bottom:預覽公開頁 */}
+        {/* Bottom:預覽公開頁 + 登入帳號 */}
         <div
           style={{
-            padding: `${space['4']}px ${space['5']}px ${space['6']}px`,
+            padding: `${space['4']}px ${space['5']}px ${space['5']}px`,
             borderTop: `1px solid ${colors.borderSubtle}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: space['3'],
           }}
         >
           <a
@@ -212,6 +219,49 @@ export default async function TenantAdminLayout({
               ↗
             </span>
           </a>
+
+          {user && (
+            <div
+              style={{
+                paddingTop: space['3'],
+                borderTop: `1px solid ${colors.borderSubtle}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: space['1'],
+              }}
+            >
+              <span
+                style={{
+                  fontSize: fontSize.xs,
+                  color: colors.textMuted,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'var(--font-geist-mono), monospace',
+                }}
+                title={user.email ?? ''}
+              >
+                {user.email}
+              </span>
+              <form action={signOut} style={{ margin: 0 }}>
+                <button
+                  type="submit"
+                  style={{
+                    background: 'none',
+                    border: 0,
+                    color: colors.textSecondary,
+                    cursor: 'pointer',
+                    fontSize: fontSize.base,
+                    padding: 0,
+                    textAlign: 'left',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  登出
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </aside>
 
