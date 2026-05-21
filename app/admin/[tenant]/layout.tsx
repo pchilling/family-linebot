@@ -102,6 +102,7 @@ export default async function TenantAdminLayout({
         dangerouslySetInnerHTML={{
           __html: `
 @media (max-width: 767px) {
+  /* === Sidebar drawer === */
   .admin-sidebar {
     position: fixed !important;
     top: 0;
@@ -115,44 +116,63 @@ export default async function TenantAdminLayout({
   body.sidebar-open .admin-sidebar-backdrop { display: block !important; }
   body.sidebar-open { overflow: hidden; }
   .admin-mobile-hamburger { display: inline-flex !important; }
-  .admin-content { padding: 56px 14px 32px !important; }
 
-  /* Tables 橫向 scroll(避免 layout 破版) */
+  /* === Main content padding 緊湊 === */
+  .admin-content { padding: 56px 12px 32px !important; }
+  .admin-content main { padding: 0 !important; max-width: 100% !important; }
+
+  /* === Tables 橫向 scroll === */
   .admin-content table {
     display: block;
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  .admin-content table tbody, .admin-content table thead, .admin-content table tr {
+  .admin-content table tbody,
+  .admin-content table thead,
+  .admin-content table tr {
     display: table;
     table-layout: fixed;
     width: max-content;
     min-width: 100%;
   }
 
-  /* 表單 3-col grid 強制 1-col */
-  .admin-content form[style*="repeat(3"],
-  .admin-content form[style*="repeat(auto-fit"] {
+  /* === 所有 grid → 1 col(包山包海)=== */
+  .admin-content [style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
   }
 
-  /* dashboard metric / list grid 同 */
-  .admin-content section[style*="repeat(auto-fit"] {
-    grid-template-columns: 1fr !important;
+  /* === Flex wrap 強化 === */
+  .admin-content form[method="GET"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .admin-content form[method="GET"] input,
+  .admin-content form[method="GET"] select,
+  .admin-content form[method="GET"] button {
+    flex: 1 1 100% !important;
+    width: 100% !important;
   }
 
-  /* h1 縮小 + 文字 wrap */
+  /* === 字級縮小防溢出 === */
   .admin-content h1 { font-size: 18px !important; }
   .admin-content h2 { font-size: 15px !important; }
 
-  /* Filter bar form 自動 wrap(已 flex-wrap)+ 每個欄位 100% */
-  .admin-content form[method="GET"] input,
-  .admin-content form[method="GET"] select {
-    flex: 1 1 100% !important;
+  /* === Section / card padding 緊湊 === */
+  .admin-content section,
+  .admin-content article {
+    padding: 14px !important;
   }
-  .admin-content form[method="GET"] button[type="submit"] {
-    flex: 1 1 100% !important;
+
+  /* === Toggle button 群組(scope tabs etc.)= 自動 wrap === */
+  .admin-content > div[style*="display: flex"][style*="gap"] {
+    flex-wrap: wrap;
+  }
+
+  /* === 圖縮小避免破版 === */
+  .admin-content img {
+    max-width: 100%;
+    height: auto;
   }
 }
           `,
