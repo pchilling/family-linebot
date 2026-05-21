@@ -305,6 +305,7 @@ export type TenantPublic = {
   description: string | null;
   brand_color: string | null;
   og_image_url: string | null;
+  logo_url: string | null;
 };
 
 /**
@@ -314,7 +315,7 @@ export type TenantPublic = {
 export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, description, brand_color, og_image_url, status')
+    .select('id, slug, name, plan, description, brand_color, og_image_url, logo_url, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;

@@ -58,7 +58,7 @@ export default async function TenantHomePage({ params }: Props) {
               alt={p.name}
               style={{
                 width: '100%',
-                aspectRatio: '1',
+                aspectRatio: '4 / 5',
                 objectFit: 'cover',
                 display: 'block',
               }}
@@ -67,7 +67,7 @@ export default async function TenantHomePage({ params }: Props) {
             <div
               style={{
                 width: '100%',
-                aspectRatio: '1',
+                aspectRatio: '4 / 5',
                 background: '#f3f4f6',
                 display: 'flex',
                 alignItems: 'center',

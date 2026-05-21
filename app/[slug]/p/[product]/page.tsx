@@ -94,12 +94,18 @@ export default async function ProductDetailPage({ params }: Props) {
             <img
               src={item.image_url}
               alt={item.name}
-              style={{ width: '100%', borderRadius: 8, display: 'block' }}
+              style={{
+                width: '100%',
+                aspectRatio: '4 / 5',
+                objectFit: 'cover',
+                borderRadius: 8,
+                display: 'block',
+              }}
             />
           ) : (
             <div
               style={{
-                aspectRatio: '1',
+                aspectRatio: '4 / 5',
                 background: '#f3f4f6',
                 borderRadius: 8,
                 display: 'flex',

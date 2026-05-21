@@ -58,14 +58,38 @@ export default async function TenantLayout({ children, params }: Props) {
           >
             <a
               href={`/${slug}`}
-              style={{ color: brandColor, textDecoration: 'none' }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.625rem',
+                color: brandColor,
+                textDecoration: 'none',
+                minWidth: 0,
+              }}
             >
+              {tenant.logo_url && (
+                <img
+                  src={tenant.logo_url}
+                  alt=""
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    flexShrink: 0,
+                  }}
+                />
+              )}
               <h1
                 style={{
                   margin: 0,
                   fontSize: '1.25rem',
                   color: brandColor,
                   lineHeight: 1.3,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {tenant.name}
