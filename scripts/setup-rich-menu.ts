@@ -68,14 +68,11 @@ async function main() {
         action: { type: 'postback' as const, data: 'action=news', displayText: '📰 最新消息' },
       },
       {
-        // 商品專區:改開公開頁 /oilswa(2026-05-22,Phase 4-Gamma 後 LIFF /m/shop 廢棄)
-        // 公開頁有 hero banner / 4:5 直式商品圖 / variant 切圖,UX 比 LIFF 好
+        // 商品專區:LIFF /m/shop(profile gating + LINE userId binding)
+        // 公開頁 /oilswa 給 IG / 分享 link 用,LIFF /m/shop 給 LINE 用戶用
+        // (2026-05-22 改回 LIFF,因為 LINE 用戶要 profile gating + 結帳自動帶 user_id)
         bounds: { x: TOP_W1 + TOP_W2, y: 0, width: TOP_W3, height: H },
-        action: {
-          type: 'uri' as const,
-          uri: 'https://family-linebot-delta.vercel.app/oilswa',
-          label: '🛍 商品專區',
-        },
+        action: { type: 'uri' as const, uri: 'https://liff.line.me/2010125926-aPB1bQtE', label: '🛍 商品專區' },
       },
       // 下排
       {

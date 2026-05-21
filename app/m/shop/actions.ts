@@ -46,10 +46,42 @@ export type ShopData = {
 };
 
 /**
- * 一次拉商品 list + 用戶會員資料(預填結帳)
+ * 確保 user 在 DB 內(沒加 bot 好友也建檔)。同 /m/checkin pattern。
  */
-export async function loadShopData(idToken: string): Promise<ShopData> {
+async function ensureUser(
+  lineUserId: string,
+  displayName: string | null,
+  pictureUrl: string | null,
+): Promise<void> {
+  const { data: existing } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .maybeSingle();
+  if (existing) return;
+
+  const { error } = await supabaseAdmin.from('users').insert({
+    tenant_id: TENANT_ID,
+    line_user_id: lineUserId,
+    display_name: displayName,
+    picture_url: pictureUrl,
+    status: 'active',
+  });
+  if (error) console.error('[shop ensureUser]', error);
+}
+
+/**
+ * 一次拉商品 list + 用戶會員資料(預填結帳)。
+ * 若 user 不存在自動建檔(用 LIFF getProfile 帶來的名稱 / 頭像)。
+ */
+export async function loadShopData(
+  idToken: string,
+  displayName: string | null = null,
+  pictureUrl: string | null = null,
+): Promise<ShopData> {
   const lineUserId = await verifyIdToken(idToken);
+  await ensureUser(lineUserId, displayName, pictureUrl);
 
   const [productsRes, memberRes] = await Promise.all([
     supabaseAdmin
@@ -76,6 +108,44 @@ export async function loadShopData(idToken: string): Promise<ShopData> {
     products: (productsRes.data ?? []) as ShopProduct[],
     member: (memberRes.data as ShopMember | null) ?? null,
   };
+}
+
+/**
+ * 學員在 LIFF /m/shop 入口填基本資料(gate),回傳新的 member。
+ */
+export async function saveShopProfile(formData: FormData): Promise<ShopMember> {
+  const idToken = String(formData.get('idToken') ?? '');
+  const fullName = String(formData.get('full_name') ?? '').trim();
+  const phone = String(formData.get('phone') ?? '').trim();
+  const address = String(formData.get('address') ?? '').trim() || null;
+  const memberId = String(formData.get('member_id') ?? '').trim() || null;
+  const referrerMemberId =
+    String(formData.get('referrer_member_id') ?? '').trim() || null;
+
+  if (!idToken) throw new Error('缺 LIFF token');
+  if (!fullName) throw new Error('請填真實姓名');
+  if (!phone) throw new Error('請填電話');
+
+  const lineUserId = await verifyIdToken(idToken);
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({
+      full_name: fullName,
+      phone,
+      address,
+      member_id: memberId,
+      referrer_member_id: referrerMemberId,
+      status: 'active',
+    })
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId);
+
+  if (error) {
+    console.error('[saveShopProfile]', error);
+    throw new Error('儲存失敗:' + error.message);
+  }
+
+  return { full_name: fullName, phone, address };
 }
 
 export type CartItem = { product_id: string; qty: number };

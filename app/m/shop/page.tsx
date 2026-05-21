@@ -5,6 +5,7 @@ import liff from '@line/liff';
 import {
   loadShopData,
   placeOrder,
+  saveShopProfile,
   type ShopProduct,
   type ShopMember,
   type CartItem,
@@ -14,15 +15,18 @@ const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID_SHOP!;
 
 export default function ShopPage() {
   const [status, setStatus] = useState<
-    'loading' | 'shop' | 'submitting' | 'done' | 'error'
+    'loading' | 'need-profile' | 'shop' | 'submitting' | 'done' | 'error'
   >('loading');
   const [error, setError] = useState('');
   const [idToken, setIdToken] = useState('');
+  const [lineName, setLineName] = useState('');
+  const [linePic, setLinePic] = useState('');
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [member, setMember] = useState<ShopMember | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -32,19 +36,40 @@ export default function ShopPage() {
           liff.login();
           return;
         }
+        const p = await liff.getProfile();
+        setLineName(p.displayName);
+        setLinePic(p.pictureUrl ?? '');
         const tok = liff.getIDToken();
         if (!tok) throw new Error('沒拿到 LIFF token');
         setIdToken(tok);
-        const data = await loadShopData(tok);
+        const data = await loadShopData(tok, p.displayName, p.pictureUrl ?? null);
         setProducts(data.products);
         setMember(data.member);
-        setStatus('shop');
+        // Profile gate:沒填 full_name / phone 不能逛(同 /m/checkin pattern)
+        const hasProfile = !!(data.member?.full_name && data.member?.phone);
+        setStatus(hasProfile ? 'shop' : 'need-profile');
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
         setStatus('error');
       }
     })();
   }, []);
+
+  async function onSubmitProfile(formData: FormData) {
+    setSavingProfile(true);
+    setError('');
+    formData.set('idToken', idToken);
+    try {
+      const newMember = await saveShopProfile(formData);
+      setMember(newMember);
+      setStatus('shop');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   const productMap = useMemo(
     () => new Map(products.map((p) => [p.id, p])),
@@ -101,6 +126,115 @@ export default function ShopPage() {
 
   if (status === 'loading') return <Centered>載入中…</Centered>;
   if (status === 'error') return <Centered>錯誤:{error}</Centered>;
+
+  // Profile gate:沒填會員資料的學員看不到商品,先填 mini-form
+  if (status === 'need-profile') {
+    return (
+      <main style={page}>
+        <header style={{ ...topBar, textAlign: 'center' }}>
+          {linePic && (
+            <img
+              src={linePic}
+              alt=""
+              style={{
+                width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
+                border: '1px solid #e4e4e7', margin: '0 auto 10px', display: 'block',
+              }}
+            />
+          )}
+          <h1 style={{ fontSize: 22, margin: 0 }}>歡迎 {lineName}!</h1>
+          <p style={{ fontSize: 14, color: '#71717a', marginTop: 8 }}>
+            第一次來?先填一下基本資料就能開始逛 🌿
+          </p>
+        </header>
+
+        <form
+          action={onSubmitProfile}
+          style={{
+            background: '#fff',
+            border: '1px solid #e4e4e7',
+            borderRadius: 12,
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>真實姓名 *</span>
+            <input
+              name="full_name"
+              required
+              autoFocus
+              defaultValue={member?.full_name ?? ''}
+              placeholder="您的真實姓名"
+              style={shopInput}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>電話 *</span>
+            <input
+              name="phone"
+              type="tel"
+              required
+              defaultValue={member?.phone ?? ''}
+              placeholder="0900-000-000"
+              style={shopInput}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>地址(出貨用,選填)</span>
+            <input
+              name="address"
+              defaultValue={member?.address ?? ''}
+              placeholder="出貨 / 通訊地址"
+              style={shopInput}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>ID(會員編號,選填)</span>
+            <input
+              name="member_id"
+              placeholder="例:1234567"
+              style={shopInput}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>介紹人 ID(選填)</span>
+            <input
+              name="referrer_member_id"
+              placeholder="介紹你來的人的 ID"
+              style={shopInput}
+            />
+          </label>
+
+          <button
+            type="submit"
+            disabled={savingProfile}
+            style={{
+              marginTop: 6,
+              padding: 14,
+              background: savingProfile ? '#a1a1aa' : '#18181b',
+              color: '#fff',
+              border: 0,
+              borderRadius: 8,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: savingProfile ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {savingProfile ? '儲存中…' : '建立會員資料 + 開始逛'}
+          </button>
+
+          {error && (
+            <div style={{ fontSize: 13, color: '#dc2626' }}>{error}</div>
+          )}
+        </form>
+      </main>
+    );
+  }
+
   if (status === 'done') {
     return (
       <main style={page}>
@@ -308,6 +442,18 @@ const cartItem: React.CSSProperties = {
   gap: 8,
   padding: '10px 0',
   borderBottom: '1px solid #f0f0f0',
+};
+const shopInput: React.CSSProperties = {
+  padding: '12px 14px',
+  fontSize: 16,
+  border: '1px solid #e4e4e7',
+  borderRadius: 8,
+  width: '100%',
+  boxSizing: 'border-box',
+  background: '#fff',
+  color: '#18181b',
+  fontFamily: 'inherit',
+  outline: 'none',
 };
 const qtyBtn: React.CSSProperties = {
   width: 28,
