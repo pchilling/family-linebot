@@ -266,11 +266,14 @@ export async function placeOrder(
     throw new Error('建單失敗(明細):' + itemsErr.message);
   }
 
-  // LINE push:訂單成立通知(fire-and-forget,失敗不影響訂單)
-  // 量小:每筆訂單 1 則,單 tenant 200 free 額度遠遠夠
-  pushOrderConfirmation(lineUserId, order.order_no, order.total_twd).catch((e) => {
+  // LINE push:訂單成立通知。
+  // ⚠️ 不能 fire-and-forget(Vercel serverless function return 後 kill 背景 task)
+  // 必須 await,push 完才能 return。增加 ~200ms 但保證送出。失敗仍不影響訂單(catch)。
+  try {
+    await pushOrderConfirmation(lineUserId, order.order_no, order.total_twd);
+  } catch (e) {
     console.warn('[placeOrder push]', e);
-  });
+  }
 
   return { order_no: order.order_no };
 }
