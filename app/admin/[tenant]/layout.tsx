@@ -16,6 +16,7 @@ import {
   space,
 } from '@/lib/admin-theme';
 import { NavLinks } from './nav-links';
+import { MobileToggle, SidebarBackdrop } from './mobile-toggle';
 
 const geistSans = Geist({
   subsets: ['latin'],
@@ -75,8 +76,35 @@ export default async function TenantAdminLayout({
         color: colors.textPrimary,
       }}
     >
+      {/* CSS:手機版 sidebar 改為 fixed drawer,加 hamburger 按鈕 */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+@media (max-width: 767px) {
+  .admin-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  }
+  body.sidebar-open .admin-sidebar { transform: translateX(0); }
+  body.sidebar-open .admin-sidebar-backdrop { display: block !important; }
+  body.sidebar-open { overflow: hidden; }
+  .admin-mobile-hamburger { display: inline-flex !important; }
+  .admin-content { padding: 56px 16px 32px !important; }
+}
+          `,
+        }}
+      />
+      <MobileToggle />
+      <SidebarBackdrop />
+
       {/* Sidebar */}
       <aside
+        className="admin-sidebar"
         style={{
           width: sidebarWidth,
           flexShrink: 0,
@@ -366,6 +394,7 @@ export default async function TenantAdminLayout({
 
       {/* Main content area */}
       <main
+        className="admin-content"
         style={{
           flex: 1,
           minWidth: 0,
