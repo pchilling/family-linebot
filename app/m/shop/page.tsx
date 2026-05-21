@@ -277,27 +277,66 @@ export default function ShopPage() {
         }}
       />
 
-      {/* Hero:LINE 頭像 + 招呼 + 攤位名 */}
+      {/* Hero:Tenant Logo + 名 + 招呼 + Banner */}
       <header style={{ marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          {linePic && (
+        {/* 第一列:Tenant logo + name(主視覺) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+          {tenant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={linePic}
-              alt=""
+              src={tenant.logo_url}
+              alt={tenant.name}
               style={{
-                width: 44, height: 44, borderRadius: '50%', objectFit: 'cover',
-                border: '1px solid #e4e4e7', flexShrink: 0,
+                width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
+                border: '1.5px solid #e4e4e7', flexShrink: 0,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
               }}
             />
+          ) : (
+            <div
+              aria-hidden
+              style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: '#e4e4e7', border: '1px solid #e4e4e7', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#71717a', fontSize: 22, fontWeight: 700,
+              }}
+            >
+              {tenant.name.slice(0, 1).toUpperCase()}
+            </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: '#71717a', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 19,
+                fontWeight: 700,
+                color: '#18181b',
+                letterSpacing: '-0.01em',
+                lineHeight: 1.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {tenant.name}
-            </div>
-            <h1 style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 700, color: '#18181b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              嗨,{lineName || member?.full_name} 👋
             </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              {linePic && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={linePic}
+                  alt=""
+                  style={{
+                    width: 18, height: 18, borderRadius: '50%', objectFit: 'cover',
+                    border: '1px solid #e4e4e7', flexShrink: 0,
+                  }}
+                />
+              )}
+              <span style={{ fontSize: 13, color: '#71717a' }}>
+                嗨,{lineName || member?.full_name} 👋
+              </span>
+            </div>
           </div>
         </div>
 
@@ -496,62 +535,166 @@ export default function ShopPage() {
       )}
 
       {showCheckout && cart.length > 0 && (
-        <section>
-          <h2 style={h2}>購物車</h2>
-          <ul style={{ listStyle: 'none', padding: 0, marginBottom: 16 }}>
-            {cart.map((c) => {
-              const p = productMap.get(c.product_id);
-              if (!p) return null;
-              return (
-                <li key={c.product_id} style={cartItem}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500 }}>{p.name}</div>
-                    <div style={{ fontSize: 13, color: '#666' }}>
-                      NT$ {p.price_twd} × {c.qty} = NT$ {(p.price_twd * c.qty).toLocaleString()}
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => changeQty(c.product_id, -1)} style={qtyBtn}>−</button>
-                  <span style={{ minWidth: 24, textAlign: 'center' }}>{c.qty}</span>
-                  <button type="button" onClick={() => changeQty(c.product_id, 1)} style={qtyBtn}>+</button>
-                </li>
-              );
-            })}
-          </ul>
-
-          <div style={totalBox}>
-            <span style={{ fontSize: 14 }}>總計</span>
-            <span style={{ fontSize: 20, fontWeight: 600 }}>NT$ {cartTotal.toLocaleString()}</span>
-          </div>
-
-          <h2 style={h2}>結帳資訊</h2>
-          <form action={onSubmitOrder} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <label style={label}>
-              <span style={labelText}>收件人姓名 *</span>
-              <input name="recipient" defaultValue={member?.full_name ?? ''} required style={input} />
-            </label>
-            <label style={label}>
-              <span style={labelText}>電話 *</span>
-              <input name="phone" type="tel" defaultValue={member?.phone ?? ''} required style={input} />
-            </label>
-            <label style={label}>
-              <span style={labelText}>地址 *</span>
-              <input name="address" defaultValue={member?.address ?? ''} required style={input} />
-            </label>
-            <button
-              type="submit"
-              disabled={status === 'submitting'}
-              style={{ ...btn, opacity: status === 'submitting' ? 0.5 : 1 }}
-            >
-              {status === 'submitting' ? '送出中…' : `送出訂單(NT$ ${cartTotal.toLocaleString()})`}
-            </button>
+        <section style={{ animation: 'shop-fadein 0.25s ease' }}>
+          {/* 上方:返回按鈕 + 標題 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <button
               type="button"
               onClick={() => setShowCheckout(false)}
-              style={{ ...btn, background: '#fff', color: '#000', border: '1px solid #ccc' }}
+              aria-label="返回"
+              style={{
+                width: 36, height: 36, padding: 0,
+                background: '#fff', border: '1px solid #e4e4e7',
+                borderRadius: 8, cursor: 'pointer', fontSize: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
             >
-              繼續逛
+              ←
+            </button>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>確認訂單</h2>
+          </div>
+
+          {/* 購物車明細 */}
+          <div style={cardStyle}>
+            <div style={cardTitle}>商品明細</div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {cart.map((c) => {
+                const p = productMap.get(c.product_id);
+                if (!p) return null;
+                const subtotal = p.price_twd * c.qty;
+                return (
+                  <li
+                    key={c.product_id}
+                    style={{
+                      display: 'flex',
+                      gap: 12,
+                      alignItems: 'center',
+                      paddingBottom: 12,
+                      borderBottom: '1px solid #f4f4f5',
+                    }}
+                  >
+                    {p.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        style={{
+                          width: 56, height: 70, borderRadius: 6,
+                          objectFit: 'cover', flexShrink: 0,
+                          border: '1px solid #f4f4f5',
+                        }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: 56, height: 70, borderRadius: 6,
+                        background: '#f4f4f5', flexShrink: 0,
+                      }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14, color: '#18181b', lineHeight: 1.3, marginBottom: 2 }}>
+                        {p.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#71717a', fontFamily: 'ui-monospace, monospace' }}>
+                        NT$ {p.price_twd.toLocaleString()} × {c.qty}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#18181b', fontWeight: 600, fontFamily: 'ui-monospace, monospace', marginTop: 2 }}>
+                        NT$ {subtotal.toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button type="button" onClick={() => changeQty(c.product_id, -1)} style={qtyBtnNew}>−</button>
+                      <span style={{ minWidth: 22, textAlign: 'center', fontSize: 14, fontWeight: 500 }}>{c.qty}</span>
+                      <button type="button" onClick={() => changeQty(c.product_id, 1)} style={qtyBtnNew}>+</button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                marginTop: 14,
+                paddingTop: 14,
+                borderTop: '2px solid #18181b',
+              }}
+            >
+              <span style={{ fontSize: 14, color: '#71717a' }}>總計</span>
+              <span style={{
+                fontSize: 22,
+                fontWeight: 700,
+                color: '#18181b',
+                fontFamily: 'ui-monospace, monospace',
+                letterSpacing: '-0.01em',
+              }}>
+                NT$ {cartTotal.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* 結帳資訊 form */}
+          <form action={onSubmitOrder} style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={cardTitle}>收件資訊</div>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>收件人姓名 *</span>
+              <input
+                name="recipient"
+                defaultValue={member?.full_name ?? ''}
+                required
+                style={shopInput}
+                placeholder="收件人姓名"
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>電話 *</span>
+              <input
+                name="phone"
+                type="tel"
+                defaultValue={member?.phone ?? ''}
+                required
+                style={shopInput}
+                placeholder="0900-000-000"
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>地址 *</span>
+              <input
+                name="address"
+                defaultValue={member?.address ?? ''}
+                required
+                style={shopInput}
+                placeholder="出貨 / 通訊地址"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={status === 'submitting'}
+              style={{
+                marginTop: 6,
+                padding: 16,
+                background: status === 'submitting' ? '#a1a1aa' : '#18181b',
+                color: '#fff',
+                border: 0,
+                borderRadius: 10,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: status === 'submitting' ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                boxShadow: status === 'submitting' ? 'none' : '0 2px 8px rgba(0,0,0,0.12)',
+              }}
+            >
+              {status === 'submitting'
+                ? '送出中…'
+                : `確認送出 · NT$ ${cartTotal.toLocaleString()}`}
             </button>
           </form>
+
+          <p style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#a1a1aa', lineHeight: 1.6 }}>
+            送出後客服會盡快聯繫您確認付款與出貨。
+          </p>
         </section>
       )}
     </main>
@@ -634,6 +777,37 @@ const shopInput: React.CSSProperties = {
   color: '#18181b',
   fontFamily: 'inherit',
   outline: 'none',
+};
+const cardStyle: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e4e4e7',
+  borderRadius: 12,
+  padding: '18px 16px',
+  marginBottom: 14,
+  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+};
+const cardTitle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#71717a',
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  marginBottom: 14,
+};
+const qtyBtnNew: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  border: '1px solid #e4e4e7',
+  background: '#fff',
+  borderRadius: 6,
+  fontSize: 16,
+  color: '#18181b',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
 };
 const qtyBtn: React.CSSProperties = {
   width: 28,
