@@ -121,20 +121,50 @@ export default async function TenantAdminLayout({
   .admin-content { padding: 56px 12px 32px !important; }
   .admin-content main { padding: 0 !important; max-width: 100% !important; }
 
-  /* === Tables 橫向 scroll === */
+  /* === Tables → 卡片化(每列變一張卡)=== */
   .admin-content table {
     display: block;
-    max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    background: transparent;
+    border: 0;
+    border-collapse: separate;
+    width: 100%;
   }
-  .admin-content table tbody,
-  .admin-content table thead,
+  .admin-content table thead {
+    display: none;  /* 隱藏標題列 */
+  }
+  .admin-content table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .admin-content table tr {
-    display: table;
-    table-layout: fixed;
-    width: max-content;
-    min-width: 100%;
+    display: block;
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+  .admin-content table td {
+    display: block;
+    padding: 3px 0;
+    border: 0;
+    font-size: 13px;
+    color: #52525b;
+    text-align: left !important;
+  }
+  /* 第一個 cell(通常是 主鍵 / 名字)當卡片標題 */
+  .admin-content table td:first-child {
+    font-weight: 600;
+    font-size: 15px;
+    color: #18181b;
+    margin-bottom: 4px;
+  }
+  /* 最後 cell(通常是時間 / 動作)淡化 */
+  .admin-content table td:last-child {
+    font-size: 11px;
+    color: #a1a1aa;
+    margin-top: 4px;
   }
 
   /* === 所有 grid → 1 col(包山包海)=== */
