@@ -20,6 +20,9 @@ type Props = {
   params: Promise<{ tenant: string }>;
 };
 
+// Admin dashboard 每次都重抓最新數據,不用任何 cache
+export const dynamic = 'force-dynamic';
+
 function asiaTaipeiDayRange() {
   const now = new Date();
   const twOffsetMs = 8 * 60 * 60 * 1000;
