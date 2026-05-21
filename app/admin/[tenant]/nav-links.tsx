@@ -59,6 +59,7 @@ export function NavLinks({
         ]
       : []),
     { key: 'news', label: '最新消息', href: `/admin/${tenantSlug}/news` },
+    { key: 'messages', label: '客戶訊息', href: `/admin/${tenantSlug}/messages` },
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 
