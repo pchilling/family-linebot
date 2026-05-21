@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
-import { updateOrder } from '../../../actions';
+import { updateOrder, markOrderPaid, markOrderShipped } from '../../../actions';
 
 type OrderItem = {
   id: string;
@@ -18,6 +18,7 @@ type OrderDetail = {
   status: string;
   payment_status: string;
   payment_method: string | null;
+  payment_last5: string | null;
   total_twd: number;
   source: string;
   shipping_recipient: string | null;
@@ -44,7 +45,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      `id, order_no, status, payment_status, payment_method, total_twd, source,
+      `id, order_no, status, payment_status, payment_method, payment_last5, total_twd, source,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
        users(line_user_id, display_name, full_name, phone),
@@ -77,12 +78,24 @@ const labelText: React.CSSProperties = { fontSize: 13, color: '#444', marginBott
 const input: React.CSSProperties = { padding: 8, fontSize: 14, border: '1px solid #ccc', borderRadius: 4, width: '100%', boxSizing: 'border-box' };
 const btn: React.CSSProperties = { padding: 12, background: '#000', color: '#fff', border: 0, borderRadius: 4, fontSize: 14, cursor: 'pointer' };
 
-export default async function OrderDetailPage({ params }: { params: Promise<{ tenant: string; id: string }> }) {
+export default async function OrderDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenant: string; id: string }>;
+  searchParams: Promise<{ saved?: string }>;
+}) {
   const { tenant: slug, id } = await params;
+  const sp = await searchParams;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
   const o = await getOrder(tenant.id, id);
   if (!o) notFound();
+
+  const justPaid = sp.saved === 'paid';
+  const justShipped = sp.saved === 'shipped';
+  const isPaid = o.payment_status === 'paid';
+  const isShipped = o.status === 'shipped' || o.status === 'delivered';
 
   return (
     <main style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
@@ -166,8 +179,134 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ te
         )}
       </section>
 
+      {/* 對帳 banner(剛確認後顯示) */}
+      {(justPaid || justShipped) && (
+        <div
+          style={{
+            padding: '10px 16px',
+            background: '#dcfce7',
+            border: '1px solid #bbf7d0',
+            color: '#15803d',
+            fontSize: 14,
+            fontWeight: 500,
+            borderRadius: 6,
+            marginBottom: 16,
+          }}
+        >
+          ✓ {justPaid ? '已標已付款' : '已標已出貨'}
+        </div>
+      )}
+
+      {/* 對帳 quick actions(2026-05-22 加,未付/已付/已出貨 三狀態顯示) */}
+      <section
+        style={{
+          marginBottom: 28,
+          padding: 16,
+          border: `1px solid ${isPaid ? '#bbf7d0' : '#fde68a'}`,
+          background: isPaid ? '#f0fdf4' : '#fffbeb',
+          borderRadius: 8,
+        }}
+      >
+        {!isPaid ? (
+          <>
+            <h2 style={{ fontSize: 15, marginBottom: 4, color: '#92400e' }}>💰 確認收款</h2>
+            <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 14px', lineHeight: 1.6 }}>
+              客人匯款後告知後 5 碼,在這裡標記為已付款。標完訂單變綠、Dashboard 今日營收會算進去。
+            </p>
+            <form action={markOrderPaid} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <input type="hidden" name="id" value={o.id} />
+              <input type="hidden" name="tenant_slug" value={tenant.slug} />
+              <label style={{ ...label, flex: '1 1 160px' }}>
+                <span style={labelText}>後 5 碼(選填)</span>
+                <input
+                  name="payment_last5"
+                  maxLength={5}
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  style={input}
+                  placeholder="12345"
+                />
+              </label>
+              <label style={{ ...label, flex: '1 1 140px' }}>
+                <span style={labelText}>付款方式</span>
+                <select name="payment_method" defaultValue={o.payment_method ?? 'bank'} style={input}>
+                  <option value="bank">銀行轉帳</option>
+                  <option value="cash">現金</option>
+                  <option value="line_pay">LINE Pay</option>
+                </select>
+              </label>
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 18px',
+                  background: '#16a34a',
+                  color: '#fff',
+                  border: 0,
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                ✓ 確認已收款
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <h2 style={{ fontSize: 15, marginBottom: 8, color: '#15803d' }}>
+              ✓ 已收款
+              {o.payment_last5 && (
+                <code style={{ marginLeft: 10, padding: '2px 8px', background: '#fff', border: '1px solid #bbf7d0', borderRadius: 4, fontSize: 13, fontFamily: 'ui-monospace, monospace' }}>
+                  後 5 碼: {o.payment_last5}
+                </code>
+              )}
+            </h2>
+            <div style={{ fontSize: 13, color: '#15803d', lineHeight: 1.6 }}>
+              收款時間 <strong>{formatTw(o.paid_at)}</strong>
+              {o.payment_method && <> · 方式 {o.payment_method}</>}
+            </div>
+          </>
+        )}
+
+        {/* 已付款 → 顯示「標已出貨」按鈕 */}
+        {isPaid && !isShipped && (
+          <form action={markOrderShipped} style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0', display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <input type="hidden" name="id" value={o.id} />
+            <input type="hidden" name="tenant_slug" value={tenant.slug} />
+            <label style={{ ...label, flex: '1 1 200px' }}>
+              <span style={labelText}>📦 標已出貨(選填追蹤單號)</span>
+              <input name="tracking_no" defaultValue={o.tracking_no ?? ''} style={input} placeholder="例:7-11 取貨號 / 黑貓單號" />
+            </label>
+            <button
+              type="submit"
+              style={{
+                padding: '10px 18px',
+                background: '#0070f3',
+                color: '#fff',
+                border: 0,
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              📦 標已出貨
+            </button>
+          </form>
+        )}
+
+        {isShipped && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0', fontSize: 13, color: '#0a7038' }}>
+            📦 已出貨 {formatTw(o.shipped_at)} {o.tracking_no && <>· 追蹤單號 <code style={{ padding: '2px 6px', background: '#fff', borderRadius: 3 }}>{o.tracking_no}</code></>}
+          </div>
+        )}
+      </section>
+
       <section style={section}>
-        <h2 style={h2}>狀態 / 出貨 / 備註</h2>
+        <h2 style={h2}>狀態 / 出貨 / 備註(進階)</h2>
         <form action={updateOrder} style={{ display: 'grid', gap: 12 }}>
           <input type="hidden" name="id" value={o.id} />
           <input type="hidden" name="tenant_slug" value={tenant.slug} />

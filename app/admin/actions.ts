@@ -275,6 +275,57 @@ export async function deleteProduct(formData: FormData) {
 }
 
 // ====================
+// 對帳:一鍵標已付款(2026-05-22)
+// 設 status='paid' + payment_status='paid' + payment_last5
+// paid_at 由 trigger handle_order_status_change 自動填
+// ====================
+export async function markOrderPaid(formData: FormData) {
+  const id = String(formData.get('id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const last5 = String(formData.get('payment_last5') || '').trim() || null;
+  const method = String(formData.get('payment_method') || 'bank').trim() || 'bank';
+
+  await supabaseAdmin
+    .from('orders')
+    .update({
+      status: 'paid',
+      payment_status: 'paid',
+      payment_method: method,
+      payment_last5: last5,
+    })
+    .eq('id', id);
+
+  if (slug) {
+    revalidatePath(`/admin/${slug}/orders/${id}`);
+    revalidatePath(`/admin/${slug}/orders`);
+    revalidatePath(`/admin/${slug}`);
+    redirect(`/admin/${slug}/orders/${id}?saved=paid`);
+  }
+}
+
+// 一鍵標已出貨(2026-05-22)
+export async function markOrderShipped(formData: FormData) {
+  const id = String(formData.get('id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const tracking = String(formData.get('tracking_no') || '').trim() || null;
+
+  await supabaseAdmin
+    .from('orders')
+    .update({
+      status: 'shipped',
+      tracking_no: tracking,
+    })
+    .eq('id', id);
+
+  if (slug) {
+    revalidatePath(`/admin/${slug}/orders/${id}`);
+    revalidatePath(`/admin/${slug}/orders`);
+    revalidatePath(`/admin/${slug}`);
+    redirect(`/admin/${slug}/orders/${id}?saved=shipped`);
+  }
+}
+
+// ====================
 // Orders 改狀態(線 2 月 1)
 // 改 status='cancelled' / 'refunded' 會觸發 handle_order_cancel trigger 自動退庫存
 // ====================
