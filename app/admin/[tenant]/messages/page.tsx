@@ -21,36 +21,45 @@ type Filters = {
 };
 
 async function getMessages(tenantId: string, f: Filters): Promise<MessageRow[]> {
-  let query = supabaseAdmin
-    .from('messages')
-    .select(
-      'id, user_id, message_type, content, is_support, read_at, created_at, users(id, display_name, full_name)',
-    )
-    .eq('tenant_id', tenantId)
-    .eq('direction', 'inbound')
-    .eq('event_type', 'message');
+  try {
+    let query = supabaseAdmin
+      .from('messages')
+      .select(
+        'id, user_id, message_type, content, is_support, read_at, created_at, users(id, display_name, full_name)',
+      )
+      .eq('tenant_id', tenantId)
+      .eq('direction', 'inbound')
+      .eq('event_type', 'message');
 
-  if (f.scope !== 'all') {
-    query = query.eq('is_support', true);
+    if (f.scope !== 'all') {
+      query = query.eq('is_support', true);
+    }
+
+    if (f.user) query = query.eq('user_id', f.user);
+
+    query = query.order('created_at', { ascending: false }).limit(200);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('[messages getMessages]', error);
+      return [];
+    }
+    let rows = ((data as unknown) as MessageRow[] | null) ?? [];
+
+    if (f.q) {
+      const needle = f.q.toLowerCase();
+      rows = rows.filter((m) => {
+        const text = m.content?.text ?? '';
+        const name = m.users?.full_name ?? m.users?.display_name ?? '';
+        return text.toLowerCase().includes(needle) || name.toLowerCase().includes(needle);
+      });
+    }
+
+    return rows;
+  } catch (e) {
+    console.error('[messages getMessages exception]', e);
+    return [];
   }
-
-  if (f.user) query = query.eq('user_id', f.user);
-
-  query = query.order('created_at', { ascending: false }).limit(200);
-
-  const { data } = await query;
-  let rows = ((data as unknown) as MessageRow[] | null) ?? [];
-
-  if (f.q) {
-    const needle = f.q.toLowerCase();
-    rows = rows.filter((m) => {
-      const text = m.content?.text ?? '';
-      const name = m.users?.full_name ?? m.users?.display_name ?? '';
-      return text.toLowerCase().includes(needle) || name.toLowerCase().includes(needle);
-    });
-  }
-
-  return rows;
 }
 
 type UserGroup = {
