@@ -12,6 +12,7 @@ type TenantFull = {
   og_image_url: string | null;
   logo_url: string | null;
   contact_info: string | null;
+  payment_info: string | null;
   plan: string;
   slug: string;
   order_prefix: string;
@@ -23,7 +24,7 @@ async function getTenantFull(slug: string): Promise<TenantFull | null> {
   const { data } = await supabaseAdmin
     .from('tenants')
     .select(
-      'id, name, description, brand_color, og_image_url, logo_url, contact_info, plan, slug, order_prefix, features, status',
+      'id, name, description, brand_color, og_image_url, logo_url, contact_info, payment_info, plan, slug, order_prefix, features, status',
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -79,6 +80,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
             brand_color: tenant.brand_color ?? '',
             og_image_url: tenant.og_image_url ?? '',
             contact_info: tenant.contact_info ?? '',
+            payment_info: tenant.payment_info ?? '',
           }}
         />
       </section>

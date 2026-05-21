@@ -813,6 +813,11 @@ create index if not exists users_referrer_member_id_idx
 alter table users add column if not exists last_support_at timestamptz;
 alter table messages add column if not exists is_support boolean not null default false;
 alter table messages add column if not exists read_at timestamptz;
+
+-- Phase 7.7:tenants.payment_info(2026-05-22)
+-- 訂單成立頁直接顯示匯款資訊(銀行 / 帳號 / 戶名 / 流程提示)
+-- 不耗 LINE outbound quota,客戶看到立刻能截圖
+alter table tenants add column if not exists payment_info text;
 create index if not exists messages_support_idx
   on messages(tenant_id, created_at desc)
   where is_support = true and direction = 'inbound';

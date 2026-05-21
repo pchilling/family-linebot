@@ -105,13 +105,15 @@ export default async function OrderPage({ params }: Props) {
   const order = await getOrder(tenant.id, order_no);
   if (!order) notFound();
 
-  // 額外拉 tenant.contact_info(沒在 getTenantPublic,避免動 lib type)
+  // 額外拉 tenant.contact_info + payment_info(沒在 getTenantPublic)
   const { data: tenantExtra } = await supabaseAdmin
     .from('tenants')
-    .select('contact_info')
+    .select('contact_info, payment_info')
     .eq('id', tenant.id)
     .maybeSingle();
-  const contactInfo = (tenantExtra as { contact_info: string | null } | null)?.contact_info ?? null;
+  type ExtraRow = { contact_info: string | null; payment_info: string | null } | null;
+  const contactInfo = (tenantExtra as ExtraRow)?.contact_info ?? null;
+  const paymentInfo = (tenantExtra as ExtraRow)?.payment_info ?? null;
 
   const createdAt = new Date(order.created_at).toLocaleString('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -146,23 +148,57 @@ export default async function OrderPage({ params }: Props) {
         </div>
       </div>
 
-      <div
-        style={{
-          padding: '1.25rem',
-          background: '#fffbeb',
-          border: '1px solid #fde68a',
-          borderRadius: 8,
-          marginBottom: '1.5rem',
-        }}
-      >
-        <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '0.5rem' }}>
-          下一步:等候匯款資訊
+      {paymentInfo ? (
+        <section
+          style={{
+            padding: '1.25rem',
+            background: '#fffbeb',
+            border: '1px solid #fde68a',
+            borderRadius: 8,
+            marginBottom: '1.5rem',
+          }}
+        >
+          <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '0.5rem', fontSize: '1rem' }}>
+            💰 下一步:匯款
+          </div>
+          <div
+            style={{
+              color: '#78350f',
+              fontSize: '0.9375rem',
+              lineHeight: 1.7,
+              whiteSpace: 'pre-wrap',
+              padding: '0.75rem 1rem',
+              background: '#fff',
+              border: '1px solid #fde68a',
+              borderRadius: 6,
+              fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+              marginTop: '0.5rem',
+            }}
+          >
+            {paymentInfo}
+          </div>
+          <div style={{ marginTop: '0.75rem', color: '#92400e', fontSize: '0.8125rem', lineHeight: 1.5 }}>
+            💡 建議截圖此頁,匯款後告知賣家後 5 碼。訂單編號 <strong>{order.order_no}</strong>。
+          </div>
+        </section>
+      ) : (
+        <div
+          style={{
+            padding: '1.25rem',
+            background: '#fffbeb',
+            border: '1px solid #fde68a',
+            borderRadius: 8,
+            marginBottom: '1.5rem',
+          }}
+        >
+          <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '0.5rem' }}>
+            下一步:等候匯款資訊
+          </div>
+          <div style={{ color: '#78350f', fontSize: '0.875rem', lineHeight: 1.6 }}>
+            賣家會主動私訊您匯款方式。請保留此訂單編號,完成匯款後通知賣家對帳。
+          </div>
         </div>
-        <div style={{ color: '#78350f', fontSize: '0.875rem', lineHeight: 1.6 }}>
-          賣家會主動私訊您匯款方式。
-          請保留此訂單編號,完成匯款後通知賣家對帳。
-        </div>
-      </div>
+      )}
 
       {contactInfo && (
         <section

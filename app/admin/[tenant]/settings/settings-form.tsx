@@ -11,6 +11,7 @@ type Props = {
     brand_color: string;
     og_image_url: string;
     contact_info: string;
+    payment_info: string;
   };
 };
 
@@ -116,6 +117,22 @@ export function SettingsForm({ tenantSlug, defaults }: Props) {
         />
         <span style={hint}>
           客人下單成立頁會看到這段,知道怎麼聯絡你匯款 / 對帳 / 詢問商品。多行 free text,你愛怎麼寫就怎麼寫
+        </span>
+      </label>
+
+      <label style={label}>
+        <span style={labelText}>匯款資訊</span>
+        <textarea
+          name="payment_info"
+          defaultValue={defaults.payment_info}
+          rows={5}
+          style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
+          placeholder={
+            '【匯款資訊】\n銀行：玉山銀行 (808)\n帳號：1234-5678-9012-345\n戶名：王小明\n\n匯款後請告知後 5 碼,我們會盡快對帳'
+          }
+        />
+        <span style={hint}>
+          訂單成立後客人會立刻在「訂單成立頁」看到這段。建議寫清楚銀行 / 帳號 / 戶名 / 後續流程
         </span>
       </label>
 

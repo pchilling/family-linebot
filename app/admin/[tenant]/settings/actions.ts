@@ -28,6 +28,7 @@ export async function updateTenantSettings(
   const ogImageUrl = String(formData.get('og_image_url') ?? '').trim();
   // contact_info 是 free text(多行),頭尾空白 trim,內部換行保留
   const contactInfo = String(formData.get('contact_info') ?? '').replace(/^\s+|\s+$/g, '');
+  const paymentInfo = String(formData.get('payment_info') ?? '').replace(/^\s+|\s+$/g, '');
 
   if (!slug) return { status: 'error', error: '無攤位資訊' };
   if (!name) return { status: 'error', error: '店名不能空白' };
@@ -50,6 +51,7 @@ export async function updateTenantSettings(
       brand_color: brandColor || null,
       og_image_url: ogImageUrl || null,
       contact_info: contactInfo || null,
+      payment_info: paymentInfo || null,
     })
     .eq('id', tenant.id);
 
