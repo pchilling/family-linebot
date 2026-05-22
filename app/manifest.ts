@@ -11,7 +11,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Stall · 多攤位電商 + LINE Bot',
     short_name: 'Stall',
     description: 'NEO Potential Studio — 多攤位 LINE 商務平台',
-    start_url: '/',
+    start_url: '/admin',
     display: 'standalone',
     background_color: '#fafafa',
     theme_color: '#18181b',
