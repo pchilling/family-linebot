@@ -224,34 +224,7 @@ export default async function TenantAdminLayout({
     padding: 10px !important;
   }
 
-  /* === Dashboard metric cards: 2-col 緊湊(比 1-col 好看) === */
-  /* override 全域 grid → 1fr 的規則,因為 metric card 短內容,2 col 更密集 */
-  .admin-content section[style*="minmax(220px"] {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-  }
-
-  /* Dashboard 卡片內部 padding 緊湊 + 字級調整 */
-  .admin-content section[style*="minmax(220px"] a > div,
-  .admin-content section[style*="minmax(220px"] > div {
-    padding: 14px 12px !important;
-  }
-
-  /* Metric 大數字字級縮(原本 3xl 可能 30px) */
-  .admin-content section[style*="minmax(220px"] [style*="lineHeight: 1.1"] {
-    font-size: 24px !important;
-  }
-
-  /* Section margin 緊湊 */
-  .admin-content section[style*="grid-template-columns"] {
-    margin-bottom: 16px !important;
-  }
-
-  /* Hero h1 ratio 維持但 letter-spacing */
-  .admin-content > div > header h1 {
-    font-size: 24px !important;
-    letter-spacing: -0.02em !important;
-  }
+  /* Dashboard 專屬規則由 dashboard page.tsx 自帶 <style> 處理,避免 catch-all 衝突 */
 }
           `,
         }}

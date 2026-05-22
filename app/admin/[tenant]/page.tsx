@@ -191,14 +191,47 @@ export default async function TenantDashboardPage({ params }: Props) {
 
   return (
     <div style={{ maxWidth: contentMaxWidth, margin: '0 auto' }}>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+@media (max-width: 767px) {
+  /* 高 specificity 蓋過 layout 的 catch-all [style*=...] rule */
+  body .admin-content .dashboard-metric-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+  }
+  body .admin-content .dashboard-metric-grid > a > div,
+  body .admin-content .dashboard-metric-grid > div {
+    padding: 12px 10px !important;
+    height: 100% !important;
+    gap: 2px !important;
+  }
+  body .admin-content .dashboard-metric-grid [style*="lineHeight: 1.1"] {
+    font-size: 22px !important;
+    margin-top: 4px !important;
+  }
+  body .admin-content .dashboard-list-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  body .admin-content .dashboard-hero h1 {
+    font-size: 24px !important;
+  }
+}
+          `,
+        }}
+      />
+
       {/* Hero */}
-      <header style={{ marginBottom: space['10'] }}>
+      <header className="dashboard-hero" style={{ marginBottom: space['10'] }}>
         <div style={{ ...sectionLabel, marginBottom: space['2'] }}>{formatToday()}</div>
         <h1 style={h1Style}>{tenant.name}</h1>
       </header>
 
       {/* Metric row */}
       <section
+        className="dashboard-metric-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -245,6 +278,7 @@ export default async function TenantDashboardPage({ params }: Props) {
       {/* 活動相關 sections — 只給 features.activities 開啟的 tenant 看 */}
       {hasActivities && (
         <section
+          className="dashboard-list-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
