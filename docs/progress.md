@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-22(Bot 月 3 收尾 + CRM 介紹網 + Realtime 客服 inbox + Perf 最佳化)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-22 晚(Demo prep — QR 簽到 / LIFF 商城 redesign / 對帳 UI / PWA / Mobile RWD)
 
 ---
 
@@ -572,6 +572,106 @@ Vercel cold start ~3-4s 是 free tier 限制,需要 Pro / Edge runtime 才能再
 **Bugfix**:
 - `a83666f` getMessages try/catch 防 SSR crash
 - `619b6d1` 拿掉 Server Component 內 <Link onClick>(Next.js 限制)
+
+### Phase 7.7 ~ 7.9:Demo prep 大波(2026-05-22 晚,29 個 commit)
+
+明天要 demo 給三合一,這波密集 polish + 補功能。
+
+**簽到 QR 系統**(`4789d61` + `ac37a5a`):
+- /admin/[tenant]/classes/[id]/qr 每活動專屬 QR 列印頁
+  - qrserver.com API(免 npm)生 PNG
+  - print-friendly @media print 隱 nav + 強制白底
+  - 「下載 PNG」/「看出席紀錄」按鈕
+- /m/checkin 加 profile gate(同 /m/member pattern)
+  - 沒填會員資料 → inline mini-form(真名 / 電話 / ID / 介紹人 ID)
+  - 填完一鍵簽到,不需切頁重掃 QR
+  - 自動 upsert user(沒加 bot 好友也能用)
+
+**Admin 商品管理 UX 大改造**(`93b28f5` + `88ebb3e`):
+- 每個商品變 <details> 折疊 card
+  - summary 顯示縮圖 + 名稱 + 狀態 + 變體數
+  - 展開分 4 sections:商品圖 / 基本資料 / 變體 / 危險區(刪除)
+- 「儲存」後 redirect ?saved=<id> + 自動展開該卡 + 綠 banner
+- 商品沒 slug 也能點(homepage link + getProductBySlug fallback by UUID)
+- createProduct auto-generate slug(英文 slugify + 6 字 hash / 中文 timestamp)
+
+**LIFF /m/shop 全面 redesign**(`4def224` + `5c6b5b6` + `90a936f` + `5da6750` + `7523d6b`):
+- Rich Menu Cell 3 改回 LIFF /m/shop(學員端 LINE 用 LIFF,公開頁 /oilswa 給 IG/分享)
+- Profile gate(同 /m/checkin)
+- Hero:tenant logo 56×56 + tenant name + 小 LINE pic + greeting
+- Hero banner(1200×630 用 og_image_url)
+- 商品 2-col grid + 4:5 卡片 + 名稱 line-clamp + monospace 價格
+- 底部 sticky cart bar「🛒 N 件 NT$ X →」
+- 結帳頁重設計:返回鍵 + 確認訂單 h2 + 56×70 縮圖商品明細 + 圓角 qty button
+  + 收件資訊卡片 + 大「確認送出 · NT$ X」黑 button
+- LIFF done 畫面也顯示完整匯款資訊 + 訂單編號 + 截圖提示
+
+**Payment Info(匯款資訊)**(`de02bfc` + `7523d6b`):
+- tenants.payment_info text 欄位(free text 多行,銀行/帳號/戶名 + 流程提示)
+- admin settings textarea + 範例 placeholder
+- 訂單成立頁(公開 / LIFF / push)都顯示
+- 範例已含「📍 三合一辦公室現場付款」option
+
+**LINE Bot push 訂單確認**(`b54dbca` + `2913ff9` + `5c5c717`):
+- placeOrder 後 push 訊息給客戶:訂單編號 + 總金額 + 匯款資訊 + 訂單詳情 link
+- Fire-and-forget → fix 成 await(Vercel serverless function return 後 kill 背景 task)
+- 總金額用本地 cart × price 算(order.total_twd 在 INSERT 時是 0,trigger items 後才算)
+
+**LIFF /m/orders 我的訂單**(`485f1d9`):
+- 學員 LIFF 看自己歷史訂單(近 50 筆)
+- 卡片:order_no(mono) + 商品 summary + 狀態 badge + 大金額
+- 點 → /[tenant]/order/[order_no] 公開頁
+- /m/member 加快速 link「🧾 查我的訂單 ›」
+
+**LIFF /m/events 重設計**(`0cec1ec`):
+- 對齊 /m/shop 設計語言
+- Hero + 小頭像 greeting
+- 活動卡片重設計:左日期區塊(月 small caps + 大日 + 週)+ 右主資訊
+- 容量 progress bar(綠 / 紅滿 visual)
+- 已報名 → 綠 left border + ghost button「✓ 已報名 點此取消」
+- 候補中 → 黃 badge「候補 #N」
+
+**Mobile RWD**(`5e78410` + `303ae2d` + `e241126` + `6353f8e`):
+- Admin layout @media (max-width: 767px) 多 layer CSS:
+  - Sidebar → fixed drawer + hamburger
+  - 內頁 padding 12px 緊湊
+  - **所有 grid → 1 col**(catch-all [style*="grid-template-columns"])
+  - **表格 → 卡片化**(thead 隱 / tr 變 card / td 變 block)
+  - Filter bar:position sticky 浮頂部 + flex column + 各欄 100%
+  - h1/h2 縮小防溢出 + 圖片 max-width 100%
+- 不破桌機 layout(全在 mobile breakpoint 內)
+
+**PWA 支援**(`febb96a` + `c7ad837`):
+- app/manifest.ts(MetadataRoute.Manifest 慣例)
+  - name "Stall · 多攤位電商 + LINE Bot"
+  - start_url "/",display "standalone"
+- app/icon.svg 256×256 黑底白「S」(maskable + any)
+- app/layout.tsx 加 appleWebApp metadata + viewport theme-color
+- 用戶可「加到主畫面」當 native App,無需 App Store
+
+**對帳 UI**(`ab87c16` + `e46fb31` + `8daf048`):
+- 訂單詳情頁加 quick action section(三狀態切):
+  - 未付款 → 黃底「💰 確認收款」+ 後 5 碼 + 付款方式 + 綠 button
+  - 已付款未出貨 → 綠底「✓ 已收款」+ 「📦 標已出貨」追蹤單號 input
+  - 已出貨 → 「📦 已出貨」+ 時間 + 追蹤單號
+- markOrderPaid / markOrderShipped server actions
+  - 自動 set paid_at / shipped_at(trigger 處理)
+  - Retry 機制:if payment_last5 column 未建 retry without
+- 訂單列表加 inline quick action(從 list 直接標 paid / shipped 不用進詳情)
+  - return_to=list 參數 → 留在列表 + 上方綠 banner
+- 訂單詳情頁 404 bug fix:payment_last5 SELECT 暫時拿掉直到 SQL 跑
+
+**Dashboard 修正**(`760b7f3` + `aa2bbaf`):
+- export const dynamic = 'force-dynamic' 避免任何 cache
+- 「今日營收」改算 created_at 範圍所有訂單(不再要求 paid_at + payment_status=paid)
+  - 反映「真實銷售」直覺,排除 cancelled / refunded
+- Card sub label 改「下單 NT$」更精準
+
+**待跑 SQL**:
+```sql
+alter table orders add column if not exists payment_last5 text;
+```
+(因 user 無法跑暫緩,程式碼已 retry 機制 graceful degrade)
 
 ### Outstanding
 
