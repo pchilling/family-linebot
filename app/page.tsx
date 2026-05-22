@@ -192,7 +192,7 @@ export default async function Home() {
         )}
 
         <footer style={{ marginTop: 40, textAlign: 'center', fontSize: 11, color: c.textMuted, lineHeight: 1.6 }}>
-          © {new Date().getFullYear()} NEO Potential Studio
+          NEO Potential Studio
           <br />
           已加 LINE@ 好友的學員,主選單直接點功能即可
         </footer>
