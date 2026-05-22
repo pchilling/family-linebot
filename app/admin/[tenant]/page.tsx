@@ -194,11 +194,12 @@ export default async function TenantDashboardPage({ params }: Props) {
       <style
         dangerouslySetInnerHTML={{
           __html: `
-/* iPad portrait / 中型螢幕:2x2 grid 比 4 col 更好看 */
-@media (min-width: 768px) and (max-width: 1100px) {
+/* iPad portrait / horizontal / 小筆電(<1300):4 col 太擠改 2x2 */
+@media (min-width: 768px) and (max-width: 1300px) {
   body .admin-content .dashboard-metric-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 14px !important;
+    margin-bottom: 32px !important;
   }
   body .admin-content .dashboard-metric-grid > a > div,
   body .admin-content .dashboard-metric-grid > div {
@@ -207,6 +208,7 @@ export default async function TenantDashboardPage({ params }: Props) {
   body .admin-content .dashboard-list-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 16px !important;
+    margin-bottom: 32px !important;
   }
 }
 
