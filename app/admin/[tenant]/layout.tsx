@@ -101,6 +101,17 @@ export default async function TenantAdminLayout({
       <style
         dangerouslySetInnerHTML={{
           __html: `
+/* Global:details summary 隱藏默認三角(各 page 自帶 ▶ 視覺) */
+.admin-content details summary {
+  list-style: none;
+}
+.admin-content details summary::-webkit-details-marker {
+  display: none;
+}
+.admin-content details[open] summary > span:first-child {
+  /* default ▶ marker rotation if it's the first child(via inline style) */
+}
+
 @media (max-width: 767px) {
   /* === Sidebar drawer === */
   .admin-sidebar {
@@ -205,19 +216,12 @@ export default async function TenantAdminLayout({
     height: auto;
   }
 
-  /* === Sticky filter bar 在手機:長 list 捲動時 filter 跟著 === */
+  /* Filter form 卡片樣式(不 sticky,跟著正常 scroll) */
   .admin-content form[method="GET"] {
-    position: sticky;
-    top: 8px;
-    z-index: 30;
     background: #fafafa !important;
     border: 1px solid #e4e4e7 !important;
     border-radius: 10px !important;
     padding: 10px !important;
-    margin-left: -2px;
-    margin-right: -2px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    backdrop-filter: blur(8px);
   }
 
   /* === Dashboard metric cards: 2-col 緊湊(比 1-col 好看) === */
