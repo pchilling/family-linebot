@@ -198,18 +198,36 @@ export default async function TenantDashboardPage({ params }: Props) {
   /* 高 specificity 蓋過 layout 的 catch-all [style*=...] rule */
   body .admin-content .dashboard-metric-grid {
     grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-    margin-bottom: 16px !important;
+    gap: 10px !important;
+    margin-bottom: 20px !important;
   }
+  /* 卡片壓扁:高度自然 + padding 緊湊 + 內部 gap 縮小 */
   body .admin-content .dashboard-metric-grid > a > div,
   body .admin-content .dashboard-metric-grid > div {
-    padding: 12px 10px !important;
-    height: 100% !important;
-    gap: 2px !important;
+    padding: 10px 12px !important;
+    height: auto !important;
+    min-height: 76px !important;
+    gap: 0 !important;
+    border-radius: 10px !important;
   }
+  /* Label small caps 縮一點 */
+  body .admin-content .dashboard-metric-grid [style*="text-transform: uppercase"],
+  body .admin-content .dashboard-metric-grid [style*="textTransform: uppercase"] {
+    font-size: 10px !important;
+    letter-spacing: 0.06em !important;
+  }
+  /* 大數字 — 不那麼粗大,line-height 緊湊 */
   body .admin-content .dashboard-metric-grid [style*="lineHeight: 1.1"] {
-    font-size: 22px !important;
-    margin-top: 4px !important;
+    font-size: 26px !important;
+    margin-top: 2px !important;
+    line-height: 1 !important;
+  }
+  /* sub 字 — 緊貼大數字 */
+  body .admin-content .dashboard-metric-grid > a > div > div:last-child,
+  body .admin-content .dashboard-metric-grid > div > div:last-child {
+    margin-top: 2px !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
   }
   body .admin-content .dashboard-list-grid {
     grid-template-columns: 1fr !important;
