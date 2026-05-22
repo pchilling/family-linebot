@@ -225,22 +225,51 @@ details[open] .chevron { transform: rotate(90deg); }
         </Link>
       </div>
 
-      {/* Filter bar */}
-      <form
-        method="GET"
-        action={`/admin/${tenant.slug}/messages`}
+      {/* Filter — 預設折疊,有條件啟用才自動 open */}
+      <details
+        open={hasAnyFilter}
         style={{
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          padding: 12,
+          marginBottom: 20,
           background: '#fafafa',
           border: '1px solid #e4e4e7',
           borderRadius: 8,
-          marginBottom: 20,
+          overflow: 'hidden',
         }}
       >
+        <summary
+          style={{
+            padding: '10px 14px',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 500,
+            color: '#52525b',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            listStyle: 'none',
+          }}
+        >
+          <span style={{ fontSize: 11, color: '#71717a' }}>▶</span>
+          🔍 篩選 / 搜尋
+          {hasAnyFilter && (
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#0070f3', fontWeight: 500 }}>
+              · 條件啟用中
+            </span>
+          )}
+        </summary>
+        <form
+          method="GET"
+          action={`/admin/${tenant.slug}/messages`}
+          style={{
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            padding: '12px 14px 14px',
+            background: '#fafafa',
+            borderTop: '1px solid #e4e4e7',
+          }}
+        >
         <input
           name="q"
           defaultValue={filters.q ?? ''}
@@ -279,7 +308,8 @@ details[open] .chevron { transform: rotate(90deg); }
             清除
           </Link>
         )}
-      </form>
+        </form>
+      </details>
 
       {groups.length === 0 && (
         <p style={{ color: '#71717a', padding: 32, textAlign: 'center', fontSize: 14 }}>
