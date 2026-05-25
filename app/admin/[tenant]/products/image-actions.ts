@@ -67,6 +67,61 @@ export async function uploadProductImage(formData: FormData): Promise<UploadProd
 }
 
 /**
+ * 上傳活動 cover 圖。Phase A 加(2026-05-25)。
+ * Aspect 16:9 1280×720 jpeg。顯示在 LIFF /m/events / admin classes / Rich Menu Flex。
+ * Path: {tenant_id}/classes/{class_id}-{timestamp}.jpg
+ */
+export async function uploadClassImage(formData: FormData): Promise<UploadProductImageResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const classId = String(formData.get('class_id') ?? '').trim();
+  const file = formData.get('file');
+
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!classId) return { ok: false, error: '無活動資訊' };
+  if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
+  if (file.size > 3 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 3MB' };
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const { data: cls, error: cErr } = await supabaseAdmin
+    .from('classes')
+    .select('id')
+    .eq('id', classId)
+    .eq('tenant_id', tenant.id)
+    .maybeSingle();
+  if (cErr || !cls) return { ok: false, error: '活動不存在或無權限' };
+
+  const path = `${tenant.id}/classes/${classId}-${Date.now()}.jpg`;
+  const { error: upErr } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .upload(path, file, { contentType: 'image/jpeg', upsert: false });
+
+  if (upErr) {
+    console.error('[uploadClassImage upload]', upErr);
+    return { ok: false, error: '上傳失敗:' + upErr.message };
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+
+  const { error: updateErr } = await supabaseAdmin
+    .from('classes')
+    .update({ image_url: publicUrl })
+    .eq('id', classId);
+
+  if (updateErr) {
+    console.error('[uploadClassImage update]', updateErr);
+    return { ok: false, error: '儲存連結失敗' };
+  }
+
+  revalidatePath(`/admin/${slug}/classes`);
+  revalidatePath(`/admin/${slug}`);
+  return { ok: true, url: publicUrl };
+}
+
+/**
  * 上傳變體圖。Variant 跟 product 是 1:n,variant 可以自己有圖(色 / 尺寸款式),
  * 不設則 fallback 用 product 的圖。
  * Path: {tenant_id}/variants/{variant_id}-{timestamp}.jpg

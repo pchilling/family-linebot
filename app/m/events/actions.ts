@@ -45,6 +45,7 @@ export type EventListItem = {
   capacity: number | null;
   is_paid: boolean;
   price_twd: number | null;
+  image_url: string | null;
   confirmed_count: number;
   waitlist_count: number;
   // my_status:null = 沒報過 / 沒 active 報名;confirmed / waitlist / cancelled
@@ -77,7 +78,7 @@ export async function loadEvents(idToken: string): Promise<EventsData> {
   const { data: classes, error: cErr } = await supabaseAdmin
     .from('classes')
     .select(
-      'id, name, instructor, scheduled_at, capacity, is_paid, price_twd, regions(name)',
+      'id, name, instructor, scheduled_at, capacity, is_paid, price_twd, image_url, regions(name)',
     )
     .eq('tenant_id', TENANT_ID)
     .gte('scheduled_at', now.toISOString())
@@ -98,6 +99,7 @@ export async function loadEvents(idToken: string): Promise<EventsData> {
     capacity: number | null;
     is_paid: boolean;
     price_twd: number | null;
+    image_url: string | null;
     regions: { name: string } | null;
   };
   const rows = ((classes as unknown) as ClassRow[] | null) ?? [];
@@ -154,6 +156,7 @@ export async function loadEvents(idToken: string): Promise<EventsData> {
       capacity: c.capacity,
       is_paid: c.is_paid,
       price_twd: c.price_twd,
+      image_url: c.image_url,
       confirmed_count: confirmedCount.get(c.id) ?? 0,
       waitlist_count: waitlistCount.get(c.id) ?? 0,
       my_status:

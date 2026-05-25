@@ -279,11 +279,25 @@ ${spinKeyframes}
                   border: `1px solid ${isMine ? c.successBorder : c.border}`,
                   borderLeft: isMine ? `3px solid ${c.success}` : `1px solid ${c.border}`,
                   borderRadius: 10,
-                  padding: 14,
+                  overflow: 'hidden',
                   transition: 'transform 0.15s, border-color 0.2s',
                 }}
               >
-                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                {/* Cover 圖(有設才顯示)— 16:9 */}
+                {e.image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={e.image_url}
+                    alt={e.name}
+                    style={{
+                      width: '100%',
+                      aspectRatio: '16 / 9',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                )}
+                <div style={{ padding: 14, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                   {/* 日期區塊 — 左 */}
                   <div
                     style={{

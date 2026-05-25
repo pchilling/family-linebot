@@ -8,38 +8,49 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { uploadProductImage, uploadVariantImage } from './image-actions';
+import { uploadProductImage, uploadVariantImage, uploadClassImage } from './image-actions';
 
 type Props = {
-  /** 'product' = 上傳 product.image_url;'variant' = 上傳 product_variants.image_url */
-  entity?: 'product' | 'variant';
-  /** product 模式 = product.id;variant 模式 = variant.id */
+  /**
+   * 'product' = 上傳 product.image_url
+   * 'variant' = 上傳 product_variants.image_url
+   * 'class' = 上傳 classes.image_url(活動)
+   */
+  entity?: 'product' | 'variant' | 'class';
+  /** product/variant/class 對應的 row.id */
   entityId: string;
   tenantSlug: string;
   currentImageUrl: string | null;
   /** 顯示名稱(用於 alt 等) */
   productName: string;
+  /** Override 預設比例。product/variant default 4:5,class default 16:9 */
+  aspect?: number;
 };
 
-const ASPECT = 4 / 5; // 直式 portrait,跟 IG 貼文同比例
-const OUTPUT_W = 600;
-const OUTPUT_H = 750;
-
-function centerInitial(imgW: number, imgH: number): Crop {
-  return centerCrop(
-    makeAspectCrop({ unit: '%', width: 90 }, ASPECT, imgW, imgH),
-    imgW,
-    imgH,
-  );
-}
+const DEFAULT_PRODUCT_ASPECT = 4 / 5;
+const DEFAULT_CLASS_ASPECT = 16 / 9;
 
 export function ProductImageUploader({
   entity = 'product',
   entityId,
   tenantSlug,
   currentImageUrl,
+  aspect,
   productName,
 }: Props) {
+  // 計算 aspect ratio + 輸出尺寸
+  const ASPECT = aspect ?? (entity === 'class' ? DEFAULT_CLASS_ASPECT : DEFAULT_PRODUCT_ASPECT);
+  const OUTPUT_W = entity === 'class' ? 1280 : 600;
+  const OUTPUT_H = Math.round(OUTPUT_W / ASPECT);
+
+  function centerInitial(imgW: number, imgH: number): Crop {
+    return centerCrop(
+      makeAspectCrop({ unit: '%', width: 90 }, ASPECT, imgW, imgH),
+      imgW,
+      imgH,
+    );
+  }
+
   const [imgSrc, setImgSrc] = useState('');
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
@@ -121,13 +132,16 @@ export function ProductImageUploader({
 
       const formData = new FormData();
       formData.append('tenant_slug', tenantSlug);
-      const idField = entity === 'variant' ? 'variant_id' : 'product_id';
+      const idField =
+        entity === 'variant' ? 'variant_id' : entity === 'class' ? 'class_id' : 'product_id';
       formData.append(idField, entityId);
       formData.append('file', blob, `${entity}.jpg`);
       const result =
         entity === 'variant'
           ? await uploadVariantImage(formData)
-          : await uploadProductImage(formData);
+          : entity === 'class'
+            ? await uploadClassImage(formData)
+            : await uploadProductImage(formData);
 
       if (result.ok) {
         setSuccess('上傳成功');

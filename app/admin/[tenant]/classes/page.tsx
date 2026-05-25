@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { createClass, deleteClass, updateClass } from '../../actions';
+import { ProductImageUploader } from '../products/image-uploader';
 
 type Region = { id: string; name: string };
 type ClassRow = {
@@ -15,6 +16,7 @@ type ClassRow = {
   duration_min: number | null;
   capacity: number | null;
   status: string;
+  image_url: string | null;
 };
 
 async function getRegions(tenantId: string): Promise<Region[]> {
@@ -30,7 +32,7 @@ async function getClasses(tenantId: string): Promise<ClassRow[]> {
   const { data } = await supabaseAdmin
     .from('classes')
     .select(
-      'id, region_id, regions(name), name, scheduled_at, instructor, is_paid, price_twd, duration_min, capacity, status',
+      'id, region_id, regions(name), name, scheduled_at, instructor, is_paid, price_twd, duration_min, capacity, status, image_url',
     )
     .eq('tenant_id', tenantId)
     .order('scheduled_at');
@@ -390,6 +392,23 @@ function ClassCard({
           <div style={{ fontSize: 9, color: c.textMuted }}>{dt.weekday}</div>
         </div>
 
+        {/* Cover 縮圖(有設才顯示)*/}
+        {cls.image_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={cls.image_url}
+            alt={cls.name}
+            style={{
+              flexShrink: 0,
+              width: 80,
+              height: 45,
+              objectFit: 'cover',
+              borderRadius: 4,
+              border: `1px solid ${c.borderSubtle}`,
+            }}
+          />
+        )}
+
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
             <span style={{ fontWeight: 600, fontSize: 15 }}>{cls.name}</span>
@@ -440,6 +459,20 @@ function ClassCard({
       </summary>
 
       <div style={{ borderTop: `1px solid ${c.borderSubtle}`, padding: '16px 18px', background: '#fafafa' }}>
+        {/* Cover 圖上傳器 — 16:9 — 顯示在 LIFF / Rich Menu Flex / admin */}
+        <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${c.border}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: c.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+            活動 cover 圖 · 16:9
+          </div>
+          <ProductImageUploader
+            entity="class"
+            entityId={cls.id}
+            tenantSlug={tenant.slug}
+            currentImageUrl={cls.image_url}
+            productName={cls.name}
+          />
+        </div>
+
         <form action={updateClass} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <input type="hidden" name="id" value={cls.id} />
           <input type="hidden" name="tenant_id" value={tenant.id} />
