@@ -823,6 +823,30 @@ alter table tenants add column if not exists payment_info text;
 -- 最新消息改 Flex bubble 後文字不會 auto-link,admin 想要可點連結
 -- 須另外填這欄,LINE Flex 會渲一顆 footer button「🔗 開啟連結」
 alter table news add column if not exists link_url text;
+
+-- Phase 7.11:自助申請開店(2026-05-26)
+-- 新人 Google 登入後填表 → 立刻建 tenant(status='pending') → Peter 審核
+-- pending 可進 admin 設定,但公開頁面(LIFF / store)還是只看 status='active'
+do $$
+declare c text;
+begin
+  for c in
+    select conname from pg_constraint
+    where conrelid = 'tenants'::regclass
+    and contype = 'c'
+    and pg_get_constraintdef(oid) like '%status%'
+  loop
+    execute 'alter table tenants drop constraint ' || quote_ident(c);
+  end loop;
+end $$;
+alter table tenants add constraint tenants_status_check
+  check (status in ('active', 'hibernated', 'suspended', 'deleted', 'pending', 'rejected'));
+alter table tenants add column if not exists applicant_phone text;
+alter table tenants add column if not exists business_type text;
+alter table tenants add column if not exists application_notes text;
+alter table tenants add column if not exists rejection_reason text;
+alter table tenants add column if not exists reviewed_by text;
+alter table tenants add column if not exists reviewed_at timestamptz;
 create index if not exists messages_support_idx
   on messages(tenant_id, created_at desc)
   where is_support = true and direction = 'inbound';

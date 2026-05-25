@@ -128,8 +128,12 @@ export async function getUserAllowedTenants(
   };
   const row = data as unknown as Row;
 
+  // Phase 7.11:pending 也算 — 申請中的人要能進 admin 設定
+  // 公開頁面(LIFF / 公開 store)還是只看 active(各自地方 filter)
   return (row.tenant_members ?? [])
-    .filter((m) => m.tenants && m.tenants.status === 'active')
+    .filter(
+      (m) => m.tenants && (m.tenants.status === 'active' || m.tenants.status === 'pending'),
+    )
     .map((m) => ({
       slug: m.tenants!.slug,
       name: m.tenants!.name,
