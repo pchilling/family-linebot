@@ -31,6 +31,32 @@ export async function signIn(formData: FormData) {
   redirect('/admin/classes');
 }
 
+/**
+ * Google OAuth 登入(Phase A,2026-05-26)。
+ * 跳 Google 同意頁 → callback 到 /auth/callback。
+ * redirectTo 必須是絕對網址,且要在 Supabase Auth → URL Configuration 的 Redirect URLs 內。
+ */
+export async function signInWithGoogle() {
+  const supabase = await createSupabaseServerClient();
+  const h = await (await import('next/headers')).headers();
+  const host = h.get('host') ?? 'localhost:3000';
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  const origin = `${proto}://${host}`;
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${origin}/auth/callback`,
+    },
+  });
+
+  if (error || !data?.url) {
+    console.error('[signInWithGoogle]', error);
+    redirect(`/admin/login?error=${encodeURIComponent('signin_failed')}`);
+  }
+  redirect(data.url);
+}
+
 export async function signOut() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();

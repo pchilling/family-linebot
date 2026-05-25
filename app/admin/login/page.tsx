@@ -8,7 +8,7 @@ import {
   sectionLabel,
   space,
 } from '@/lib/admin-theme';
-import { signIn } from '../actions';
+import { signIn, signInWithGoogle } from '../actions';
 
 const geistSans = Geist({
   subsets: ['latin'],
@@ -116,6 +116,53 @@ export default async function LoginPage({
             {errorMsg}
           </div>
         )}
+
+        {/* Google OAuth button(Phase A,2026-05-26)*/}
+        <form action={signInWithGoogle} style={{ marginBottom: space['5'] }}>
+          <button
+            type="submit"
+            style={{
+              width: '100%',
+              padding: `${space['3']}px ${space['4']}px`,
+              background: colors.bgCard,
+              color: colors.textPrimary,
+              border: `1px solid ${colors.border}`,
+              borderRadius: radius.md,
+              fontSize: fontSize.md,
+              fontWeight: fontWeight.medium,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: space['2'],
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+              <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91A8.78 8.78 0 0 0 17.64 9.2z" fill="#4285F4" />
+              <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26a5.4 5.4 0 0 1-8.09-2.84H.92v2.33A9 9 0 0 0 9 18z" fill="#34A853" />
+              <path d="M3.96 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.28-1.72V4.96H.92a9 9 0 0 0 0 8.09l3.04-2.33z" fill="#FBBC05" />
+              <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .92 4.96l3.04 2.32A5.4 5.4 0 0 1 9 3.58z" fill="#EA4335" />
+            </svg>
+            使用 Google 登入
+          </button>
+        </form>
+
+        {/* Divider */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: space['3'],
+            marginBottom: space['5'],
+            color: colors.textMuted,
+            fontSize: fontSize.sm,
+          }}
+        >
+          <div style={{ flex: 1, height: 1, background: colors.borderSubtle }} />
+          <span>或用 email</span>
+          <div style={{ flex: 1, height: 1, background: colors.borderSubtle }} />
+        </div>
 
         <form action={signIn} style={{ display: 'flex', flexDirection: 'column', gap: space['4'] }}>
           <div>
