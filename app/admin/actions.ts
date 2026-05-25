@@ -51,6 +51,7 @@ export async function createClass(formData: FormData) {
   const price_str = String(formData.get('price_twd') || '').trim();
   const price_twd = is_paid && price_str ? Number(price_str) : null;
   const duration_min = Number(formData.get('duration_min') || 90);
+  const description = String(formData.get('description') || '').replace(/^\s+|\s+$/g, '') || null;
 
   await supabaseAdmin.from('classes').insert({
     tenant_id: tIdFromForm(formData),
@@ -61,6 +62,7 @@ export async function createClass(formData: FormData) {
     is_paid,
     price_twd,
     duration_min,
+    description,
     status: 'open',
   });
   revalForRoute(formData, 'classes');
@@ -75,11 +77,12 @@ export async function updateClass(formData: FormData) {
   const is_paid = formData.get('is_paid') === 'on';
   const price_str = String(formData.get('price_twd') || '').trim();
   const price_twd = is_paid && price_str ? Number(price_str) : null;
+  const description = String(formData.get('description') || '').replace(/^\s+|\s+$/g, '') || null;
   const slug = String(formData.get('tenant_slug') || '').trim();
 
   await supabaseAdmin
     .from('classes')
-    .update({ region_id, name, scheduled_at, instructor, is_paid, price_twd })
+    .update({ region_id, name, scheduled_at, instructor, is_paid, price_twd, description })
     .eq('id', id);
   revalForRoute(formData, 'classes');
 

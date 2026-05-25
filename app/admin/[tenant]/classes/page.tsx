@@ -17,6 +17,7 @@ type ClassRow = {
   capacity: number | null;
   status: string;
   image_url: string | null;
+  description: string | null;
 };
 
 async function getRegions(tenantId: string): Promise<Region[]> {
@@ -32,7 +33,7 @@ async function getClasses(tenantId: string): Promise<ClassRow[]> {
   const { data } = await supabaseAdmin
     .from('classes')
     .select(
-      'id, region_id, regions(name), name, scheduled_at, instructor, is_paid, price_twd, duration_min, capacity, status, image_url',
+      'id, region_id, regions(name), name, scheduled_at, instructor, is_paid, price_twd, duration_min, capacity, status, image_url, description',
     )
     .eq('tenant_id', tenantId)
     .order('scheduled_at');
@@ -271,6 +272,18 @@ details[open] .chev { transform: rotate(90deg); }
               <input name="is_paid" type="checkbox" />
               收費課程
             </label>
+            <label style={{ ...label, gridColumn: '1 / -1' }}>
+              <span style={labelText}>課程介紹(可換行 / 加 emoji)</span>
+              <textarea
+                name="description"
+                rows={4}
+                style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
+                placeholder={'例:\n🌿 帶你認識芳療基礎,從精油功效到日常應用\n📌 適合:芳療新手 / 想學自我保健\n⏱ 時長 90 分鐘,現場提供精油試聞\n📍 名額限 12 人,先報先得'}
+              />
+              <span style={{ fontSize: 11, color: c.textMuted, marginTop: 4, display: 'block' }}>
+                Rich Menu「📅 本月課程」+ LIFF 報名頁都會顯示這段。建議用換行 + emoji 讓視覺更生動,150 字以內。
+              </span>
+            </label>
             <button type="submit" style={{ ...btnPrimary, gridColumn: '1 / -1' }}>建立活動</button>
           </form>
         </div>
@@ -490,6 +503,19 @@ function ClassCard({
           <label style={{ ...label, alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6, color: c.text }}>
             <input name="is_paid" type="checkbox" defaultChecked={cls.is_paid} />
             收費
+          </label>
+          <label style={{ ...label, gridColumn: '1 / -1' }}>
+            <span style={labelText}>課程介紹(可換行 / 加 emoji,顯示在 Rich Menu「📅 本月課程」+ LIFF)</span>
+            <textarea
+              name="description"
+              defaultValue={cls.description ?? ''}
+              rows={5}
+              style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
+              placeholder={'例:\n🌿 帶你認識芳療基礎\n📌 適合芳療新手\n⏱ 時長 90 分鐘\n📍 名額限 12 人'}
+            />
+            <span style={{ fontSize: 11, color: c.textMuted, marginTop: 4, display: 'block' }}>
+              建議:emoji icon 開頭 + 1 行 1 點。150 字以內(超過會截斷)
+            </span>
           </label>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <a
