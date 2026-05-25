@@ -205,7 +205,6 @@ details[open] .chev { transform: rotate(90deg); }
             <input type="hidden" name="tenant_id" value={tenant.id} />
             <input type="hidden" name="tenant_slug" value={tenant.slug} />
             <label style={label}><span style={labelText}>商品名稱 *</span><input name="name" required style={input} /></label>
-            <label style={label}><span style={labelText}>SKU(default variant)</span><input name="sku" style={input} /></label>
             <label style={label}><span style={labelText}>分類</span><input name="category" list="cats" style={input} /></label>
             <datalist id="cats"><option value="精油" /><option value="保養品" /><option value="保健" /><option value="配件" /><option value="童裝" /></datalist>
             <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} /></label>
@@ -333,7 +332,7 @@ details[open] .chev { transform: rotate(90deg); }
                     <input type="hidden" name="tenant_slug" value={tenant.slug} />
                     <input type="hidden" name="image_url" value={p.image_url ?? ''} />
                     <label style={label}><span style={labelText}>商品名稱</span><input name="name" defaultValue={p.name} style={input} /></label>
-                    <label style={label}><span style={labelText}>SKU(legacy)</span><input name="sku" defaultValue={p.sku ?? ''} style={input} /></label>
+                    <label style={label}><span style={labelText}>SKU(系統自動)</span><input name="sku" defaultValue={p.sku ?? ''} readOnly style={{ ...input, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }} /></label>
                     <label style={label}><span style={labelText}>分類</span><input name="category" defaultValue={p.category ?? ''} style={input} /></label>
                     <label style={label}><span style={labelText}>售價(legacy)</span><input name="price_twd" type="number" defaultValue={p.price_twd} style={input} /></label>
                     <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={p.cost_twd ?? ''} style={input} /></label>
@@ -376,7 +375,7 @@ details[open] .chev { transform: rotate(90deg); }
                           <form action={updateVariant} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
                             <input type="hidden" name="id" value={v.id} />
                             <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                            <label style={label}><span style={labelText}>SKU</span><input name="sku" defaultValue={v.sku} required style={input} /></label>
+                            <label style={label}><span style={labelText}>SKU(自動)</span><input name="sku" defaultValue={v.sku} readOnly style={{ ...input, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }} /></label>
                             <label style={label}><span style={labelText}>變體名</span><input name="variant_name" defaultValue={v.variant_name} required style={input} /></label>
                             <label style={label}><span style={labelText}>售價</span><input name="price_twd" type="number" defaultValue={v.price_twd} required style={input} /></label>
                             <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={v.cost_twd ?? ''} style={input} /></label>
@@ -432,11 +431,10 @@ details[open] .chev { transform: rotate(90deg); }
                       <span className="chev" aria-hidden style={{ marginRight: 6 }}>▶</span>
                       + 新增變體
                     </summary>
-                    <form action={createVariant} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end', marginTop: 10, padding: 12, background: '#eef7ff', borderRadius: 5 }}>
+                    <form action={createVariant} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end', marginTop: 10, padding: 12, background: '#eef7ff', borderRadius: 5 }}>
                       <input type="hidden" name="product_id" value={p.id} />
                       <input type="hidden" name="tenant_id" value={tenant.id} />
                       <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                      <label style={label}><span style={labelText}>SKU *</span><input name="sku" required style={input} /></label>
                       <label style={label}><span style={labelText}>變體名 *</span><input name="variant_name" required style={input} placeholder="例 粉 L" /></label>
                       <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} defaultValue={p.price_twd} /></label>
                       <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>

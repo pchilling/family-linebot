@@ -155,6 +155,64 @@ function revalidateProductRoutes(formData: FormData) {
 }
 
 /**
+ * 取 tenant 的 order_prefix(SKU 前綴用)。
+ * NOT NULL + 格式 ^[A-Z]{2,5}$,所以一定有值。
+ */
+async function getTenantPrefix(tenantId: string): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from('tenants')
+    .select('order_prefix')
+    .eq('id', tenantId)
+    .maybeSingle();
+  return ((data as { order_prefix?: string } | null)?.order_prefix ?? 'SKU').toUpperCase();
+}
+
+/**
+ * 產 product SKU:{order_prefix}-{3 位流水號}
+ * 掃既有 SKU 找最大,+1,跳過已被刪 / 不依此 pattern 的舊 SKU。
+ */
+async function nextProductSku(tenantId: string, prefix: string): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from('products')
+    .select('sku')
+    .eq('tenant_id', tenantId);
+  const re = new RegExp(`^${prefix}-(\\d+)$`);
+  let max = 0;
+  for (const row of (data ?? []) as { sku: string | null }[]) {
+    if (!row.sku) continue;
+    const m = row.sku.match(re);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > max) max = n;
+    }
+  }
+  return `${prefix}-${String(max + 1).padStart(3, '0')}`;
+}
+
+/**
+ * 產 variant SKU:{product_sku}-V{n}
+ * 第 1 個 variant(default)直接用 product_sku;追加的從 V2 起跳。
+ */
+async function nextVariantSku(productId: string, productSku: string): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from('product_variants')
+    .select('sku')
+    .eq('product_id', productId);
+  const rows = (data ?? []) as { sku: string }[];
+  if (rows.length === 0) return productSku; // default variant
+  const re = new RegExp(`^${productSku}-V(\\d+)$`);
+  let max = 1; // default variant 視為 V1
+  for (const row of rows) {
+    const m = row.sku.match(re);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > max) max = n;
+    }
+  }
+  return `${productSku}-V${max + 1}`;
+}
+
+/**
  * 從商品名產 slug:
  * - 全英文 → 純小寫 hyphenated + 6 字隨機尾(避免撞)
  * - 含中文 / 完全沒 ascii → 用 timestamp36 + 隨機 4 字(URL safe)
@@ -174,7 +232,6 @@ function generateProductSlug(name: string): string {
 
 export async function createProduct(formData: FormData) {
   const tenantId = tenantIdFromForm(formData);
-  const sku = String(formData.get('sku') || '').trim() || null;
   const name = String(formData.get('name')).trim();
   const description = String(formData.get('description') || '').trim() || null;
   const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
@@ -182,6 +239,10 @@ export async function createProduct(formData: FormData) {
   const stock = numOrNull(formData.get('stock')) ?? 0;
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const category = String(formData.get('category') || '').trim() || null;
+
+  // SKU 系統產:{tenant.order_prefix}-{3 位流水號}
+  const prefix = await getTenantPrefix(tenantId);
+  const sku = await nextProductSku(tenantId, prefix);
 
   // 自動產 slug:英文名直接 slugify,中文名 / 混合則用前 8 字 + 隨機尾(避免重複)
   // tenant 內 unique(因為 products.slug 有 unique constraint per tenant)
@@ -210,12 +271,11 @@ export async function createProduct(formData: FormData) {
     return;
   }
 
-  // 同步建 default variant(沿用 product 同 sku;sku 為 null 就 AUTO 補)
-  const variantSku = sku || `AUTO-${product.id.slice(0, 8)}`;
+  // 同步建 default variant,沿用 product SKU
   const { error: vErr } = await supabaseAdmin.from('product_variants').insert({
     tenant_id: tenantId,
     product_id: product.id,
-    sku: variantSku,
+    sku,
     variant_name: 'default',
     price_twd,
     cost_twd,
@@ -235,7 +295,19 @@ export async function createProduct(formData: FormData) {
 export async function createVariant(formData: FormData) {
   const tenantId = tenantIdFromForm(formData);
   const product_id = String(formData.get('product_id'));
-  const sku = String(formData.get('sku')).trim();
+  // SKU 系統產:撈該 product 的 SKU 後追加 -V{n}
+  const { data: parent } = await supabaseAdmin
+    .from('products')
+    .select('sku')
+    .eq('id', product_id)
+    .maybeSingle();
+  const productSku = (parent as { sku?: string | null } | null)?.sku;
+  if (!productSku) {
+    console.error('[createVariant] product missing sku', product_id);
+    revalidateProductRoutes(formData);
+    return;
+  }
+  const sku = await nextVariantSku(product_id, productSku);
   const variant_name = String(formData.get('variant_name') || '').trim() || 'default';
   const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
   const cost_twd = numOrNull(formData.get('cost_twd'));
