@@ -6,6 +6,7 @@ type NewsRow = {
   id: string;
   title: string;
   body: string | null;
+  link_url: string | null;
   status: string;
   published_at: string | null;
   created_at: string;
@@ -15,7 +16,7 @@ type NewsRow = {
 async function getAllNews(tenantId: string): Promise<NewsRow[]> {
   const { data } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, status, published_at, created_at, updated_at')
+    .select('id, title, body, link_url, status, published_at, created_at, updated_at')
     .eq('tenant_id', tenantId)
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
@@ -96,6 +97,15 @@ export default async function NewsPage({ params }: { params: Promise<{ tenant: s
               placeholder="可多行。回覆時會原樣顯示在 LINE 對話框。"
             />
           </label>
+          <label style={label}>
+            🔗 連結 URL(選填,Flex 會多一顆「開啟連結」button)
+            <input
+              name="link_url"
+              type="url"
+              style={input}
+              placeholder="https://youtu.be/... 或 https://shop.com/..."
+            />
+          </label>
           <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8, color: '#18181b', fontSize: 13 }}>
             <input name="publish" type="checkbox" />
             建立後上線公開(可在 Rich Menu「最新消息」被讀到;不會主動推送通知)
@@ -152,6 +162,16 @@ export default async function NewsPage({ params }: { params: Promise<{ tenant: s
                 defaultValue={n.body ?? ''}
                 rows={4}
                 style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+            </label>
+            <label style={label}>
+              🔗 連結 URL(選填)
+              <input
+                name="link_url"
+                type="url"
+                defaultValue={n.link_url ?? ''}
+                style={input}
+                placeholder="https://..."
               />
             </label>
             <label style={label}>

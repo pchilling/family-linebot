@@ -385,6 +385,7 @@ export type NewsForFlex = {
   id: string;
   title: string;
   body: string | null;
+  link_url: string | null;
   published_at: string;
 };
 
@@ -437,7 +438,7 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
       });
     }
 
-    return {
+    const bubble: messagingApi.FlexBubble = {
       type: 'bubble' as const,
       size: 'mega' as const,
       body: {
@@ -448,6 +449,30 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
         contents: bodyContents,
       },
     };
+
+    // 如果有 link_url,加 footer button
+    if (n.link_url && n.link_url.trim().length > 0) {
+      bubble.footer = {
+        type: 'box' as const,
+        layout: 'vertical' as const,
+        spacing: 'sm' as const,
+        contents: [
+          {
+            type: 'button' as const,
+            style: 'primary' as const,
+            color: '#18181b',
+            height: 'sm' as const,
+            action: {
+              type: 'uri' as const,
+              label: '🔗 開啟連結',
+              uri: n.link_url.trim(),
+            },
+          },
+        ],
+      };
+    }
+
+    return bubble;
   });
 
   return {

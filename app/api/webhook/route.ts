@@ -245,6 +245,7 @@ type NewsRow = {
   id: string;
   title: string;
   body: string | null;
+  link_url: string | null;
   published_at: string;
 };
 
@@ -252,7 +253,7 @@ async function getRecentNews(tenantId: string, limit: number): Promise<NewsRow[]
   const { supabaseAdmin } = await import('@/lib/supabase');
   const { data, error } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, published_at')
+    .select('id, title, body, link_url, published_at')
     .eq('tenant_id', tenantId)
     .eq('status', 'published')
     .order('published_at', { ascending: false, nullsFirst: false })

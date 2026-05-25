@@ -818,6 +818,11 @@ alter table messages add column if not exists read_at timestamptz;
 -- 訂單成立頁直接顯示匯款資訊(銀行 / 帳號 / 戶名 / 流程提示)
 -- 不耗 LINE outbound quota,客戶看到立刻能截圖
 alter table tenants add column if not exists payment_info text;
+
+-- Phase 7.10:news.link_url(2026-05-25)
+-- 最新消息改 Flex bubble 後文字不會 auto-link,admin 想要可點連結
+-- 須另外填這欄,LINE Flex 會渲一顆 footer button「🔗 開啟連結」
+alter table news add column if not exists link_url text;
 create index if not exists messages_support_idx
   on messages(tenant_id, created_at desc)
   where is_support = true and direction = 'inbound';

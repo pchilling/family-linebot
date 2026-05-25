@@ -12,6 +12,7 @@ export async function createNews(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const title = String(formData.get('title') ?? '').trim();
   const body = String(formData.get('body') ?? '').trim();
+  const linkUrl = String(formData.get('link_url') ?? '').trim();
   const publish = formData.get('publish') === 'on';
 
   if (!slug) throw new Error('無攤位資訊');
@@ -24,6 +25,7 @@ export async function createNews(formData: FormData): Promise<void> {
     tenant_id: tenantId,
     title,
     body: body || null,
+    link_url: linkUrl || null,
     status: publish ? 'published' : 'draft',
     published_at: publish ? new Date().toISOString() : null,
   });
@@ -41,6 +43,7 @@ export async function updateNews(formData: FormData): Promise<void> {
   const id = String(formData.get('id') ?? '').trim();
   const title = String(formData.get('title') ?? '').trim();
   const body = String(formData.get('body') ?? '').trim();
+  const linkUrl = String(formData.get('link_url') ?? '').trim();
   const status = String(formData.get('status') ?? 'draft').trim();
 
   if (!slug || !id) throw new Error('缺必要參數');
@@ -67,11 +70,13 @@ export async function updateNews(formData: FormData): Promise<void> {
   const updatePayload: {
     title: string;
     body: string | null;
+    link_url: string | null;
     status: string;
     published_at?: string | null;
   } = {
     title,
     body: body || null,
+    link_url: linkUrl || null,
     status,
   };
 
