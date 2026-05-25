@@ -286,6 +286,40 @@ export function buildMonthlyClassesFlex(
         margin: 'xs',
       });
     }
+    // 課程介紹(若有)— 最多 3 行,超過 wrap
+    if (c.description) {
+      const desc = c.description.length > 80 ? c.description.slice(0, 80) + '…' : c.description;
+      bodyContents.push({
+        type: 'separator' as const,
+        margin: 'md',
+        color: '#e4e4e7',
+      });
+      bodyContents.push({
+        type: 'text' as const,
+        text: desc,
+        size: 'xs',
+        color: '#52525b',
+        wrap: true,
+        margin: 'md',
+        maxLines: 3,
+      });
+    }
+    if (!c.is_paid) {
+      bodyContents.push({
+        type: 'box' as const,
+        layout: 'baseline' as const,
+        margin: 'md',
+        contents: [
+          {
+            type: 'text' as const,
+            text: '🆓 免費課程 · 直接到場',
+            size: 'xs',
+            color: '#16a34a',
+            weight: 'bold',
+          },
+        ],
+      });
+    }
 
     return {
       type: 'bubble' as const,
