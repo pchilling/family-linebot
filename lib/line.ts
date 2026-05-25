@@ -241,23 +241,69 @@ export function buildMonthlyClassesFlex(
     const timeStr = dt.toLocaleTimeString('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false });
     const region = c.regions?.name ?? '';
 
-    const bodyContents: messagingApi.FlexBox['contents'] = [
-      {
-        type: 'text' as const,
-        text: c.name,
-        weight: 'bold',
-        size: 'md',
-        wrap: true,
-        color: '#18181b',
-      },
-      {
-        type: 'text' as const,
-        text: `📅 ${dateStr}(${wd})${timeStr}`,
-        size: 'xs',
-        color: '#52525b',
-        margin: 'sm',
-      },
-    ];
+    // 狀態 badge — 只有收費課 + 有 capacity 才算
+    // 已滿:紅;剩 ≤3 位:橘;剩 >3 位:綠;沒設 capacity 不顯示
+    const confirmed = c.confirmed_count ?? 0;
+    const waitlist = c.waitlist_count ?? 0;
+    const cap = c.capacity;
+    let badgeText = '';
+    let badgeColor = '';
+    let badgeBg = '';
+    if (c.is_paid && cap !== null && cap > 0) {
+      const remaining = Math.max(0, cap - confirmed);
+      if (remaining === 0) {
+        badgeText = waitlist > 0 ? `🔴 已滿 · 候補 ${waitlist}` : '🔴 已滿';
+        badgeColor = '#dc2626';
+        badgeBg = '#fef2f2';
+      } else if (remaining <= 3) {
+        badgeText = `🟠 僅剩 ${remaining} 位`;
+        badgeColor = '#d97706';
+        badgeBg = '#fff7ed';
+      } else {
+        badgeText = `🟢 還有 ${remaining} 位`;
+        badgeColor = '#16a34a';
+        badgeBg = '#f0fdf4';
+      }
+    }
+
+    const bodyContents: messagingApi.FlexBox['contents'] = [];
+    if (badgeText) {
+      bodyContents.push({
+        type: 'box' as const,
+        layout: 'baseline' as const,
+        contents: [
+          {
+            type: 'text' as const,
+            text: badgeText,
+            size: 'xs',
+            color: badgeColor,
+            weight: 'bold',
+          },
+        ],
+        backgroundColor: badgeBg,
+        cornerRadius: 'md',
+        paddingAll: 'sm',
+        paddingStart: 'md',
+        paddingEnd: 'md',
+        margin: 'none',
+      });
+    }
+    bodyContents.push({
+      type: 'text' as const,
+      text: c.name,
+      weight: 'bold',
+      size: 'md',
+      wrap: true,
+      color: '#18181b',
+      margin: badgeText ? 'md' : 'none',
+    });
+    bodyContents.push({
+      type: 'text' as const,
+      text: `📅 ${dateStr}(${wd})${timeStr}`,
+      size: 'xs',
+      color: '#52525b',
+      margin: 'sm',
+    });
     if (region) {
       bodyContents.push({
         type: 'text' as const,
@@ -447,7 +493,7 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
         type: 'box' as const,
         layout: 'vertical' as const,
         spacing: 'none' as const,
-        paddingAll: 'lg' as const,
+        paddingAll: 'md' as const, // 原 lg 太鬆,長文 mega bubble 拉太長
         contents: bodyContents,
       },
     };

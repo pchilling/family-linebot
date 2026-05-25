@@ -240,6 +240,9 @@ export type ClassRow = {
   description: string | null;
   status: string;
   image_url: string | null;
+  // 由 getClassesForCurrentMonth 額外撈 reservations 補上,Flex 顯示狀態 badge 用
+  confirmed_count?: number;
+  waitlist_count?: number;
 };
 
 /**
@@ -270,7 +273,30 @@ export async function getClassesForCurrentMonth(tenantId: string): Promise<Class
     console.error('[getClassesForCurrentMonth]', error);
     return [];
   }
-  return (data ?? []) as ClassRow[];
+  const classes = (data ?? []) as ClassRow[];
+
+  // 補上 confirmed / waitlist 人數(Flex 要顯示「剩 N 位 / 已滿」badge)
+  if (classes.length > 0) {
+    const ids = classes.map((c) => c.id);
+    const { data: resvs } = await supabaseAdmin
+      .from('reservations')
+      .select('class_id, status')
+      .eq('tenant_id', tenantId)
+      .in('class_id', ids);
+    const counts = new Map<string, { confirmed: number; waitlist: number }>();
+    for (const r of (resvs ?? []) as { class_id: string; status: string }[]) {
+      const s = counts.get(r.class_id) ?? { confirmed: 0, waitlist: 0 };
+      if (r.status === 'confirmed') s.confirmed += 1;
+      else if (r.status === 'waitlist') s.waitlist += 1;
+      counts.set(r.class_id, s);
+    }
+    for (const cls of classes) {
+      const s = counts.get(cls.id) ?? { confirmed: 0, waitlist: 0 };
+      cls.confirmed_count = s.confirmed;
+      cls.waitlist_count = s.waitlist;
+    }
+  }
+  return classes;
 }
 
 export async function logMessage(params: {

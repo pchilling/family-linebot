@@ -140,16 +140,62 @@ export default async function NewsPage({
         </form>
       </section>
 
-      <h2 style={{ fontSize: 16, marginBottom: 12, marginTop: 32 }}>歷史消息 ({news.length})</h2>
-      {news.length === 0 && (
-        <p style={{ color: '#71717a', fontSize: 13 }}>(尚無消息)</p>
-      )}
+      {(() => {
+        const published = news.filter((n) => n.status === 'published');
+        const draft = news.filter((n) => n.status === 'draft');
+        const archived = news.filter((n) => n.status === 'archived');
 
-      {news.map((n) => (
-        <article key={n.id} style={section}>
+        return (
+          <>
+            {/* 已發佈 — 全展開 */}
+            <h2 style={{ fontSize: 16, marginBottom: 12, marginTop: 32, color: '#16a34a' }}>
+              ✓ 已發佈 ({published.length})
+            </h2>
+            {published.length === 0 && (
+              <p style={{ color: '#71717a', fontSize: 13, marginBottom: 16 }}>(尚無已發佈消息)</p>
+            )}
+            {published.map((n) => renderNewsCard(n, tenant.slug, savedId))}
+
+            {/* 草稿 — 折疊 */}
+            {draft.length > 0 && (
+              <details style={{ marginTop: 24, marginBottom: 8 }}>
+                <summary style={{ fontSize: 14, color: '#52525b', cursor: 'pointer', padding: '8px 0', fontWeight: 500 }}>
+                  📝 草稿 ({draft.length}) — 點開展開
+                </summary>
+                <div style={{ marginTop: 12 }}>
+                  {draft.map((n) => renderNewsCard(n, tenant.slug, savedId))}
+                </div>
+              </details>
+            )}
+
+            {/* 已下架 — 折疊 */}
+            {archived.length > 0 && (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ fontSize: 14, color: '#71717a', cursor: 'pointer', padding: '8px 0', fontWeight: 500 }}>
+                  🗄 已下架 ({archived.length}) — 點開展開
+                </summary>
+                <div style={{ marginTop: 12 }}>
+                  {archived.map((n) => renderNewsCard(n, tenant.slug, savedId))}
+                </div>
+              </details>
+            )}
+
+            {news.length === 0 && (
+              <p style={{ color: '#71717a', fontSize: 13, marginTop: 24 }}>(尚無消息)</p>
+            )}
+          </>
+        );
+      })()}
+    </main>
+  );
+}
+
+function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
+  return (
+    <article key={n.id} style={{ ...section, ...(savedId === n.id ? { borderColor: '#16a34a', boxShadow: '0 0 0 2px #bbf7d0' } : {}) }}>
           <form action={updateNews} style={formGrid}>
             <input type="hidden" name="id" value={n.id} />
-            <input type="hidden" name="tenant_slug" value={tenant.slug} />
+            <input type="hidden" name="tenant_slug" value={slug} />
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <span
@@ -213,11 +259,9 @@ export default async function NewsPage({
 
           <form action={deleteNews} style={{ marginTop: 10 }}>
             <input type="hidden" name="id" value={n.id} />
-            <input type="hidden" name="tenant_slug" value={tenant.slug} />
+            <input type="hidden" name="tenant_slug" value={slug} />
             <button type="submit" style={btnDanger}>刪除這則消息</button>
           </form>
-        </article>
-      ))}
-    </main>
+    </article>
   );
 }
