@@ -283,7 +283,7 @@ ${spinKeyframes}
                   transition: 'transform 0.15s, border-color 0.2s',
                 }}
               >
-                {/* Cover 圖(有設才顯示)— 16:9 */}
+                {/* Cover 圖(有設才顯示)— 4:5 直式 */}
                 {e.image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -291,7 +291,7 @@ ${spinKeyframes}
                     alt={e.name}
                     style={{
                       width: '100%',
-                      aspectRatio: '16 / 9',
+                      aspectRatio: '4 / 5',
                       objectFit: 'cover',
                       display: 'block',
                     }}

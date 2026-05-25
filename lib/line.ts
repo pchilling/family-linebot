@@ -294,7 +294,7 @@ export function buildMonthlyClassesFlex(
         type: 'image' as const,
         url: c.image_url ?? fallbackImage,
         size: 'full' as const,
-        aspectRatio: '16:9' as const,
+        aspectRatio: '4:5' as const, // 4:5 直式,跟商品 / IG 同感
         aspectMode: 'cover' as const,
         action: {
           type: 'uri' as const,

@@ -28,7 +28,7 @@ type Props = {
 };
 
 const DEFAULT_PRODUCT_ASPECT = 4 / 5;
-const DEFAULT_CLASS_ASPECT = 16 / 9;
+const DEFAULT_CLASS_ASPECT = 4 / 5; // 直式,跟商品圖 / IG 貼文同比例
 
 export function ProductImageUploader({
   entity = 'product',
@@ -40,7 +40,7 @@ export function ProductImageUploader({
 }: Props) {
   // 計算 aspect ratio + 輸出尺寸
   const ASPECT = aspect ?? (entity === 'class' ? DEFAULT_CLASS_ASPECT : DEFAULT_PRODUCT_ASPECT);
-  const OUTPUT_W = entity === 'class' ? 1280 : 600;
+  const OUTPUT_W = 600;
   const OUTPUT_H = Math.round(OUTPUT_W / ASPECT);
 
   function centerInitial(imgW: number, imgH: number): Crop {

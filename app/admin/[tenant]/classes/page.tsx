@@ -392,7 +392,7 @@ function ClassCard({
           <div style={{ fontSize: 9, color: c.textMuted }}>{dt.weekday}</div>
         </div>
 
-        {/* Cover 縮圖(有設才顯示)*/}
+        {/* Cover 縮圖 4:5 直式(有設才顯示)*/}
         {cls.image_url && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -400,8 +400,8 @@ function ClassCard({
             alt={cls.name}
             style={{
               flexShrink: 0,
-              width: 80,
-              height: 45,
+              width: 40,
+              height: 50,
               objectFit: 'cover',
               borderRadius: 4,
               border: `1px solid ${c.borderSubtle}`,
