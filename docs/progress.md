@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-22 晚(Demo prep — QR 簽到 / LIFF 商城 redesign / 對帳 UI / PWA / Mobile RWD)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-25(Demo 成功 + 活動圖 / Flex Carousel / RWD / PWA 收尾)
 
 ---
 
@@ -672,6 +672,90 @@ Vercel cold start ~3-4s 是 free tier 限制,需要 Pro / Edge runtime 才能再
 alter table orders add column if not exists payment_last5 text;
 ```
 (因 user 無法跑暫緩,程式碼已 retry 機制 graceful degrade)
+
+### Phase 7.8(a):Dashboard / Filter / Mobile RWD 精修(2026-05-22~23)
+
+Demo 前一波細修,主要修 mobile 顯示。
+
+**Dashboard mobile 2-col**(`958d882` + `f124861` + `1eb0ff7`):
+- 全域 catch-all `[style*="grid-template-columns"]` → 1fr 影響 dashboard,以 page 自帶 `<style>` + 高 specificity 蓋過
+- 手機 metric cards:2 col 1fr 1fr,padding 10×12,大數字 26px line-height 1
+- 卡片壓扁(height auto + min 76,gap 0,subtitle 緊靠數字)
+
+**iPad 中型 / 橫向 2x2**(`52d9cc7` + `fdd3ebf`):
+- `@media (min-width: 768px) and (max-width: 1300px)` → 2x2 grid(不是 1-col 也不是 4-col)
+- 涵蓋 iPad portrait + horizontal + 小筆電
+- list-grid 也 2 col,section margin 32
+
+**Filter 折疊 + 拿掉 sticky**(`d74fe03` + `c56c89b`):
+- orders / customers / messages filter 改 `<details>` 預設 closed
+- 有 filter 啟用時自動 open
+- 「條件啟用中」藍標醒目提示
+- 不再 sticky(scroll 順暢)
+
+### Phase 7.8(b):Root / PWA landing(2026-05-22~23)
+
+(`f7af71d` + `ab8b277` + `e219634`)
+
+- 原 `/` 是 dev placeholder「Family LINE Bot · webhook endpoint」
+- 改 PWA 啟動畫面:Brand「Stall」logo + 黑「進管理後台」button + 攤位列表(logo / name / plan)
+- PWA `start_url` 改 `/admin`(避開 client-side hydration bug)
+- 拿掉 `new Date().getFullYear()`(疑似 hydration mismatch 來源)
+
+iOS PWA 重裝後才會生效(iOS Safari 不會 auto-refresh manifest)。
+
+### Phase 7.8(c):活動管理 UX 大改造(2026-05-22)
+
+(`a500780`)
+
+- 折疊 details 卡片(同 admin products pattern)
+- 每張卡:左 50px 日期區塊 + 名稱 + 狀態 + 📝 報名 / ⏳ 候補 / ✓ 簽到 / 🔴 已滿
+- 右側突出大「📱 QR」藍 button
+- 分區 3 段:🔴 今天 / 未來 / 已結束(折疊)
+- 撈 stats:reservations + attendances 平行 query 出 Map<class_id, {confirmed/waitlist/attended}>
+- 新增活動 form 折疊
+- 危險區(刪除)藏 sub-details
+- 已結束活動半透明
+
+### Phase 7.9:活動圖片(Phase A) + Rich Menu Flex Carousel(Phase C)(2026-05-25)
+
+Demo 後 3 合一回饋:「活動要圖,Rich Menu 回更生動」。
+
+**Schema**:
+- `alter table classes add column image_url text`
+
+**Phase A:Class cover 圖**(`3a18e1a` + `6013059`):
+- ProductImageUploader 通用化:entity 加 `'class'`,aspect prop 動態
+- 4:5 直式(對齊商品 / IG 風格,user 後改要直式)
+- output 600×750 jpeg
+- uploadClassImage action:validate tenant ownership → upload → write `classes.image_url`
+- Admin classes summary 縮圖 40×50,展開區頂部 uploader section
+- LIFF /m/events 卡片頂部 4:5 cover image
+
+**Phase C:Rich Menu「📅 本月課程」改 Flex Carousel**(`7bae708` + `9b2ade2` + `bf6ef51` + `40e8c8e`):
+- webhook 收到 postback `action=monthly-classes` → 撈 classes → 建 Flex
+- `buildMonthlyClassesFlex` 在 `lib/line.ts`
+- 每場活動 1 個 kilo size bubble:
+  - hero:4:5 cover image(fallback /icon.svg)
+  - body:活動名 + 📅 時間 + 📍 地點 + 👤 講師 + 💰 收費 / 🆓 免費
+  - separator + description(150 字 / 6 行 / 字級 sm)
+  - footer:button「立刻報名」(收費)/「查看詳情」(免費)
+- 失敗 fallback 純文字 reply
+- Reply 不算 LINE outbound quota(都 user trigger)
+
+**Description 欄位 + 寫法教學**(`40e8c8e`):
+- admin classes form(新增 + 編輯)加「課程介紹」textarea
+- placeholder 範例「🌿 / 📌 / ⏱ / ✨」emoji 開頭 1 行 1 點
+- updateClass + createClass actions 接 description form 欄
+
+**免費 vs 收費課區分**(`da60bb2`):
+- 免費課 LIFF /m/events 顯示「🆓 免費課程 · 無須報名,直接到場」disabled box
+- 收費課保留完整報名 / 候補 / 取消 flow
+- Flex button 文字 / 顏色依 is_paid 切
+
+**updateClass redirect 修**(`39011dd`):
+- 原本儲存後沒 banner 反饋,user 以為沒生效
+- 加 redirect ?saved=<id> → 綠 banner「✓ 已儲存」+ 自動展開該卡
 
 ### Outstanding
 
