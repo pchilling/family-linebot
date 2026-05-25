@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WebhookEvent } from '@line/bot-sdk';
-import { describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, lineClient, verifySignature } from '@/lib/line';
+import { buildMonthlyClassesFlex, describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, lineClient, verifySignature } from '@/lib/line';
 import { getClassesForCurrentMonth, getTenantByBotUserId, logMessage, supabaseAdmin, upsertUser } from '@/lib/supabase';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -145,7 +145,24 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
 
   if (canReply) {
     const replyToken = event.replyToken;
-    const replyMessage: messagingApi.TextMessage = {
+
+    // Phase C(2026-05-25):本月課程 postback → Flex Carousel(有圖片更生動)
+    // 失敗或無資料 fallback 純文字
+    let flexMessage: messagingApi.FlexMessage | null = null;
+    if (
+      event.type === 'postback' &&
+      new URLSearchParams(event.postback.data).get('action') === 'monthly-classes'
+    ) {
+      try {
+        const { getClassesForCurrentMonth } = await import('@/lib/supabase');
+        const classes = await getClassesForCurrentMonth(tenantId);
+        flexMessage = buildMonthlyClassesFlex(classes);
+      } catch (e) {
+        console.warn('[webhook flex monthly-classes]', e);
+      }
+    }
+
+    const replyMessage: messagingApi.Message = flexMessage ?? {
       type: 'text',
       text: replyText,
       ...(quickReply ? { quickReply } : {}),
@@ -164,8 +181,10 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
         userId,
         direction: 'outbound',
         eventType: 'reply',
-        messageType: 'text',
-        content: { text: replyText },
+        messageType: flexMessage ? 'flex' : 'text',
+        content: flexMessage
+          ? { text: replyText, format: 'flex_carousel' }
+          : { text: replyText },
       }),
     );
   }

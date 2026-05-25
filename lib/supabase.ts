@@ -239,6 +239,7 @@ export type ClassRow = {
   signup_url: string | null;
   description: string | null;
   status: string;
+  image_url: string | null;
 };
 
 /**

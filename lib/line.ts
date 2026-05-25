@@ -219,6 +219,126 @@ export function formatMonthlyClassesText(classes: ClassRow[]): string {
   return lines.join('\n');
 }
 
+/**
+ * 把本月課程組成 LINE Flex Carousel(Phase C,2026-05-25)。
+ * 每場活動一張 bubble:cover 圖 + 名 + 時間 + 地點 + 「報名」button → LIFF /m/events。
+ * 最多 12 場(LINE 上限),超過取前 10。
+ * 沒任何活動或 LIFF_ID_EVENTS 缺,回 null(caller fallback text 版)。
+ */
+export function buildMonthlyClassesFlex(
+  classes: ClassRow[],
+): messagingApi.FlexMessage | null {
+  if (classes.length === 0) return null;
+  const liffEventsId = process.env.NEXT_PUBLIC_LIFF_ID_EVENTS ?? process.env.NEXT_PUBLIC_LIFF_ID;
+  if (!liffEventsId) return null;
+  const eventsUrl = `https://liff.line.me/${liffEventsId}`;
+  const fallbackImage = 'https://family-linebot-delta.vercel.app/icon.svg';
+
+  const bubbles: messagingApi.FlexBubble[] = classes.slice(0, 10).map((c) => {
+    const dt = new Date(c.scheduled_at);
+    const dateStr = dt.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric' });
+    const wd = dt.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', weekday: 'narrow' });
+    const timeStr = dt.toLocaleTimeString('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false });
+    const region = c.regions?.name ?? '';
+
+    const bodyContents: messagingApi.FlexBox['contents'] = [
+      {
+        type: 'text' as const,
+        text: c.name,
+        weight: 'bold',
+        size: 'md',
+        wrap: true,
+        color: '#18181b',
+      },
+      {
+        type: 'text' as const,
+        text: `📅 ${dateStr}(${wd})${timeStr}`,
+        size: 'xs',
+        color: '#52525b',
+        margin: 'sm',
+      },
+    ];
+    if (region) {
+      bodyContents.push({
+        type: 'text' as const,
+        text: `📍 ${region}`,
+        size: 'xs',
+        color: '#71717a',
+        margin: 'xs',
+      });
+    }
+    if (c.instructor) {
+      bodyContents.push({
+        type: 'text' as const,
+        text: `👤 ${c.instructor}`,
+        size: 'xs',
+        color: '#71717a',
+        margin: 'xs',
+      });
+    }
+    if (c.is_paid && c.price_twd) {
+      bodyContents.push({
+        type: 'text' as const,
+        text: `💰 NT$ ${c.price_twd}`,
+        size: 'xs',
+        color: '#92400e',
+        weight: 'bold',
+        margin: 'xs',
+      });
+    }
+
+    return {
+      type: 'bubble' as const,
+      size: 'kilo' as const,
+      hero: {
+        type: 'image' as const,
+        url: c.image_url ?? fallbackImage,
+        size: 'full' as const,
+        aspectRatio: '16:9' as const,
+        aspectMode: 'cover' as const,
+        action: {
+          type: 'uri' as const,
+          label: '查看',
+          uri: eventsUrl,
+        },
+      },
+      body: {
+        type: 'box' as const,
+        layout: 'vertical' as const,
+        spacing: 'none' as const,
+        contents: bodyContents,
+      },
+      footer: {
+        type: 'box' as const,
+        layout: 'vertical' as const,
+        spacing: 'sm' as const,
+        contents: [
+          {
+            type: 'button' as const,
+            style: 'primary' as const,
+            color: '#18181b',
+            height: 'sm' as const,
+            action: {
+              type: 'uri' as const,
+              label: '報名 / 詳情',
+              uri: eventsUrl,
+            },
+          },
+        ],
+      },
+    };
+  });
+
+  return {
+    type: 'flex',
+    altText: `本月課程 ${classes.length} 場`,
+    contents: {
+      type: 'carousel',
+      contents: bubbles,
+    },
+  };
+}
+
 function formatClassLine(c: ClassRow): string {
   const dt = new Date(c.scheduled_at);
   const dateStr = dt.toLocaleDateString('zh-TW', {
