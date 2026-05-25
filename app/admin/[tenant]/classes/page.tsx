@@ -268,6 +268,7 @@ details[open] .chev { transform: rotate(90deg); }
             <label style={label}><span style={labelText}>講師</span><input name="instructor" style={input} placeholder="王老師" /></label>
             <label style={label}><span style={labelText}>時長(分)</span><input name="duration_min" type="number" defaultValue={90} style={input} /></label>
             <label style={label}><span style={labelText}>價格(收費才填)</span><input name="price_twd" type="number" style={input} placeholder="例:500" /></label>
+            <label style={label}><span style={labelText}>人數限制(空 = 無限制)</span><input name="capacity" type="number" min="0" style={input} placeholder="例:12" /></label>
             <label style={{ ...label, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, color: c.text }}>
               <input name="is_paid" type="checkbox" />
               收費課程
@@ -500,6 +501,7 @@ function ClassCard({
           <label style={label}><span style={labelText}>時間</span><input name="scheduled_at" type="datetime-local" defaultValue={toLocalInput(cls.scheduled_at)} style={input} /></label>
           <label style={label}><span style={labelText}>講師</span><input name="instructor" defaultValue={cls.instructor ?? ''} style={input} /></label>
           <label style={label}><span style={labelText}>價格</span><input name="price_twd" type="number" defaultValue={cls.price_twd ?? ''} style={input} /></label>
+          <label style={label}><span style={labelText}>人數限制(空 = 無限制)</span><input name="capacity" type="number" min="0" defaultValue={cls.capacity ?? ''} style={input} placeholder="例:12" /></label>
           <label style={{ ...label, alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6, color: c.text }}>
             <input name="is_paid" type="checkbox" defaultChecked={cls.is_paid} />
             收費

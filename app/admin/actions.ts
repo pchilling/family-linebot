@@ -51,6 +51,9 @@ export async function createClass(formData: FormData) {
   const price_str = String(formData.get('price_twd') || '').trim();
   const price_twd = is_paid && price_str ? Number(price_str) : null;
   const duration_min = Number(formData.get('duration_min') || 90);
+  const cap_str = String(formData.get('capacity') || '').trim();
+  const cap_num = cap_str ? Number(cap_str) : NaN;
+  const capacity = Number.isFinite(cap_num) && cap_num > 0 ? cap_num : null;
   const description = String(formData.get('description') || '').replace(/^\s+|\s+$/g, '') || null;
 
   await supabaseAdmin.from('classes').insert({
@@ -62,6 +65,7 @@ export async function createClass(formData: FormData) {
     is_paid,
     price_twd,
     duration_min,
+    capacity,
     description,
     status: 'open',
   });
@@ -77,12 +81,15 @@ export async function updateClass(formData: FormData) {
   const is_paid = formData.get('is_paid') === 'on';
   const price_str = String(formData.get('price_twd') || '').trim();
   const price_twd = is_paid && price_str ? Number(price_str) : null;
+  const cap_str = String(formData.get('capacity') || '').trim();
+  const cap_num = cap_str ? Number(cap_str) : NaN;
+  const capacity = Number.isFinite(cap_num) && cap_num > 0 ? cap_num : null;
   const description = String(formData.get('description') || '').replace(/^\s+|\s+$/g, '') || null;
   const slug = String(formData.get('tenant_slug') || '').trim();
 
   await supabaseAdmin
     .from('classes')
-    .update({ region_id, name, scheduled_at, instructor, is_paid, price_twd, description })
+    .update({ region_id, name, scheduled_at, instructor, is_paid, price_twd, capacity, description })
     .eq('id', id);
   revalForRoute(formData, 'classes');
 
