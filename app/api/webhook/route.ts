@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WebhookEvent } from '@line/bot-sdk';
-import { buildMonthlyClassesFlex, describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, lineClient, verifySignature } from '@/lib/line';
+import { buildMonthlyClassesFlex, buildNewsFlex, describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, lineClient, verifySignature } from '@/lib/line';
 import { getClassesForCurrentMonth, getTenantByBotUserId, logMessage, supabaseAdmin, upsertUser } from '@/lib/supabase';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -147,18 +147,26 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
     const replyToken = event.replyToken;
 
     // Phase C(2026-05-25):本月課程 postback → Flex Carousel(有圖片更生動)
+    // Phase 7.10(2026-05-25):最新消息 postback → Flex Carousel(避開數字 auto-link 變藍)
     // 失敗或無資料 fallback 純文字
     let flexMessage: messagingApi.FlexMessage | null = null;
-    if (
-      event.type === 'postback' &&
-      new URLSearchParams(event.postback.data).get('action') === 'monthly-classes'
-    ) {
-      try {
-        const { getClassesForCurrentMonth } = await import('@/lib/supabase');
-        const classes = await getClassesForCurrentMonth(tenantId);
-        flexMessage = buildMonthlyClassesFlex(classes);
-      } catch (e) {
-        console.warn('[webhook flex monthly-classes]', e);
+    if (event.type === 'postback') {
+      const action = new URLSearchParams(event.postback.data).get('action');
+      if (action === 'monthly-classes') {
+        try {
+          const { getClassesForCurrentMonth } = await import('@/lib/supabase');
+          const classes = await getClassesForCurrentMonth(tenantId);
+          flexMessage = buildMonthlyClassesFlex(classes);
+        } catch (e) {
+          console.warn('[webhook flex monthly-classes]', e);
+        }
+      } else if (action === 'news') {
+        try {
+          const newsList = await getRecentNews(tenantId, 5);
+          flexMessage = buildNewsFlex(newsList);
+        } catch (e) {
+          console.warn('[webhook flex news]', e);
+        }
       }
     }
 

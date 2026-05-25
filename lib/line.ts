@@ -373,6 +373,103 @@ export function buildMonthlyClassesFlex(
   };
 }
 
+/**
+ * 把最新消息組成 LINE Flex Carousel(Phase 7.10,2026-05-25)。
+ * 解原本純文字 reply 的問題:
+ *   1. 內文有數字會被 LINE auto-link 變藍(電話樣式)
+ *   2. 多則公告擠一坨難讀
+ * 每則 1 個 bubble:📰 icon + 日期 + 粗體標題 + separator + 內文(wrap,maxLines 10)。
+ * 沒任何 news 回 null,caller fallback 純文字。
+ */
+export type NewsForFlex = {
+  id: string;
+  title: string;
+  body: string | null;
+  published_at: string;
+};
+
+export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | null {
+  if (items.length === 0) return null;
+
+  const bubbles: messagingApi.FlexBubble[] = items.slice(0, 10).map((n) => {
+    const dateStr = n.published_at
+      ? new Date(n.published_at).toLocaleDateString('zh-TW', {
+          timeZone: 'Asia/Taipei',
+          month: 'numeric',
+          day: 'numeric',
+        })
+      : '';
+
+    const bodyContents: messagingApi.FlexBox['contents'] = [
+      {
+        type: 'box' as const,
+        layout: 'baseline' as const,
+        contents: [
+          { type: 'text' as const, text: '📰', size: 'sm', flex: 0 },
+          {
+            type: 'text' as const,
+            text: dateStr || '最新消息',
+            size: 'xs',
+            color: '#71717a',
+            margin: 'sm',
+            flex: 1,
+          },
+        ],
+      },
+      {
+        type: 'text' as const,
+        text: n.title,
+        weight: 'bold' as const,
+        size: 'lg',
+        color: '#18181b',
+        wrap: true,
+        margin: 'sm',
+        maxLines: 3,
+      },
+    ];
+
+    if (n.body && n.body.trim().length > 0) {
+      // 截 300 字以內(超過 maxLines 也會被 LINE 自動截,但先字數限制較安全)
+      const text = n.body.length > 300 ? n.body.slice(0, 300) + '…' : n.body;
+      bodyContents.push({
+        type: 'separator' as const,
+        margin: 'md',
+        color: '#e4e4e7',
+      });
+      bodyContents.push({
+        type: 'text' as const,
+        text,
+        size: 'sm',
+        color: '#374151',
+        wrap: true,
+        margin: 'md',
+        maxLines: 10,
+      });
+    }
+
+    return {
+      type: 'bubble' as const,
+      size: 'kilo' as const,
+      body: {
+        type: 'box' as const,
+        layout: 'vertical' as const,
+        spacing: 'none' as const,
+        paddingAll: 'lg' as const,
+        contents: bodyContents,
+      },
+    };
+  });
+
+  return {
+    type: 'flex',
+    altText: `最新消息 ${items.length} 則`,
+    contents: {
+      type: 'carousel',
+      contents: bubbles,
+    },
+  };
+}
+
 function formatClassLine(c: ClassRow): string {
   const dt = new Date(c.scheduled_at);
   const dateStr = dt.toLocaleDateString('zh-TW', {
