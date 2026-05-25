@@ -286,9 +286,9 @@ export function buildMonthlyClassesFlex(
         margin: 'xs',
       });
     }
-    // 課程介紹(若有)— 最多 3 行,超過 wrap
+    // 課程介紹(若有)— 支援 \n 換行,最多 6 行,150 字以內
     if (c.description) {
-      const desc = c.description.length > 80 ? c.description.slice(0, 80) + '…' : c.description;
+      const desc = c.description.length > 150 ? c.description.slice(0, 150) + '…' : c.description;
       bodyContents.push({
         type: 'separator' as const,
         margin: 'md',
@@ -297,11 +297,11 @@ export function buildMonthlyClassesFlex(
       bodyContents.push({
         type: 'text' as const,
         text: desc,
-        size: 'xs',
-        color: '#52525b',
-        wrap: true,
+        size: 'sm', // 大一點(原 xs 太小)
+        color: '#374151',
+        wrap: true, // 配合 \n 換行才會生效
         margin: 'md',
-        maxLines: 3,
+        maxLines: 6,
       });
     }
     if (!c.is_paid) {
