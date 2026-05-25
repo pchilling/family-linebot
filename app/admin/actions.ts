@@ -75,12 +75,18 @@ export async function updateClass(formData: FormData) {
   const is_paid = formData.get('is_paid') === 'on';
   const price_str = String(formData.get('price_twd') || '').trim();
   const price_twd = is_paid && price_str ? Number(price_str) : null;
+  const slug = String(formData.get('tenant_slug') || '').trim();
 
   await supabaseAdmin
     .from('classes')
     .update({ region_id, name, scheduled_at, instructor, is_paid, price_twd })
     .eq('id', id);
   revalForRoute(formData, 'classes');
+
+  // 帶 ?saved=<id> redirect 讓 page 顯示「✓ 已儲存」banner + 自動展開該卡
+  if (slug) {
+    redirect(`/admin/${slug}/classes?saved=${id}`);
+  }
 }
 
 export async function deleteClass(formData: FormData) {
