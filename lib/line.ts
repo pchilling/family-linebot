@@ -493,7 +493,7 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
         type: 'box' as const,
         layout: 'vertical' as const,
         spacing: 'none' as const,
-        paddingAll: 'md' as const, // 原 lg 太鬆,長文 mega bubble 拉太長
+        paddingAll: 'lg' as const,
         contents: bodyContents,
       },
     };
