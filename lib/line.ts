@@ -411,14 +411,16 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
         wrap: true,
         maxLines: 3,
       },
-      {
+    ];
+    if (dateStr) {
+      bodyContents.push({
         type: 'text' as const,
-        text: dateStr ? `📰 ${dateStr}` : '📰 最新消息',
+        text: `日期:${dateStr}`,
         size: 'xs',
         color: '#71717a',
         margin: 'sm',
-      },
-    ];
+      });
+    }
 
     if (n.body && n.body.trim().length > 0) {
       // 不截行數,字數防呆 2000(LINE Flex JSON 上限 50KB)

@@ -96,6 +96,7 @@ export default async function OrderDetailPage({
 
   const justPaid = sp.saved === 'paid';
   const justShipped = sp.saved === 'shipped';
+  const justEdit = sp.saved === 'edit';
   const isPaid = o.payment_status === 'paid';
   const isShipped = o.status === 'shipped' || o.status === 'delivered';
 
@@ -182,7 +183,7 @@ export default async function OrderDetailPage({
       </section>
 
       {/* 對帳 banner(剛確認後顯示) */}
-      {(justPaid || justShipped) && (
+      {(justPaid || justShipped || justEdit) && (
         <div
           style={{
             padding: '10px 16px',
@@ -195,7 +196,7 @@ export default async function OrderDetailPage({
             marginBottom: 16,
           }}
         >
-          ✓ {justPaid ? '已標已付款' : '已標已出貨'}
+          ✓ {justPaid ? '已標已付款' : justShipped ? '已標已出貨' : '已儲存訂單資料'}
         </div>
       )}
 

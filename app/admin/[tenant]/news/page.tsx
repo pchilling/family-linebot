@@ -51,16 +51,40 @@ const btnPrimary: React.CSSProperties = { padding: '8px 14px', background: '#181
 const btnGhost: React.CSSProperties = { padding: '6px 12px', background: '#fff', color: '#52525b', border: '1px solid #e4e4e7', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' };
 const btnDanger: React.CSSProperties = { padding: '6px 12px', background: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' };
 
-export default async function NewsPage({ params }: { params: Promise<{ tenant: string }> }) {
+export default async function NewsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenant: string }>;
+  searchParams: Promise<{ saved?: string }>;
+}) {
   const { tenant: slug } = await params;
+  const sp = await searchParams;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
 
   const news = await getAllNews(tenant.id);
+  const savedId = sp.saved;
 
   return (
     <main style={{ padding: 24, maxWidth: 820, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, marginBottom: 6 }}>{tenant.name} · 最新消息</h1>
+      {savedId && (
+        <div
+          style={{
+            padding: '10px 14px',
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            color: '#16a34a',
+            fontSize: 13,
+            fontWeight: 500,
+            borderRadius: 6,
+            marginBottom: 12,
+          }}
+        >
+          ✓ 已儲存
+        </div>
+      )}
       <div
         style={{
           padding: '10px 14px',

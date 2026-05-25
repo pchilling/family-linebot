@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
 async function tenantIdBySlug(slug: string): Promise<string | null> {
@@ -101,6 +102,7 @@ export async function updateNews(formData: FormData): Promise<void> {
   }
 
   revalidatePath(`/admin/${slug}/news`);
+  redirect(`/admin/${slug}/news?saved=${id}`);
 }
 
 export async function deleteNews(formData: FormData): Promise<void> {

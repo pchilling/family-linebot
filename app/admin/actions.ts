@@ -403,4 +403,7 @@ export async function updateOrder(formData: FormData) {
   }
   revalidatePath(`/admin/orders/${id}`);
   revalidatePath('/admin/orders');
+  if (slug) {
+    redirect(`/admin/${slug}/orders/${id}?saved=edit`);
+  }
 }
