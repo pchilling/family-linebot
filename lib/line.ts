@@ -316,11 +316,11 @@ export function buildMonthlyClassesFlex(
           {
             type: 'button' as const,
             style: 'primary' as const,
-            color: '#18181b',
+            color: c.is_paid ? '#18181b' : '#71717a',
             height: 'sm' as const,
             action: {
               type: 'uri' as const,
-              label: '報名 / 詳情',
+              label: c.is_paid ? '立刻報名' : '查看詳情',
               uri: eventsUrl,
             },
           },

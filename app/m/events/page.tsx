@@ -381,53 +381,71 @@ ${spinKeyframes}
                       </div>
                     )}
 
-                    {/* Button */}
-                    {isConfirmed && (
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => handleCancel(e.id)}
+                    {/* Button — 只有付費課需要報名,免費課顯示「無須報名 · 直接參加」 */}
+                    {!e.is_paid ? (
+                      <div
                         style={{
                           ...btnBase,
-                          background: c.card,
-                          color: c.success,
-                          border: `1px solid ${c.successBorder}`,
-                          ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                          background: '#f4f4f5',
+                          color: c.textSec,
+                          textAlign: 'center',
+                          cursor: 'default',
+                          border: `1px dashed ${c.border}`,
+                          fontWeight: 500,
                         }}
                       >
-                        {isPending ? '處理中…' : '✓ 已報名 · 點此取消'}
-                      </button>
-                    )}
-                    {isWaitlist && (
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => handleCancel(e.id)}
-                        style={{
-                          ...btnBase,
-                          background: c.card,
-                          color: c.warning,
-                          border: `1px solid ${c.warningBg}`,
-                          ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-                        }}
-                      >
-                        {isPending ? '處理中…' : `⏳ 候補 #${e.my_position} · 點此取消`}
-                      </button>
-                    )}
-                    {!isMine && (
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => handleReserve(e.id)}
-                        style={{
-                          ...btnBase,
-                          background: isFull ? c.warning : c.accent,
-                          color: '#fff',
-                          ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-                        }}
-                      >
-                        {isPending ? '處理中…' : isFull ? `候補(已 ${e.waitlist_count} 人)` : '我要報名'}
-                      </button>
+                        🆓 免費課程 · 無須報名,直接到場
+                      </div>
+                    ) : (
+                      <>
+                        {isConfirmed && (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleCancel(e.id)}
+                            style={{
+                              ...btnBase,
+                              background: c.card,
+                              color: c.success,
+                              border: `1px solid ${c.successBorder}`,
+                              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                            }}
+                          >
+                            {isPending ? '處理中…' : '✓ 已報名 · 點此取消'}
+                          </button>
+                        )}
+                        {isWaitlist && (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleCancel(e.id)}
+                            style={{
+                              ...btnBase,
+                              background: c.card,
+                              color: c.warning,
+                              border: `1px solid ${c.warningBg}`,
+                              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                            }}
+                          >
+                            {isPending ? '處理中…' : `⏳ 候補 #${e.my_position} · 點此取消`}
+                          </button>
+                        )}
+                        {!isMine && (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleReserve(e.id)}
+                            style={{
+                              ...btnBase,
+                              background: isFull ? c.warning : c.accent,
+                              color: '#fff',
+                              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+                            }}
+                          >
+                            {isPending ? '處理中…' : isFull ? `候補(已 ${e.waitlist_count} 人)` : '我要報名'}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
