@@ -402,35 +402,26 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
 
     const bodyContents: messagingApi.FlexBox['contents'] = [
       {
-        type: 'box' as const,
-        layout: 'baseline' as const,
-        contents: [
-          { type: 'text' as const, text: '📰', size: 'sm', flex: 0 },
-          {
-            type: 'text' as const,
-            text: dateStr || '最新消息',
-            size: 'xs',
-            color: '#71717a',
-            margin: 'sm',
-            flex: 1,
-          },
-        ],
-      },
-      {
         type: 'text' as const,
         text: n.title,
         weight: 'bold' as const,
         size: 'lg',
         color: '#18181b',
         wrap: true,
-        margin: 'sm',
         maxLines: 3,
+      },
+      {
+        type: 'text' as const,
+        text: dateStr ? `📰 ${dateStr}` : '📰 最新消息',
+        size: 'xs',
+        color: '#71717a',
+        margin: 'sm',
       },
     ];
 
     if (n.body && n.body.trim().length > 0) {
-      // 截 300 字以內(超過 maxLines 也會被 LINE 自動截,但先字數限制較安全)
-      const text = n.body.length > 300 ? n.body.slice(0, 300) + '…' : n.body;
+      // 不截行數,字數防呆 2000(LINE Flex JSON 上限 50KB)
+      const text = n.body.length > 2000 ? n.body.slice(0, 2000) + '…' : n.body;
       bodyContents.push({
         type: 'separator' as const,
         margin: 'md',
@@ -443,13 +434,12 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
         color: '#374151',
         wrap: true,
         margin: 'md',
-        maxLines: 10,
       });
     }
 
     return {
       type: 'bubble' as const,
-      size: 'kilo' as const,
+      size: 'mega' as const,
       body: {
         type: 'box' as const,
         layout: 'vertical' as const,
