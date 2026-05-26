@@ -188,7 +188,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
         <div
           style={{
             position: 'absolute',
-            bottom: 96,
+            bottom: 200,
             left: 72,
             right: 72,
             display: 'flex',
@@ -199,7 +199,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             gap: 32,
           }}
         >
-          {/* 左欄:標題 + 價格 */}
+          {/* 左欄:tenant pill + 標題 + 價格 */}
           <div
             style={{
               display: 'flex',
@@ -208,6 +208,48 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               minWidth: 0,
             }}
           >
+            {/* Tenant pill — 在標題上方,品牌歸屬 */}
+            {product.tenants && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: product.tenants.logo_url ? '8px 20px 8px 8px' : '10px 20px',
+                  background: 'rgba(255,255,255,0.95)',
+                  borderRadius: 999,
+                  marginBottom: 24,
+                  alignSelf: 'flex-start',
+                }}
+              >
+                {product.tenants.logo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={product.tenants.logo_url}
+                    alt=""
+                    width={40}
+                    height={40}
+                    style={{
+                      borderRadius: 999,
+                      objectFit: 'cover',
+                      marginRight: 12,
+                    }}
+                  />
+                )}
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: '#0A0A0A',
+                    letterSpacing: '-0.01em',
+                    fontFamily: 'Noto Sans TC',
+                    lineHeight: 1,
+                  }}
+                >
+                  {product.tenants.name}
+                </span>
+              </div>
+            )}
+
             <div
               style={{
                 fontSize: 76,
@@ -225,18 +267,18 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'flex-end',
-                  marginTop: 32,
+                  alignItems: 'baseline',
+                  marginTop: 28,
                   fontFamily: 'JetBrains Mono',
                   lineHeight: 1,
                 }}
               >
                 <span
                   style={{
-                    fontSize: 40,
+                    fontSize: 32,
                     fontWeight: 400,
                     opacity: 0.75,
-                    marginRight: 16,
+                    marginRight: 12,
                     letterSpacing: '0.05em',
                     lineHeight: 1,
                   }}
@@ -245,7 +287,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                 </span>
                 <span
                   style={{
-                    fontSize: 96,
+                    fontSize: 64,
                     fontWeight: 700,
                     letterSpacing: '-0.02em',
                     lineHeight: 1,
@@ -279,48 +321,6 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           </div>
         </div>
 
-        {/* Top left - tenant logo + name 白底 pill(品牌歸屬,不搶主視覺)*/}
-        {product.tenants && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 64,
-              left: 72,
-              display: 'flex',
-              alignItems: 'center',
-              padding: product.tenants.logo_url ? '10px 28px 10px 10px' : '14px 28px',
-              background: 'rgba(255,255,255,0.95)',
-              borderRadius: 999,
-            }}
-          >
-            {product.tenants.logo_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.tenants.logo_url}
-                alt=""
-                width={48}
-                height={48}
-                style={{
-                  borderRadius: 999,
-                  objectFit: 'cover',
-                  marginRight: 16,
-                }}
-              />
-            )}
-            <span
-              style={{
-                fontSize: 26,
-                fontWeight: 700,
-                color: '#0A0A0A',
-                letterSpacing: '-0.01em',
-                fontFamily: 'Noto Sans TC',
-                lineHeight: 1,
-              }}
-            >
-              {product.tenants.name}
-            </span>
-          </div>
-        )}
       </div>
     ),
     {
