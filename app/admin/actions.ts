@@ -32,6 +32,42 @@ export async function signIn(formData: FormData) {
 }
 
 /**
+ * Email + 密碼 自助註冊(Phase 7.11,2026-05-26)。
+ * Supabase Auth Confirm Email 已開 → 送驗證信 → 用戶點 link 才能登入。
+ * 點 link 走 /auth/callback → exchange code → /admin → 沒 tenant → /admin/apply。
+ */
+export async function signUp(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const password = String(formData.get('password') ?? '');
+
+  if (!email || !password) {
+    redirect(`/admin/login?tab=signup&error=${encodeURIComponent('email 與密碼必填')}`);
+  }
+  if (password.length < 6) {
+    redirect(`/admin/login?tab=signup&error=${encodeURIComponent('密碼至少 6 字')}`);
+  }
+
+  const h = await (await import('next/headers')).headers();
+  const host = h.get('host') ?? 'localhost:3000';
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  const origin = `${proto}://${host}`;
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback`,
+    },
+  });
+
+  if (error) {
+    redirect(`/admin/login?tab=signup&error=${encodeURIComponent(error.message)}`);
+  }
+  redirect(`/admin/login?signup=sent&email=${encodeURIComponent(email)}`);
+}
+
+/**
  * Google OAuth 登入(Phase A,2026-05-26)。
  * 跳 Google 同意頁 → callback 到 /auth/callback。
  * redirectTo 必須是絕對網址,且要在 Supabase Auth → URL Configuration 的 Redirect URLs 內。

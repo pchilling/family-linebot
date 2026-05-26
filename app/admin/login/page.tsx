@@ -8,7 +8,8 @@ import {
   sectionLabel,
   space,
 } from '@/lib/admin-theme';
-import { signIn, signInWithGoogle } from '../actions';
+import Link from 'next/link';
+import { signIn, signInWithGoogle, signUp } from '../actions';
 
 const geistSans = Geist({
   subsets: ['latin'],
@@ -37,10 +38,13 @@ function friendlyError(code: string): string {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; tab?: string; signup?: string; email?: string }>;
 }) {
   const params = await searchParams;
   const errorMsg = params.error ? friendlyError(params.error) : null;
+  const tab = params.tab === 'signup' ? 'signup' : 'login';
+  const signupSent = params.signup === 'sent';
+  const sentEmail = params.email ?? '';
 
   return (
     <div
@@ -86,7 +90,7 @@ export default async function LoginPage({
               color: colors.textPrimary,
             }}
           >
-            登入
+            {tab === 'signup' ? '註冊' : '登入'}
           </h1>
           <p
             style={{
@@ -96,9 +100,72 @@ export default async function LoginPage({
               lineHeight: 1.5,
             }}
           >
-            管理你的攤位。
+            {tab === 'signup' ? '建立新帳號 → 申請開店。' : '管理你的攤位。'}
           </p>
         </div>
+
+        {/* Tab 切換 */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 0,
+            marginBottom: space['6'],
+            borderBottom: `1px solid ${colors.borderSubtle}`,
+          }}
+        >
+          <Link
+            href="/admin/login"
+            style={{
+              flex: 1,
+              padding: `${space['3']}px 0`,
+              textAlign: 'center',
+              fontSize: fontSize.sm,
+              fontWeight: fontWeight.medium,
+              color: tab === 'login' ? colors.textPrimary : colors.textMuted,
+              borderBottom: tab === 'login' ? `2px solid ${colors.accent}` : '2px solid transparent',
+              textDecoration: 'none',
+              marginBottom: -1,
+            }}
+          >
+            登入
+          </Link>
+          <Link
+            href="/admin/login?tab=signup"
+            style={{
+              flex: 1,
+              padding: `${space['3']}px 0`,
+              textAlign: 'center',
+              fontSize: fontSize.sm,
+              fontWeight: fontWeight.medium,
+              color: tab === 'signup' ? colors.textPrimary : colors.textMuted,
+              borderBottom: tab === 'signup' ? `2px solid ${colors.accent}` : '2px solid transparent',
+              textDecoration: 'none',
+              marginBottom: -1,
+            }}
+          >
+            註冊
+          </Link>
+        </div>
+
+        {/* 註冊成功 banner */}
+        {signupSent && (
+          <div
+            style={{
+              padding: `${space['4']}px`,
+              marginBottom: space['5'],
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              color: '#16a34a',
+              fontSize: fontSize.sm,
+              borderRadius: radius.md,
+              lineHeight: 1.6,
+            }}
+          >
+            ✓ <strong>確認信已寄到 {sentEmail}</strong>
+            <br />
+            請點信中連結完成驗證後即可登入。
+          </div>
+        )}
 
         {errorMsg && (
           <div
@@ -164,7 +231,7 @@ export default async function LoginPage({
           <div style={{ flex: 1, height: 1, background: colors.borderSubtle }} />
         </div>
 
-        <form action={signIn} style={{ display: 'flex', flexDirection: 'column', gap: space['4'] }}>
+        <form action={tab === 'signup' ? signUp : signIn} style={{ display: 'flex', flexDirection: 'column', gap: space['4'] }}>
           <div>
             <label
               htmlFor="email"
@@ -207,9 +274,15 @@ export default async function LoginPage({
               name="password"
               type="password"
               required
-              autoComplete="current-password"
+              minLength={tab === 'signup' ? 6 : undefined}
+              autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
               style={inputStyle}
             />
+            {tab === 'signup' && (
+              <p style={{ marginTop: space['1'], fontSize: fontSize.xs, color: colors.textMuted }}>
+                至少 6 字
+              </p>
+            )}
           </div>
 
           <button
@@ -229,7 +302,7 @@ export default async function LoginPage({
               transition: 'background 100ms',
             }}
           >
-            登入
+            {tab === 'signup' ? '註冊並寄出確認信' : '登入'}
           </button>
         </form>
 
@@ -244,7 +317,9 @@ export default async function LoginPage({
             textAlign: 'center',
           }}
         >
-          忘記密碼或要新增帳號,請聯繫 NEO。
+          {tab === 'signup'
+            ? '已有帳號?點上方「登入」 tab。'
+            : '忘記密碼請聯繫 NEO。'}
         </p>
       </main>
     </div>
