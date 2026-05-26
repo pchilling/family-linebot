@@ -199,7 +199,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                 background: 'rgba(255,255,255,0.08)',
                 border: '1.5px solid rgba(5,200,120,0.6)',
                 borderRadius: 999,
-                marginBottom: 20,
+                marginBottom: 16,
                 alignSelf: 'flex-start',
               }}
             >
@@ -271,7 +271,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                marginTop: 20,
+                marginTop: 12,
                 fontFamily: 'JetBrains Mono',
                 fontSize: 56,
                 lineHeight: 1,
