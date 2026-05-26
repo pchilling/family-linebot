@@ -48,6 +48,13 @@ export const colors = {
   planProText: '#1d4ed8',
   planEntBg: '#f5f3ff',
   planEntText: '#6d28d9',
+
+  // NEOP brand(Phase 8 Logo Integration,2026-05-26)
+  // 細節 / 用法見 docs/BRAND.md
+  neopGreen: '#05C878',         // 主色 / CTA
+  neopGreenBg: '#E6FAF1',       // success bg 用(對齊 neop-green-50)
+  neopGreenHover: '#04A263',    // hover(對齊 neop-green-600)
+  neopBlack: '#0A0A0A',         // 不要純黑(微帶暖度)
 };
 
 export const space = {
