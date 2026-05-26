@@ -1,4 +1,3 @@
-import { Geist, Geist_Mono } from 'next/font/google';
 import {
   colors,
   fontFamilySans,
@@ -10,17 +9,7 @@ import {
 import Link from 'next/link';
 import { signIn, signInWithGoogle, signUp } from '../actions';
 
-const geistSans = Geist({
-  subsets: ['latin'],
-  variable: '--font-geist-sans',
-  display: 'swap',
-});
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
-  display: 'swap',
-});
+// 字型在 app/layout.tsx root 統一載入(Phase 8.2),這裡不再各自載
 
 // 把 error code 翻譯成友善訊息
 const ERROR_MESSAGES: Record<string, string> = {
@@ -47,7 +36,6 @@ export default async function LoginPage({
 
   return (
     <div
-      className={`${geistSans.variable} ${geistMono.variable}`}
       style={{
         minHeight: '100vh',
         display: 'flex',

@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Geist, Geist_Mono } from 'next/font/google';
 import { getTenantBySlug, getUserAllowedTenants, hasFeature, supabaseAdmin } from '@/lib/supabase';
 import { isSuperAdmin } from '@/lib/super-admin';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
@@ -19,17 +18,7 @@ import {
 import { NavLinks } from './nav-links';
 import { MobileToggle, SidebarBackdrop } from './mobile-toggle';
 
-const geistSans = Geist({
-  subsets: ['latin'],
-  variable: '--font-geist-sans',
-  display: 'swap',
-});
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
-  display: 'swap',
-});
+// 字型在 app/layout.tsx root 統一載入(Phase 8.2),這裡不再各自載
 
 export default async function TenantAdminLayout({
   children,
@@ -98,7 +87,6 @@ export default async function TenantAdminLayout({
 
   return (
     <div
-      className={`${geistSans.variable} ${geistMono.variable}`}
       style={{
         display: 'flex',
         minHeight: '100vh',

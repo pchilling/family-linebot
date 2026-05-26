@@ -37,7 +37,6 @@ export default async function Home() {
       style={{
         minHeight: '100vh',
         background: c.bg,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif',
         color: c.text,
       }}
     >

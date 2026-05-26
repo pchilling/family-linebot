@@ -32,7 +32,6 @@ export default async function TenantLayout({ children, params }: Props) {
     <div
       style={{
         minHeight: '100vh',
-        fontFamily: 'system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif',
         background: '#fafafa',
         color: '#111827',
       }}
