@@ -246,7 +246,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               style={{
                 fontSize: 64,
                 fontWeight: 700,
-                lineHeight: 1.1,
+                lineHeight: 1,
                 letterSpacing: '-0.02em',
                 fontFamily: 'Noto Sans TC',
                 display: 'flex',
@@ -271,7 +271,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                marginTop: 12,
+                marginTop: 8,
                 fontFamily: 'JetBrains Mono',
                 fontSize: 56,
                 lineHeight: 1,
