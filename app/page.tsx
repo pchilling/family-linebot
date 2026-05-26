@@ -61,14 +61,16 @@ export default async function Home() {
           <h1
             style={{
               margin: 0,
-              fontSize: 26,
+              fontSize: 22,
+              fontWeight: 700,
               color: '#0A0A0A',
-              letterSpacing: '-0.025em',
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
               lineHeight: 1,
             }}
           >
-            <strong style={{ fontWeight: 700 }}>NEOP</strong>{' '}
-            <span style={{ fontWeight: 300 }}>STALL</span>
+            NEOP
+            <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>STALL</span>
           </h1>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: c.textMuted }}>
             多攤位電商 + LINE Bot · NEO Potential Studio

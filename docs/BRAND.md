@@ -128,9 +128,16 @@ style={{
 - Platform name:**NEOP STALL**(母品牌 NEOP / 產品 STALL)
 - 簡稱可用 **NEOP** (母品牌 reference)或 **STALL**(產品 reference)
 - OAuth consent screen 用「NEOP Stall」
-- Logo lockup 排版:`<strong>NEOP</strong> <span font-light>STALL</span>`
-  - NEOP 粗體 700(母品牌)
-  - STALL 細體 300(產品名)
-  - 同字級、同顏色 neopBlack,只靠粗細區分階層
-  - tracking-tight(`letter-spacing: -0.025em`)
+- Logo lockup 排版規範:
+  - **字體** sans-serif(繼承 body,不要 serif,避免跟 geometric logo 衝突)
+  - **uppercase**,大寫
+  - **letter-spacing: 0.15em**(字距拉開,精品感)
+  - NEOP 粗體 700 + neopBlack(母品牌)
+  - STALL 粗細 400 + 灰 `#6b7280`(產品名,降階層)
+  - lineHeight: 1
+- 不同 surface 字級:
+  - Landing(`/`):22px + logo 64×64
+  - Apply / Login:16px + logo 36×36
+  - Sidebar:14px + logo 28×28
+  - 公開店 footer「Made with NEOP STALL」:0.75rem + letter-spacing 0.08em
 - 客戶看到的是「{tenant 店名}」,看不到 NEOP

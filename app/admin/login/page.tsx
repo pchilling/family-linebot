@@ -98,14 +98,16 @@ export default async function LoginPage({
             />
             <span
               style={{
-                fontSize: 20,
+                fontSize: 16,
+                fontWeight: 700,
                 color: colors.neopBlack,
-                letterSpacing: '-0.025em',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
                 lineHeight: 1,
               }}
             >
-              <strong style={{ fontWeight: 700 }}>NEOP</strong>{' '}
-              <span style={{ fontWeight: 300 }}>STALL</span>
+              NEOP
+              <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>STALL</span>
             </span>
           </div>
           <h1

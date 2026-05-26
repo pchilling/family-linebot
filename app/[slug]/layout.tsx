@@ -134,18 +134,16 @@ export default async function TenantLayout({ children, params }: Props) {
         <div style={{ color: '#9ca3af', fontSize: '0.8125rem' }}>
           © {new Date().getFullYear()} {tenant.name}
         </div>
-        {tenant.plan === 'free' && (
-          <div
-            style={{
-              marginTop: '0.5rem',
-              color: '#9ca3af',
-              fontSize: '0.75rem',
-              opacity: 0.75,
-            }}
-          >
-            Made with <strong style={{ color: '#6b7280' }}>NEOP STALL</strong>
-          </div>
-        )}
+        <div
+          style={{
+            marginTop: '0.5rem',
+            color: '#9ca3af',
+            fontSize: '0.75rem',
+            opacity: 0.75,
+          }}
+        >
+          Made with <strong style={{ color: '#6b7280', letterSpacing: '0.08em' }}>NEOP STALL</strong>
+        </div>
       </footer>
     </div>
   );

@@ -271,20 +271,22 @@ export default async function TenantAdminLayout({
             <img
               src="/brand/logo-mark.png"
               alt="NEOP"
-              width={32}
-              height={32}
+              width={28}
+              height={28}
               style={{ display: 'block' }}
             />
             <span
               style={{
-                fontSize: 15,
+                fontSize: 14,
+                fontWeight: 700,
                 color: colors.neopBlack,
-                letterSpacing: '-0.025em',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
                 lineHeight: 1,
               }}
             >
-              <strong style={{ fontWeight: 700 }}>NEOP</strong>{' '}
-              <span style={{ fontWeight: 300 }}>STALL</span>
+              NEOP
+              <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 2 }}>STALL</span>
             </span>
           </div>
           <div style={{ display: 'flex', gap: space['3'], alignItems: 'flex-start' }}>
