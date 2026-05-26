@@ -14,6 +14,21 @@ import { supabaseAdmin } from '@/lib/supabase';
  */
 export const runtime = 'nodejs';
 
+/**
+ * 拿 Google Fonts 的 subset(只含我們要 render 的字)。
+ * 中文字一定要 load font,Satori 預設 Inter 沒中文 glyph → 500。
+ */
+async function loadGoogleFont(family: string, text: string, weight = 700) {
+  const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(
+    family,
+  )}:wght@${weight}&text=${encodeURIComponent(text)}`;
+  const css = await (await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0' } })).text();
+  const m = css.match(/src: url\((.+?)\) format\('(?:opentype|truetype|woff2?)'\)/);
+  if (!m) throw new Error(`font url not found for ${family}`);
+  const buf = await (await fetch(m[1])).arrayBuffer();
+  return buf;
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -55,6 +70,24 @@ export async function GET(
     image_url: p.image_url,
     tenants: tenant,
   };
+
+  // Load fonts(中文 + 英文 + 數字,所有會出現的字)
+  const textForFonts =
+    product.name +
+    (tenant?.name ?? '') +
+    'NT$0123456789MADEWITHNEOPSTALL';
+
+  let notoFont: ArrayBuffer | null = null;
+  let monoFont: ArrayBuffer | null = null;
+  try {
+    [notoFont, monoFont] = await Promise.all([
+      loadGoogleFont('Noto Sans TC', textForFonts, 700),
+      loadGoogleFont('JetBrains Mono', 'NT$0123456789', 700),
+    ]);
+  } catch (e) {
+    console.error('[og/product] font load', e);
+    // 字型沒撈到也不要 500,讓 Satori 用 fallback render(英文會 OK,中文會空)
+  }
 
   return new ImageResponse(
     (
@@ -133,6 +166,8 @@ export async function GET(
               lineHeight: 1.1,
               letterSpacing: '-0.02em',
               maxWidth: '90%',
+              fontFamily: 'Noto Sans TC',
+              display: 'flex',
             }}
           >
             {product.name}
@@ -145,7 +180,7 @@ export async function GET(
                 display: 'flex',
                 alignItems: 'baseline',
                 marginTop: 28,
-                fontFamily: 'monospace',
+                fontFamily: 'JetBrains Mono',
               }}
             >
               <span
@@ -227,9 +262,10 @@ export async function GET(
             <span
               style={{
                 fontSize: 24,
-                fontWeight: 600,
+                fontWeight: 700,
                 color: '#0A0A0A',
                 letterSpacing: '-0.01em',
+                fontFamily: 'Noto Sans TC',
               }}
             >
               {product.tenants.name}
@@ -241,6 +277,28 @@ export async function GET(
     {
       width: 1080,
       height: 1920,
+      fonts: [
+        ...(notoFont
+          ? [
+              {
+                name: 'Noto Sans TC' as const,
+                data: notoFont,
+                weight: 700 as const,
+                style: 'normal' as const,
+              },
+            ]
+          : []),
+        ...(monoFont
+          ? [
+              {
+                name: 'JetBrains Mono' as const,
+                data: monoFont,
+                weight: 700 as const,
+                style: 'normal' as const,
+              },
+            ]
+          : []),
+      ],
     },
   );
 }
