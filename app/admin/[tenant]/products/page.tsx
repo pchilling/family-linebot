@@ -323,6 +323,36 @@ details[open] .chev { transform: rotate(90deg); }
                   />
                 </section>
 
+                {/* 分享卡 v0(Phase 9,2026-05-26)*/}
+                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
+                  <div style={sectionTitle}>📤 分享卡(IG Story)</div>
+                  <a
+                    href={`/api/og/product/${p.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-block',
+                      padding: '8px 14px',
+                      background: '#05C878',
+                      color: '#fff',
+                      border: 0,
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    開分享圖(1080×1920)
+                  </a>
+                  <p style={{ fontSize: 11, color: c.textMuted, marginTop: 8, lineHeight: 1.5 }}>
+                    {p.image_url ? (
+                      <>圖開啟後右鍵儲存,直接上傳 IG Story / Threads / FB。</>
+                    ) : (
+                      <span style={{ color: '#d97706' }}>⚠️ 先上傳商品圖再分享(沒圖會變純黑底)</span>
+                    )}
+                  </p>
+                </section>
+
                 {/* 基本資料 */}
                 <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
                   <div style={sectionTitle}>基本資料</div>
