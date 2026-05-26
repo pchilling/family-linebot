@@ -34,6 +34,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const url = new URL(request.url);
+  const origin = url.origin;
 
   // Test bypass:?test=1 → 不跑 ImageResponse,直接回 plain text 證明 route 在
   if (url.searchParams.get('test') === '1') {
@@ -47,7 +48,7 @@ export async function GET(
   // Debug 模式:?debug=1 → 把 error stack 倒給用戶看(否則 Vercel 吞成 500)
   const debug = url.searchParams.get('debug') === '1';
   try {
-    const resp = await renderOg(params);
+    const resp = await renderOg(params, origin);
     // 強制立刻 render — ImageResponse 預設是 lazy,
     // Satori 出錯不會被外層 try/catch 接到。
     // 把 stream 立刻消費成 buffer,errors 在這裡 throw 才能 debug 抓到。
@@ -69,7 +70,7 @@ export async function GET(
   }
 }
 
-async function renderOg(params: Promise<{ id: string }>) {
+async function renderOg(params: Promise<{ id: string }>, origin: string) {
   const { id } = await params;
 
   // 拆 2 個 query 比 join 穩定(Supabase nested select FK 推不出時整個 null)
@@ -210,67 +211,63 @@ async function renderOg(params: Promise<{ id: string }>) {
             {product.name}
           </div>
 
-          {/* Price */}
+          {/* Price — flex-end + lineHeight 1 才能讓 NT$ 跟數字底邊對齊 */}
           {product.price_twd !== null && (
             <div
               style={{
                 display: 'flex',
-                alignItems: 'baseline',
-                marginTop: 28,
+                alignItems: 'flex-end',
+                marginTop: 32,
                 fontFamily: 'JetBrains Mono',
+                lineHeight: 1,
               }}
             >
               <span
                 style={{
-                  fontSize: 32,
-                  opacity: 0.7,
-                  marginRight: 12,
+                  fontSize: 40,
+                  fontWeight: 400,
+                  opacity: 0.75,
+                  marginRight: 16,
                   letterSpacing: '0.05em',
+                  lineHeight: 1,
                 }}
               >
                 NT$
               </span>
-              <span style={{ fontSize: 72, fontWeight: 700, letterSpacing: '-0.01em' }}>
+              <span
+                style={{
+                  fontSize: 96,
+                  fontWeight: 700,
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1,
+                }}
+              >
                 {product.price_twd.toLocaleString()}
               </span>
             </div>
           )}
 
-          {/* Watermark — bottom left stacked */}
+          {/* Logo watermark(取代文字 watermark)— bottom left */}
           <div
             style={{
-              marginTop: 88,
+              marginTop: 96,
               display: 'flex',
-              flexDirection: 'column',
-              opacity: 0.65,
+              alignItems: 'center',
+              opacity: 0.8,
             }}
           >
-            <div
-              style={{
-                fontSize: 16,
-                letterSpacing: '0.25em',
-                textTransform: 'uppercase',
-                marginBottom: 4,
-              }}
-            >
-              Made with
-            </div>
-            <div
-              style={{
-                fontSize: 22,
-                letterSpacing: '0.25em',
-                textTransform: 'uppercase',
-                display: 'flex',
-                alignItems: 'baseline',
-              }}
-            >
-              <span style={{ fontWeight: 700 }}>NEOP</span>
-              <span style={{ fontWeight: 300, marginLeft: 8 }}>STALL</span>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`${origin}/brand/logo-mark.png`}
+              alt=""
+              width={72}
+              height={72}
+              style={{ display: 'block' }}
+            />
           </div>
         </div>
 
-        {/* Top right - tenant logo + name(品牌歸屬,不搶主視覺)*/}
+        {/* Top left - tenant logo + name 白底 pill(品牌歸屬,不搶主視覺)*/}
         {product.tenants && (
           <div
             style={{
@@ -279,9 +276,8 @@ async function renderOg(params: Promise<{ id: string }>) {
               left: 72,
               display: 'flex',
               alignItems: 'center',
-              gap: 16,
-              padding: '12px 20px',
-              background: 'rgba(255,255,255,0.92)',
+              padding: product.tenants.logo_url ? '10px 28px 10px 10px' : '14px 28px',
+              background: 'rgba(255,255,255,0.95)',
               borderRadius: 999,
             }}
           >
@@ -290,21 +286,23 @@ async function renderOg(params: Promise<{ id: string }>) {
               <img
                 src={product.tenants.logo_url}
                 alt=""
-                width={36}
-                height={36}
+                width={48}
+                height={48}
                 style={{
-                  borderRadius: '50%',
+                  borderRadius: 999,
                   objectFit: 'cover',
+                  marginRight: 16,
                 }}
               />
             )}
             <span
               style={{
-                fontSize: 24,
+                fontSize: 26,
                 fontWeight: 700,
                 color: '#0A0A0A',
                 letterSpacing: '-0.01em',
                 fontFamily: 'Noto Sans TC',
+                lineHeight: 1,
               }}
             >
               {product.tenants.name}
