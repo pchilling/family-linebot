@@ -20,24 +20,41 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const { data, error } = await supabaseAdmin
+  // 拆 2 個 query 比 join 穩定(Supabase nested select FK 推不出時整個 null)
+  const { data: pData, error: pErr } = await supabaseAdmin
     .from('products')
-    .select('id, name, price_twd, image_url, tenants(name, logo_url)')
+    .select('id, name, price_twd, image_url, tenant_id')
     .eq('id', id)
     .maybeSingle();
 
-  if (error || !data) {
+  if (pErr || !pData) {
+    console.error('[og/product] product query', pErr, 'id=', id);
     return new Response('Product not found', { status: 404 });
   }
 
-  type Row = {
+  type ProductRow = {
     id: string;
     name: string;
     price_twd: number | null;
     image_url: string | null;
-    tenants: { name: string; logo_url: string | null } | null;
+    tenant_id: string;
   };
-  const product = data as unknown as Row;
+  const p = pData as ProductRow;
+
+  const { data: tData } = await supabaseAdmin
+    .from('tenants')
+    .select('name, logo_url')
+    .eq('id', p.tenant_id)
+    .maybeSingle();
+  const tenant = tData as { name: string; logo_url: string | null } | null;
+
+  const product = {
+    id: p.id,
+    name: p.name,
+    price_twd: p.price_twd,
+    image_url: p.image_url,
+    tenants: tenant,
+  };
 
   return new ImageResponse(
     (
