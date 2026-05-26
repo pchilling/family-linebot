@@ -33,8 +33,19 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const url = new URL(request.url);
+
+  // Test bypass:?test=1 → 不跑 ImageResponse,直接回 plain text 證明 route 在
+  if (url.searchParams.get('test') === '1') {
+    const { id } = await params;
+    return new Response(
+      `OG route alive\nproduct id: ${id}\ntime: ${new Date().toISOString()}`,
+      { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+    );
+  }
+
   // Debug 模式:?debug=1 → 把 error stack 倒給用戶看(否則 Vercel 吞成 500)
-  const debug = new URL(request.url).searchParams.get('debug') === '1';
+  const debug = url.searchParams.get('debug') === '1';
   try {
     return await renderOg(params);
   } catch (e) {
