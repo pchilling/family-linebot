@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-26(Phase 8 NEOP Logo Integration + Phase 7.11 自助申請開店)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-26(Phase 8.1 Brand rename → NEOP STALL)
 
 ---
 
@@ -828,6 +828,20 @@ Phase A(Google OAuth)已先完成。
 不動:
 - 公開店 / LIFF 不露 NEOP(那是 tenant 品牌)
 - `app/icon.svg` 待 user 用同檔覆蓋
+
+### Phase 8.1:Brand rename Stall → NEOP STALL(2026-05-26)
+
+User 正名:不是「Stall by NEOP」,而是「**NEOP STALL**」 — 母品牌 NEOP + 產品名 STALL。
+NEOP 粗體 / STALL 細體,同字級同色,粗細區分階層,tracking-tight 字距收緊。
+
+全面 rename:
+- `app/admin/apply/page.tsx` + `app/admin/login/page.tsx`:logo lockup
+- `app/admin/[tenant]/layout.tsx` sidebar:同 lockup 縮版(32×32 + 15px 文字)
+- `app/page.tsx` landing:大版 lockup(64×64 logo + 26px 文字)
+- `app/layout.tsx` metadata title + appleWebApp.title
+- `app/manifest.ts` PWA name + short_name + icons 從 svg → png + theme_color 改 neopBlack
+- `app/[slug]/layout.tsx` footer:Made with Stall → NEOP STALL
+- `docs/BRAND.md`:品牌架構說明 + lockup 規範
 
 ### Outstanding
 

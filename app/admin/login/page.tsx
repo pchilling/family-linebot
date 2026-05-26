@@ -5,7 +5,6 @@ import {
   fontSize,
   fontWeight,
   radius,
-  sectionLabel,
   space,
 } from '@/lib/admin-theme';
 import Link from 'next/link';
@@ -60,6 +59,21 @@ export default async function LoginPage({
         color: colors.textPrimary,
       }}
     >
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+.neop-cta { transition: background 120ms, transform 80ms; }
+.neop-cta:hover { background: ${colors.neopGreenHover}; }
+.neop-cta:active { transform: scale(0.99); }
+.neop-input { transition: border-color 120ms, box-shadow 120ms; }
+.neop-input:focus {
+  border-color: ${colors.neopGreen};
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(5, 200, 120, 0.15);
+}
+`,
+        }}
+      />
       <main
         style={{
           width: '100%',
@@ -73,13 +87,26 @@ export default async function LoginPage({
       >
         {/* Brand mark */}
         <div style={{ marginBottom: space['8'] }}>
-          <div
-            style={{
-              ...sectionLabel,
-              marginBottom: space['2'],
-            }}
-          >
-            Stall Admin
+          <div style={{ display: 'flex', alignItems: 'center', gap: space['3'], marginBottom: space['5'] }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/logo-mark.png"
+              alt="NEOP"
+              width={36}
+              height={36}
+              style={{ display: 'block' }}
+            />
+            <span
+              style={{
+                fontSize: 20,
+                color: colors.neopBlack,
+                letterSpacing: '-0.025em',
+                lineHeight: 1,
+              }}
+            >
+              <strong style={{ fontWeight: 700 }}>NEOP</strong>{' '}
+              <span style={{ fontWeight: 300 }}>STALL</span>
+            </span>
           </div>
           <h1
             style={{
@@ -252,6 +279,7 @@ export default async function LoginPage({
               required
               autoComplete="email"
               autoFocus
+              className="neop-input"
               style={inputStyle}
             />
           </div>
@@ -276,6 +304,7 @@ export default async function LoginPage({
               required
               minLength={tab === 'signup' ? 6 : undefined}
               autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
+              className="neop-input"
               style={inputStyle}
             />
             {tab === 'signup' && (
@@ -287,19 +316,19 @@ export default async function LoginPage({
 
           <button
             type="submit"
+            className="neop-cta"
             style={{
               marginTop: space['2'],
               width: '100%',
               padding: `${space['3']}px ${space['4']}px`,
-              background: colors.accent,
-              color: colors.textOnAccent,
+              background: colors.neopGreen,
+              color: '#fff',
               border: 0,
               borderRadius: radius.md,
               fontSize: fontSize.md,
               fontWeight: fontWeight.semibold,
               cursor: 'pointer',
               fontFamily: 'inherit',
-              transition: 'background 100ms',
             }}
           >
             {tab === 'signup' ? '註冊並寄出確認信' : '登入'}

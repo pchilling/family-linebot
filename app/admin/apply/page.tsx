@@ -97,25 +97,26 @@ export default async function ApplyPage({
         }}
       >
         <header style={{ marginBottom: space['6'] }}>
-          {/* Logo + wordmark */}
+          {/* Logo + wordmark — NEOP STALL(NEOP 粗 / STALL 細,同色同字級) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: space['3'], marginBottom: space['5'] }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/logo-mark.png"
-              alt=""
+              alt="NEOP"
               width={36}
               height={36}
               style={{ display: 'block' }}
             />
             <span
               style={{
-                fontSize: fontSize.base,
-                fontWeight: fontWeight.semibold,
-                color: colors.textPrimary,
-                letterSpacing: '-0.01em',
+                fontSize: 20,
+                color: colors.neopBlack,
+                letterSpacing: '-0.025em',
+                lineHeight: 1,
               }}
             >
-              Stall <span style={{ color: colors.textMuted, fontWeight: fontWeight.normal }}>by NEOP</span>
+              <strong style={{ fontWeight: 700 }}>NEOP</strong>{' '}
+              <span style={{ fontWeight: 300 }}>STALL</span>
             </span>
           </div>
           <h1 style={{ margin: 0, fontSize: fontSize['2xl'], fontWeight: fontWeight.semibold, letterSpacing: '-0.02em' }}>

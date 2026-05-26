@@ -1,9 +1,17 @@
-# NEOP Brand Guidelines
+# NEOP STALL Brand Guidelines
 
 > Phase 8(2026-05-26):NEOP Logo Integration
+> Phase 8.1(2026-05-26):Brand rename Stall → **NEOP STALL**
 
-NEO Potential Studio(縮寫 NEOP)是平台品牌。
-店家公開頁面(LIFF / `/[slug]`)用 tenant 自己的 brand,NEOP 只在 admin / 申請流程露出。
+## 品牌架構
+
+- **母品牌 = NEOP**(NEO Potential Studio,公司主品牌)
+- **產品名 = STALL**(這個多攤位 LINE Bot + 電商 web app)
+- **完整稱呼 = NEOP STALL**(平台對外正名,meta / footer / logo lockup 一律用此)
+
+NEOP 只在 admin / 申請流程 / footer 「Made with」露出。
+店家公開頁面(LIFF / `/[slug]` 商店頁主視覺)用 tenant 自己的 brand,
+不要讓 NEOP 蓋過店家品牌。
 
 ---
 
@@ -106,7 +114,7 @@ style={{
 | 頁面 | NEOP 露出? | 細節 |
 |---|---|---|
 | `/admin/login` | ✓ | 上方 brand 區塊 |
-| `/admin/apply` | ✓ | 頂部 logo + 「Stall by NEOP」 |
+| `/admin/apply` | ✓ | 頂部 logo + 「NEOP STALL」lockup |
 | `/admin/[tenant]/*` sidebar | ✓ | sidebar 頂部 logo |
 | `/admin/applications` | ✓ | super admin 平台頁 |
 | `/[slug]` 公開店 | ❌ | tenant 自己 brand |
@@ -117,6 +125,12 @@ style={{
 
 ## Naming
 
-- Platform name:**NEOP** 或 **Stall by NEOP**(產品名 = Stall,公司 = NEOP)
+- Platform name:**NEOP STALL**(母品牌 NEOP / 產品 STALL)
+- 簡稱可用 **NEOP** (母品牌 reference)或 **STALL**(產品 reference)
 - OAuth consent screen 用「NEOP Stall」
+- Logo lockup 排版:`<strong>NEOP</strong> <span font-light>STALL</span>`
+  - NEOP 粗體 700(母品牌)
+  - STALL 細體 300(產品名)
+  - 同字級、同顏色 neopBlack,只靠粗細區分階層
+  - tracking-tight(`letter-spacing: -0.025em`)
 - 客戶看到的是「{tenant 店名}」,看不到 NEOP

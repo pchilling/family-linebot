@@ -270,20 +270,21 @@ export default async function TenantAdminLayout({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/logo-mark.png"
-              alt=""
-              width={28}
-              height={28}
+              alt="NEOP"
+              width={32}
+              height={32}
               style={{ display: 'block' }}
             />
             <span
               style={{
-                fontSize: fontSize.sm,
-                fontWeight: fontWeight.semibold,
-                color: colors.textPrimary,
-                letterSpacing: '-0.01em',
+                fontSize: 15,
+                color: colors.neopBlack,
+                letterSpacing: '-0.025em',
+                lineHeight: 1,
               }}
             >
-              NEOP
+              <strong style={{ fontWeight: 700 }}>NEOP</strong>{' '}
+              <span style={{ fontWeight: 300 }}>STALL</span>
             </span>
           </div>
           <div style={{ display: 'flex', gap: space['3'], alignItems: 'flex-start' }}>

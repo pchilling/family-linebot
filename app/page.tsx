@@ -48,28 +48,27 @@ export default async function Home() {
           padding: '40px 20px 60px',
         }}
       >
-        {/* Brand */}
+        {/* Brand — NEOP STALL */}
         <header style={{ marginBottom: 32, textAlign: 'center' }}>
-          <div
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/logo-mark.png"
+            alt="NEOP"
+            width={64}
+            height={64}
+            style={{ display: 'block', margin: '0 auto 14px' }}
+          />
+          <h1
             style={{
-              width: 64,
-              height: 64,
-              borderRadius: 16,
-              background: c.accent,
-              color: '#fff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 36,
-              fontWeight: 800,
-              marginBottom: 14,
-              boxShadow: '0 4px 16px rgba(24,24,27,0.18)',
+              margin: 0,
+              fontSize: 26,
+              color: '#0A0A0A',
+              letterSpacing: '-0.025em',
+              lineHeight: 1,
             }}
           >
-            S
-          </div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em' }}>
-            Stall
+            <strong style={{ fontWeight: 700 }}>NEOP</strong>{' '}
+            <span style={{ fontWeight: 300 }}>STALL</span>
           </h1>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: c.textMuted }}>
             多攤位電商 + LINE Bot · NEO Potential Studio

@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Stall · LINE Bot 商務平台',
+  title: 'NEOP STALL · LINE Bot 商務平台',
   description: 'NEO Potential Studio — 多攤位 LINE Bot + 電商',
   appleWebApp: {
     capable: true,
-    title: 'Stall',
+    title: 'NEOP STALL',
     statusBarStyle: 'black-translucent',
   },
 };

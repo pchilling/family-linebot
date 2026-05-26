@@ -143,7 +143,7 @@ export default async function TenantLayout({ children, params }: Props) {
               opacity: 0.75,
             }}
           >
-            Made with <strong style={{ color: '#6b7280' }}>Stall</strong>
+            Made with <strong style={{ color: '#6b7280' }}>NEOP STALL</strong>
           </div>
         )}
       </footer>
