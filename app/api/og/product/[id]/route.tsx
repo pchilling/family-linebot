@@ -135,68 +135,47 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          position: 'relative',
           background: '#0A0A0A',
         }}
       >
-        {/* Full-bleed cover image */}
-        {product.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.image_url}
-            alt=""
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
-        )}
-
-        {/* Gradient overlay — 從 50% 高度開始黑漸層 */}
+        {/* 上半:4:5 圖完整顯示(1080×1350) */}
         <div
           style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            top: '40%',
-            background:
-              'linear-gradient(to top, rgba(10,10,10,0.96) 0%, rgba(10,10,10,0.85) 30%, rgba(10,10,10,0.4) 75%, rgba(10,10,10,0) 100%)',
+            width: 1080,
+            height: 1350,
             display: 'flex',
+            background: '#1a1a1a',
+            position: 'relative',
           }}
-        />
+        >
+          {product.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={product.image_url}
+              alt=""
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+            />
+          )}
+        </div>
 
-        {/* 底部 NEOP green tint(微暈染) */}
+        {/* 下半:1080×570 黑底資訊區(兩欄:左 text、右 logo) */}
         <div
           style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 240,
-            background:
-              'linear-gradient(to top, rgba(5,200,120,0.08) 0%, transparent 100%)',
-            display: 'flex',
-          }}
-        />
-
-        {/* Bottom overlay — 兩欄:左 text、右 logo */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 200,
-            left: 72,
-            right: 72,
+            width: 1080,
+            height: 570,
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'flex-end',
             justifyContent: 'space-between',
+            padding: '40px 72px 56px',
             color: '#ffffff',
             gap: 32,
+            background: '#0A0A0A',
+            boxSizing: 'border-box',
           }}
         >
           {/* 左欄:tenant pill + 標題 + 價格 */}
@@ -208,7 +187,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               minWidth: 0,
             }}
           >
-            {/* Tenant pill — 在標題上方,品牌歸屬 */}
+            {/* Tenant pill */}
             {product.tenants && (
               <div
                 style={{
@@ -217,7 +196,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                   padding: product.tenants.logo_url ? '8px 20px 8px 8px' : '10px 20px',
                   background: 'rgba(255,255,255,0.95)',
                   borderRadius: 999,
-                  marginBottom: 24,
+                  marginBottom: 20,
                   alignSelf: 'flex-start',
                 }}
               >
@@ -252,7 +231,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
 
             <div
               style={{
-                fontSize: 76,
+                fontSize: 64,
                 fontWeight: 700,
                 lineHeight: 1.1,
                 letterSpacing: '-0.02em',
@@ -268,9 +247,9 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  marginTop: 28,
+                  marginTop: 20,
                   fontFamily: 'JetBrains Mono',
-                  fontSize: 64,
+                  fontSize: 56,
                   lineHeight: 1,
                 }}
               >
@@ -278,7 +257,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                   style={{
                     fontWeight: 400,
                     opacity: 0.7,
-                    marginRight: 14,
+                    marginRight: 12,
                     letterSpacing: '0.02em',
                   }}
                 >
@@ -296,23 +275,23 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             )}
           </div>
 
-          {/* 右欄:NEOP logo(白版,跟標題並列)— object-fit contain 保比例 */}
+          {/* 右欄:NEOP logo 白版 */}
           <div
             style={{
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: 'flex-end',
               flexShrink: 0,
-              width: 200,
-              height: 200,
+              width: 180,
+              height: 180,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${origin}/brand/logo-mark-white.png`}
               alt=""
-              width={200}
-              height={200}
+              width={180}
+              height={180}
               style={{ display: 'block', objectFit: 'contain' }}
             />
           </div>
