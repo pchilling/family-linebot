@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getUserAllowedTenants } from '@/lib/supabase';
 import { submitApplication } from './actions';
-import { SubmitButton } from './submit-button';
+import { SubmitButton } from '../_components/submit-button';
 import { colors, fontFamilySans, fontSize, fontWeight, radius, space } from '@/lib/admin-theme';
 
 // 注入 :focus / :hover state(inline style 表達不了)
@@ -208,7 +208,9 @@ export default async function ApplyPage({
             hint="寫得清楚審核會快很多。"
           />
 
-          <SubmitButton />
+          <SubmitButton fullWidth pendingText="送出中…">
+            送出申請,立刻進後台
+          </SubmitButton>
 
           <p
             style={{

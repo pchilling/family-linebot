@@ -8,6 +8,7 @@ import {
 } from '@/lib/admin-theme';
 import Link from 'next/link';
 import { signIn, signInWithGoogle, signUp } from '../actions';
+import { SubmitButton } from '../_components/submit-button';
 
 // 字型在 app/layout.tsx root 統一載入(Phase 8.2),這裡不再各自載
 
@@ -304,25 +305,11 @@ export default async function LoginPage({
             )}
           </div>
 
-          <button
-            type="submit"
-            className="neop-cta"
-            style={{
-              marginTop: space['2'],
-              width: '100%',
-              padding: `${space['3']}px ${space['4']}px`,
-              background: colors.neopGreen,
-              color: '#fff',
-              border: 0,
-              borderRadius: radius.md,
-              fontSize: fontSize.md,
-              fontWeight: fontWeight.semibold,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            {tab === 'signup' ? '註冊並寄出確認信' : '登入'}
-          </button>
+          <div style={{ marginTop: space['2'] }}>
+            <SubmitButton fullWidth pendingText={tab === 'signup' ? '寄信中…' : '登入中…'}>
+              {tab === 'signup' ? '註冊並寄出確認信' : '登入'}
+            </SubmitButton>
+          </div>
         </form>
 
         <p
