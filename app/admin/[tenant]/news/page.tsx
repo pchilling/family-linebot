@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { createNews, deleteNews, updateNews } from './actions';
+import { SubmitButton } from '../../_components/submit-button';
 
 type NewsRow = {
   id: string;
@@ -135,7 +136,7 @@ export default async function NewsPage({
             建立後上線公開(可在 Rich Menu「最新消息」被讀到;不會主動推送通知)
           </label>
           <div>
-            <button type="submit" style={btnPrimary}>新增</button>
+            <SubmitButton size="sm" pendingText="新增中…">新增</SubmitButton>
           </div>
         </form>
       </section>
@@ -253,14 +254,14 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
               </select>
             </label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" style={btnPrimary}>儲存</button>
+              <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
             </div>
           </form>
 
           <form action={deleteNews} style={{ marginTop: 10 }}>
             <input type="hidden" name="id" value={n.id} />
             <input type="hidden" name="tenant_slug" value={slug} />
-            <button type="submit" style={btnDanger}>刪除這則消息</button>
+            <SubmitButton variant="danger" size="sm" pendingText="刪除中…">刪除這則消息</SubmitButton>
           </form>
     </article>
   );

@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isSuperAdmin } from '@/lib/super-admin';
 import { approveApplication, reopenApplication, rejectApplication } from './actions';
+import { SubmitButton } from '../_components/submit-button';
 import { colors, fontFamilySans, fontSize, fontWeight, radius, space } from '@/lib/admin-theme';
 
 export const dynamic = 'force-dynamic';
@@ -242,22 +243,7 @@ function ApplicationCard({ a, email }: { a: ApplicationRow; email: string | unde
           <>
             <form action={approveApplication} style={{ flex: 1, minWidth: 120 }}>
               <input type="hidden" name="tenant_id" value={a.id} />
-              <button
-                type="submit"
-                style={{
-                  width: '100%',
-                  padding: `${space['3']}px ${space['4']}px`,
-                  background: '#16a34a',
-                  color: '#fff',
-                  border: 0,
-                  borderRadius: radius.md,
-                  fontSize: fontSize.sm,
-                  fontWeight: fontWeight.semibold,
-                  cursor: 'pointer',
-                }}
-              >
-                ✓ 核准
-              </button>
+              <SubmitButton fullWidth size="sm" pendingText="核准中…">✓ 核准</SubmitButton>
             </form>
             <details style={{ flex: 1, minWidth: 120 }}>
               <summary
@@ -297,21 +283,7 @@ function ApplicationCard({ a, email }: { a: ApplicationRow; email: string | unde
                     resize: 'vertical',
                   }}
                 />
-                <button
-                  type="submit"
-                  style={{
-                    padding: `${space['2']}px ${space['3']}px`,
-                    background: '#dc2626',
-                    color: '#fff',
-                    border: 0,
-                    borderRadius: radius.md,
-                    fontSize: fontSize.sm,
-                    fontWeight: fontWeight.semibold,
-                    cursor: 'pointer',
-                  }}
-                >
-                  確認拒絕
-                </button>
+                <SubmitButton variant="danger" size="sm" pendingText="處理中…">確認拒絕</SubmitButton>
               </form>
             </details>
           </>
@@ -319,20 +291,7 @@ function ApplicationCard({ a, email }: { a: ApplicationRow; email: string | unde
         {isRejected && (
           <form action={reopenApplication}>
             <input type="hidden" name="tenant_id" value={a.id} />
-            <button
-              type="submit"
-              style={{
-                padding: `${space['2']}px ${space['4']}px`,
-                background: colors.bgCard,
-                color: colors.textSecondary,
-                border: `1px solid ${colors.border}`,
-                borderRadius: radius.md,
-                fontSize: fontSize.sm,
-                cursor: 'pointer',
-              }}
-            >
-              ↻ 重新開啟
-            </button>
+            <SubmitButton variant="secondary" size="sm" pendingText="處理中…">↻ 重新開啟</SubmitButton>
           </form>
         )}
       </div>

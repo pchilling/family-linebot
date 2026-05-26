@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { createClass, deleteClass, updateClass } from '../../actions';
 import { ProductImageUploader } from '../products/image-uploader';
+import { SubmitButton } from '../../_components/submit-button';
 
 type Region = { id: string; name: string };
 type ClassRow = {
@@ -285,7 +286,9 @@ details[open] .chev { transform: rotate(90deg); }
                 Rich Menu「📅 本月課程」+ LIFF 報名頁都會顯示這段。建議用換行 + emoji 讓視覺更生動,150 字以內。
               </span>
             </label>
-            <button type="submit" style={{ ...btnPrimary, gridColumn: '1 / -1' }}>建立活動</button>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <SubmitButton pendingText="建立中…">建立活動</SubmitButton>
+            </div>
           </form>
         </div>
       </details>
@@ -535,7 +538,7 @@ function ClassCard({
             >
               看出席紀錄 →
             </a>
-            <button type="submit" style={btnPrimary}>儲存</button>
+            <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
           </div>
         </form>
 
@@ -551,7 +554,7 @@ function ClassCard({
             <form action={deleteClass} style={{ display: 'inline' }}>
               <input type="hidden" name="id" value={cls.id} />
               <input type="hidden" name="tenant_slug" value={tenant.slug} />
-              <button type="submit" style={btnDanger}>確認刪除</button>
+              <SubmitButton variant="danger" size="sm" pendingText="刪除中…">確認刪除</SubmitButton>
             </form>
           </div>
         </details>

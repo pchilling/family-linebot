@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { updateOrder, markOrderPaid, markOrderShipped } from '../../../actions';
+import { SubmitButton } from '../../../_components/submit-button';
 
 type OrderItem = {
   id: string;
@@ -238,22 +239,7 @@ export default async function OrderDetailPage({
                   <option value="line_pay">LINE Pay</option>
                 </select>
               </label>
-              <button
-                type="submit"
-                style={{
-                  padding: '10px 18px',
-                  background: '#16a34a',
-                  color: '#fff',
-                  border: 0,
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                ✓ 確認已收款
-              </button>
+              <SubmitButton pendingText="標記中…">✓ 確認已收款</SubmitButton>
             </form>
           </>
         ) : (
@@ -282,22 +268,7 @@ export default async function OrderDetailPage({
               <span style={labelText}>📦 標已出貨(選填追蹤單號)</span>
               <input name="tracking_no" defaultValue={o.tracking_no ?? ''} style={input} placeholder="例:7-11 取貨號 / 黑貓單號" />
             </label>
-            <button
-              type="submit"
-              style={{
-                padding: '10px 18px',
-                background: '#0070f3',
-                color: '#fff',
-                border: 0,
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              📦 標已出貨
-            </button>
+            <SubmitButton pendingText="標記中…">📦 標已出貨</SubmitButton>
           </form>
         )}
 
@@ -361,7 +332,7 @@ export default async function OrderDetailPage({
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#999' }}>(狀態改 paid / shipped 時 trigger 自動填)</span>
           </div>
 
-          <button type="submit" style={btn}>儲存</button>
+          <SubmitButton pendingText="儲存中…">儲存</SubmitButton>
         </form>
       </section>
     </main>
