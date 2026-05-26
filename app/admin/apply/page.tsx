@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getUserAllowedTenants } from '@/lib/supabase';
-import { signOut } from '../actions';
 import { submitApplication } from './actions';
 import { colors, fontFamilySans, fontSize, fontWeight, radius, space } from '@/lib/admin-theme';
 
@@ -131,39 +130,26 @@ export default async function ApplyPage({
           </p>
         </header>
 
-        {/* 登入身分 — 純文字 + 登出 button */}
+        {/* USERNAME — email 前綴,未來介紹人欄位用同個識別 */}
         <div
           style={{
             marginBottom: space['6'],
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: space['3'],
             fontSize: fontSize.sm,
             color: colors.textMuted,
             lineHeight: 1.5,
           }}
         >
-          <span>
-            登入身分:<span style={{ color: colors.textPrimary, fontWeight: fontWeight.medium }}>{user.email}</span>
+          USERNAME:
+          <span
+            style={{
+              color: colors.textPrimary,
+              fontWeight: fontWeight.medium,
+              fontFamily: 'var(--font-geist-mono), monospace',
+              marginLeft: 6,
+            }}
+          >
+            {user.email.split('@')[0]}
           </span>
-          <form action={signOut}>
-            <button
-              type="submit"
-              style={{
-                background: 'none',
-                border: 0,
-                color: colors.textMuted,
-                cursor: 'pointer',
-                fontSize: fontSize.sm,
-                fontFamily: 'inherit',
-                textDecoration: 'underline',
-                padding: 0,
-              }}
-            >
-              登出
-            </button>
-          </form>
         </div>
 
         {err && (
