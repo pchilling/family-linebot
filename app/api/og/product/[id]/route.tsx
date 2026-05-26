@@ -247,18 +247,18 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             </div>
           )}
 
-          {/* Logo watermark(取代文字 watermark)— bottom left */}
+          {/* Logo watermark(取代文字 watermark)— bottom left,白版 logo */}
           <div
             style={{
               marginTop: 96,
               display: 'flex',
               alignItems: 'center',
-              opacity: 0.8,
+              opacity: 0.9,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`${origin}/brand/logo-mark.png`}
+              src={`${origin}/brand/logo-mark-white.png`}
               alt=""
               width={72}
               height={72}
