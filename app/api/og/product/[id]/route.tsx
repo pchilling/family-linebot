@@ -184,7 +184,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           }}
         />
 
-        {/* Text overlay - bottom left */}
+        {/* Bottom overlay — 兩欄:左 text、右 logo */}
         <div
           style={{
             position: 'absolute',
@@ -192,76 +192,85 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             left: 72,
             right: 72,
             display: 'flex',
-            flexDirection: 'column',
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
             color: '#ffffff',
+            gap: 32,
           }}
         >
-          {/* Product name */}
+          {/* 左欄:標題 + 價格 */}
           <div
             style={{
-              fontSize: 76,
-              fontWeight: 700,
-              lineHeight: 1.1,
-              letterSpacing: '-0.02em',
-              maxWidth: '90%',
-              fontFamily: 'Noto Sans TC',
               display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minWidth: 0,
             }}
           >
-            {product.name}
-          </div>
-
-          {/* Price — flex-end + lineHeight 1 才能讓 NT$ 跟數字底邊對齊 */}
-          {product.price_twd !== null && (
             <div
               style={{
+                fontSize: 76,
+                fontWeight: 700,
+                lineHeight: 1.1,
+                letterSpacing: '-0.02em',
+                fontFamily: 'Noto Sans TC',
                 display: 'flex',
-                alignItems: 'flex-end',
-                marginTop: 32,
-                fontFamily: 'JetBrains Mono',
-                lineHeight: 1,
               }}
             >
-              <span
-                style={{
-                  fontSize: 40,
-                  fontWeight: 400,
-                  opacity: 0.75,
-                  marginRight: 16,
-                  letterSpacing: '0.05em',
-                  lineHeight: 1,
-                }}
-              >
-                NT$
-              </span>
-              <span
-                style={{
-                  fontSize: 96,
-                  fontWeight: 700,
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1,
-                }}
-              >
-                {product.price_twd.toLocaleString()}
-              </span>
+              {product.name}
             </div>
-          )}
 
-          {/* Logo watermark(取代文字 watermark)— bottom left,白版 logo */}
+            {product.price_twd !== null && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  marginTop: 32,
+                  fontFamily: 'JetBrains Mono',
+                  lineHeight: 1,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 40,
+                    fontWeight: 400,
+                    opacity: 0.75,
+                    marginRight: 16,
+                    letterSpacing: '0.05em',
+                    lineHeight: 1,
+                  }}
+                >
+                  NT$
+                </span>
+                <span
+                  style={{
+                    fontSize: 96,
+                    fontWeight: 700,
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1,
+                  }}
+                >
+                  {product.price_twd.toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* 右欄:NEOP logo(白版,跟標題並列)*/}
           <div
             style={{
-              marginTop: 96,
               display: 'flex',
-              alignItems: 'center',
-              opacity: 0.9,
+              alignItems: 'flex-end',
+              flexShrink: 0,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${origin}/brand/logo-mark-white.png`}
               alt=""
-              width={72}
-              height={72}
+              width={160}
+              height={160}
               style={{ display: 'block' }}
             />
           </div>
