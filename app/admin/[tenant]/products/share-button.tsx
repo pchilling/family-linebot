@@ -91,24 +91,23 @@ export function ShareButton({
 
   // ===== Platform handlers =====
 
-  async function shareToInstagramStories() {
+  async function shareToInstagram() {
     if (!imageBlob) return;
-    // 嘗試 clipboard copy → 開 IG Stories deep link
-    // iOS Safari 支援 navigator.clipboard.write,Android Chrome 也支援
+    // IG Stories direct deep link 需要 Facebook App ID + iOS 特定 pasteboard slot,
+    // web 端做不到。改用 iOS / Android share sheet,用戶從中選 Instagram。
+    // IG 開後會問 Story / Reels / 貼文 / Messages,讓用戶選。
     try {
-      if (navigator.clipboard && 'write' in navigator.clipboard) {
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': imageBlob }),
-        ]);
-        setToast('已複製圖,Instagram 開啟後請貼上');
+      const file = new File([imageBlob], `${productName}.png`, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: productName });
+      } else {
+        throw new Error('裝置不支援檔案分享');
       }
     } catch (e) {
-      console.warn('[clipboard]', e);
+      if (e instanceof Error && e.name !== 'AbortError') {
+        alert('分享失敗:' + e.message);
+      }
     }
-    // 短暫延遲讓 toast 出現
-    setTimeout(() => {
-      window.location.href = 'instagram-stories://share';
-    }, 600);
   }
 
   function shareToWhatsApp() {
@@ -302,7 +301,7 @@ export function ShareButton({
                   gap: 12,
                 }}
               >
-                <PlatformButton label="IG Story" onClick={shareToInstagramStories}>
+                <PlatformButton label="Instagram" onClick={shareToInstagram}>
                   <IGIcon />
                 </PlatformButton>
                 <PlatformButton label="WhatsApp" onClick={shareToWhatsApp}>
