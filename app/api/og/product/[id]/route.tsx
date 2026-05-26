@@ -47,7 +47,18 @@ export async function GET(
   // Debug 模式:?debug=1 → 把 error stack 倒給用戶看(否則 Vercel 吞成 500)
   const debug = url.searchParams.get('debug') === '1';
   try {
-    return await renderOg(params);
+    const resp = await renderOg(params);
+    // 強制立刻 render — ImageResponse 預設是 lazy,
+    // Satori 出錯不會被外層 try/catch 接到。
+    // 把 stream 立刻消費成 buffer,errors 在這裡 throw 才能 debug 抓到。
+    if (resp instanceof ImageResponse) {
+      const buf = await resp.arrayBuffer();
+      return new Response(buf, {
+        status: 200,
+        headers: { 'content-type': 'image/png', 'cache-control': 'no-store' },
+      });
+    }
+    return resp;
   } catch (e) {
     const msg = e instanceof Error ? `${e.message}\n\n${e.stack}` : String(e);
     console.error('[og/product] render', msg);
