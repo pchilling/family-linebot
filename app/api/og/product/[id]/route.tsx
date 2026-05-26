@@ -175,26 +175,16 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           />
         </div>
 
-        {/* NEOP green 2px brand stripe(圖跟資訊區之間)*/}
+        {/* 下半:1080×570 黑底資訊區 */}
         <div
           style={{
             width: 1080,
-            height: 2,
-            background: '#05C878',
-            display: 'flex',
-          }}
-        />
-
-        {/* 下半:1080×568 黑底資訊區(扣 2px stripe) */}
-        <div
-          style={{
-            width: 1080,
-            height: 568,
+            height: 570,
             display: 'flex',
             flexDirection: 'row',
-            alignItems: 'flex-end',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
-            padding: '40px 72px 56px',
+            padding: '48px 72px 72px',
             color: '#ffffff',
             gap: 32,
             background: '#0A0A0A',
@@ -300,14 +290,13 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             )}
           </div>
 
-          {/* 右欄:NEOP logo 白版(縮 + opacity)+ 編輯感小字 */}
+          {/* 右欄:NEOP logo 白版 */}
           <div
             style={{
               display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-end',
+              alignItems: 'flex-start',
               flexShrink: 0,
-              opacity: 0.7,
+              opacity: 0.75,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -318,20 +307,6 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               height={100}
               style={{ display: 'block', objectFit: 'contain' }}
             />
-            <div
-              style={{
-                marginTop: 10,
-                fontSize: 13,
-                letterSpacing: '0.3em',
-                textTransform: 'uppercase',
-                display: 'flex',
-                alignItems: 'center',
-                color: '#ffffff',
-              }}
-            >
-              <span style={{ fontWeight: 700 }}>NEOP</span>
-              <span style={{ fontWeight: 300, marginLeft: 6 }}>STALL</span>
-            </div>
           </div>
         </div>
 
