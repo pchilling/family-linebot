@@ -257,21 +257,24 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             )}
           </div>
 
-          {/* 右欄:NEOP logo(白版,跟標題並列)*/}
+          {/* 右欄:NEOP logo(白版,跟標題並列)— object-fit contain 保比例 */}
           <div
             style={{
               display: 'flex',
               alignItems: 'flex-end',
+              justifyContent: 'flex-end',
               flexShrink: 0,
+              width: 200,
+              height: 200,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${origin}/brand/logo-mark-white.png`}
               alt=""
-              width={160}
-              height={160}
-              style={{ display: 'block' }}
+              width={200}
+              height={200}
+              style={{ display: 'block', objectFit: 'contain' }}
             />
           </div>
         </div>
