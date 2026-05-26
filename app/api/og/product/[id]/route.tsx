@@ -232,12 +232,12 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             </div>
           )}
 
-          {/* 標題 + logo 同一橫線 row */}
+          {/* 標題 + logo 同一橫線 row(頂部對齊)*/}
           <div
             style={{
               display: 'flex',
               flexDirection: 'row',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               gap: 32,
               width: '100%',
             }}
