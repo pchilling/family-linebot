@@ -267,30 +267,27 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'baseline',
+                  alignItems: 'center',
                   marginTop: 28,
                   fontFamily: 'JetBrains Mono',
+                  fontSize: 64,
                   lineHeight: 1,
                 }}
               >
                 <span
                   style={{
-                    fontSize: 32,
                     fontWeight: 400,
-                    opacity: 0.75,
-                    marginRight: 12,
-                    letterSpacing: '0.05em',
-                    lineHeight: 1,
+                    opacity: 0.7,
+                    marginRight: 14,
+                    letterSpacing: '0.02em',
                   }}
                 >
                   NT$
                 </span>
                 <span
                   style={{
-                    fontSize: 64,
                     fontWeight: 700,
                     letterSpacing: '-0.02em',
-                    lineHeight: 1,
                   }}
                 >
                   {product.price_twd.toLocaleString()}
