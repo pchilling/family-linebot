@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getUserAllowedTenants } from '@/lib/supabase';
 import { submitApplication } from './actions';
+import { SubmitButton } from './submit-button';
 import { colors, fontFamilySans, fontSize, fontWeight, radius, space } from '@/lib/admin-theme';
 
 // 注入 :focus / :hover state(inline style 表達不了)
@@ -207,24 +208,7 @@ export default async function ApplyPage({
             hint="寫得清楚審核會快很多。"
           />
 
-          <button
-            type="submit"
-            className="neop-cta"
-            style={{
-              marginTop: space['3'],
-              padding: `${space['3']}px ${space['5']}px`,
-              background: colors.neopGreen,
-              color: '#fff',
-              border: 0,
-              borderRadius: radius.md,
-              fontSize: fontSize.md,
-              fontWeight: fontWeight.semibold,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            送出申請,立刻進後台
-          </button>
+          <SubmitButton />
 
           <p
             style={{
