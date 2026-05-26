@@ -138,7 +138,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           background: '#0A0A0A',
         }}
       >
-        {/* 上半:4:5 圖完整顯示(1080×1350) */}
+        {/* 上半:4:5 圖完整顯示(1080×1350)+ 底部漸層柔接 */}
         <div
           style={{
             width: 1080,
@@ -160,13 +160,36 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               }}
             />
           )}
+          {/* 圖底柔接 — 100px 漸層化解硬切 */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 100,
+              background:
+                'linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0.7) 60%, rgba(10,10,10,1) 100%)',
+              display: 'flex',
+            }}
+          />
         </div>
 
-        {/* 下半:1080×570 黑底資訊區(兩欄:左 text、右 logo) */}
+        {/* NEOP green 2px brand stripe(圖跟資訊區之間)*/}
         <div
           style={{
             width: 1080,
-            height: 570,
+            height: 2,
+            background: '#05C878',
+            display: 'flex',
+          }}
+        />
+
+        {/* 下半:1080×568 黑底資訊區(扣 2px stripe) */}
+        <div
+          style={{
+            width: 1080,
+            height: 568,
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'flex-end',
@@ -187,16 +210,17 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               minWidth: 0,
             }}
           >
-            {/* Tenant pill */}
+            {/* Tenant pill — 透明邊框版(less corporate)*/}
             {product.tenants && (
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  padding: product.tenants.logo_url ? '8px 20px 8px 8px' : '10px 20px',
-                  background: 'rgba(255,255,255,0.95)',
+                  padding: product.tenants.logo_url ? '6px 20px 6px 6px' : '8px 20px',
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1.5px solid rgba(5,200,120,0.6)',
                   borderRadius: 999,
-                  marginBottom: 20,
+                  marginBottom: 24,
                   alignSelf: 'flex-start',
                 }}
               >
@@ -205,8 +229,8 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                   <img
                     src={product.tenants.logo_url}
                     alt=""
-                    width={40}
-                    height={40}
+                    width={36}
+                    height={36}
                     style={{
                       borderRadius: 999,
                       objectFit: 'cover',
@@ -216,9 +240,9 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                 )}
                 <span
                   style={{
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: 700,
-                    color: '#0A0A0A',
+                    color: '#ffffff',
                     letterSpacing: '-0.01em',
                     fontFamily: 'Noto Sans TC',
                     lineHeight: 1,
@@ -251,12 +275,13 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                   fontFamily: 'JetBrains Mono',
                   fontSize: 56,
                   lineHeight: 1,
+                  color: '#05C878',
                 }}
               >
                 <span
                   style={{
                     fontWeight: 400,
-                    opacity: 0.7,
+                    opacity: 0.85,
                     marginRight: 12,
                     letterSpacing: '0.02em',
                   }}
@@ -275,25 +300,38 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             )}
           </div>
 
-          {/* 右欄:NEOP logo 白版 */}
+          {/* 右欄:NEOP logo 白版(縮 + opacity)+ 編輯感小字 */}
           <div
             style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'flex-end',
-              justifyContent: 'flex-end',
               flexShrink: 0,
-              width: 180,
-              height: 180,
+              opacity: 0.7,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${origin}/brand/logo-mark-white.png`}
               alt=""
-              width={180}
-              height={180}
+              width={100}
+              height={100}
               style={{ display: 'block', objectFit: 'contain' }}
             />
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 13,
+                letterSpacing: '0.3em',
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#ffffff',
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>NEOP</span>
+              <span style={{ fontWeight: 300, marginLeft: 6 }}>STALL</span>
+            </div>
           </div>
         </div>
 
