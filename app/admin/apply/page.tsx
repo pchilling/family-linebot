@@ -107,20 +107,20 @@ export default async function ApplyPage({
         )}
 
         <form action={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: space['5'] }}>
-          <Field label="店名" name="tenant_name" required placeholder="例:三合一愛油哇" />
+          <Field label="店名" name="tenant_name" required placeholder="你的店家名稱" />
           <Field
             label="網址識別 (slug)"
             name="tenant_slug"
             required
-            placeholder="例:oilswa"
-            hint="3-20 字小寫英文 / 數字 / 連字號。URL 會長這樣:/admin/oilswa"
+            placeholder="my-shop"
+            hint="3-20 字小寫英文 / 數字 / 連字號。URL 會長 /admin/my-shop。"
           />
           <Field
             label="訂單編號前綴"
             name="order_prefix"
             required
-            placeholder="例:OW"
-            hint="2-5 個大寫英文。訂單會長 OW-202605-00001。攤位內唯一。"
+            placeholder="SHP"
+            hint="2-5 個大寫英文。訂單編號會用這個開頭,平台內唯一。"
           />
           <Field label="聯絡人姓名" name="applicant_name" required defaultValue={defaultName} />
           <Field
@@ -128,13 +128,8 @@ export default async function ApplyPage({
             name="applicant_phone"
             required
             type="tel"
-            placeholder="0912 345 678"
+            placeholder="09xx xxx xxx"
             hint="審核時平台會用這支電話跟你聯繫。"
-          />
-          <Field
-            label="業態(選填)"
-            name="business_type"
-            placeholder="例:芳療 / 童裝 / 烘焙 / 線下教室"
           />
           <FieldTextarea
             label="簡介(選填)"

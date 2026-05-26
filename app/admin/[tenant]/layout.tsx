@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { getTenantBySlug, getUserAllowedTenants, hasFeature, supabaseAdmin } from '@/lib/supabase';
+import { isSuperAdmin } from '@/lib/super-admin';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { signOut } from '../actions';
 import {
@@ -53,7 +54,8 @@ export default async function TenantAdminLayout({
   const inventoryGated = tenant.plan === 'free';
   const hasActivities = hasFeature(tenant, 'activities');
 
-  const [allowedTenants, ordersPendingResp, lowStockResp] = await Promise.all([
+  const isSuper = isSuperAdmin(user?.email);
+  const [allowedTenants, ordersPendingResp, lowStockResp, pendingAppsResp] = await Promise.all([
     getUserAllowedTenants(user?.email),
     // 待付款訂單(status='open')
     supabaseAdmin
@@ -70,9 +72,17 @@ export default async function TenantAdminLayout({
           .eq('tenant_id', tenant.id)
           .eq('status', 'active')
           .lte('stock', 3),
+    // 待審申請 — 只 super admin 撈
+    isSuper
+      ? supabaseAdmin
+          .from('tenants')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+      : Promise.resolve({ count: null }),
   ]);
   const ordersPending = ordersPendingResp.count ?? 0;
   const lowStock = lowStockResp.count ?? 0;
+  const pendingApps = pendingAppsResp.count ?? 0;
 
   // Access check 移到所有 query 完之後(早期 redirect 浪費上面的並行 query,但
   // 在這裡 throw 也只是丟掉幾百 byte,效益不對等。先保持架構簡單)
@@ -453,6 +463,43 @@ export default async function TenantAdminLayout({
             gap: space['3'],
           }}
         >
+          {isSuper && (
+            <Link
+              href="/admin/applications"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: space['2'],
+                color: colors.textSecondary,
+                textDecoration: 'none',
+                fontSize: fontSize.base,
+                transition: 'color 100ms',
+              }}
+            >
+              <span>📋 申請審核</span>
+              {pendingApps > 0 && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 20,
+                    height: 20,
+                    padding: '0 6px',
+                    background: '#dc2626',
+                    color: '#fff',
+                    borderRadius: 10,
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  {pendingApps}
+                </span>
+              )}
+            </Link>
+          )}
+
           <a
             href={`/${tenant.slug}`}
             target="_blank"

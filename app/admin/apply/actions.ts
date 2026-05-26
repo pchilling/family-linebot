@@ -36,7 +36,6 @@ export async function submitApplication(formData: FormData): Promise<ApplyError 
   const orderPrefix = String(formData.get('order_prefix') ?? '').trim().toUpperCase();
   const applicantName = String(formData.get('applicant_name') ?? '').trim();
   const applicantPhone = String(formData.get('applicant_phone') ?? '').trim();
-  const businessType = String(formData.get('business_type') ?? '').trim() || null;
   const applicationNotes = String(formData.get('application_notes') ?? '').trim() || null;
 
   if (!tenantName) return { error: '店名必填' };
@@ -102,7 +101,6 @@ export async function submitApplication(formData: FormData): Promise<ApplyError 
       status: 'pending',
       order_prefix: orderPrefix,
       applicant_phone: applicantPhone,
-      business_type: businessType,
       application_notes: applicationNotes,
     })
     .select('id, slug')
