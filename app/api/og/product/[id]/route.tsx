@@ -30,9 +30,24 @@ async function loadGoogleFont(family: string, text: string, weight = 700) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Debug 模式:?debug=1 → 把 error stack 倒給用戶看(否則 Vercel 吞成 500)
+  const debug = new URL(request.url).searchParams.get('debug') === '1';
+  try {
+    return await renderOg(params);
+  } catch (e) {
+    const msg = e instanceof Error ? `${e.message}\n\n${e.stack}` : String(e);
+    console.error('[og/product] render', msg);
+    if (debug) {
+      return new Response(msg, { status: 500, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+    }
+    return new Response('Internal error', { status: 500 });
+  }
+}
+
+async function renderOg(params: Promise<{ id: string }>) {
   const { id } = await params;
 
   // 拆 2 個 query 比 join 穩定(Supabase nested select FK 推不出時整個 null)
