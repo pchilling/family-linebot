@@ -290,21 +290,20 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             )}
           </div>
 
-          {/* 右欄:NEOP logo 白版 */}
+          {/* 右欄:NEOP logo 白版(右下,140 full opacity)*/}
           <div
             style={{
               display: 'flex',
-              alignItems: 'flex-start',
               flexShrink: 0,
-              opacity: 0.75,
+              alignSelf: 'flex-end',
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${origin}/brand/logo-mark-white.png`}
               alt=""
-              width={100}
-              height={100}
+              width={140}
+              height={140}
               style={{ display: 'block', objectFit: 'contain' }}
             />
           </div>
