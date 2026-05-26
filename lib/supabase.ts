@@ -38,12 +38,13 @@ export type TenantBySlug = {
   order_prefix: string;
   features: Record<string, unknown> | null;
   logo_url: string | null;
+  status: string;
 };
 
 export async function getTenantBySlug(slug: string): Promise<TenantBySlug | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, order_prefix, features, logo_url')
+    .select('id, slug, name, plan, order_prefix, features, logo_url, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error) return null;

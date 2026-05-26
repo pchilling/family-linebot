@@ -534,6 +534,43 @@ export default async function TenantAdminLayout({
           padding: `${space['8']}px ${space['10']}px ${space['12']}px`,
         }}
       >
+        {tenant.status === 'pending' && (
+          <div
+            style={{
+              marginBottom: space['6'],
+              padding: `${space['4']}px ${space['5']}px`,
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: 8,
+              color: '#78350f',
+              fontSize: fontSize.sm,
+              lineHeight: 1.6,
+            }}
+          >
+            <strong>⏳ 申請審核中</strong>
+            <br />
+            你可以先設定後台(商品 / 活動 / 設定),但**公開頁面尚未對客戶開啟**。
+            審核通過(平台會用你登記的手機聯繫)後,LINE Bot 與商店連結才會正常運作。
+          </div>
+        )}
+        {tenant.status === 'rejected' && (
+          <div
+            style={{
+              marginBottom: space['6'],
+              padding: `${space['4']}px ${space['5']}px`,
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: 8,
+              color: '#991b1b',
+              fontSize: fontSize.sm,
+              lineHeight: 1.6,
+            }}
+          >
+            <strong>❌ 申請未通過</strong>
+            <br />
+            若需重新申請或了解原因,請聯繫平台管理員。
+          </div>
+        )}
         {children}
       </main>
     </div>
