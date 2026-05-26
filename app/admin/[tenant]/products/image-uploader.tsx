@@ -219,7 +219,7 @@ export function ProductImageUploader({
               />
             </label>
             <span style={{ fontSize: 11, color: '#a1a1aa' }}>
-              3:4 直式(iPhone 4:3),輸出 600×800
+              iPhone 4:3 直式,輸出 600×800
             </span>
           </div>
         </div>
@@ -229,7 +229,7 @@ export function ProductImageUploader({
       {imgSrc && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 12, color: '#52525b' }}>
-            拖曳裁切框(鎖定 3:4 直式 = iPhone 4:3 直握原生)
+            拖曳裁切框(鎖定 iPhone 4:3 直式)
           </div>
           <div
             style={{

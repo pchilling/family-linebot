@@ -291,7 +291,7 @@ ${spinKeyframes}
                     alt={e.name}
                     style={{
                       width: '100%',
-                      aspectRatio: '4 / 5',
+                      aspectRatio: '3 / 4',
                       objectFit: 'cover',
                       display: 'block',
                     }}

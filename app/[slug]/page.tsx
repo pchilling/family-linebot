@@ -129,7 +129,7 @@ export default async function TenantHomePage({ params }: Props) {
                       className="product-img"
                       style={{
                         width: '100%',
-                        aspectRatio: '4 / 5',
+                        aspectRatio: '3 / 4',
                         objectFit: 'cover',
                         display: 'block',
                       }}
@@ -138,7 +138,7 @@ export default async function TenantHomePage({ params }: Props) {
                     <div
                       style={{
                         width: '100%',
-                        aspectRatio: '4 / 5',
+                        aspectRatio: '3 / 4',
                         background: '#f4f4f5',
                         display: 'flex',
                         alignItems: 'center',

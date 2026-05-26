@@ -250,7 +250,7 @@ function ProductImage({ src, alt }: { src: string | null; alt: string }) {
         alt={alt}
         style={{
           width: '100%',
-          aspectRatio: '4 / 5',
+          aspectRatio: '3 / 4',
           objectFit: 'cover',
           borderRadius: 8,
           display: 'block',
@@ -262,7 +262,7 @@ function ProductImage({ src, alt }: { src: string | null; alt: string }) {
   return (
     <div
       style={{
-        aspectRatio: '4 / 5',
+        aspectRatio: '3 / 4',
         background: '#f3f4f6',
         borderRadius: 8,
         display: 'flex',

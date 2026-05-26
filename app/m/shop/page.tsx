@@ -460,7 +460,7 @@ export default function ShopPage() {
                       alt={p.name}
                       style={{
                         width: '100%',
-                        aspectRatio: '4 / 5',
+                        aspectRatio: '3 / 4',
                         objectFit: 'cover',
                         display: 'block',
                       }}
@@ -468,7 +468,7 @@ export default function ShopPage() {
                   ) : (
                     <div style={{
                       width: '100%',
-                      aspectRatio: '4 / 5',
+                      aspectRatio: '3 / 4',
                       background: '#f4f4f5',
                       display: 'flex',
                       alignItems: 'center',

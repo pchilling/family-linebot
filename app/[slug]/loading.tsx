@@ -57,7 +57,7 @@ function ProductCard() {
       <div
         style={{
           width: '100%',
-          aspectRatio: '4 / 5',
+          aspectRatio: '3 / 4',
           background: '#e4e4e7',
           animation: 'skeleton-pulse 1.4s ease-in-out infinite',
         }}
