@@ -1,8 +1,56 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getUserAllowedTenants } from '@/lib/supabase';
+import { signOut } from '../actions';
 import { submitApplication } from './actions';
 import { colors, fontFamilySans, fontSize, fontWeight, radius, space } from '@/lib/admin-theme';
+
+// 注入 :focus / :hover state(inline style 表達不了)
+const styleInject = `
+.neop-input { transition: border-color 120ms, box-shadow 120ms; }
+.neop-input:focus {
+  border-color: ${colors.neopGreen};
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(5, 200, 120, 0.15);
+}
+.neop-cta {
+  transition: background 120ms, transform 80ms;
+}
+.neop-cta:hover { background: ${colors.neopGreenHover}; }
+.neop-cta:active { transform: scale(0.99); }
+.neop-prefix {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid ${colors.border};
+  border-radius: ${radius.md}px;
+  overflow: hidden;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.neop-prefix:focus-within {
+  border-color: ${colors.neopGreen};
+  box-shadow: 0 0 0 3px rgba(5, 200, 120, 0.15);
+}
+.neop-prefix > span {
+  padding: 12px 12px;
+  background: ${colors.bgSubtle};
+  color: ${colors.textMuted};
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 14px;
+  border-right: 1px solid ${colors.border};
+  display: flex;
+  align-items: center;
+}
+.neop-prefix > input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 12px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: ${colors.textPrimary};
+  background: transparent;
+}
+`;
 
 /**
  * /admin/apply — 新人(沒任何 tenant_members)填表開店。
@@ -25,10 +73,6 @@ export default async function ApplyPage({
 
   const sp = await searchParams;
   const err = sp.error;
-  const defaultName: string =
-    (user.user_metadata?.full_name as string | undefined) ??
-    (user.user_metadata?.name as string | undefined) ??
-    user.email.split('@')[0];
 
   return (
     <div
@@ -40,6 +84,7 @@ export default async function ApplyPage({
         padding: `${space['8']}px ${space['4']}px`,
       }}
     >
+      <style dangerouslySetInnerHTML={{ __html: styleInject }} />
       <main
         style={{
           maxWidth: 540,
@@ -52,41 +97,70 @@ export default async function ApplyPage({
         }}
       >
         <header style={{ marginBottom: space['6'] }}>
-          <div
-            style={{
-              fontSize: fontSize.xs,
-              color: colors.textMuted,
-              fontWeight: fontWeight.semibold,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              marginBottom: space['2'],
-            }}
-          >
-            NEO Stall · 申請開店
+          {/* Logo + wordmark */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: space['3'], marginBottom: space['5'] }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/logo-mark.png"
+              alt=""
+              width={36}
+              height={36}
+              style={{ display: 'block' }}
+            />
+            <span
+              style={{
+                fontSize: fontSize.base,
+                fontWeight: fontWeight.semibold,
+                color: colors.textPrimary,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Stall <span style={{ color: colors.textMuted, fontWeight: fontWeight.normal }}>by NEOP</span>
+            </span>
           </div>
           <h1 style={{ margin: 0, fontSize: fontSize['2xl'], fontWeight: fontWeight.semibold, letterSpacing: '-0.02em' }}>
             開一個自己的攤位
           </h1>
-          <p style={{ margin: `${space['2']}px 0 0`, color: colors.textMuted, fontSize: fontSize.base, lineHeight: 1.5 }}>
-            填表送出後可以**立刻進後台設定**(商品 / 活動 / 設定)。
+          <p style={{ margin: `${space['2']}px 0 0`, color: colors.textMuted, fontSize: fontSize.base, lineHeight: 1.6 }}>
+            送出後立即進入後台,可以開始建商品 / 活動。
             <br />
-            審核通過後公開頁面(LIFF / 公開商店)才會對客戶開啟。
+            公開頁面會在審核通過後對客戶開啟。
           </p>
         </header>
 
+        {/* 登入身分 — 純文字 + 登出 button */}
         <div
           style={{
             marginBottom: space['6'],
-            padding: `${space['3']}px ${space['4']}px`,
-            background: colors.bgBody,
-            border: `1px solid ${colors.borderSubtle}`,
-            borderRadius: radius.md,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: space['3'],
             fontSize: fontSize.sm,
-            color: colors.textSecondary,
-            lineHeight: 1.6,
+            color: colors.textMuted,
+            lineHeight: 1.5,
           }}
         >
-          登入身分:<strong style={{ color: colors.textPrimary }}>{user.email}</strong>
+          <span>
+            登入身分:<span style={{ color: colors.textPrimary, fontWeight: fontWeight.medium }}>{user.email}</span>
+          </span>
+          <form action={signOut}>
+            <button
+              type="submit"
+              style={{
+                background: 'none',
+                border: 0,
+                color: colors.textMuted,
+                cursor: 'pointer',
+                fontSize: fontSize.sm,
+                fontFamily: 'inherit',
+                textDecoration: 'underline',
+                padding: 0,
+              }}
+            >
+              登出
+            </button>
+          </form>
         </div>
 
         {err && (
@@ -109,50 +183,71 @@ export default async function ApplyPage({
         <form action={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: space['5'] }}>
           <Field label="店名" name="tenant_name" required placeholder="你的店家名稱" />
           <Field
-            label="網址識別 (slug)"
+            label="店鋪網址"
             name="tenant_slug"
             required
             placeholder="my-shop"
-            hint="3-20 字小寫英文 / 數字 / 連字號。URL 會長 /admin/my-shop。"
+            prefix="/"
+            hint="3-20 字小寫英文 / 數字 / 連字號。客戶會用這個網址逛你的店。"
           />
           <Field
             label="訂單編號前綴"
             name="order_prefix"
             required
             placeholder="SHP"
-            hint="2-5 個大寫英文。訂單編號會用這個開頭,平台內唯一。"
+            hint="例「SHP-202605-0001」。建議用 2-3 個英文字母代表你的店,平台內唯一。"
           />
-          <Field label="聯絡人姓名" name="applicant_name" required defaultValue={defaultName} />
+          <Field
+            label="聯絡人姓名"
+            name="applicant_name"
+            required
+            placeholder="例:陳小姐 / Peter Chen"
+          />
           <Field
             label="聯絡手機"
             name="applicant_phone"
             required
             type="tel"
             placeholder="09xx xxx xxx"
-            hint="審核時平台會用這支電話跟你聯繫。"
+            hint="僅用於審核時聯繫,不會給第三方。"
           />
           <FieldTextarea
             label="簡介(選填)"
             name="application_notes"
-            placeholder="兩三句話介紹你的業務,有助於審核更快通過。"
+            placeholder="例:我做韓國童裝代購,每月開一團 5-10 款,在 IG @kidsko 經營了 2 年..."
+            hint="寫得清楚審核會快很多。"
           />
 
           <button
             type="submit"
+            className="neop-cta"
             style={{
               marginTop: space['3'],
               padding: `${space['3']}px ${space['5']}px`,
-              background: colors.accent,
-              color: colors.textOnAccent,
+              background: colors.neopGreen,
+              color: '#fff',
               border: 0,
               borderRadius: radius.md,
               fontSize: fontSize.md,
               fontWeight: fontWeight.semibold,
               cursor: 'pointer',
+              fontFamily: 'inherit',
             }}
           >
             送出申請,立刻進後台
           </button>
+
+          <p
+            style={{
+              margin: 0,
+              textAlign: 'center',
+              fontSize: fontSize.xs,
+              color: colors.textMuted,
+              lineHeight: 1.6,
+            }}
+          >
+            審核通常在 24 小時內回覆 · 有問題會用 Email 通知
+          </p>
         </form>
       </main>
     </div>
@@ -177,6 +272,7 @@ function Field({
   placeholder,
   hint,
   defaultValue,
+  prefix,
 }: {
   label: string;
   name: string;
@@ -185,6 +281,7 @@ function Field({
   placeholder?: string;
   hint?: string;
   defaultValue?: string;
+  prefix?: string;
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: space['2'] }}>
@@ -192,24 +289,38 @@ function Field({
         {label}
         {required && <span style={{ color: colors.dangerText, marginLeft: 4 }}>*</span>}
       </span>
-      <input
-        name={name}
-        type={type ?? 'text'}
-        required={required}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        style={{
-          padding: `${space['3']}px ${space['3']}px`,
-          fontSize: fontSize.md,
-          border: `1px solid ${colors.border}`,
-          borderRadius: radius.md,
-          fontFamily: 'inherit',
-          color: colors.textPrimary,
-          background: colors.bgCard,
-          outline: 'none',
-          boxSizing: 'border-box',
-        }}
-      />
+      {prefix ? (
+        <div className="neop-prefix">
+          <span>{prefix}</span>
+          <input
+            name={name}
+            type={type ?? 'text'}
+            required={required}
+            defaultValue={defaultValue}
+            placeholder={placeholder}
+          />
+        </div>
+      ) : (
+        <input
+          className="neop-input"
+          name={name}
+          type={type ?? 'text'}
+          required={required}
+          defaultValue={defaultValue}
+          placeholder={placeholder}
+          style={{
+            padding: `${space['3']}px ${space['3']}px`,
+            fontSize: fontSize.md,
+            border: `1px solid ${colors.border}`,
+            borderRadius: radius.md,
+            fontFamily: 'inherit',
+            color: colors.textPrimary,
+            background: colors.bgCard,
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+      )}
       {hint && (
         <span style={{ fontSize: fontSize.xs, color: colors.textMuted, lineHeight: 1.5 }}>{hint}</span>
       )}
@@ -221,10 +332,12 @@ function FieldTextarea({
   label,
   name,
   placeholder,
+  hint,
 }: {
   label: string;
   name: string;
   placeholder?: string;
+  hint?: string;
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: space['2'] }}>
@@ -232,6 +345,7 @@ function FieldTextarea({
         {label}
       </span>
       <textarea
+        className="neop-input"
         name={name}
         placeholder={placeholder}
         rows={3}
@@ -248,6 +362,9 @@ function FieldTextarea({
           boxSizing: 'border-box',
         }}
       />
+      {hint && (
+        <span style={{ fontSize: fontSize.xs, color: colors.textMuted, lineHeight: 1.5 }}>{hint}</span>
+      )}
     </label>
   );
 }

@@ -261,11 +261,30 @@ export default async function TenantAdminLayout({
         <div style={{ padding: `${space['6']}px ${space['5']}px ${space['4']}px` }}>
           <div
             style={{
-              ...sectionLabel,
-              marginBottom: space['3'],
+              display: 'flex',
+              alignItems: 'center',
+              gap: space['2'],
+              marginBottom: space['4'],
             }}
           >
-            Stall Admin
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/logo-mark.png"
+              alt=""
+              width={28}
+              height={28}
+              style={{ display: 'block' }}
+            />
+            <span
+              style={{
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.semibold,
+                color: colors.textPrimary,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              NEOP
+            </span>
           </div>
           <div style={{ display: 'flex', gap: space['3'], alignItems: 'flex-start' }}>
             {tenant.logo_url ? (

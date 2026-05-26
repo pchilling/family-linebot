@@ -22,7 +22,7 @@ Logo 資產放 `public/brand/`:
 
 | 檔 | 用途 |
 |---|---|
-| `logo-mark.svg` | 方形 icon,sidebar / favicon / apply 頁標 |
+| `logo-mark.png` | 方形 icon,sidebar / favicon / apply 頁標 |
 | (未來)`wordmark.svg` | 「NEOP」文字 + icon 橫排 |
 
 **字 "NEOP" 不要包進 SVG path** — 用 HTML/CSS 顯示,字型可換、字距可調。

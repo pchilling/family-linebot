@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-25(Demo 成功 + 活動圖 / Flex Carousel / RWD / PWA 收尾)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-26(Phase 8 NEOP Logo Integration + Phase 7.11 自助申請開店)
 
 ---
 
@@ -756,6 +756,78 @@ Demo 後 3 合一回饋:「活動要圖,Rich Menu 回更生動」。
 **updateClass redirect 修**(`39011dd`):
 - 原本儲存後沒 banner 反饋,user 以為沒生效
 - 加 redirect ?saved=<id> → 綠 banner「✓ 已儲存」+ 自動展開該卡
+
+### Phase 7.11:自助申請開店流程 + Email 註冊(2026-05-26)
+
+從「Peter 手動 SQL 開帳號」進到「Google 登入或 email 註冊 → 自助申請 → 立刻進 pending 後台 → Peter 審核」。
+Phase A(Google OAuth)已先完成。
+
+**Phase A:Google OAuth 登入**(`96124f9`):
+- `lib/super-admin.ts`(新):`isSuperAdmin(email)` 用 env `SUPER_ADMIN_EMAILS`
+- `app/auth/callback/route.ts`(新):OAuth callback handler,exchange code → session
+- `signInWithGoogle` action + login page Google button
+- Supabase Auth Google provider + OAuth consent screen test users
+
+**Email/password 自助註冊**(`25fae1b`):
+- login page 加 tab(登入 / 註冊)
+- `signUp` action:`signUp` + emailRedirectTo /auth/callback
+- 密碼 ≥6 字校驗 + 註冊成功 banner
+
+**B.1:申請表單 + 自動建 tenant**(`e4caae8`):
+- SQL:`tenants.status` 加 `pending` / `rejected`,加 applicant_phone /
+  business_type / application_notes / rejection_reason / reviewed_by / reviewed_at
+- `getUserAllowedTenants` filter 加 `'pending'`(申請中也能進 admin)
+- `app/admin/page.tsx` 改:沒 tenant → redirect `/admin/apply`(不再 no_tenant_access)
+- `app/admin/apply/page.tsx` + `actions.ts`(新):
+  - 表單(店名 / slug / order_prefix / 聯絡 / 簡介)
+  - 送出 → 建 tenant `status='pending'` + platform_users + tenant_members(owner)+ default region
+  - redirect `/admin/{slug}` 立刻可用後台
+
+**B.2:Super admin 審核頁 + pending banner**(`6846102`):
+- `TenantBySlug.status` 加欄
+- `[tenant]/layout.tsx`:tenant.status='pending' → 黃 banner、'rejected' → 紅 banner
+- `app/admin/applications/page.tsx`(新):
+  - 只 super admin 看,撈所有 pending + rejected
+  - 顯示 email / 電話 / 簡介 / 申請時間
+  - 核准(active)/ 拒絕(寫 reason)/ 重新開啟 button
+- `app/admin/applications/actions.ts`(新):approve / reject / reopen
+- super admin sidebar 加「📋 申請審核」+ pending badge(`f4a21e3`)
+
+**UX 微調**(`f4a21e3`):
+- placeholder 通用化(不放真實 tenant 資訊)
+- 拿掉「業態」欄(沒用到,簡介涵蓋)
+
+### Phase 8:NEOP Logo Integration(2026-05-26)
+
+把平台 brand identity 從「Stall Admin」進化成「Stall by NEOP」+ 視覺色從 monochrome 改 neop-green。
+
+**Brand tokens 鋪底**(`86404ae`):
+- `lib/admin-theme.ts` colors 加 4 token:
+  - `neopGreen` #05C878(主色 / CTA)
+  - `neopGreenBg` #E6FAF1
+  - `neopGreenHover` #04A263
+  - `neopBlack` #0A0A0A
+- `docs/BRAND.md`(新):logo concept / color tokens / usage rules /
+  哪裡用 NEOP 哪裡不能(LIFF / tenant 公開頁不能露出)
+- `public/brand/.gitkeep`:預留資料夾
+
+**視覺改動 + apply UX overhaul**(commit 2):
+- `app/admin/apply/page.tsx`:
+  - 頂部 logo `<img src="/brand/logo-mark.svg" />` + "Stall by NEOP"
+  - 登入身分 box → 純文字 + 登出 button
+  - CTA 改 neopGreen + hover state(<style> 注入 CSS)
+  - input focus state:neopGreen border + ring
+  - slug 欄改「店鋪網址」+ `/` inline prefix(取代工程感的「slug」)
+  - 聯絡人姓名拿掉 defaultValue,改 placeholder
+  - 手機 hint「不會給第三方」降焦慮
+  - 簡介 placeholder 給具體範例
+  - CTA 下方加「審核通常 24 小時內回覆」
+- `app/admin/[tenant]/layout.tsx` sidebar 頂部:logo + "NEOP"
+- (待 user 丟 logo-mark.png 進 public/brand/ 才完全生效)
+
+不動:
+- 公開店 / LIFF 不露 NEOP(那是 tenant 品牌)
+- `app/icon.svg` 待 user 用同檔覆蓋
 
 ### Outstanding
 
