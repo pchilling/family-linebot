@@ -258,12 +258,14 @@ async function renderOg(params: Promise<{ id: string }>) {
             <div
               style={{
                 fontSize: 22,
-                fontWeight: 700,
                 letterSpacing: '0.25em',
                 textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'baseline',
               }}
             >
-              NEOP <span style={{ fontWeight: 300, marginLeft: 8 }}>STALL</span>
+              <span style={{ fontWeight: 700 }}>NEOP</span>
+              <span style={{ fontWeight: 300, marginLeft: 8 }}>STALL</span>
             </div>
           </div>
         </div>
