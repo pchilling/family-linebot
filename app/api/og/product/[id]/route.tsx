@@ -138,11 +138,11 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           background: '#0A0A0A',
         }}
       >
-        {/* 上半:4:5 圖完整顯示(1080×1350)+ 底部漸層柔接 */}
+        {/* 上半:3:4 圖完整顯示(1080×1440)+ 底部漸層柔接 */}
         <div
           style={{
             width: 1080,
-            height: 1350,
+            height: 1440,
             display: 'flex',
             background: '#1a1a1a',
             position: 'relative',
@@ -175,11 +175,11 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           />
         </div>
 
-        {/* 下半:1080×570 黑底資訊區 */}
+        {/* 下半:1080×480 黑底資訊區 */}
         <div
           style={{
             width: 1080,
-            height: 570,
+            height: 480,
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'flex-start',

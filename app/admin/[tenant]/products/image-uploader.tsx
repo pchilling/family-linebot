@@ -23,12 +23,13 @@ type Props = {
   currentImageUrl: string | null;
   /** 顯示名稱(用於 alt 等) */
   productName: string;
-  /** Override 預設比例。product/variant default 4:5,class default 16:9 */
+  /** Override 預設比例。product/variant default 3:4(iPhone 直式),class default 3:4 */
   aspect?: number;
 };
 
-const DEFAULT_PRODUCT_ASPECT = 4 / 5;
-const DEFAULT_CLASS_ASPECT = 4 / 5; // 直式,跟商品圖 / IG 貼文同比例
+// 3:4 直式 = iPhone 4:3 直握原生比例,拍完不用再裁
+const DEFAULT_PRODUCT_ASPECT = 3 / 4;
+const DEFAULT_CLASS_ASPECT = 3 / 4;
 
 export function ProductImageUploader({
   entity = 'product',
@@ -167,8 +168,8 @@ export function ProductImageUploader({
               src={currentImageUrl}
               alt={productName}
               style={{
-                width: 80,
-                height: 100, // 4:5 ratio
+                width: 75,
+                height: 100, // 3:4 ratio
                 borderRadius: 6,
                 objectFit: 'cover',
                 border: '1px solid #e4e4e7',
@@ -178,7 +179,7 @@ export function ProductImageUploader({
           ) : (
             <div
               style={{
-                width: 80,
+                width: 75,
                 height: 100,
                 borderRadius: 6,
                 background: '#f4f4f5',
@@ -218,7 +219,7 @@ export function ProductImageUploader({
               />
             </label>
             <span style={{ fontSize: 11, color: '#a1a1aa' }}>
-              4:5 直式,輸出 600×750
+              3:4 直式(iPhone 4:3),輸出 600×800
             </span>
           </div>
         </div>
@@ -228,7 +229,7 @@ export function ProductImageUploader({
       {imgSrc && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 12, color: '#52525b' }}>
-            拖曳裁切框(鎖定 4:5 直式)
+            拖曳裁切框(鎖定 3:4 直式 = iPhone 4:3 直握原生)
           </div>
           <div
             style={{
