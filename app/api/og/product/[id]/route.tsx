@@ -175,74 +175,73 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           />
         </div>
 
-        {/* 下半:1080×480 黑底資訊區 */}
+        {/* 下半:1080×480 黑底資訊區
+            結構:column(pill / 標題-logo row / 價格),logo 跟標題同一橫線 */}
         <div
           style={{
             width: 1080,
             height: 480,
             display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            padding: '48px 72px 72px',
+            flexDirection: 'column',
+            padding: '48px 72px 56px',
             color: '#ffffff',
-            gap: 32,
             background: '#0A0A0A',
             boxSizing: 'border-box',
           }}
         >
-          {/* 左欄:tenant pill + 標題 + 價格 */}
+          {/* Tenant pill — 透明邊框版(less corporate)*/}
+          {product.tenants && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: product.tenants.logo_url ? '6px 20px 6px 6px' : '8px 20px',
+                background: 'rgba(255,255,255,0.08)',
+                border: '1.5px solid rgba(5,200,120,0.6)',
+                borderRadius: 999,
+                marginBottom: 20,
+                alignSelf: 'flex-start',
+              }}
+            >
+              {product.tenants.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.tenants.logo_url}
+                  alt=""
+                  width={36}
+                  height={36}
+                  style={{
+                    borderRadius: 999,
+                    objectFit: 'cover',
+                    marginRight: 12,
+                  }}
+                />
+              )}
+              <span
+                style={{
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: '#ffffff',
+                  letterSpacing: '-0.01em',
+                  fontFamily: 'Noto Sans TC',
+                  lineHeight: 1,
+                }}
+              >
+                {product.tenants.name}
+              </span>
+            </div>
+          )}
+
+          {/* 標題 + logo 同一橫線 row */}
           <div
             style={{
               display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              minWidth: 0,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 32,
+              width: '100%',
             }}
           >
-            {/* Tenant pill — 透明邊框版(less corporate)*/}
-            {product.tenants && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: product.tenants.logo_url ? '6px 20px 6px 6px' : '8px 20px',
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1.5px solid rgba(5,200,120,0.6)',
-                  borderRadius: 999,
-                  marginBottom: 24,
-                  alignSelf: 'flex-start',
-                }}
-              >
-                {product.tenants.logo_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={product.tenants.logo_url}
-                    alt=""
-                    width={36}
-                    height={36}
-                    style={{
-                      borderRadius: 999,
-                      objectFit: 'cover',
-                      marginRight: 12,
-                    }}
-                  />
-                )}
-                <span
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: '#ffffff',
-                    letterSpacing: '-0.01em',
-                    fontFamily: 'Noto Sans TC',
-                    lineHeight: 1,
-                  }}
-                >
-                  {product.tenants.name}
-                </span>
-              </div>
-            )}
-
             <div
               style={{
                 fontSize: 64,
@@ -251,62 +250,54 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                 letterSpacing: '-0.02em',
                 fontFamily: 'Noto Sans TC',
                 display: 'flex',
+                flex: 1,
+                minWidth: 0,
               }}
             >
               {product.name}
             </div>
-
-            {product.price_twd !== null && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginTop: 20,
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: 56,
-                  lineHeight: 1,
-                  color: '#05C878',
-                }}
-              >
-                <span
-                  style={{
-                    fontWeight: 400,
-                    opacity: 0.85,
-                    marginRight: 12,
-                    letterSpacing: '0.02em',
-                  }}
-                >
-                  NT$
-                </span>
-                <span
-                  style={{
-                    fontWeight: 700,
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  {product.price_twd.toLocaleString()}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* 右欄:NEOP logo 白版(右下,140 full opacity)*/}
-          <div
-            style={{
-              display: 'flex',
-              flexShrink: 0,
-              alignSelf: 'flex-end',
-            }}
-          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${origin}/brand/logo-mark-white.png`}
               alt=""
               width={140}
               height={140}
-              style={{ display: 'block', objectFit: 'contain' }}
+              style={{ display: 'block', objectFit: 'contain', flexShrink: 0 }}
             />
           </div>
+
+          {product.price_twd !== null && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                marginTop: 20,
+                fontFamily: 'JetBrains Mono',
+                fontSize: 56,
+                lineHeight: 1,
+                color: '#05C878',
+              }}
+            >
+              <span
+                style={{
+                  fontWeight: 400,
+                  opacity: 0.85,
+                  marginRight: 12,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                NT$
+              </span>
+              <span
+                style={{
+                  fontWeight: 700,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {product.price_twd.toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
 
       </div>
