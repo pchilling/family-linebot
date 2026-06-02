@@ -200,14 +200,16 @@ export function VariantSelector({
                     }}
                   >
                     <span>NT$ {v.price_twd.toLocaleString()}</span>
-                    <span
-                      style={{
-                        color: variantInStock ? '#10b981' : '#ef4444',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      {variantInStock ? `剩 ${v.stock} 件` : '售完'}
-                    </span>
+                    {!variantInStock && (
+                      <span
+                        style={{
+                          color: '#ef4444',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        售完
+                      </span>
+                    )}
                   </span>
                 </label>
               );
@@ -216,36 +218,87 @@ export function VariantSelector({
 
           {selected && (
             <>
-              {/* Tier 表(量大優惠)— Phase 9.5 */}
+              {/* Tier pills 可點(量大優惠)— Phase 9.5 / Option A */}
               {tiers.length > 0 && (
-                <div
-                  style={{
-                    marginBottom: '1rem',
-                    padding: '0.75rem 1rem',
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    borderRadius: 6,
-                    fontSize: '0.8125rem',
-                  }}
-                >
-                  <div style={{ color: '#15803d', fontWeight: 600, marginBottom: 6 }}>
-                    💡 量大優惠
+                <div style={{ marginBottom: '1rem' }}>
+                  <div
+                    style={{
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: '#15803d',
+                      marginBottom: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    ⚡ 一次買多更便宜
+                    {(() => {
+                      // 找下一個還沒達到的 tier,提示「再買 N 件省更多」
+                      const next = tiers.find((t) => qty < t.min_qty);
+                      if (!next) return null;
+                      const diff = next.min_qty - qty;
+                      return (
+                        <span style={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem' }}>
+                          · 再買 {diff} 件 → NT$ {next.price_twd.toLocaleString()}/件
+                        </span>
+                      );
+                    })()}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, color: '#166534' }}>
-                    <div>1+:NT$ {basePrice.toLocaleString()} / 件</div>
-                    {tiers.map((t) => (
-                      <div
-                        key={t.min_qty}
-                        style={{
-                          fontWeight: qty >= t.min_qty ? 700 : 400,
-                        }}
-                      >
-                        {t.min_qty}+:NT$ {t.price_twd.toLocaleString()} / 件
-                        {qty >= t.min_qty && (
-                          <span style={{ marginLeft: 8, fontSize: 11, color: '#16a34a' }}>✓ 已套用</span>
-                        )}
-                      </div>
-                    ))}
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      overflowX: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      paddingBottom: 4,
+                    }}
+                  >
+                    {tiers.map((t) => {
+                      const isActive = qty >= t.min_qty && (effectivePrice === t.price_twd);
+                      const saving = basePrice - t.price_twd;
+                      return (
+                        <button
+                          key={t.min_qty}
+                          type="button"
+                          onClick={() => setQty(Math.min(t.min_qty, maxQty || t.min_qty))}
+                          style={{
+                            flexShrink: 0,
+                            minWidth: 100,
+                            padding: '10px 14px',
+                            background: isActive ? '#05C878' : '#fff',
+                            color: isActive ? '#fff' : '#15803d',
+                            border: `1.5px solid ${isActive ? '#05C878' : '#bbf7d0'}`,
+                            borderRadius: 10,
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 2,
+                            transition: 'background 0.15s, border-color 0.15s',
+                          }}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 700 }}>
+                            {t.min_qty}+ 件
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-geist-mono), monospace' }}>
+                            NT$ {t.price_twd.toLocaleString()}
+                          </span>
+                          {saving > 0 && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: isActive ? 'rgba(255,255,255,0.85)' : '#16a34a',
+                              }}
+                            >
+                              {isActive ? '✓ 已套用' : `省 NT$ ${saving.toLocaleString()}/件`}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
