@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useCart } from '../../cart-state';
 
 // 本地 type 避免 client component 從 server-only module(supabaseAdmin)拉 runtime
@@ -17,6 +17,7 @@ type Variant = {
 
 type TierLite = { min_qty: number; price_twd: number };
 type MediaItem = { type: 'image' | 'video'; url: string };
+type SaleInfo = { price: number; startAt: string; endAt: string };
 
 type Props = {
   variants: Variant[];
@@ -29,6 +30,7 @@ type Props = {
   productImageUrl: string | null;
   productMedia?: MediaItem[];
   tiers?: TierLite[]; // 已 min_qty asc 排序
+  sale?: SaleInfo | null; // Phase 9.9:限時優惠
 };
 
 function pickTierPrice(tiers: TierLite[], qty: number, base: number): number {
@@ -38,6 +40,18 @@ function pickTierPrice(tiers: TierLite[], qty: number, base: number): number {
     else break;
   }
   return pick;
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '已結束';
+  const totalSec = Math.floor(ms / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hrs = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (days > 0) return `${days} 天 ${hrs} 小時 ${mins} 分`;
+  if (hrs > 0) return `${hrs} 小時 ${mins} 分 ${secs} 秒`;
+  return `${mins} 分 ${secs} 秒`;
 }
 
 /**
@@ -60,6 +74,7 @@ export function VariantSelector({
   productImageUrl,
   productMedia = [],
   tiers = [],
+  sale = null,
 }: Props) {
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
   const [selectedId, setSelectedId] = useState<string>(firstInStock?.id ?? '');
@@ -77,9 +92,22 @@ export function VariantSelector({
   const selectedInStock = (selected?.stock ?? 0) > 0;
   const maxQty = selected?.stock ?? 0;
 
-  // 即時算 tier 單價
+  // Phase 9.9:sale 倒數 + 是否生效
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!sale) return;
+    const tick = () => setNow(Date.now());
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [sale]);
+  const saleStart = sale ? new Date(sale.startAt).getTime() : 0;
+  const saleEnd = sale ? new Date(sale.endAt).getTime() : 0;
+  const saleActive = !!sale && now >= saleStart && now < saleEnd;
+  const saleCountdown = saleActive ? formatCountdown(saleEnd - now) : null;
+
+  // 算單價:sale 生效 → 用 sale 通殺;否則 tier
   const basePrice = selected?.price_twd ?? 0;
-  const effectivePrice = pickTierPrice(tiers, qty, basePrice);
+  const effectivePrice = saleActive ? sale!.price : pickTierPrice(tiers, qty, basePrice);
   const savedPerUnit = basePrice - effectivePrice;
   const totalPrice = effectivePrice * qty;
 
@@ -228,8 +256,47 @@ export function VariantSelector({
 
           {selected && (
             <>
-              {/* Tier pills 可點(量大優惠)— Phase 9.5 / Option A */}
-              {tiers.length > 0 && (
+              {/* Phase 9.9:Sale banner + 倒數 */}
+              {saleActive && (
+                <div
+                  style={{
+                    marginBottom: '1rem',
+                    padding: '0.875rem 1rem',
+                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                    border: '1px solid #fecaca',
+                    borderRadius: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626' }}>
+                      🔥 限時優惠
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: '#9ca3af',
+                        textDecoration: 'line-through',
+                      }}
+                    >
+                      原價 NT$ {basePrice.toLocaleString()}
+                    </span>
+                    <span style={{ fontSize: 20, fontWeight: 700, color: '#dc2626' }}>
+                      NT$ {sale!.price.toLocaleString()}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#991b1b' }}>
+                    ⏰ 剩餘 <strong>{saleCountdown}</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Tier pills 可點(量大優惠)— sale 生效時暫停 */}
+              {!saleActive && tiers.length > 0 && (
                 <div style={{ marginBottom: '1rem' }}>
                   <div
                     style={{

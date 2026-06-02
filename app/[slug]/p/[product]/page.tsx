@@ -99,6 +99,15 @@ export default async function ProductDetailPage({ params }: Props) {
         productImageUrl={item.image_url}
         productMedia={item.media}
         tiers={tiers.map((t) => ({ min_qty: t.min_qty, price_twd: t.price_twd }))}
+        sale={
+          item.sale_price_twd !== null && item.sale_start_at && item.sale_end_at
+            ? {
+                price: item.sale_price_twd,
+                startAt: item.sale_start_at,
+                endAt: item.sale_end_at,
+              }
+            : null
+        }
       />
     </div>
   );

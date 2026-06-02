@@ -9,6 +9,7 @@ import {
   deleteVariant,
   updatePriceTier,
   updateProduct,
+  updateProductSale,
   updateVariant,
 } from '../../actions';
 import { ProductImageUploader } from './image-uploader';
@@ -39,6 +40,9 @@ type Product = {
   stock: number;
   image_url: string | null;
   media: MediaItem[];
+  sale_price_twd: number | null;
+  sale_start_at: string | null;
+  sale_end_at: string | null;
   category: string | null;
   status: string;
   product_variants: Variant[];
@@ -62,7 +66,7 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, category, status,
+      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_price_twd, sale_start_at, sale_end_at, category, status,
        product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
     )
     .eq('tenant_id', tenantId)
@@ -91,6 +95,13 @@ const c = {
 
 function statusLabel(s: string): string {
   return ({ active: '上架', inactive: '暫停', discontinued: '下架' }[s]) ?? s;
+}
+
+// ISO 8601 → 'YYYY-MM-DDTHH:MM' (datetime-local input 用,Asia/Taipei)
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const tw = new Date(d.getTime() + 8 * 3600 * 1000);
+  return `${tw.getUTCFullYear()}-${String(tw.getUTCMonth() + 1).padStart(2, '0')}-${String(tw.getUTCDate()).padStart(2, '0')}T${String(tw.getUTCHours()).padStart(2, '0')}:${String(tw.getUTCMinutes()).padStart(2, '0')}`;
 }
 function statusColor(s: string): string {
   return ({ active: c.success, inactive: c.warning, discontinued: c.textDisabled }[s]) ?? c.textMuted;
@@ -413,6 +424,77 @@ details[open] .chev { transform: rotate(90deg); }
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
                       <SubmitButton pendingText="儲存中…">儲存基本資料</SubmitButton>
                     </div>
+                  </form>
+                </section>
+
+                {/* 限時優惠 — Phase 9.9(2026-06-03)*/}
+                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
+                  <div style={sectionTitle}>🔥 限時優惠</div>
+                  <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
+                    生效期間用特價通殺(分階暫停)。清空特價 = 取消優惠。
+                    {p.sale_price_twd !== null && p.sale_start_at && p.sale_end_at && (() => {
+                      const now = new Date();
+                      const start = new Date(p.sale_start_at);
+                      const end = new Date(p.sale_end_at);
+                      const active = now >= start && now < end;
+                      const future = now < start;
+                      return (
+                        <>
+                          <br />
+                          <span
+                            style={{
+                              color: active ? '#dc2626' : future ? '#0070f3' : '#a1a1aa',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {active
+                              ? `✓ 生效中(到 ${end.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })})`
+                              : future
+                                ? `⏰ 排程中(${start.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })} 起)`
+                                : '⏹ 已過期'}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </p>
+                  <form
+                    action={updateProductSale}
+                    style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) auto', gap: 8, alignItems: 'end' }}
+                  >
+                    <input type="hidden" name="product_id" value={p.id} />
+                    <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                    <label style={label}>
+                      <span style={labelText}>特價</span>
+                      <input
+                        name="sale_price_twd"
+                        type="number"
+                        min="0"
+                        defaultValue={p.sale_price_twd ?? ''}
+                        style={input}
+                        placeholder="例 399"
+                      />
+                    </label>
+                    <label style={label}>
+                      <span style={labelText}>開始</span>
+                      <input
+                        name="sale_start_at"
+                        type="datetime-local"
+                        defaultValue={
+                          p.sale_start_at ? toLocalInput(p.sale_start_at) : ''
+                        }
+                        style={input}
+                      />
+                    </label>
+                    <label style={label}>
+                      <span style={labelText}>結束</span>
+                      <input
+                        name="sale_end_at"
+                        type="datetime-local"
+                        defaultValue={p.sale_end_at ? toLocalInput(p.sale_end_at) : ''}
+                        style={input}
+                      />
+                    </label>
+                    <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
                   </form>
                 </section>
 

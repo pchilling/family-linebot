@@ -113,7 +113,36 @@ export default async function TenantHomePage({ params }: Props) {
                   color: 'inherit',
                 }}
               >
-                <div style={{ overflow: 'hidden' }}>
+                <div style={{ overflow: 'hidden', position: 'relative' }}>
+                  {/* Phase 9.9:sale badge 在縮圖左上 */}
+                  {(() => {
+                    const now = new Date();
+                    return (
+                      p.sale_price_twd !== null &&
+                      p.sale_start_at &&
+                      p.sale_end_at &&
+                      now >= new Date(p.sale_start_at) &&
+                      now < new Date(p.sale_end_at)
+                    );
+                  })() && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 8,
+                        padding: '4px 10px',
+                        background: '#dc2626',
+                        color: '#fff',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        zIndex: 1,
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                      }}
+                    >
+                      🔥 限時優惠
+                    </div>
+                  )}
                   {(() => {
                     // Phase 9.6:列表縮圖優先用 media 第一張 image,fallback image_url
                     const firstImage = (p.media ?? []).find((m) => m.type === 'image');

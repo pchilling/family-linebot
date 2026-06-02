@@ -1005,3 +1005,10 @@ alter table products add column if not exists media jsonb default '[]'::jsonb;
 
 -- Phase 9.8:攤位 banner 多媒體
 alter table tenants add column if not exists banners jsonb default '[]'::jsonb;
+
+
+-- Phase 9.9:商品限時優惠(2026-06-03)
+-- sale_price_twd 有設 + now 在 start/end 之間 → 套特價(tier 暫停)
+alter table products add column if not exists sale_price_twd int check (sale_price_twd >= 0);
+alter table products add column if not exists sale_start_at timestamptz;
+alter table products add column if not exists sale_end_at timestamptz;

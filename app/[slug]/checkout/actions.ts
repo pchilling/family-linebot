@@ -102,8 +102,8 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     return { ok: false, error: '建立訂單失敗' };
   }
 
-  // Phase 9.5:結帳時用 tier 重算每個 line 的單價
-  // 同一 product_id 的 qty 加總後找 tier(整單 30 個算 tier,不分變體)
+  // Phase 9.5/9.9:結帳時用 sale + tier 重算每個 line 的單價
+  // 優先級:sale 生效 → sale 通殺;否則 tier(以同 product_id 整單 qty 算)
   const qtyByProduct = new Map<string, number>();
   for (const item of cartItems) {
     const v = variantMap.get(item.variantId);
@@ -112,6 +112,21 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   }
 
   const productIds = Array.from(qtyByProduct.keys());
+
+  // 撈 product 的 sale info(server-side 真實檢查時間)
+  const { data: prodSaleData } = await supabaseAdmin
+    .from('products')
+    .select('id, sale_price_twd, sale_start_at, sale_end_at')
+    .in('id', productIds);
+  const saleByProduct = new Map<string, { price: number | null; start: string | null; end: string | null }>();
+  for (const row of (prodSaleData as { id: string; sale_price_twd: number | null; sale_start_at: string | null; sale_end_at: string | null }[] | null) ?? []) {
+    saleByProduct.set(row.id, {
+      price: row.sale_price_twd,
+      start: row.sale_start_at,
+      end: row.sale_end_at,
+    });
+  }
+
   const tierByProduct = new Map<string, { min_qty: number; price_twd: number }[]>();
   await Promise.all(
     productIds.map(async (pid) => {
@@ -123,11 +138,26 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     }),
   );
 
+  const now = new Date();
+
   const itemsToInsert = cartItems.map((item) => {
     const v = variantMap.get(item.variantId)!;
-    const totalProductQty = qtyByProduct.get(v.product_id) ?? item.qty;
-    const tiers = tierByProduct.get(v.product_id) ?? [];
-    const effective = pickPriceFromTiers(tiers, totalProductQty, v.price_twd);
+    const sale = saleByProduct.get(v.product_id);
+    const saleActive =
+      !!sale &&
+      sale.price !== null &&
+      sale.start &&
+      sale.end &&
+      now >= new Date(sale.start) &&
+      now < new Date(sale.end);
+    let effective: number;
+    if (saleActive) {
+      effective = sale!.price!;
+    } else {
+      const totalProductQty = qtyByProduct.get(v.product_id) ?? item.qty;
+      const tiers = tierByProduct.get(v.product_id) ?? [];
+      effective = pickPriceFromTiers(tiers, totalProductQty, v.price_twd);
+    }
     return {
       tenant_id: tenant.id,
       order_id: (orderRow as { id: string }).id,

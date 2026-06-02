@@ -465,6 +465,35 @@ export async function updatePriceTier(formData: FormData) {
   revalidateProductRoutes(formData);
 }
 
+// ====================
+// Phase 9.9(2026-06-03):商品限時優惠
+// ====================
+
+/**
+ * 設特價 + 起 / 迄。空字串清空(取消優惠)。
+ * datetime-local format 'YYYY-MM-DDTHH:MM' 加 +08:00 → ISO timestamptz
+ */
+export async function updateProductSale(formData: FormData) {
+  const id = String(formData.get('product_id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const priceStr = String(formData.get('sale_price_twd') || '').trim();
+  const startStr = String(formData.get('sale_start_at') || '').trim();
+  const endStr = String(formData.get('sale_end_at') || '').trim();
+
+  const sale_price_twd = priceStr ? Number(priceStr) : null;
+  const sale_start_at = startStr ? toIsoTaipei(startStr) : null;
+  const sale_end_at = endStr ? toIsoTaipei(endStr) : null;
+
+  await supabaseAdmin
+    .from('products')
+    .update({ sale_price_twd, sale_start_at, sale_end_at })
+    .eq('id', id);
+  revalidateProductRoutes(formData);
+  if (slug) {
+    redirect(`/admin/${slug}/products?saved=${id}#product-${id}`);
+  }
+}
+
 export async function deletePriceTier(formData: FormData) {
   const id = String(formData.get('id'));
   await supabaseAdmin.from('product_price_tiers').delete().eq('id', id);
