@@ -492,56 +492,71 @@ async function setProductMedia(productId: string, media: MediaItem[]) {
 }
 
 /**
+ * Media 動作後 redirect 回 products 頁,?saved=<id>#product-<id> 讓 details 保持展開 + 滾到該商品。
+ */
+function mediaRedirect(slug: string, productId: string) {
+  if (slug) {
+    redirect(`/admin/${slug}/products?saved=${productId}#product-${productId}`);
+  }
+}
+
+/**
  * 追加 image / video URL 到 product.media 陣列尾端
  */
 export async function addProductMedia(formData: FormData): Promise<void> {
   const product_id = String(formData.get('product_id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
   const type = String(formData.get('type'));
   const url = String(formData.get('url') ?? '').trim();
-  if (!url) {
+  if (!url || (type !== 'image' && type !== 'video')) {
     revalidateProductRoutes(formData);
-    return;
-  }
-  if (type !== 'image' && type !== 'video') {
-    revalidateProductRoutes(formData);
+    mediaRedirect(slug, product_id);
     return;
   }
   const current = await getProductMedia(product_id);
   await setProductMedia(product_id, [...current, { type, url }]);
   revalidateProductRoutes(formData);
+  mediaRedirect(slug, product_id);
 }
 
 export async function removeProductMedia(formData: FormData): Promise<void> {
   const product_id = String(formData.get('product_id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
   const index = Number(formData.get('index'));
   if (!Number.isFinite(index)) {
     revalidateProductRoutes(formData);
+    mediaRedirect(slug, product_id);
     return;
   }
   const current = await getProductMedia(product_id);
   const next = current.filter((_, i) => i !== index);
   await setProductMedia(product_id, next);
   revalidateProductRoutes(formData);
+  mediaRedirect(slug, product_id);
 }
 
 export async function reorderProductMedia(formData: FormData): Promise<void> {
   const product_id = String(formData.get('product_id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
   const index = Number(formData.get('index'));
   const direction = String(formData.get('direction')); // 'up' | 'down'
   const current = await getProductMedia(product_id);
   if (!Number.isFinite(index) || index < 0 || index >= current.length) {
     revalidateProductRoutes(formData);
+    mediaRedirect(slug, product_id);
     return;
   }
   const targetIdx = direction === 'up' ? index - 1 : index + 1;
   if (targetIdx < 0 || targetIdx >= current.length) {
     revalidateProductRoutes(formData);
+    mediaRedirect(slug, product_id);
     return;
   }
   const next = [...current];
   [next[index], next[targetIdx]] = [next[targetIdx], next[index]];
   await setProductMedia(product_id, next);
   revalidateProductRoutes(formData);
+  mediaRedirect(slug, product_id);
 }
 
 // ====================
