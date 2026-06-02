@@ -375,25 +375,34 @@ export type ProductPublic = {
   media: MediaItem[]; // Phase 9.6:列表縮圖優先用 media[0] (image),fallback image_url
   category: string | null;
   min_price_twd: number; // 該 product 所有 active variant 的最低價(展示用)
-  // Phase 9.9:限時優惠
-  sale_price_twd: number | null;
+  // Phase 9.9 v2:限時優惠用 % off(每變體比例縮)
+  sale_discount_pct: number | null;
   sale_start_at: string | null;
   sale_end_at: string | null;
 };
 
 /**
- * 算特價是否現在生效。
- * 給定 product 的 sale 三欄 + (可選 now,test 用),回 boolean。
+ * 算特價是否現在生效(Phase 9.9 v2:用 sale_discount_pct)
  */
 export function isSaleActive(
-  p: { sale_price_twd: number | null; sale_start_at: string | null; sale_end_at: string | null },
+  p: { sale_discount_pct: number | null; sale_start_at: string | null; sale_end_at: string | null },
   now: Date = new Date(),
 ): boolean {
-  if (p.sale_price_twd === null || p.sale_price_twd === undefined) return false;
+  if (p.sale_discount_pct === null || p.sale_discount_pct === undefined) return false;
+  if (p.sale_discount_pct <= 0) return false;
   if (!p.sale_start_at || !p.sale_end_at) return false;
   const start = new Date(p.sale_start_at);
   const end = new Date(p.sale_end_at);
   return now >= start && now < end;
+}
+
+/**
+ * 套 sale 折扣到單價(整數,四捨五入)。pct 在 [0, 100] 內。
+ */
+export function applySaleDiscount(basePrice: number, pct: number): number {
+  if (pct <= 0) return basePrice;
+  if (pct >= 100) return 0;
+  return Math.round((basePrice * (100 - pct)) / 100);
 }
 
 /**
@@ -403,7 +412,7 @@ export function isSaleActive(
 export async function getActiveProducts(tenantId: string): Promise<ProductPublic[]> {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, slug, name, description, image_url, media, category, sale_price_twd, sale_start_at, sale_end_at, product_variants(price_twd, status)')
+    .select('id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(price_twd, status)')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -419,7 +428,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
     image_url: string | null;
     media: MediaItem[] | null;
     category: string | null;
-    sale_price_twd: number | null;
+    sale_discount_pct: number | null;
     sale_start_at: string | null;
     sale_end_at: string | null;
     product_variants: { price_twd: number; status: string }[] | null;
@@ -436,7 +445,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
       media: p.media ?? [],
       category: p.category,
       min_price_twd: min,
-      sale_price_twd: p.sale_price_twd ?? null,
+      sale_discount_pct: p.sale_discount_pct ?? null,
       sale_start_at: p.sale_start_at ?? null,
       sale_end_at: p.sale_end_at ?? null,
     };
@@ -467,8 +476,8 @@ export type ProductDetail = {
   media: MediaItem[]; // Phase 9.6:多媒體 image/video,empty 時 fallback image_url
   category: string | null;
   variants: VariantPublic[]; // 只含 active variants
-  // Phase 9.9:限時優惠
-  sale_price_twd: number | null;
+  // Phase 9.9 v2:限時優惠 % off
+  sale_discount_pct: number | null;
   sale_start_at: string | null;
   sale_end_at: string | null;
 };
@@ -482,7 +491,7 @@ export async function getProductBySlug(
   slugOrId: string,
 ): Promise<ProductDetail | null> {
   const cols =
-    'id, slug, name, description, image_url, media, category, sale_price_twd, sale_start_at, sale_end_at, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)';
+    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)';
   // 先試 slug
   let { data } = await supabaseAdmin
     .from('products')
@@ -513,7 +522,7 @@ export async function getProductBySlug(
     image_url: string | null;
     media: MediaItem[] | null;
     category: string | null;
-    sale_price_twd: number | null;
+    sale_discount_pct: number | null;
     sale_start_at: string | null;
     sale_end_at: string | null;
     product_variants: VariantPublic[] | null;
@@ -529,7 +538,7 @@ export async function getProductBySlug(
     media: row.media ?? [],
     category: row.category,
     variants,
-    sale_price_twd: row.sale_price_twd ?? null,
+    sale_discount_pct: row.sale_discount_pct ?? null,
     sale_start_at: row.sale_start_at ?? null,
     sale_end_at: row.sale_end_at ?? null,
   };

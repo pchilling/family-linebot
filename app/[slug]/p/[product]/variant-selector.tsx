@@ -17,7 +17,7 @@ type Variant = {
 
 type TierLite = { min_qty: number; price_twd: number };
 type MediaItem = { type: 'image' | 'video'; url: string };
-type SaleInfo = { price: number; startAt: string; endAt: string };
+type SaleInfo = { discountPct: number; startAt: string; endAt: string };
 
 type Props = {
   variants: Variant[];
@@ -105,9 +105,12 @@ export function VariantSelector({
   const saleActive = !!sale && now >= saleStart && now < saleEnd;
   const saleCountdown = saleActive ? formatCountdown(saleEnd - now) : null;
 
-  // 算單價:sale 生效 → 用 sale 通殺;否則 tier
+  // 算單價:sale 生效 → 用 % off 比例縮;否則 tier
   const basePrice = selected?.price_twd ?? 0;
-  const effectivePrice = saleActive ? sale!.price : pickTierPrice(tiers, qty, basePrice);
+  const saleUnitPrice = saleActive
+    ? Math.round((basePrice * (100 - sale!.discountPct)) / 100)
+    : basePrice;
+  const effectivePrice = saleActive ? saleUnitPrice : pickTierPrice(tiers, qty, basePrice);
   const savedPerUnit = basePrice - effectivePrice;
   const totalPrice = effectivePrice * qty;
 
@@ -272,7 +275,7 @@ export function VariantSelector({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626' }}>
-                      🔥 限時優惠
+                      🔥 限時 {sale!.discountPct}% off(全變體)
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -286,7 +289,7 @@ export function VariantSelector({
                       原價 NT$ {basePrice.toLocaleString()}
                     </span>
                     <span style={{ fontSize: 20, fontWeight: 700, color: '#dc2626' }}>
-                      NT$ {sale!.price.toLocaleString()}
+                      NT$ {saleUnitPrice.toLocaleString()}
                     </span>
                   </div>
                   <div style={{ fontSize: 12, color: '#991b1b' }}>

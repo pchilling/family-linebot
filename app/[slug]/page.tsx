@@ -114,17 +114,18 @@ export default async function TenantHomePage({ params }: Props) {
                 }}
               >
                 <div style={{ overflow: 'hidden', position: 'relative' }}>
-                  {/* Phase 9.9:sale badge 在縮圖左上 */}
+                  {/* Phase 9.9 v2:sale badge 顯示 % off 在縮圖左上 */}
                   {(() => {
                     const now = new Date();
-                    return (
-                      p.sale_price_twd !== null &&
+                    const active =
+                      p.sale_discount_pct !== null &&
+                      p.sale_discount_pct > 0 &&
                       p.sale_start_at &&
                       p.sale_end_at &&
                       now >= new Date(p.sale_start_at) &&
-                      now < new Date(p.sale_end_at)
-                    );
-                  })() && (
+                      now < new Date(p.sale_end_at);
+                    return active ? p.sale_discount_pct : null;
+                  })() !== null && (
                     <div
                       style={{
                         position: 'absolute',
@@ -140,7 +141,7 @@ export default async function TenantHomePage({ params }: Props) {
                         boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
                       }}
                     >
-                      🔥 限時優惠
+                      🔥 {p.sale_discount_pct}% off
                     </div>
                   )}
                   {(() => {

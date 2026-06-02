@@ -40,7 +40,7 @@ type Product = {
   stock: number;
   image_url: string | null;
   media: MediaItem[];
-  sale_price_twd: number | null;
+  sale_discount_pct: number | null;
   sale_start_at: string | null;
   sale_end_at: string | null;
   category: string | null;
@@ -66,7 +66,7 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_price_twd, sale_start_at, sale_end_at, category, status,
+      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, category, status,
        product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
     )
     .eq('tenant_id', tenantId)
@@ -427,12 +427,13 @@ details[open] .chev { transform: rotate(90deg); }
                   </form>
                 </section>
 
-                {/* 限時優惠 — Phase 9.9(2026-06-03)*/}
+                {/* 限時優惠 — Phase 9.9 v2(2026-06-03):用 % off 折扣 */}
                 <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>🔥 限時優惠</div>
+                  <div style={sectionTitle}>🔥 限時優惠(全變體 % off)</div>
                   <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
-                    生效期間用特價通殺(分階暫停)。清空特價 = 取消優惠。
-                    {p.sale_price_twd !== null && p.sale_start_at && p.sale_end_at && (() => {
+                    輸入折扣 % off(例 20 = 20% off / 8 折)。生效時所有變體比例縮(原價 × (100−pct) /100)。
+                    分階暫停。清空 % = 取消優惠。
+                    {p.sale_discount_pct !== null && p.sale_start_at && p.sale_end_at && (() => {
                       const now = new Date();
                       const start = new Date(p.sale_start_at);
                       const end = new Date(p.sale_end_at);
@@ -448,9 +449,9 @@ details[open] .chev { transform: rotate(90deg); }
                             }}
                           >
                             {active
-                              ? `✓ 生效中(到 ${end.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })})`
+                              ? `✓ ${p.sale_discount_pct}% off 生效中(到 ${end.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })})`
                               : future
-                                ? `⏰ 排程中(${start.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })} 起)`
+                                ? `⏰ ${p.sale_discount_pct}% off 排程中(${start.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })} 起)`
                                 : '⏹ 已過期'}
                           </span>
                         </>
@@ -464,14 +465,15 @@ details[open] .chev { transform: rotate(90deg); }
                     <input type="hidden" name="product_id" value={p.id} />
                     <input type="hidden" name="tenant_slug" value={tenant.slug} />
                     <label style={label}>
-                      <span style={labelText}>特價</span>
+                      <span style={labelText}>折扣 % off</span>
                       <input
-                        name="sale_price_twd"
+                        name="sale_discount_pct"
                         type="number"
-                        min="0"
-                        defaultValue={p.sale_price_twd ?? ''}
+                        min="1"
+                        max="99"
+                        defaultValue={p.sale_discount_pct ?? ''}
                         style={input}
-                        placeholder="例 399"
+                        placeholder="例 20"
                       />
                     </label>
                     <label style={label}>

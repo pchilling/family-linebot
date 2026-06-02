@@ -113,15 +113,15 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
 
   const productIds = Array.from(qtyByProduct.keys());
 
-  // 撈 product 的 sale info(server-side 真實檢查時間)
+  // Phase 9.9 v2:撈 sale_discount_pct(server 真實檢查時間)
   const { data: prodSaleData } = await supabaseAdmin
     .from('products')
-    .select('id, sale_price_twd, sale_start_at, sale_end_at')
+    .select('id, sale_discount_pct, sale_start_at, sale_end_at')
     .in('id', productIds);
-  const saleByProduct = new Map<string, { price: number | null; start: string | null; end: string | null }>();
-  for (const row of (prodSaleData as { id: string; sale_price_twd: number | null; sale_start_at: string | null; sale_end_at: string | null }[] | null) ?? []) {
+  const saleByProduct = new Map<string, { pct: number | null; start: string | null; end: string | null }>();
+  for (const row of (prodSaleData as { id: string; sale_discount_pct: number | null; sale_start_at: string | null; sale_end_at: string | null }[] | null) ?? []) {
     saleByProduct.set(row.id, {
-      price: row.sale_price_twd,
+      pct: row.sale_discount_pct,
       start: row.sale_start_at,
       end: row.sale_end_at,
     });
@@ -145,14 +145,16 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     const sale = saleByProduct.get(v.product_id);
     const saleActive =
       !!sale &&
-      sale.price !== null &&
+      sale.pct !== null &&
+      sale.pct > 0 &&
       sale.start &&
       sale.end &&
       now >= new Date(sale.start) &&
       now < new Date(sale.end);
     let effective: number;
     if (saleActive) {
-      effective = sale!.price!;
+      // 用 % off 比例縮 variant 自身價,跨變體比例自動正確
+      effective = Math.round((v.price_twd * (100 - sale!.pct!)) / 100);
     } else {
       const totalProductQty = qtyByProduct.get(v.product_id) ?? item.qty;
       const tiers = tierByProduct.get(v.product_id) ?? [];

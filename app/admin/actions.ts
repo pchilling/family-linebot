@@ -476,17 +476,21 @@ export async function updatePriceTier(formData: FormData) {
 export async function updateProductSale(formData: FormData) {
   const id = String(formData.get('product_id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
-  const priceStr = String(formData.get('sale_price_twd') || '').trim();
+  const pctStr = String(formData.get('sale_discount_pct') || '').trim();
   const startStr = String(formData.get('sale_start_at') || '').trim();
   const endStr = String(formData.get('sale_end_at') || '').trim();
 
-  const sale_price_twd = priceStr ? Number(priceStr) : null;
+  let sale_discount_pct: number | null = null;
+  if (pctStr) {
+    const n = Number(pctStr);
+    if (Number.isFinite(n) && n >= 1 && n <= 99) sale_discount_pct = Math.round(n);
+  }
   const sale_start_at = startStr ? toIsoTaipei(startStr) : null;
   const sale_end_at = endStr ? toIsoTaipei(endStr) : null;
 
   await supabaseAdmin
     .from('products')
-    .update({ sale_price_twd, sale_start_at, sale_end_at })
+    .update({ sale_discount_pct, sale_start_at, sale_end_at })
     .eq('id', id);
   revalidateProductRoutes(formData);
   if (slug) {
