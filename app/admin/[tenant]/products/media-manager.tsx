@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useOptimistic, useRef, useState } from 'react';
 import { addProductMedia, removeProductMedia, reorderProductMedia } from '../../actions';
 import { uploadProductMediaVideo } from './image-actions';
 import { ProductImageUploader } from './image-uploader';
@@ -28,6 +28,27 @@ export function MediaManager({
   const [err, setErr] = useState<string | null>(null);
   const [ytUrl, setYtUrl] = useState('');
   const vidInputRef = useRef<HTMLInputElement>(null);
+
+  // Phase 9.6+ Optimistic UI:↑↓ / 刪除 立刻反映,不等 server round-trip
+  type Action =
+    | { type: 'reorder'; index: number; direction: 'up' | 'down' }
+    | { type: 'remove'; index: number };
+  const [optimisticMedia, applyOptimistic] = useOptimistic(
+    media,
+    (current: MediaItem[], action: Action): MediaItem[] => {
+      if (action.type === 'reorder') {
+        const target = action.direction === 'up' ? action.index - 1 : action.index + 1;
+        if (target < 0 || target >= current.length) return current;
+        const next = [...current];
+        [next[action.index], next[target]] = [next[target], next[action.index]];
+        return next;
+      }
+      if (action.type === 'remove') {
+        return current.filter((_, i) => i !== action.index);
+      }
+      return current;
+    },
+  );
 
   async function handleVideoUpload(file: File) {
     setErr(null);
@@ -62,7 +83,7 @@ export function MediaManager({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* 沒任何 media + 舊 image_url → fallback 提示 */}
-      {media.length === 0 && legacyImageUrl && (
+      {optimisticMedia.length === 0 && legacyImageUrl && (
         <div
           style={{
             padding: '8px 10px',
@@ -79,10 +100,10 @@ export function MediaManager({
         </div>
       )}
 
-      {/* Media list */}
-      {media.length > 0 && (
+      {/* Media list — 用 optimisticMedia 即時反映 ↑↓ / 刪 */}
+      {optimisticMedia.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {media.map((m, i) => (
+          {optimisticMedia.map((m, i) => (
             <div
               key={`${m.url}-${i}`}
               style={{
@@ -155,9 +176,15 @@ export function MediaManager({
                 </div>
               </div>
 
-              {/* Actions */}
+              {/* Actions(form action 內先 applyOptimistic 立刻反映 UI)*/}
               <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                <form action={reorderProductMedia} style={{ display: 'inline-block' }}>
+                <form
+                  action={async (fd) => {
+                    applyOptimistic({ type: 'reorder', index: i, direction: 'up' });
+                    await reorderProductMedia(fd);
+                  }}
+                  style={{ display: 'inline-block' }}
+                >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="product_id" value={productId} />
                   <input type="hidden" name="index" value={i} />
@@ -180,14 +207,20 @@ export function MediaManager({
                     ↑
                   </button>
                 </form>
-                <form action={reorderProductMedia} style={{ display: 'inline-block' }}>
+                <form
+                  action={async (fd) => {
+                    applyOptimistic({ type: 'reorder', index: i, direction: 'down' });
+                    await reorderProductMedia(fd);
+                  }}
+                  style={{ display: 'inline-block' }}
+                >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="product_id" value={productId} />
                   <input type="hidden" name="index" value={i} />
                   <input type="hidden" name="direction" value="down" />
                   <button
                     type="submit"
-                    disabled={i === media.length - 1}
+                    disabled={i === optimisticMedia.length - 1}
                     style={{
                       width: 28,
                       height: 28,
@@ -195,15 +228,21 @@ export function MediaManager({
                       background: '#fff',
                       border: '1px solid #e4e4e7',
                       borderRadius: 4,
-                      cursor: i === media.length - 1 ? 'not-allowed' : 'pointer',
-                      opacity: i === media.length - 1 ? 0.4 : 1,
+                      cursor: i === optimisticMedia.length - 1 ? 'not-allowed' : 'pointer',
+                      opacity: i === optimisticMedia.length - 1 ? 0.4 : 1,
                     }}
                     title="往下"
                   >
                     ↓
                   </button>
                 </form>
-                <form action={removeProductMedia} style={{ display: 'inline-block' }}>
+                <form
+                  action={async (fd) => {
+                    applyOptimistic({ type: 'remove', index: i });
+                    await removeProductMedia(fd);
+                  }}
+                  style={{ display: 'inline-block' }}
+                >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="product_id" value={productId} />
                   <input type="hidden" name="index" value={i} />
