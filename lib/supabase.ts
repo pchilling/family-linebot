@@ -346,6 +346,7 @@ export type TenantPublic = {
   brand_color: string | null;
   og_image_url: string | null;
   logo_url: string | null;
+  banners: MediaItem[]; // Phase 9.8:多媒體 banner,empty 時 fallback og_image_url
 };
 
 /**
@@ -355,13 +356,14 @@ export type TenantPublic = {
 export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, description, brand_color, og_image_url, logo_url, status')
+    .select('id, slug, name, plan, description, brand_color, og_image_url, logo_url, banners, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
   if ((data as { status?: string }).status && (data as { status?: string }).status !== 'active') return null;
   const { status: _status, ...rest } = data as TenantPublic & { status?: string };
-  return rest as TenantPublic;
+  const tp = rest as TenantPublic;
+  return { ...tp, banners: Array.isArray(tp.banners) ? tp.banners : [] };
 }
 
 export type ProductPublic = {

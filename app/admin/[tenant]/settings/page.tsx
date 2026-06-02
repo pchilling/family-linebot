@@ -3,6 +3,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { SettingsForm } from './settings-form';
 import { LogoUploader } from './logo-uploader';
 import { BannerUploader } from './banner-uploader';
+import { BannerManager } from './banner-manager';
+
+type BannerItem = { type: 'image' | 'video'; url: string };
 
 type TenantFull = {
   id: string;
@@ -11,6 +14,7 @@ type TenantFull = {
   brand_color: string | null;
   og_image_url: string | null;
   logo_url: string | null;
+  banners: BannerItem[] | null;
   contact_info: string | null;
   payment_info: string | null;
   plan: string;
@@ -24,7 +28,7 @@ async function getTenantFull(slug: string): Promise<TenantFull | null> {
   const { data } = await supabaseAdmin
     .from('tenants')
     .select(
-      'id, name, description, brand_color, og_image_url, logo_url, contact_info, payment_info, plan, slug, order_prefix, features, status',
+      'id, name, description, brand_color, og_image_url, logo_url, banners, contact_info, payment_info, plan, slug, order_prefix, features, status',
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -63,7 +67,22 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
       </section>
 
       <section style={section}>
-        <h2 style={h2}>Banner / 分享圖</h2>
+        <h2 style={h2}>公開頁 Banner(多圖 / 影片 / YouTube 輪播)</h2>
+        <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
+          首格 = 公開頁 hero 開頭。↑↓ 排序、上傳圖 / 影片、貼 YouTube URL。
+        </p>
+        <BannerManager
+          tenantSlug={tenant.slug}
+          banners={tenant.banners ?? []}
+          legacyOgImageUrl={tenant.og_image_url}
+        />
+      </section>
+
+      <section style={section}>
+        <h2 style={h2}>OG 分享圖(legacy 單張)</h2>
+        <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
+          這張同時當 OG meta(對方 IG / WhatsApp 收到 link 時的預覽圖)。新建議用上面多媒體 banner。
+        </p>
         <BannerUploader
           tenantSlug={tenant.slug}
           currentBannerUrl={tenant.og_image_url}

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
 export type SettingsState =
@@ -212,4 +213,131 @@ export async function removeBanner(slug: string): Promise<UploadLogoResult> {
   revalidatePath(`/${slug}`);
   revalidatePath(`/admin/${slug}`);
   return { ok: true, url: '' };
+}
+
+
+// ====================
+// Phase 9.8(2026-06-02):攤位 Banner 多媒體 — image / video / YouTube URL
+// ====================
+
+type BannerItem = { type: 'image' | 'video'; url: string };
+
+async function getTenantBanners(tenantId: string): Promise<BannerItem[]> {
+  const { data } = await supabaseAdmin
+    .from('tenants')
+    .select('banners')
+    .eq('id', tenantId)
+    .maybeSingle();
+  const b = (data as { banners?: BannerItem[] | null } | null)?.banners;
+  return Array.isArray(b) ? b : [];
+}
+
+async function setTenantBanners(tenantId: string, banners: BannerItem[]) {
+  await supabaseAdmin.from('tenants').update({ banners }).eq('id', tenantId);
+}
+
+function bannerRedirect(slug: string) {
+  if (slug) redirect(`/admin/${slug}/settings`);
+}
+
+export async function addTenantBanner(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const type = String(formData.get('type') ?? '').trim();
+  const url = String(formData.get('url') ?? '').trim();
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant || !url || (type !== 'image' && type !== 'video')) {
+    bannerRedirect(slug);
+    return;
+  }
+  const current = await getTenantBanners(tenant.id);
+  await setTenantBanners(tenant.id, [...current, { type, url }]);
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  bannerRedirect(slug);
+}
+
+export async function removeTenantBanner(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const index = Number(formData.get('index'));
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant || !Number.isFinite(index)) {
+    bannerRedirect(slug);
+    return;
+  }
+  const current = await getTenantBanners(tenant.id);
+  await setTenantBanners(tenant.id, current.filter((_, i) => i !== index));
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  bannerRedirect(slug);
+}
+
+export async function reorderTenantBanner(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const index = Number(formData.get('index'));
+  const direction = String(formData.get('direction'));
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant || !Number.isFinite(index)) {
+    bannerRedirect(slug);
+    return;
+  }
+  const current = await getTenantBanners(tenant.id);
+  if (index < 0 || index >= current.length) { bannerRedirect(slug); return; }
+  const targetIdx = direction === 'up' ? index - 1 : index + 1;
+  if (targetIdx < 0 || targetIdx >= current.length) { bannerRedirect(slug); return; }
+  const next = [...current];
+  [next[index], next[targetIdx]] = [next[targetIdx], next[index]];
+  await setTenantBanners(tenant.id, next);
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  bannerRedirect(slug);
+}
+
+export async function uploadTenantBannerImage(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const file = formData.get('file');
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
+  if (file.size > 5 * 1024 * 1024) return { ok: false, error: '圖檔應 < 5MB' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const ext = (file as File).name?.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const safeExt = ['jpg','jpeg','png','webp'].includes(ext) ? ext : 'jpg';
+  const contentType = safeExt === 'png' ? 'image/png' : safeExt === 'webp' ? 'image/webp' : 'image/jpeg';
+  const path = `${tenant.id}/banners/media/${Date.now()}.${safeExt}`;
+  const { error: upErr } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .upload(path, file, { contentType, upsert: false });
+  if (upErr) { console.error('[uploadTenantBannerImage]', upErr); return { ok: false, error: '上傳失敗' }; }
+  const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+  const current = await getTenantBanners(tenant.id);
+  await setTenantBanners(tenant.id, [...current, { type: 'image', url: publicUrl }]);
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  return { ok: true, url: publicUrl };
+}
+
+export async function uploadTenantBannerVideo(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const file = formData.get('file');
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
+  if (file.size > 50 * 1024 * 1024) return { ok: false, error: '影片應 < 50MB' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const ext = (file as File).name?.split('.').pop()?.toLowerCase() ?? 'mp4';
+  const safeExt = ['mp4','mov','webm'].includes(ext) ? ext : 'mp4';
+  const contentType = safeExt === 'webm' ? 'video/webm' : safeExt === 'mov' ? 'video/quicktime' : 'video/mp4';
+  const path = `${tenant.id}/banners/videos/${Date.now()}.${safeExt}`;
+  const { error: upErr } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .upload(path, file, { contentType, upsert: false });
+  if (upErr) { console.error('[uploadTenantBannerVideo]', upErr); return { ok: false, error: '上傳失敗' }; }
+  const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+  const current = await getTenantBanners(tenant.id);
+  await setTenantBanners(tenant.id, [...current, { type: 'video', url: publicUrl }]);
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  return { ok: true, url: publicUrl };
 }

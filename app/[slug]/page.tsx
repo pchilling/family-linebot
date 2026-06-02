@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { BannerHero } from './banner-hero';
 import { getActiveProducts, getTenantPublic } from '@/lib/supabase';
 
 type Props = {
@@ -16,8 +17,12 @@ export default async function TenantHomePage({ params }: Props) {
 
   const products = await getActiveProducts(tenant.id);
 
-  // Hero banner(用 og_image_url,1200×630 — 同時作 OG 分享圖)
-  const heroBanner = tenant.og_image_url;
+  // Hero banner — Phase 9.8 multi-media,fallback 舊 og_image_url
+  const banners = tenant.banners.length > 0
+    ? tenant.banners
+    : tenant.og_image_url
+      ? [{ type: 'image' as const, url: tenant.og_image_url }]
+      : [];
 
   return (
     <>
@@ -49,21 +54,9 @@ export default async function TenantHomePage({ params }: Props) {
         }}
       />
 
-      {heroBanner && (
-        <div className="hero-banner" style={{ marginBottom: '2.5rem', position: 'relative' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={heroBanner}
-            alt={tenant.name}
-            style={{
-              width: '100%',
-              aspectRatio: '1200 / 630',
-              objectFit: 'cover',
-              borderRadius: 12,
-              display: 'block',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04)',
-            }}
-          />
+      {banners.length > 0 && (
+        <div className="hero-banner" style={{ marginBottom: '2.5rem' }}>
+          <BannerHero banners={banners} tenantName={tenant.name} />
         </div>
       )}
 
