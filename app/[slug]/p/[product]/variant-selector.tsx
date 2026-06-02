@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useCart } from '../../cart-state';
 
 // 本地 type 避免 client component 從 server-only module(supabaseAdmin)拉 runtime
@@ -16,6 +16,7 @@ type Variant = {
 };
 
 type TierLite = { min_qty: number; price_twd: number };
+type MediaItem = { type: 'image' | 'video'; url: string };
 
 type Props = {
   variants: Variant[];
@@ -26,6 +27,7 @@ type Props = {
   productCategory: string | null;
   productDescription: string | null;
   productImageUrl: string | null;
+  productMedia?: MediaItem[];
   tiers?: TierLite[]; // 已 min_qty asc 排序
 };
 
@@ -56,6 +58,7 @@ export function VariantSelector({
   productCategory,
   productDescription,
   productImageUrl,
+  productMedia = [],
   tiers = [],
 }: Props) {
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
@@ -65,8 +68,11 @@ export function VariantSelector({
   const { addItem } = useCart(tenantSlug);
 
   const selected = variants.find((v) => v.id === selectedId) ?? firstInStock;
-  // 圖 fallback 邏輯:variant 自己有就用,否則用 product 圖
+  // 圖 fallback 邏輯:
+  // - 有 productMedia → 用 carousel
+  // - 沒 media → variant.image_url > product.image_url
   const displayImageUrl = selected?.image_url ?? productImageUrl;
+  const useMediaCarousel = productMedia.length > 0;
 
   const selectedInStock = (selected?.stock ?? 0) > 0;
   const maxQty = selected?.stock ?? 0;
@@ -99,7 +105,11 @@ export function VariantSelector({
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
-      <ProductImage src={displayImageUrl} alt={productName} />
+      {useMediaCarousel ? (
+        <MediaCarousel media={productMedia} alt={productName} />
+      ) : (
+        <ProductImage src={displayImageUrl} alt={productName} />
+      )}
 
       <div style={{ marginTop: '1.5rem' }}>
         <h2 style={{ margin: '0 0 0.375rem', fontSize: '1.5rem', lineHeight: 1.3 }}>
@@ -436,6 +446,155 @@ export function VariantSelector({
       )}
     </div>
   );
+}
+
+/**
+ * Phase 9.6/9.7:multi-media carousel
+ * - CSS scroll-snap + touch swipe(無外部 lib)
+ * - 影片:YouTube URL embed iframe / Supabase MP4 用 <video>
+ * - 下方圓點 + 點點切換
+ */
+function MediaCarousel({ media, alt }: { media: MediaItem[]; alt: string }) {
+  const [idx, setIdx] = useState(0);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  function scrollTo(i: number) {
+    setIdx(i);
+    const el = scrollerRef.current;
+    if (!el) return;
+    const target = el.children[i] as HTMLElement | undefined;
+    if (target) {
+      el.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+    }
+  }
+
+  function onScroll() {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const w = el.clientWidth;
+    if (w === 0) return;
+    const i = Math.round(el.scrollLeft / w);
+    setIdx(Math.max(0, Math.min(media.length - 1, i)));
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        style={{
+          display: 'flex',
+          overflowX: 'auto',
+          scrollSnapType: 'x mandatory',
+          WebkitOverflowScrolling: 'touch',
+          borderRadius: 8,
+          background: '#000',
+          scrollbarWidth: 'none',
+        }}
+      >
+        {media.map((m, i) => (
+          <div
+            key={`${m.url}-${i}`}
+            style={{
+              flexShrink: 0,
+              width: '100%',
+              aspectRatio: '3 / 4',
+              scrollSnapAlign: 'start',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#000',
+            }}
+          >
+            {renderMediaItem(m, alt)}
+          </div>
+        ))}
+      </div>
+      {/* Dots */}
+      {media.length > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 6,
+            marginTop: 10,
+          }}
+        >
+          {media.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => scrollTo(i)}
+              aria-label={`第 ${i + 1} 張`}
+              style={{
+                width: idx === i ? 18 : 6,
+                height: 6,
+                borderRadius: 3,
+                background: idx === i ? '#1f2937' : '#d1d5db',
+                border: 0,
+                padding: 0,
+                cursor: 'pointer',
+                transition: 'width 0.2s, background 0.2s',
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderMediaItem(m: MediaItem, alt: string) {
+  if (m.type === 'image') {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={m.url}
+        alt={alt}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+    );
+  }
+  // video
+  const yt = parseYouTubeId(m.url);
+  if (yt) {
+    return (
+      <iframe
+        src={`https://www.youtube.com/embed/${yt}?autoplay=0&mute=1&playsinline=1&rel=0`}
+        title={alt}
+        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+      />
+    );
+  }
+  return (
+    <video
+      src={m.url}
+      controls
+      muted
+      loop
+      playsInline
+      autoPlay
+      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+    />
+  );
+}
+
+function parseYouTubeId(url: string): string | null {
+  // youtu.be/xxx / youtube.com/watch?v=xxx / youtube.com/shorts/xxx / youtube.com/embed/xxx
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1) || null;
+    if (u.hostname.endsWith('youtube.com')) {
+      if (u.pathname === '/watch') return u.searchParams.get('v');
+      const m = u.pathname.match(/^\/(?:shorts|embed)\/([^/]+)/);
+      if (m) return m[1];
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function ProductImage({ src, alt }: { src: string | null; alt: string }) {

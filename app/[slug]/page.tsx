@@ -121,10 +121,15 @@ export default async function TenantHomePage({ params }: Props) {
                 }}
               >
                 <div style={{ overflow: 'hidden' }}>
-                  {p.image_url ? (
+                  {(() => {
+                    // Phase 9.6:列表縮圖優先用 media 第一張 image,fallback image_url
+                    const firstImage = (p.media ?? []).find((m) => m.type === 'image');
+                    const thumb = firstImage?.url ?? p.image_url;
+                    return thumb;
+                  })() ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={p.image_url}
+                      src={(p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? ''}
                       alt={p.name}
                       className="product-img"
                       style={{

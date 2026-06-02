@@ -214,6 +214,12 @@ export async function upsertUser(params: {
   return (inserted as { id: string }).id;
 }
 
+// Phase 9.6/9.7:多媒體 item(image / video,video 可 YouTube URL 或 Supabase Storage)
+export type MediaItem = {
+  type: 'image' | 'video';
+  url: string;
+};
+
 export type VariantRow = {
   id: string;
   product_id: string;
@@ -364,6 +370,7 @@ export type ProductPublic = {
   name: string;
   description: string | null;
   image_url: string | null;
+  media: MediaItem[]; // Phase 9.6:列表縮圖優先用 media[0] (image),fallback image_url
   category: string | null;
   min_price_twd: number; // 該 product 所有 active variant 的最低價(展示用)
 };
@@ -375,7 +382,7 @@ export type ProductPublic = {
 export async function getActiveProducts(tenantId: string): Promise<ProductPublic[]> {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, slug, name, description, image_url, category, product_variants(price_twd, status)')
+    .select('id, slug, name, description, image_url, media, category, product_variants(price_twd, status)')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -389,6 +396,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
     name: string;
     description: string | null;
     image_url: string | null;
+    media: MediaItem[] | null;
     category: string | null;
     product_variants: { price_twd: number; status: string }[] | null;
   };
@@ -401,6 +409,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
       name: p.name,
       description: p.description,
       image_url: p.image_url,
+      media: p.media ?? [],
       category: p.category,
       min_price_twd: min,
     };
@@ -428,6 +437,7 @@ export type ProductDetail = {
   name: string;
   description: string | null;
   image_url: string | null;
+  media: MediaItem[]; // Phase 9.6:多媒體 image/video,empty 時 fallback image_url
   category: string | null;
   variants: VariantPublic[]; // 只含 active variants
 };
@@ -440,12 +450,12 @@ export async function getProductBySlug(
   tenantId: string,
   slugOrId: string,
 ): Promise<ProductDetail | null> {
+  const cols =
+    'id, slug, name, description, image_url, media, category, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)';
   // 先試 slug
   let { data } = await supabaseAdmin
     .from('products')
-    .select(
-      'id, slug, name, description, image_url, category, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)',
-    )
+    .select(cols)
     .eq('tenant_id', tenantId)
     .eq('slug', slugOrId)
     .eq('status', 'active')
@@ -455,9 +465,7 @@ export async function getProductBySlug(
   if (!data && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId)) {
     const r = await supabaseAdmin
       .from('products')
-      .select(
-        'id, slug, name, description, image_url, category, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)',
-      )
+      .select(cols)
       .eq('tenant_id', tenantId)
       .eq('id', slugOrId)
       .eq('status', 'active')
@@ -472,6 +480,7 @@ export async function getProductBySlug(
     name: string;
     description: string | null;
     image_url: string | null;
+    media: MediaItem[] | null;
     category: string | null;
     product_variants: VariantPublic[] | null;
   };
@@ -483,6 +492,7 @@ export async function getProductBySlug(
     name: row.name,
     description: row.description,
     image_url: row.image_url,
+    media: row.media ?? [],
     category: row.category,
     variants,
   };

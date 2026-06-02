@@ -97,6 +97,7 @@ export default async function ProductDetailPage({ params }: Props) {
         productCategory={item.category}
         productDescription={item.description}
         productImageUrl={item.image_url}
+        productMedia={item.media}
         tiers={tiers.map((t) => ({ min_qty: t.min_qty, price_twd: t.price_twd }))}
       />
     </div>

@@ -472,6 +472,79 @@ export async function deletePriceTier(formData: FormData) {
 }
 
 // ====================
+// Phase 9.6/9.7(2026-06-02):商品多媒體 — image + video
+// ====================
+
+type MediaItem = { type: 'image' | 'video'; url: string };
+
+async function getProductMedia(productId: string): Promise<MediaItem[]> {
+  const { data } = await supabaseAdmin
+    .from('products')
+    .select('media')
+    .eq('id', productId)
+    .maybeSingle();
+  const m = (data as { media?: MediaItem[] | null } | null)?.media;
+  return Array.isArray(m) ? m : [];
+}
+
+async function setProductMedia(productId: string, media: MediaItem[]) {
+  await supabaseAdmin.from('products').update({ media }).eq('id', productId);
+}
+
+/**
+ * 追加 image / video URL 到 product.media 陣列尾端
+ */
+export async function addProductMedia(formData: FormData): Promise<void> {
+  const product_id = String(formData.get('product_id'));
+  const type = String(formData.get('type'));
+  const url = String(formData.get('url') ?? '').trim();
+  if (!url) {
+    revalidateProductRoutes(formData);
+    return;
+  }
+  if (type !== 'image' && type !== 'video') {
+    revalidateProductRoutes(formData);
+    return;
+  }
+  const current = await getProductMedia(product_id);
+  await setProductMedia(product_id, [...current, { type, url }]);
+  revalidateProductRoutes(formData);
+}
+
+export async function removeProductMedia(formData: FormData): Promise<void> {
+  const product_id = String(formData.get('product_id'));
+  const index = Number(formData.get('index'));
+  if (!Number.isFinite(index)) {
+    revalidateProductRoutes(formData);
+    return;
+  }
+  const current = await getProductMedia(product_id);
+  const next = current.filter((_, i) => i !== index);
+  await setProductMedia(product_id, next);
+  revalidateProductRoutes(formData);
+}
+
+export async function reorderProductMedia(formData: FormData): Promise<void> {
+  const product_id = String(formData.get('product_id'));
+  const index = Number(formData.get('index'));
+  const direction = String(formData.get('direction')); // 'up' | 'down'
+  const current = await getProductMedia(product_id);
+  if (!Number.isFinite(index) || index < 0 || index >= current.length) {
+    revalidateProductRoutes(formData);
+    return;
+  }
+  const targetIdx = direction === 'up' ? index - 1 : index + 1;
+  if (targetIdx < 0 || targetIdx >= current.length) {
+    revalidateProductRoutes(formData);
+    return;
+  }
+  const next = [...current];
+  [next[index], next[targetIdx]] = [next[targetIdx], next[index]];
+  await setProductMedia(product_id, next);
+  revalidateProductRoutes(formData);
+}
+
+// ====================
 // 對帳:一鍵標已付款(2026-05-22)
 // 設 status='paid' + payment_status='paid' + payment_last5
 // paid_at 由 trigger handle_order_status_change 自動填

@@ -14,6 +14,7 @@ import {
 import { ProductImageUploader } from './image-uploader';
 import { ShareButton } from './share-button';
 import { SubmitButton } from '../../_components/submit-button';
+import { MediaManager } from './media-manager';
 
 type Variant = {
   id: string;
@@ -26,6 +27,8 @@ type Variant = {
   status: string;
 };
 
+type MediaItem = { type: 'image' | 'video'; url: string };
+
 type Product = {
   id: string;
   sku: string | null;
@@ -35,6 +38,7 @@ type Product = {
   cost_twd: number | null;
   stock: number;
   image_url: string | null;
+  media: MediaItem[];
   category: string | null;
   status: string;
   product_variants: Variant[];
@@ -58,7 +62,7 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, description, price_twd, cost_twd, stock, image_url, category, status,
+      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, category, status,
        product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
     )
     .eq('tenant_id', tenantId)
@@ -335,9 +339,26 @@ details[open] .chev { transform: rotate(90deg); }
               </summary>
 
               <div style={{ borderTop: `1px solid ${c.borderSubtle}` }}>
-                {/* 商品圖 */}
+                {/* 商品多媒體(Phase 9.6/9.7)— 多圖 + 影片(Storage / YouTube) */}
                 <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>商品圖</div>
+                  <div style={sectionTitle}>商品多媒體(圖 / 影片)</div>
+                  <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
+                    首格 = 列表縮圖 + 詳細頁第一張。可拖移順序、加 YouTube URL、上傳 50MB 影片。
+                  </p>
+                  <MediaManager
+                    productId={p.id}
+                    tenantSlug={tenant.slug}
+                    media={p.media ?? []}
+                    legacyImageUrl={p.image_url}
+                  />
+                </section>
+
+                {/* 舊「商品圖」單張裁切 — 仍保留(legacy fallback,沒 media 用這個)*/}
+                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
+                  <div style={sectionTitle}>商品圖(legacy — 單張裁切版)</div>
+                  <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
+                    新建議用上面多媒體。這個保留是因為部分舊資料還在用。
+                  </p>
                   <ProductImageUploader
                     entity="product"
                     entityId={p.id}

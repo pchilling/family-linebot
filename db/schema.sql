@@ -997,3 +997,11 @@ create table if not exists product_price_tiers (
 create index if not exists product_price_tiers_product_idx
   on product_price_tiers(product_id, min_qty);
 alter table product_price_tiers enable row level security;
+
+
+-- Phase 9.6/9.7:商品多媒體(2026-06-02)
+-- 結構:[{type:"image"|"video", url}]  舊 image_url 仍 fallback
+alter table products add column if not exists media jsonb default '[]'::jsonb;
+
+-- Phase 9.8:攤位 banner 多媒體
+alter table tenants add column if not exists banners jsonb default '[]'::jsonb;
