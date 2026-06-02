@@ -5,7 +5,6 @@ import {
   card,
   colors,
   contentMaxWidth,
-  fontFamilyMono,
   fontSize,
   fontWeight,
   h1Style,
@@ -552,20 +551,6 @@ export default async function TenantDashboardPage({ params }: Props) {
         </section>
       )}
 
-      {/* Quick actions */}
-      <section>
-        <div style={{ ...sectionLabel, marginBottom: space['3'] }}>快速操作</div>
-        <div style={{ display: 'flex', gap: space['2'], flexWrap: 'wrap' }}>
-          <QuickAction href={`/admin/${slug}/products`} label="新增商品" />
-          {hasActivities && (
-            <QuickAction href={`/admin/${slug}/classes`} label="新增活動" />
-          )}
-          <QuickAction href={`/admin/${slug}/orders`} label="所有訂單" />
-          <QuickAction href={`/admin/${slug}/customers`} label="客戶名單" />
-          <QuickAction href={`/admin/${slug}/settings`} label="攤位設定" />
-          <QuickAction href={`/${slug}`} label="預覽公開頁" external />
-        </div>
-      </section>
     </div>
   );
 }
@@ -816,14 +801,16 @@ function MetricCard({
   warn?: boolean;
   muted?: boolean;
 }) {
+  // 緊湊版:固定高度 + 縮 padding,4 卡並排視覺一致
   const inner = (
     <div
       style={{
         ...card,
-        padding: space['5'],
-        height: '100%',
+        padding: `${space['4']}px ${space['5']}px`,
+        minHeight: 110,
         display: 'flex',
         flexDirection: 'column',
+        justifyContent: 'space-between',
         gap: space['1'],
         transition: 'border-color 150ms, box-shadow 150ms',
         cursor: link ? 'pointer' : 'default',
@@ -835,30 +822,27 @@ function MetricCard({
       <div
         style={{
           ...monoNum,
-          fontSize: typeof value === 'string' && value.length > 6 ? fontSize['2xl'] : fontSize['3xl'],
+          fontSize: typeof value === 'string' && value.length > 6 ? fontSize.xl : fontSize['2xl'],
           fontWeight: fontWeight.semibold,
           color: muted
             ? colors.textDisabled
             : warn
               ? colors.warning
               : colors.textPrimary,
-          lineHeight: 1.1,
-          marginTop: space['2'],
+          lineHeight: 1.05,
         }}
       >
         {value}
       </div>
-      {sub && (
-        <div
-          style={{
-            fontSize: fontSize.sm,
-            color: muted ? colors.textDisabled : colors.textMuted,
-            marginTop: space['1'],
-          }}
-        >
-          {sub}
-        </div>
-      )}
+      <div
+        style={{
+          fontSize: fontSize.xs,
+          color: muted ? colors.textDisabled : colors.textMuted,
+          minHeight: 16,
+        }}
+      >
+        {sub ?? ''}
+      </div>
     </div>
   );
 
@@ -984,42 +968,3 @@ function ListSection({
   );
 }
 
-function QuickAction({
-  href,
-  label,
-  external,
-}: {
-  href: string;
-  label: string;
-  external?: boolean;
-}) {
-  const baseStyle: React.CSSProperties = {
-    padding: `${space['2']}px ${space['4']}px`,
-    background: colors.bgCard,
-    color: colors.textSecondary,
-    border: `1px solid ${colors.border}`,
-    borderRadius: radius.md,
-    textDecoration: 'none',
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.medium,
-    transition: 'border-color 100ms, background 100ms, color 100ms',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-  };
-  if (external) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" style={baseStyle}>
-        {label}
-        <span aria-hidden style={{ fontSize: fontSize.sm, color: colors.textMuted, fontFamily: fontFamilyMono }}>
-          ↗
-        </span>
-      </a>
-    );
-  }
-  return (
-    <Link href={href} style={baseStyle}>
-      {label}
-    </Link>
-  );
-}
