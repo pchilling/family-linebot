@@ -1,5 +1,5 @@
-import { notFound } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { notFound, redirect } from 'next/navigation';
+import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
 import { createNews, deleteNews, updateNews } from './actions';
 import { SubmitButton } from '../../_components/submit-button';
 
@@ -63,6 +63,14 @@ export default async function NewsPage({
   const sp = await searchParams;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
+
+  // 最新消息 enterprise gate(2026-06-02):
+  // - enterprise 自動有
+  // - 其他 plan 需 features.news 白名單
+  const hasNews = tenant.plan === 'enterprise' || hasFeature(tenant, 'news');
+  if (!hasNews) {
+    redirect(`/admin/${slug}`);
+  }
 
   const news = await getAllNews(tenant.id);
   const savedId = sp.saved;

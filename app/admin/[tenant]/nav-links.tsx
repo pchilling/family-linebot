@@ -10,6 +10,7 @@ type Props = {
   tenantId: string;
   inventoryGated: boolean;
   hasActivities: boolean;
+  hasNews: boolean;
   ordersPending: number;
   lowStock: number;
 };
@@ -38,6 +39,7 @@ export function NavLinks({
   tenantId,
   inventoryGated,
   hasActivities,
+  hasNews,
   ordersPending,
   lowStock,
 }: Props) {
@@ -88,7 +90,9 @@ export function NavLinks({
           { key: 'attendances', label: '出席', href: `/admin/${tenantSlug}/attendances` },
         ]
       : []),
-    { key: 'news', label: '最新消息', href: `/admin/${tenantSlug}/news` },
+    ...(hasNews
+      ? [{ key: 'news', label: '最新消息', href: `/admin/${tenantSlug}/news` }]
+      : []),
     {
       key: 'messages',
       label: '客戶訊息',

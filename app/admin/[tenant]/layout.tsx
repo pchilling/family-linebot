@@ -42,6 +42,8 @@ export default async function TenantAdminLayout({
   // allowed tenants 跟 badges 都不互相依賴(都靠 user 或 tenant.id),可平行
   const inventoryGated = tenant.plan === 'free';
   const hasActivities = hasFeature(tenant, 'activities');
+  // 最新消息:enterprise 自動有,其他 plan 需 features.news 白名單
+  const hasNews = tenant.plan === 'enterprise' || hasFeature(tenant, 'news');
 
   const isSuper = isSuperAdmin(user?.email);
   const [allowedTenants, ordersPendingResp, lowStockResp, pendingAppsResp] = await Promise.all([
@@ -458,6 +460,7 @@ export default async function TenantAdminLayout({
             tenantId={tenant.id}
             inventoryGated={inventoryGated}
             hasActivities={hasActivities}
+            hasNews={hasNews}
             ordersPending={ordersPending}
             lowStock={lowStock}
           />
