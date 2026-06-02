@@ -79,9 +79,11 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
       </section>
 
       <section style={section}>
-        <h2 style={h2}>OG 分享圖(legacy 單張)</h2>
+        <h2 style={h2}>連結分享預覽圖</h2>
         <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
-          這張同時當 OG meta(對方 IG / WhatsApp 收到 link 時的預覽圖)。新建議用上面多媒體 banner。
+          把你的攤位網址貼到 WhatsApp / LINE / FB / IG 訊息時,對方看到的那張小縮圖。
+          <br />
+          社交平台只接 1 張圖(不能影片或輪播),所以這裡單獨設。
         </p>
         <BannerUploader
           tenantSlug={tenant.slug}
