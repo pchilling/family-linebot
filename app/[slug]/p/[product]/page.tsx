@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getProductBySlug, getTenantPublic } from '@/lib/supabase';
+import { getProductBySlug, getProductTiers, getTenantPublic } from '@/lib/supabase';
 import { VariantSelector } from './variant-selector';
 
 type Props = {
@@ -31,6 +31,7 @@ export default async function ProductDetailPage({ params }: Props) {
   if (!tenant) notFound();
   const item = await getProductBySlug(tenant.id, product);
   if (!item) notFound();
+  const tiers = await getProductTiers(item.id);
 
   // schema.org Product JSON-LD(Google rich result)— 沒 active variant 時不放 offers
   const activeVariants = item.variants;
@@ -96,6 +97,7 @@ export default async function ProductDetailPage({ params }: Props) {
         productCategory={item.category}
         productDescription={item.description}
         productImageUrl={item.image_url}
+        tiers={tiers.map((t) => ({ min_qty: t.min_qty, price_twd: t.price_twd }))}
       />
     </div>
   );

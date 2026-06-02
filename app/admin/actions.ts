@@ -425,6 +425,53 @@ export async function deleteProduct(formData: FormData) {
 }
 
 // ====================
+// Phase 9.5(2026-06-02):商品分階定價 CRUD
+// ====================
+
+export async function createPriceTier(formData: FormData) {
+  const tenantId = tenantIdFromForm(formData);
+  const product_id = String(formData.get('product_id'));
+  const min_qty = Number(formData.get('min_qty') || 0);
+  const price_twd = Number(formData.get('price_twd') || 0);
+
+  if (min_qty < 2 || price_twd < 0) {
+    revalidateProductRoutes(formData);
+    return;
+  }
+
+  await supabaseAdmin.from('product_price_tiers').insert({
+    tenant_id: tenantId,
+    product_id,
+    min_qty,
+    price_twd,
+  });
+  revalidateProductRoutes(formData);
+}
+
+export async function updatePriceTier(formData: FormData) {
+  const id = String(formData.get('id'));
+  const min_qty = Number(formData.get('min_qty') || 0);
+  const price_twd = Number(formData.get('price_twd') || 0);
+
+  if (min_qty < 2 || price_twd < 0) {
+    revalidateProductRoutes(formData);
+    return;
+  }
+
+  await supabaseAdmin
+    .from('product_price_tiers')
+    .update({ min_qty, price_twd })
+    .eq('id', id);
+  revalidateProductRoutes(formData);
+}
+
+export async function deletePriceTier(formData: FormData) {
+  const id = String(formData.get('id'));
+  await supabaseAdmin.from('product_price_tiers').delete().eq('id', id);
+  revalidateProductRoutes(formData);
+}
+
+// ====================
 // 對帳:一鍵標已付款(2026-05-22)
 // 設 status='paid' + payment_status='paid' + payment_last5
 // paid_at 由 trigger handle_order_status_change 自動填

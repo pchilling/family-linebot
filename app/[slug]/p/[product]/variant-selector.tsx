@@ -15,6 +15,8 @@ type Variant = {
   status: string;
 };
 
+type TierLite = { min_qty: number; price_twd: number };
+
 type Props = {
   variants: Variant[];
   tenantSlug: string;
@@ -24,7 +26,17 @@ type Props = {
   productCategory: string | null;
   productDescription: string | null;
   productImageUrl: string | null;
+  tiers?: TierLite[]; // 已 min_qty asc 排序
 };
+
+function pickTierPrice(tiers: TierLite[], qty: number, base: number): number {
+  let pick = base;
+  for (const t of tiers) {
+    if (qty >= t.min_qty) pick = t.price_twd;
+    else break;
+  }
+  return pick;
+}
 
 /**
  * 商品詳情完整 client gallery:
@@ -44,9 +56,11 @@ export function VariantSelector({
   productCategory,
   productDescription,
   productImageUrl,
+  tiers = [],
 }: Props) {
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
   const [selectedId, setSelectedId] = useState<string>(firstInStock?.id ?? '');
+  const [qty, setQty] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
   const { addItem } = useCart(tenantSlug);
 
@@ -55,6 +69,17 @@ export function VariantSelector({
   const displayImageUrl = selected?.image_url ?? productImageUrl;
 
   const selectedInStock = (selected?.stock ?? 0) > 0;
+  const maxQty = selected?.stock ?? 0;
+
+  // 即時算 tier 單價
+  const basePrice = selected?.price_twd ?? 0;
+  const effectivePrice = pickTierPrice(tiers, qty, basePrice);
+  const savedPerUnit = basePrice - effectivePrice;
+  const totalPrice = effectivePrice * qty;
+
+  function adjustQty(delta: number) {
+    setQty((q) => Math.max(1, Math.min(maxQty || 1, q + delta)));
+  }
 
   function handleAdd() {
     if (!selected || !selectedInStock) return;
@@ -64,8 +89,8 @@ export function VariantSelector({
       productSlug,
       productName,
       variantName: selected.variant_name,
-      priceTwd: selected.price_twd,
-      qty: 1,
+      priceTwd: effectivePrice,
+      qty,
       imageUrl: selected.image_url ?? productImageUrl,
     });
     setJustAdded(true);
@@ -191,6 +216,118 @@ export function VariantSelector({
 
           {selected && (
             <>
+              {/* Tier 表(量大優惠)— Phase 9.5 */}
+              {tiers.length > 0 && (
+                <div
+                  style={{
+                    marginBottom: '1rem',
+                    padding: '0.75rem 1rem',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: 6,
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  <div style={{ color: '#15803d', fontWeight: 600, marginBottom: 6 }}>
+                    💡 量大優惠
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, color: '#166534' }}>
+                    <div>1+:NT$ {basePrice.toLocaleString()} / 件</div>
+                    {tiers.map((t) => (
+                      <div
+                        key={t.min_qty}
+                        style={{
+                          fontWeight: qty >= t.min_qty ? 700 : 400,
+                        }}
+                      >
+                        {t.min_qty}+:NT$ {t.price_twd.toLocaleString()} / 件
+                        {qty >= t.min_qty && (
+                          <span style={{ marginLeft: 8, fontSize: 11, color: '#16a34a' }}>✓ 已套用</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Qty 選擇 */}
+              <div
+                style={{
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: '0.875rem', color: '#374151', fontWeight: 500 }}>
+                  數量
+                </span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => adjustQty(-1)}
+                    disabled={qty <= 1}
+                    style={{
+                      padding: '8px 14px',
+                      background: '#fff',
+                      border: 0,
+                      cursor: qty <= 1 ? 'not-allowed' : 'pointer',
+                      color: qty <= 1 ? '#d1d5db' : '#374151',
+                      fontSize: 18,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={maxQty || 1}
+                    value={qty}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value || '1', 10);
+                      if (!isNaN(v)) setQty(Math.max(1, Math.min(maxQty || 1, v)));
+                    }}
+                    style={{
+                      width: 60,
+                      textAlign: 'center',
+                      border: 0,
+                      borderLeft: '1px solid #e5e7eb',
+                      borderRight: '1px solid #e5e7eb',
+                      padding: '8px 4px',
+                      fontSize: 14,
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => adjustQty(1)}
+                    disabled={qty >= maxQty}
+                    style={{
+                      padding: '8px 14px',
+                      background: '#fff',
+                      border: 0,
+                      cursor: qty >= maxQty ? 'not-allowed' : 'pointer',
+                      color: qty >= maxQty ? '#d1d5db' : '#374151',
+                      fontSize: 18,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    ＋
+                  </button>
+                </div>
+              </div>
+
               <div
                 style={{
                   marginBottom: '1rem',
@@ -198,16 +335,23 @@ export function VariantSelector({
                   background: '#f9fafb',
                   borderRadius: 6,
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'baseline',
+                  flexDirection: 'column',
+                  gap: 4,
                 }}
               >
-                <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-                  {selected.variant_name}
-                </span>
-                <span style={{ fontSize: '1.25rem', fontWeight: 600 }}>
-                  NT$ {selected.price_twd.toLocaleString()}
-                </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                    {selected.variant_name} × {qty}
+                  </span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 700, color: savedPerUnit > 0 ? '#15803d' : '#1f2937' }}>
+                    NT$ {totalPrice.toLocaleString()}
+                  </span>
+                </div>
+                {savedPerUnit > 0 && (
+                  <div style={{ fontSize: 12, color: '#16a34a' }}>
+                    單價 NT$ {effectivePrice.toLocaleString()}({savedPerUnit > 0 ? `較原價省 NT$ ${savedPerUnit.toLocaleString()} / 件` : ''})
+                  </div>
+                )}
               </div>
 
               <button

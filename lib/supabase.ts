@@ -487,3 +487,59 @@ export async function getProductBySlug(
     variants,
   };
 }
+
+// ====================
+// Phase 9.5(2026-06-02):商品分階定價
+// ====================
+
+export type PriceTier = {
+  id: string;
+  product_id: string;
+  min_qty: number;
+  price_twd: number;
+};
+
+/**
+ * 拿商品所有 tier(min_qty asc 排序)。沒設就回空 array。
+ */
+export async function getProductTiers(productId: string): Promise<PriceTier[]> {
+  const { data } = await supabaseAdmin
+    .from('product_price_tiers')
+    .select('id, product_id, min_qty, price_twd')
+    .eq('product_id', productId)
+    .order('min_qty', { ascending: true });
+  return (data as PriceTier[] | null) ?? [];
+}
+
+/**
+ * 算「買 qty 個時的單價」:
+ * 從 tier 中找 min_qty ≤ qty 的最大 min_qty tier 用它的 price。
+ * 沒符合的 tier → 回 fallback basePrice。
+ *
+ * tiers 必須已按 min_qty asc 排好(getProductTiers 自帶)。
+ * 只用 min_qty + price_twd,不需要 id / product_id。
+ */
+export function pickPriceFromTiers(
+  tiers: Array<{ min_qty: number; price_twd: number }>,
+  qty: number,
+  basePrice: number,
+): number {
+  let pick = basePrice;
+  for (const t of tiers) {
+    if (qty >= t.min_qty) pick = t.price_twd;
+    else break;
+  }
+  return pick;
+}
+
+/**
+ * 結帳 / 後端用:給 productId + qty + basePrice,撈 tiers 後回該 qty 對應單價。
+ */
+export async function effectivePriceForProduct(
+  productId: string,
+  qty: number,
+  basePrice: number,
+): Promise<number> {
+  const tiers = await getProductTiers(productId);
+  return pickPriceFromTiers(tiers, qty, basePrice);
+}

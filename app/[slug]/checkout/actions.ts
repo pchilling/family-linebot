@@ -1,6 +1,6 @@
 'use server';
 
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 
 type CartItemInput = {
   variantId: string;
@@ -102,15 +102,39 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     return { ok: false, error: '建立訂單失敗' };
   }
 
+  // Phase 9.5:結帳時用 tier 重算每個 line 的單價
+  // 同一 product_id 的 qty 加總後找 tier(整單 30 個算 tier,不分變體)
+  const qtyByProduct = new Map<string, number>();
+  for (const item of cartItems) {
+    const v = variantMap.get(item.variantId);
+    if (!v) continue;
+    qtyByProduct.set(v.product_id, (qtyByProduct.get(v.product_id) ?? 0) + item.qty);
+  }
+
+  const productIds = Array.from(qtyByProduct.keys());
+  const tierByProduct = new Map<string, { min_qty: number; price_twd: number }[]>();
+  await Promise.all(
+    productIds.map(async (pid) => {
+      const tiers = await getProductTiers(pid);
+      tierByProduct.set(
+        pid,
+        tiers.map((t) => ({ min_qty: t.min_qty, price_twd: t.price_twd })),
+      );
+    }),
+  );
+
   const itemsToInsert = cartItems.map((item) => {
     const v = variantMap.get(item.variantId)!;
+    const totalProductQty = qtyByProduct.get(v.product_id) ?? item.qty;
+    const tiers = tierByProduct.get(v.product_id) ?? [];
+    const effective = pickPriceFromTiers(tiers, totalProductQty, v.price_twd);
     return {
       tenant_id: tenant.id,
       order_id: (orderRow as { id: string }).id,
       product_id: v.product_id,
       variant_id: v.id,
       qty: item.qty,
-      price_at_purchase: v.price_twd,
+      price_at_purchase: effective,
     };
   });
 

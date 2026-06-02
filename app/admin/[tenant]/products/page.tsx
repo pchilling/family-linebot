@@ -1,10 +1,13 @@
 import { notFound } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, supabaseAdmin, type PriceTier } from '@/lib/supabase';
 import {
+  createPriceTier,
   createProduct,
   createVariant,
+  deletePriceTier,
   deleteProduct,
   deleteVariant,
+  updatePriceTier,
   updateProduct,
   updateVariant,
 } from '../../actions';
@@ -36,6 +39,20 @@ type Product = {
   status: string;
   product_variants: Variant[];
 };
+
+async function getTiersMap(tenantId: string): Promise<Map<string, PriceTier[]>> {
+  const { data } = await supabaseAdmin
+    .from('product_price_tiers')
+    .select('id, product_id, min_qty, price_twd')
+    .eq('tenant_id', tenantId)
+    .order('min_qty', { ascending: true });
+  const map = new Map<string, PriceTier[]>();
+  for (const t of (data as PriceTier[] | null) ?? []) {
+    if (!map.has(t.product_id)) map.set(t.product_id, []);
+    map.get(t.product_id)!.push(t);
+  }
+  return map;
+}
 
 async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
@@ -131,6 +148,9 @@ export default async function ProductsPage({
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
   const products = await getProductsWithVariants(tenant.id);
+
+  // Phase 9.5:撈這個 tenant 全 tier,group by product_id
+  const tiersMap = await getTiersMap(tenant.id);
 
   const savedId = sp.saved ?? '';
   const savedIsVariant = savedId.startsWith('variant_');
@@ -384,6 +404,83 @@ details[open] .chev { transform: rotate(90deg); }
                       <SubmitButton pendingText="儲存中…">儲存基本資料</SubmitButton>
                     </div>
                   </form>
+                </section>
+
+                {/* 分階定價 — Phase 9.5(2026-06-02)*/}
+                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
+                  <div style={sectionTitle}>分階定價(量大優惠)</div>
+                  <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
+                    買 N 個以上就用該 tier 單價。沒設 tier → 用基本售價({p.price_twd.toLocaleString()})。
+                    顧客買 30 個 → 找滿足 min_qty ≤ 30 的最大 tier 套用。
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {(tiersMap.get(p.id) ?? []).map((t) => (
+                      <form
+                        key={t.id}
+                        action={updatePriceTier}
+                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}
+                      >
+                        <input type="hidden" name="id" value={t.id} />
+                        <input type="hidden" name="tenant_id" value={tenant.id} />
+                        <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                        <label style={label}>
+                          <span style={labelText}>滿 N 個以上</span>
+                          <input name="min_qty" type="number" min="2" defaultValue={t.min_qty} required style={input} />
+                        </label>
+                        <label style={label}>
+                          <span style={labelText}>單價</span>
+                          <input name="price_twd" type="number" min="0" defaultValue={t.price_twd} required style={input} />
+                        </label>
+                        <div style={{ fontSize: 11, color: c.textMuted }}>
+                          {t.min_qty}+ → NT$ {t.price_twd.toLocaleString()}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
+                        </div>
+                      </form>
+                    ))}
+                    {(tiersMap.get(p.id) ?? []).map((t) => (
+                      <form key={`del-${t.id}`} action={deletePriceTier} style={{ marginTop: -2 }}>
+                        <input type="hidden" name="id" value={t.id} />
+                        <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                        <SubmitButton variant="danger" size="sm" pendingText="刪除中…">刪除 {t.min_qty}+ tier</SubmitButton>
+                      </form>
+                    ))}
+                  </div>
+
+                  {/* 新增 tier */}
+                  <details style={{ marginTop: 12 }}>
+                    <summary
+                      style={{
+                        padding: '6px 10px',
+                        background: '#eef7ff',
+                        color: '#0070f3',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        display: 'inline-block',
+                      }}
+                    >
+                      + 新增 tier
+                    </summary>
+                    <form
+                      action={createPriceTier}
+                      style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end', marginTop: 10 }}
+                    >
+                      <input type="hidden" name="product_id" value={p.id} />
+                      <input type="hidden" name="tenant_id" value={tenant.id} />
+                      <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                      <label style={label}>
+                        <span style={labelText}>滿 N 個以上 *</span>
+                        <input name="min_qty" type="number" min="2" required style={input} placeholder="10" />
+                      </label>
+                      <label style={label}>
+                        <span style={labelText}>該 tier 單價 *</span>
+                        <input name="price_twd" type="number" min="0" required style={input} placeholder="450" />
+                      </label>
+                      <SubmitButton size="sm" pendingText="新增中…">新增 tier</SubmitButton>
+                    </form>
+                  </details>
                 </section>
 
                 {/* 變體 */}

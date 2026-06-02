@@ -979,3 +979,21 @@ update orders o
   where o.tenant_id = t.id
     and o.order_no like 'OW-%'
     and t.order_prefix != 'OW';
+
+
+-- Phase 9.5:商品分階定價(2026-06-02)
+-- 顧客買 N 個 → 找 min_qty ≤ N 的最大 tier 用該單價
+-- order_items.price_at_purchase 結帳時用 tier 計算後存,歷史紀錄不變動
+create table if not exists product_price_tiers (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  product_id uuid not null references products(id) on delete cascade,
+  min_qty int not null check (min_qty >= 2),
+  price_twd int not null check (price_twd >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (product_id, min_qty)
+);
+create index if not exists product_price_tiers_product_idx
+  on product_price_tiers(product_id, min_qty);
+alter table product_price_tiers enable row level security;
