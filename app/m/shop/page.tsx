@@ -453,10 +453,14 @@ export default function ShopPage() {
                     flexDirection: 'column',
                   }}
                 >
-                  {p.image_url ? (
+                  {(() => {
+                    // Phase 9.6:縮圖優先 media 第一張 image,fallback image_url
+                    const firstImg = (p.media ?? []).find((m) => m.type === 'image');
+                    return firstImg?.url ?? p.image_url;
+                  })() ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={p.image_url}
+                      src={(p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? ''}
                       alt={p.name}
                       style={{
                         width: '100%',
@@ -622,10 +626,13 @@ export default function ShopPage() {
                       borderBottom: '1px solid #f4f4f5',
                     }}
                   >
-                    {p.image_url ? (
+                    {(() => {
+                      const firstImg = (p.media ?? []).find((m) => m.type === 'image');
+                      return firstImg?.url ?? p.image_url;
+                    })() ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={p.image_url}
+                        src={(p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? ''}
                         alt={p.name}
                         style={{
                           width: 56, height: 70, borderRadius: 6,

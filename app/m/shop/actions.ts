@@ -31,6 +31,7 @@ export type ShopProduct = {
   description: string | null;
   price_twd: number;
   image_url: string | null;
+  media: { type: 'image' | 'video'; url: string }[]; // Phase 9.6
   category: string | null;
   stock: number;
 };
@@ -95,7 +96,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, category, stock')
+      .select('id, name, description, price_twd, image_url, media, category, stock')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -127,7 +128,10 @@ export async function loadShopData(
   const t = (tenantRes.data as TenantRow) ?? null;
 
   return {
-    products: (productsRes.data ?? []) as ShopProduct[],
+    products: ((productsRes.data ?? []) as ShopProduct[]).map((p) => ({
+      ...p,
+      media: Array.isArray(p.media) ? p.media : [],
+    })),
     member: (memberRes.data as ShopMember | null) ?? null,
     tenant: {
       name: t?.name ?? '商品專區',
