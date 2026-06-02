@@ -1,6 +1,6 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-05-26(Phase 8.1 Brand rename → NEOP STALL)
+> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-06-03(Phase 9.9 限時優惠 % off)
 
 ---
 
@@ -842,6 +842,93 @@ NEOP 粗體 / STALL 細體,同字級同色,粗細區分階層,tracking-tight 字
 - `app/manifest.ts` PWA name + short_name + icons 從 svg → png + theme_color 改 neopBlack
 - `app/[slug]/layout.tsx` footer:Made with Stall → NEOP STALL
 - `docs/BRAND.md`:品牌架構說明 + lockup 規範
+
+### Phase 8.2:全站字型統一(2026-05-26)
+
+User 反映「Geist 太 Vercel-default,缺辨識度」。換 character 強的字。
+- `app/layout.tsx` 載 **Space Grotesk**(300-700)+ **JetBrains Mono**
+- CSS var name 沿用 `--font-geist-*`(避免改 8 處引用)
+- 公開頁 / admin / landing / footer 同字
+- admin 個別 layout 拿掉自家 Geist loader(現在 root 統一)
+
+### Phase 8.3:SubmitButton infrastructure(2026-05-26)
+
+User 反映送出後沒反饋以為當掉。React 19 `useFormStatus` 立刻反映 pending。
+- 新檔 `app/admin/_components/submit-button.tsx`(variant primary/danger/secondary + size sm/md + pendingText + fullWidth + spinner)
+- 套到:apply / login / news / classes / orders detail / applications(9 個 button 換掉)
+- products page 6 個 button 後續補(commit `fddb754`)
+- orders 列表 quick action(11px)layout 衝突,先不套
+
+### Phase 9:分享卡 v0(2026-05-26 ~ 27)
+
+vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證明 vision 不是空話。
+
+**Phase 9 OG image generation**:
+- 新檔 `app/api/og/product/[id]/route.tsx` next/og ImageResponse
+- 撈商品 + 攤位 logo,Satori 渲染 1080×1920 PNG
+- 設計多輪 iteration:
+  - 開始:full-bleed cover 圖 + 黑漸層 + 文字 overlay(Strava/Spotify Wrapped 風)
+  - 用戶反映需多次微調:logo 變扁、字級對齊、頂部 pill 排版、價格 vs 數字對齊
+  - 後改 Layout B(上半 4:5 / 3:4 圖 + 下半黑底資訊區)— 更不破壞商品圖
+  - 解 500 錯:Satori `display:flex` 嚴格、中文需載 Noto Sans TC、CDN cache header(無 store debug 改 s-maxage=3600)
+- 沒 cover 圖 fallback:radial gradient + tenant logo / 商品名首字大圓
+- 字型:loadGoogleFont helper 動態 subset 載 Noto Sans TC + JetBrains Mono
+
+**Phase 9.1-9.3 分享 modal(Strava 風)**:
+- 新檔 `app/admin/[tenant]/products/share-button.tsx`(client component)
+- 偵測 navigator.canShare,電腦不顯示
+- 點分享 → fetch OG PNG → 全螢幕 modal 預覽 → 平台 buttons:
+  - **Instagram**:走 navigator.share(iOS 系統 sheet → IG 選 Story / 貼文)
+  - **WhatsApp / LINE / Telegram / 訊息**:URL deep link(對方 app 抓 OG meta)
+- 公開分享落地頁 `app/share/p/[id]/page.tsx` + OG meta generateMetadata(WhatsApp 等抓得到圖)
+
+### Phase 9.5:商品分階定價 — tier pricing(2026-06-02)
+
+買 N 個以上換更便宜單價(衣服印刷 / 化妝品禮盒場景)。
+- SQL:`product_price_tiers`(product_id, min_qty ≥ 2, price_twd)
+- admin:商品內「分階定價」section,+ / 編 / 刪 / 範例(10+ NT$450、50+ NT$400)
+- 顧客頁:綠 pill 可點 quick-jump 切 qty(IG 推下一階)
+- 結帳重算:同 product_id 加總 qty 找最大 tier 套用,跨變體一起算
+- order_items.price_at_purchase 存 tier 後單價(歷史不變動)
+
+### Phase 9.6 / 9.7:商品多媒體 + 影片(2026-06-02)
+
+- SQL:`products.media jsonb`(`[{type:'image'|'video', url}]`)
+- 上傳 image(5MB,3:4 裁切)/ video(50MB)/ YouTube URL 三選一
+- 新檔 `media-manager.tsx` client component + useOptimistic(↑↓ 排序立刻反映,server 後台跑)
+- 顧客頁 carousel:CSS scroll-snap + touch swipe + 左右箭頭 + N/M 計數
+- YouTube iframe + 自家 mp4 autoplay muted loop
+- 列表 / LIFF shop 縮圖優先 media[0] image,fallback 舊 image_url
+- 商品圖 aspect 4:5 → 3:4(對齊 iPhone 4:3 直握原生)
+
+### Phase 9.8:Banner 多媒體 + 公開頁 hero carousel(2026-06-02)
+
+同 media pattern,但 banner 是 1200×630 寬比例給公開店 hero 用。
+- SQL:`tenants.banners jsonb`
+- 新檔 `banner-manager.tsx`(設定頁,useOptimistic ↑↓)
+- 新檔 `app/[slug]/banner-hero.tsx` carousel(5 秒自動換 + 影片不打斷 + 箭頭 / dots)
+- 公開店 hero 從單張 og_image_url 改 banner 陣列(fallback 舊欄)
+- 設定頁 OG meta「連結分享預覽圖」獨立(社交平台只接 1 張)
+
+### Phase 9.9:商品限時優惠 % off(2026-06-03)
+
+- SQL v1:`sale_price_twd` + start + end(每次特價設定 1 個絕對特價)
+- SQL v2:改 `sale_discount_pct`(1-99,各變體比例縮)— User 反映多變體不同價時 fixed sale_price 不合理
+- admin section「🔥 限時優惠」:折扣 % + 開始 / 結束 datetime-local
+- 顧客頁:紅 banner「🔥 限時 20% off」+ 倒數計時(每秒 tick)+ 原價刪除線 + 紅特價
+- 列表縮圖左上紅 pill「🔥 20% off」
+- 結帳 server 真實時間檢查,saleActive 用 round(variant.price × (100 − pct) /100)
+- sale 期間 tier 暫停(不衝突)
+
+### 其他小尾巴(沒成單獨 Phase)
+
+- SKU 自動產:`{order_prefix}-{流水號}` + variant `-V{n}`(2026-05-26)
+- 最新消息 enterprise plan gate(2026-05-26)
+- 售價 / 庫存 拿掉「(legacy)」字、tier 改「分階」用詞
+- 隱藏顧客頁庫存數字(只售完顯示)
+- 量大優惠改可點 pill UX(Option A)
+- 字型 lockup 大寫 + tracking 0.15em + sans-serif(配合 geometric logo)
+- 課程狀態 badge(剩 N 位 / 已滿 / 候補)
 
 ### Outstanding
 
