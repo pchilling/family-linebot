@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { addProductMedia, removeProductMedia, reorderProductMedia } from '../../actions';
-import { uploadProductMediaImage, uploadProductMediaVideo } from './image-actions';
+import { uploadProductMediaVideo } from './image-actions';
+import { ProductImageUploader } from './image-uploader';
 
 type MediaItem = { type: 'image' | 'video'; url: string };
 
@@ -23,30 +24,25 @@ export function MediaManager({
   media: MediaItem[];
   legacyImageUrl: string | null;
 }) {
-  const [uploading, setUploading] = useState<'image' | 'video' | null>(null);
+  const [uploading, setUploading] = useState<'video' | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [ytUrl, setYtUrl] = useState('');
-  const imgInputRef = useRef<HTMLInputElement>(null);
   const vidInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleUpload(type: 'image' | 'video', file: File) {
+  async function handleVideoUpload(file: File) {
     setErr(null);
-    setUploading(type);
+    setUploading('video');
     try {
       const fd = new FormData();
       fd.append('tenant_slug', tenantSlug);
       fd.append('product_id', productId);
       fd.append('file', file);
-      const res =
-        type === 'image'
-          ? await uploadProductMediaImage(fd)
-          : await uploadProductMediaVideo(fd);
+      const res = await uploadProductMediaVideo(fd);
       if (!res.ok) setErr(res.error);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setUploading(null);
-      if (imgInputRef.current) imgInputRef.current.value = '';
       if (vidInputRef.current) vidInputRef.current.value = '';
     }
   }
@@ -234,7 +230,31 @@ export function MediaManager({
         </div>
       )}
 
-      {/* Upload + URL inputs */}
+      {/* 加圖(走 ProductImageUploader 裁切 3:4 + 上傳到 media)*/}
+      <div
+        style={{
+          padding: 12,
+          background: '#fafafa',
+          border: '1px solid #e4e4e7',
+          borderRadius: 6,
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 8 }}>
+          + 加圖片(會裁切 3:4 直式)
+        </div>
+        <ProductImageUploader
+          entity="product"
+          mode="media"
+          entityId={productId}
+          tenantSlug={tenantSlug}
+          currentImageUrl={null}
+          productName="商品圖"
+          compact
+          uploadLabel="選圖上傳"
+        />
+      </div>
+
+      {/* 加影片(自上傳 / YouTube URL)*/}
       <div
         style={{
           display: 'flex',
@@ -246,33 +266,10 @@ export function MediaManager({
           borderRadius: 6,
         }}
       >
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#374151' }}>
+          + 加影片
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <label
-            style={{
-              display: 'inline-block',
-              padding: '6px 12px',
-              background: uploading === 'image' ? '#9ca3af' : '#fff',
-              color: uploading === 'image' ? '#fff' : '#374151',
-              border: '1px solid #d4d4d8',
-              borderRadius: 4,
-              cursor: uploading ? 'wait' : 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            {uploading === 'image' ? '上傳中…' : '+ 加圖片'}
-            <input
-              ref={imgInputRef}
-              type="file"
-              accept="image/*"
-              disabled={!!uploading}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUpload('image', f);
-              }}
-              style={{ display: 'none' }}
-            />
-          </label>
           <label
             style={{
               display: 'inline-block',
@@ -286,7 +283,7 @@ export function MediaManager({
               fontWeight: 500,
             }}
           >
-            {uploading === 'video' ? '上傳中…' : '+ 上傳影片 (50MB)'}
+            {uploading === 'video' ? '上傳中…' : '上傳影片 (≤ 50MB)'}
             <input
               ref={vidInputRef}
               type="file"
@@ -294,7 +291,7 @@ export function MediaManager({
               disabled={!!uploading}
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) handleUpload('video', f);
+                if (f) handleVideoUpload(f);
               }}
               style={{ display: 'none' }}
             />
@@ -305,7 +302,7 @@ export function MediaManager({
             type="url"
             value={ytUrl}
             onChange={(e) => setYtUrl(e.target.value)}
-            placeholder="YouTube URL (https://youtu.be/...)"
+            placeholder="或貼 YouTube URL (https://youtu.be/...)"
             style={{
               flex: 1,
               padding: '6px 10px',

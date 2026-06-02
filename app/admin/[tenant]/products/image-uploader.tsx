@@ -8,7 +8,7 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { uploadProductImage, uploadVariantImage, uploadClassImage } from './image-actions';
+import { uploadProductImage, uploadProductMediaImage, uploadVariantImage, uploadClassImage } from './image-actions';
 
 type Props = {
   /**
@@ -17,6 +17,11 @@ type Props = {
    * 'class' = 上傳 classes.image_url(活動)
    */
   entity?: 'product' | 'variant' | 'class';
+  /**
+   * 'replace' = 取代既有單張 image_url(預設)
+   * 'media' = 上傳到 products.media 陣列(Phase 9.6 多媒體用)
+   */
+  mode?: 'replace' | 'media';
   /** product/variant/class 對應的 row.id */
   entityId: string;
   tenantSlug: string;
@@ -25,6 +30,10 @@ type Props = {
   productName: string;
   /** Override 預設比例。product/variant default 3:4(iPhone 直式),class default 3:4 */
   aspect?: number;
+  /** compact = 不顯示縮圖預覽列,只給 file picker + crop UI(MediaManager 用)*/
+  compact?: boolean;
+  /** 自訂 button 文字 */
+  uploadLabel?: string;
 };
 
 // 3:4 直式 = iPhone 4:3 直握原生比例,拍完不用再裁
@@ -33,11 +42,14 @@ const DEFAULT_CLASS_ASPECT = 3 / 4;
 
 export function ProductImageUploader({
   entity = 'product',
+  mode = 'replace',
   entityId,
   tenantSlug,
   currentImageUrl,
   aspect,
   productName,
+  compact = false,
+  uploadLabel,
 }: Props) {
   // 計算 aspect ratio + 輸出尺寸
   const ASPECT = aspect ?? (entity === 'class' ? DEFAULT_CLASS_ASPECT : DEFAULT_PRODUCT_ASPECT);
@@ -137,12 +149,15 @@ export function ProductImageUploader({
         entity === 'variant' ? 'variant_id' : entity === 'class' ? 'class_id' : 'product_id';
       formData.append(idField, entityId);
       formData.append('file', blob, `${entity}.jpg`);
+      // mode='media' 走 Phase 9.6 multi-media 路徑(append 到 product.media)
       const result =
-        entity === 'variant'
-          ? await uploadVariantImage(formData)
-          : entity === 'class'
-            ? await uploadClassImage(formData)
-            : await uploadProductImage(formData);
+        mode === 'media' && entity === 'product'
+          ? await uploadProductMediaImage(formData)
+          : entity === 'variant'
+            ? await uploadVariantImage(formData)
+            : entity === 'class'
+              ? await uploadClassImage(formData)
+              : await uploadProductImage(formData);
 
       if (result.ok) {
         setSuccess('上傳成功');
@@ -159,10 +174,10 @@ export function ProductImageUploader({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* 縮圖 + 換圖按鈕(沒裁切中時) */}
+      {/* 縮圖 + 換圖按鈕(沒裁切中時)— compact 模式時拿掉縮圖 */}
       {!imgSrc && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          {currentImageUrl ? (
+          {!compact && (currentImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={currentImageUrl}
@@ -194,7 +209,7 @@ export function ProductImageUploader({
             >
               無圖
             </div>
-          )}
+          ))}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label
               style={{
@@ -210,7 +225,7 @@ export function ProductImageUploader({
                 width: 'fit-content',
               }}
             >
-              {currentImageUrl ? '換圖' : '上傳商品圖'}
+              {uploadLabel ?? (currentImageUrl ? '換圖' : '上傳商品圖')}
               <input
                 type="file"
                 accept="image/*"
