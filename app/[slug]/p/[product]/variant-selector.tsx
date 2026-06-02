@@ -477,6 +477,8 @@ function MediaCarousel({ media, alt }: { media: MediaItem[]; alt: string }) {
     setIdx(Math.max(0, Math.min(media.length - 1, i)));
   }
 
+  const showArrows = media.length > 1;
+
   return (
     <div style={{ position: 'relative' }}>
       <div
@@ -510,6 +512,87 @@ function MediaCarousel({ media, alt }: { media: MediaItem[]; alt: string }) {
           </div>
         ))}
       </div>
+
+      {/* 箭頭(避免影片吃 swipe)*/}
+      {showArrows && idx > 0 && (
+        <button
+          type="button"
+          onClick={() => scrollTo(idx - 1)}
+          aria-label="上一張"
+          style={{
+            position: 'absolute',
+            left: 8,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.55)',
+            color: '#fff',
+            border: 0,
+            cursor: 'pointer',
+            fontSize: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(4px)',
+            zIndex: 2,
+          }}
+        >
+          ‹
+        </button>
+      )}
+      {showArrows && idx < media.length - 1 && (
+        <button
+          type="button"
+          onClick={() => scrollTo(idx + 1)}
+          aria-label="下一張"
+          style={{
+            position: 'absolute',
+            right: 8,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.55)',
+            color: '#fff',
+            border: 0,
+            cursor: 'pointer',
+            fontSize: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(4px)',
+            zIndex: 2,
+          }}
+        >
+          ›
+        </button>
+      )}
+
+      {/* 右上角計數(1/3 之類)*/}
+      {showArrows && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            padding: '4px 10px',
+            background: 'rgba(0,0,0,0.55)',
+            color: '#fff',
+            borderRadius: 999,
+            fontSize: 12,
+            fontWeight: 600,
+            backdropFilter: 'blur(4px)',
+            zIndex: 2,
+            pointerEvents: 'none',
+          }}
+        >
+          {idx + 1} / {media.length}
+        </div>
+      )}
+
       {/* Dots */}
       {media.length > 1 && (
         <div
