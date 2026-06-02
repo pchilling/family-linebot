@@ -385,9 +385,9 @@ details[open] .chev { transform: rotate(90deg); }
                     <label style={label}><span style={labelText}>商品名稱</span><input name="name" defaultValue={p.name} style={input} /></label>
                     <label style={label}><span style={labelText}>SKU(系統自動)</span><input name="sku" defaultValue={p.sku ?? ''} readOnly style={{ ...input, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }} /></label>
                     <label style={label}><span style={labelText}>分類</span><input name="category" defaultValue={p.category ?? ''} style={input} /></label>
-                    <label style={label}><span style={labelText}>售價(legacy)</span><input name="price_twd" type="number" defaultValue={p.price_twd} style={input} /></label>
+                    <label style={label}><span style={labelText}>售價</span><input name="price_twd" type="number" defaultValue={p.price_twd} style={input} /></label>
                     <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={p.cost_twd ?? ''} style={input} /></label>
-                    <label style={label}><span style={labelText}>庫存(legacy)</span><input name="stock" type="number" defaultValue={p.stock} style={input} /></label>
+                    <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={p.stock} style={input} /></label>
                     <label style={label}>
                       <span style={labelText}>狀態</span>
                       <select name="status" defaultValue={p.status} style={input}>
@@ -410,8 +410,8 @@ details[open] .chev { transform: rotate(90deg); }
                 <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
                   <div style={sectionTitle}>分階定價(量大優惠)</div>
                   <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
-                    買 N 個以上就用該 tier 單價。沒設 tier → 用基本售價({p.price_twd.toLocaleString()})。
-                    顧客買 30 個 → 找滿足 min_qty ≤ 30 的最大 tier 套用。
+                    買 N 個以上就用該分階單價。沒設 → 用基本售價({p.price_twd.toLocaleString()})。
+                    顧客買 30 個 → 找滿足 min_qty ≤ 30 的最大分階套用。
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {(tiersMap.get(p.id) ?? []).map((t) => (
@@ -443,12 +443,12 @@ details[open] .chev { transform: rotate(90deg); }
                       <form key={`del-${t.id}`} action={deletePriceTier} style={{ marginTop: -2 }}>
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <SubmitButton variant="danger" size="sm" pendingText="刪除中…">刪除 {t.min_qty}+ tier</SubmitButton>
+                        <SubmitButton variant="danger" size="sm" pendingText="刪除中…">刪除 {t.min_qty}+ 分階</SubmitButton>
                       </form>
                     ))}
                   </div>
 
-                  {/* 新增 tier */}
+                  {/* 新增分階 */}
                   <details style={{ marginTop: 12 }}>
                     <summary
                       style={{
@@ -461,7 +461,7 @@ details[open] .chev { transform: rotate(90deg); }
                         display: 'inline-block',
                       }}
                     >
-                      + 新增 tier
+                      + 新增分階
                     </summary>
                     <form
                       action={createPriceTier}
@@ -475,10 +475,10 @@ details[open] .chev { transform: rotate(90deg); }
                         <input name="min_qty" type="number" min="2" required style={input} placeholder="10" />
                       </label>
                       <label style={label}>
-                        <span style={labelText}>該 tier 單價 *</span>
+                        <span style={labelText}>該分階單價 *</span>
                         <input name="price_twd" type="number" min="0" required style={input} placeholder="450" />
                       </label>
-                      <SubmitButton size="sm" pendingText="新增中…">新增 tier</SubmitButton>
+                      <SubmitButton size="sm" pendingText="新增中…">新增分階</SubmitButton>
                     </form>
                   </details>
                 </section>
