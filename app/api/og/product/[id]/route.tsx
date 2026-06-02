@@ -56,7 +56,11 @@ export async function GET(
       const buf = await resp.arrayBuffer();
       return new Response(buf, {
         status: 200,
-        headers: { 'content-type': 'image/png', 'cache-control': 'no-store' },
+        headers: {
+          'content-type': 'image/png',
+          // CDN cache 1 小時、stale 1 天:商品改名 / 改價最久 1 hr 後刷新
+          'cache-control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        },
       });
     }
     return resp;
@@ -144,11 +148,14 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
             width: 1080,
             height: 1440,
             display: 'flex',
-            background: '#1a1a1a',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background:
+              'radial-gradient(circle at center, #1f2937 0%, #0A0A0A 70%)',
             position: 'relative',
           }}
         >
-          {product.image_url && (
+          {product.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={product.image_url}
@@ -159,6 +166,47 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
                 objectFit: 'cover',
               }}
             />
+          ) : (
+            // 沒 cover fallback:NEOP green 圓 + 攤位 logo / 商品名首字
+            <div
+              style={{
+                width: 540,
+                height: 540,
+                borderRadius: 999,
+                background:
+                  'linear-gradient(135deg, rgba(5,200,120,0.18) 0%, rgba(5,200,120,0.04) 100%)',
+                border: '2px solid rgba(5,200,120,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {product.tenants?.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.tenants.logo_url}
+                  alt=""
+                  width={320}
+                  height={320}
+                  style={{
+                    borderRadius: 999,
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    fontSize: 220,
+                    fontWeight: 700,
+                    color: '#05C878',
+                    fontFamily: 'Noto Sans TC',
+                    lineHeight: 1,
+                  }}
+                >
+                  {product.name.slice(0, 1)}
+                </span>
+              )}
+            </div>
           )}
           {/* 圖底柔接 — 100px 漸層化解硬切 */}
           <div

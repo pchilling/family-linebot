@@ -10,6 +10,7 @@ import {
 } from '../../actions';
 import { ProductImageUploader } from './image-uploader';
 import { ShareButton } from './share-button';
+import { SubmitButton } from '../../_components/submit-button';
 
 type Variant = {
   id: string;
@@ -215,7 +216,9 @@ details[open] .chev { transform: rotate(90deg); }
               <span style={labelText}>描述</span>
               <textarea name="description" rows={2} style={{ ...input, fontFamily: 'inherit' }} />
             </label>
-            <button type="submit" style={{ ...btnPrimary, gridColumn: '1 / -1' }}>建立商品</button>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <SubmitButton pendingText="建立中…">建立商品</SubmitButton>
+            </div>
           </form>
         </div>
       </details>
@@ -378,7 +381,7 @@ details[open] .chev { transform: rotate(90deg); }
                       <textarea name="description" defaultValue={p.description ?? ''} rows={2} style={{ ...input, fontFamily: 'inherit' }} />
                     </label>
                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                      <button type="submit" style={btnPrimary}>儲存基本資料</button>
+                      <SubmitButton pendingText="儲存中…">儲存基本資料</SubmitButton>
                     </div>
                   </form>
                 </section>
@@ -416,7 +419,7 @@ details[open] .chev { transform: rotate(90deg); }
                                 <option value="discontinued">下架</option>
                               </select>
                             </label>
-                            <button type="submit" style={{ ...btnPrimary, padding: '8px 14px', fontSize: 12 }}>儲存</button>
+                            <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
                           </form>
 
                           <details style={{ marginTop: 10 }}>
@@ -435,7 +438,7 @@ details[open] .chev { transform: rotate(90deg); }
                               <form action={deleteVariant} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${c.border}` }}>
                                 <input type="hidden" name="id" value={v.id} />
                                 <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                                <button type="submit" style={btnDanger}>刪除這個變體</button>
+                                <SubmitButton variant="danger" size="sm" pendingText="刪除中…">刪除這個變體</SubmitButton>
                               </form>
                             </div>
                           </details>
@@ -467,7 +470,7 @@ details[open] .chev { transform: rotate(90deg); }
                       <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} defaultValue={p.price_twd} /></label>
                       <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
                       <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
-                      <button type="submit" style={{ ...btnPrimary, padding: '8px 14px', fontSize: 12 }}>新增</button>
+                      <SubmitButton size="sm" pendingText="新增中…">新增</SubmitButton>
                     </form>
                   </details>
                 </section>
@@ -486,7 +489,7 @@ details[open] .chev { transform: rotate(90deg); }
                       <form action={deleteProduct}>
                         <input type="hidden" name="id" value={p.id} />
                         <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <button type="submit" style={{ ...btnDanger, padding: '8px 14px' }}>確認刪除整個商品</button>
+                        <SubmitButton variant="danger" size="sm" pendingText="刪除中…">確認刪除整個商品</SubmitButton>
                       </form>
                     </div>
                   </details>
