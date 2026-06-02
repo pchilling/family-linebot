@@ -69,6 +69,8 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
       <section style={section}>
         <h2 style={h2}>公開頁 Banner(多圖 / 影片 / YouTube 輪播)</h2>
         <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
+          建議尺寸 <strong>1200 × 630</strong>(寬:高 ≈ 1.9:1)。影片同比例。
+          <br />
           首格 = 公開頁 hero 開頭。↑↓ 排序、上傳圖 / 影片、貼 YouTube URL。
         </p>
         <BannerManager
@@ -83,7 +85,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
         <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
           把你的攤位網址貼到 WhatsApp / LINE / FB / IG 訊息時,對方看到的那張小縮圖。
           <br />
-          社交平台只接 1 張圖(不能影片或輪播),所以這裡單獨設。
+          建議尺寸 <strong>1200 × 630</strong>(寬:高 ≈ 1.9:1)。社交平台只接 1 張圖(不能影片或輪播)。
         </p>
         <BannerUploader
           tenantSlug={tenant.slug}
