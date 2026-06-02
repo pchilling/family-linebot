@@ -26,6 +26,7 @@ export default function ShopPage() {
   const [member, setMember] = useState<ShopMember | null>(null);
   const [tenant, setTenant] = useState<ShopTenant>({ name: '商品專區', logo_url: null, banner_url: null, payment_info: null });
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -78,35 +79,45 @@ export default function ShopPage() {
     () => new Map(products.map((p) => [p.id, p])),
     [products],
   );
+  // Phase 11:variantId → variant info(含 product 反查)
+  const variantMap = useMemo(() => {
+    const m = new Map<string, { variant_name: string; price_twd: number; stock: number; product_id: string; product_name: string }>();
+    for (const p of products) {
+      for (const v of p.variants) {
+        m.set(v.id, { variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, product_id: p.id, product_name: p.name });
+      }
+    }
+    return m;
+  }, [products]);
 
   const cartTotal = useMemo(
     () =>
       cart.reduce((sum, c) => {
-        const p = productMap.get(c.product_id);
-        return sum + (p?.price_twd ?? 0) * c.qty;
+        const v = variantMap.get(c.variant_id);
+        return sum + (v?.price_twd ?? 0) * c.qty;
       }, 0),
-    [cart, productMap],
+    [cart, variantMap],
   );
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
-  function addToCart(productId: string) {
+  function addToCart(productId: string, variantId: string) {
     setCart((prev) => {
-      const existing = prev.find((c) => c.product_id === productId);
+      const existing = prev.find((c) => c.variant_id === variantId);
       if (existing) {
         return prev.map((c) =>
-          c.product_id === productId ? { ...c, qty: c.qty + 1 } : c,
+          c.variant_id === variantId ? { ...c, qty: c.qty + 1 } : c,
         );
       }
-      return [...prev, { product_id: productId, qty: 1 }];
+      return [...prev, { product_id: productId, variant_id: variantId, qty: 1 }];
     });
   }
 
-  function changeQty(productId: string, delta: number) {
+  function changeQty(variantId: string, delta: number) {
     setCart((prev) =>
       prev
         .map((c) =>
-          c.product_id === productId ? { ...c, qty: c.qty + delta } : c,
+          c.variant_id === variantId ? { ...c, qty: c.qty + delta } : c,
         )
         .filter((c) => c.qty > 0),
     );
@@ -499,46 +510,12 @@ export default function ShopPage() {
                     >
                       {p.name}
                     </div>
-                    <div style={{ marginTop: 6, flex: 1 }}>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 14,
-                          color: '#18181b',
-                          fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                          letterSpacing: '-0.01em',
-                        }}
-                      >
-                        NT$ {p.price_twd.toLocaleString()}
-                      </div>
-                      <div style={{
-                        fontSize: 10,
-                        color: p.stock > 0 ? '#71717a' : '#dc2626',
-                        marginTop: 1,
-                      }}>
-                        {p.stock > 0 ? `剩 ${p.stock} 件` : '售完'}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => addToCart(p.id)}
-                      disabled={p.stock === 0}
-                      className="shop-add-btn"
-                      style={{
-                        marginTop: 8,
-                        padding: '7px 10px',
-                        background: p.stock === 0 ? '#e4e4e7' : '#18181b',
-                        color: p.stock === 0 ? '#a1a1aa' : '#fff',
-                        border: 0,
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: p.stock === 0 ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {p.stock === 0 ? '缺貨' : '+ 加入購物車'}
-                    </button>
+                    <ProductCardActions
+                      product={p}
+                      selectedVariantId={selectedVariants[p.id]}
+                      onSelectVariant={(vId) => setSelectedVariants((m) => ({ ...m, [p.id]: vId }))}
+                      onAdd={addToCart}
+                    />
                   </div>
                 </article>
               ))}
@@ -612,12 +589,14 @@ export default function ShopPage() {
             <div style={cardTitle}>商品明細</div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {cart.map((c) => {
+                const v = variantMap.get(c.variant_id);
                 const p = productMap.get(c.product_id);
-                if (!p) return null;
-                const subtotal = p.price_twd * c.qty;
+                if (!v || !p) return null;
+                const subtotal = v.price_twd * c.qty;
+                const showVariantName = p.variants.length > 1;
                 return (
                   <li
-                    key={c.product_id}
+                    key={c.variant_id}
                     style={{
                       display: 'flex',
                       gap: 12,
@@ -650,17 +629,22 @@ export default function ShopPage() {
                       <div style={{ fontWeight: 500, fontSize: 14, color: '#18181b', lineHeight: 1.3, marginBottom: 2 }}>
                         {p.name}
                       </div>
+                      {showVariantName && (
+                        <div style={{ fontSize: 11, color: '#52525b', marginBottom: 2 }}>
+                          {v.variant_name}
+                        </div>
+                      )}
                       <div style={{ fontSize: 12, color: '#71717a', fontFamily: 'ui-monospace, monospace' }}>
-                        NT$ {p.price_twd.toLocaleString()} × {c.qty}
+                        NT$ {v.price_twd.toLocaleString()} × {c.qty}
                       </div>
                       <div style={{ fontSize: 13, color: '#18181b', fontWeight: 600, fontFamily: 'ui-monospace, monospace', marginTop: 2 }}>
                         NT$ {subtotal.toLocaleString()}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <button type="button" onClick={() => changeQty(c.product_id, -1)} style={qtyBtnNew}>−</button>
+                      <button type="button" onClick={() => changeQty(c.variant_id, -1)} style={qtyBtnNew}>−</button>
                       <span style={{ minWidth: 22, textAlign: 'center', fontSize: 14, fontWeight: 500 }}>{c.qty}</span>
-                      <button type="button" onClick={() => changeQty(c.product_id, 1)} style={qtyBtnNew}>+</button>
+                      <button type="button" onClick={() => changeQty(c.variant_id, 1)} style={qtyBtnNew}>+</button>
                     </div>
                   </li>
                 );
@@ -754,6 +738,97 @@ export default function ShopPage() {
         </section>
       )}
     </main>
+  );
+}
+
+function ProductCardActions({
+  product,
+  selectedVariantId,
+  onSelectVariant,
+  onAdd,
+}: {
+  product: ShopProduct;
+  selectedVariantId: string | undefined;
+  onSelectVariant: (variantId: string) => void;
+  onAdd: (productId: string, variantId: string) => void;
+}) {
+  const variants = product.variants;
+  // 預設選第一個有貨的;沒有就第一個(會被 disable)
+  const defaultId =
+    variants.find((v) => v.stock > 0)?.id ?? variants[0]?.id ?? '';
+  const currentId = selectedVariantId ?? defaultId;
+  const current = variants.find((v) => v.id === currentId);
+  const hasMultiple = variants.length > 1;
+  const outOfStock = !current || current.stock === 0;
+  const noVariant = variants.length === 0;
+
+  return (
+    <>
+      {hasMultiple && (
+        <select
+          value={currentId}
+          onChange={(e) => onSelectVariant(e.target.value)}
+          style={{
+            marginTop: 6,
+            padding: '6px 8px',
+            fontSize: 12,
+            border: '1px solid #e4e4e7',
+            borderRadius: 6,
+            background: '#fff',
+            color: '#18181b',
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            width: '100%',
+          }}
+        >
+          {variants.map((v) => (
+            <option key={v.id} value={v.id} disabled={v.stock === 0}>
+              {v.variant_name} {v.stock === 0 ? '(缺貨)' : ''}
+            </option>
+          ))}
+        </select>
+      )}
+      <div style={{ marginTop: 6, flex: 1 }}>
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: 14,
+            color: '#18181b',
+            fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          NT$ {(current?.price_twd ?? product.price_twd).toLocaleString()}
+        </div>
+        <div style={{
+          fontSize: 10,
+          color: outOfStock ? '#dc2626' : '#71717a',
+          marginTop: 1,
+        }}>
+          {noVariant ? '尚未上架' : outOfStock ? '缺貨' : `剩 ${current!.stock} 件`}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => current && onAdd(product.id, current.id)}
+        disabled={outOfStock || noVariant}
+        className="shop-add-btn"
+        style={{
+          marginTop: 8,
+          padding: '7px 10px',
+          background: outOfStock || noVariant ? '#e4e4e7' : '#18181b',
+          color: outOfStock || noVariant ? '#a1a1aa' : '#fff',
+          border: 0,
+          borderRadius: 6,
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: outOfStock || noVariant ? 'not-allowed' : 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        {noVariant ? '無規格' : outOfStock ? '缺貨' : '+ 加入購物車'}
+      </button>
+    </>
   );
 }
 

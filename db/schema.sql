@@ -1012,3 +1012,12 @@ alter table tenants add column if not exists banners jsonb default '[]'::jsonb;
 alter table products add column if not exists sale_price_twd int check (sale_price_twd >= 0);
 alter table products add column if not exists sale_start_at timestamptz;
 alter table products add column if not exists sale_end_at timestamptz;
+
+
+-- Phase 11:Stage C trigger 修(2026-06-03)
+-- order_items insert / update / delete 對應的 stock_movements 都帶 variant_id
+-- (原本沒傳 → variant.stock 不會扣,Stage A/B 期間靠 dual-write 矇過去)
+-- 已在 SQL 直接 create or replace 2 個 function:
+--   order_item_to_stock_movement(insert/update)
+--   order_item_reverse_stock_movement(delete)
+-- 兩者都改成 insert stock_movements 時帶 new.variant_id / old.variant_id

@@ -25,6 +25,14 @@ async function verifyIdToken(idToken: string): Promise<string> {
   return data.sub;
 }
 
+// Phase 11(Stage C):variants 帶進 LIFF shop
+export type ShopVariant = {
+  id: string;
+  variant_name: string;
+  price_twd: number;
+  stock: number;
+};
+
 export type ShopProduct = {
   id: string;
   name: string;
@@ -34,6 +42,7 @@ export type ShopProduct = {
   media: { type: 'image' | 'video'; url: string }[]; // Phase 9.6
   category: string | null;
   stock: number;
+  variants: ShopVariant[]; // Phase 11:variant-aware
 };
 
 export type ShopMember = {
@@ -96,7 +105,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, stock')
+      .select('id, name, description, price_twd, image_url, media, category, stock, product_variants(id, variant_name, price_twd, stock, status)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -127,10 +136,22 @@ export async function loadShopData(
   } | null;
   const t = (tenantRes.data as TenantRow) ?? null;
 
+  type ProductRow = ShopProduct & {
+    product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; status: string }[] | null;
+  };
   return {
-    products: ((productsRes.data ?? []) as ShopProduct[]).map((p) => ({
-      ...p,
+    products: ((productsRes.data ?? []) as ProductRow[]).map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price_twd: p.price_twd,
+      image_url: p.image_url,
       media: Array.isArray(p.media) ? p.media : [],
+      category: p.category,
+      stock: p.stock,
+      variants: (p.product_variants ?? [])
+        .filter((v) => v.status === 'active')
+        .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock })),
     })),
     member: (memberRes.data as ShopMember | null) ?? null,
     tenant: {
@@ -180,7 +201,8 @@ export async function saveShopProfile(formData: FormData): Promise<ShopMember> {
   return { full_name: fullName, phone, address };
 }
 
-export type CartItem = { product_id: string; qty: number };
+// Phase 11(Stage C):cart 以 variant_id 為主,product_id 留作 reference
+export type CartItem = { product_id: string; variant_id: string; qty: number };
 
 /**
  * 建單:
@@ -214,20 +236,24 @@ export async function placeOrder(
     .maybeSingle();
   if (userErr || !user) throw new Error('用戶不存在,請先加好友');
 
-  // server-side 拉商品價格(snapshot,不信 client)
-  const productIds = cart.map((c) => c.product_id);
-  const { data: products, error: productsErr } = await supabaseAdmin
-    .from('products')
-    .select('id, price_twd, status, stock')
-    .in('id', productIds)
+  // Phase 11(Stage C):server 拉 variant 真實價格 + 庫存(不信 client)
+  const variantIds = cart.map((c) => c.variant_id).filter(Boolean);
+  if (variantIds.length === 0 || variantIds.length !== cart.length) {
+    throw new Error('購物車格式錯誤');
+  }
+  const { data: variants, error: variantsErr } = await supabaseAdmin
+    .from('product_variants')
+    .select('id, product_id, price_twd, status, stock')
+    .in('id', variantIds)
     .eq('tenant_id', TENANT_ID);
-  if (productsErr || !products) throw new Error('讀取商品價格失敗');
-  if (products.length !== productIds.length) throw new Error('部分商品不存在');
-  for (const p of products) {
-    if (p.status !== 'active') throw new Error('部分商品已下架');
-    const cartItem = cart.find((c) => c.product_id === p.id);
-    if (cartItem && cartItem.qty > p.stock) {
-      throw new Error(`商品庫存不足(剩 ${p.stock})`);
+  if (variantsErr || !variants) throw new Error('讀取變體失敗');
+  if (variants.length !== variantIds.length) throw new Error('部分變體不存在');
+  type VRow = { id: string; product_id: string; price_twd: number; status: string; stock: number };
+  for (const v of variants as VRow[]) {
+    if (v.status !== 'active') throw new Error('部分變體已下架');
+    const cartItem = cart.find((c) => c.variant_id === v.id);
+    if (cartItem && cartItem.qty > v.stock) {
+      throw new Error(`規格庫存不足(剩 ${v.stock})`);
     }
   }
 
@@ -249,15 +275,16 @@ export async function placeOrder(
     throw new Error('建單失敗:' + orderErr?.message);
   }
 
-  // insert order_items(會觸發 refresh_order_total + stock_movements + check_tenant)
+  // Phase 11:insert order_items 帶 variant_id,trigger 自動扣 variant.stock
   const itemsToInsert = cart.map((c) => {
-    const p = products.find((pp) => pp.id === c.product_id)!;
+    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id)!;
     return {
       tenant_id: TENANT_ID,
       order_id: order.id,
-      product_id: c.product_id,
+      product_id: v.product_id,
+      variant_id: c.variant_id,
       qty: c.qty,
-      price_at_purchase: p.price_twd,
+      price_at_purchase: v.price_twd,
     };
   });
   const { error: itemsErr } = await supabaseAdmin
@@ -276,8 +303,8 @@ export async function placeOrder(
   // ⚠️ order.total_twd 在 INSERT 時是 0(由 refresh_order_total trigger 在 items 後算),
   //    所以這裡用本地 cart × price snapshot 直接算
   const totalForPush = cart.reduce((sum, c) => {
-    const p = products.find((pp) => pp.id === c.product_id);
-    return sum + (p?.price_twd ?? 0) * c.qty;
+    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
+    return sum + (v?.price_twd ?? 0) * c.qty;
   }, 0);
   try {
     await pushOrderConfirmation(lineUserId, order.order_no, totalForPush);
