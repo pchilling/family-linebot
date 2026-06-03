@@ -68,8 +68,8 @@ export default function CartPage({ params }: Props) {
           >
             <div
               style={{
-                flex: '0 0 80px',
-                width: 80,
+                flex: '0 0 60px',
+                width: 60,
                 height: 80,
                 borderRadius: 6,
                 overflow: 'hidden',
