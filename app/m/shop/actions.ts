@@ -54,7 +54,7 @@ export type ShopMember = {
 export type ShopTenant = {
   name: string;
   logo_url: string | null;
-  banner_url: string | null;
+  banners: { type: 'image' | 'video'; url: string }[]; // Phase 9.8 多媒體 carousel
   payment_info: string | null;
 };
 
@@ -118,7 +118,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, payment_info')
+      .select('name, logo_url, og_image_url, banners, payment_info')
       .eq('id', TENANT_ID)
       .maybeSingle(),
   ]);
@@ -128,13 +128,21 @@ export async function loadShopData(
     throw new Error('讀取商品失敗');
   }
 
+  type MediaItem = { type: 'image' | 'video'; url: string };
   type TenantRow = {
     name: string;
     logo_url: string | null;
     og_image_url: string | null;
+    banners: MediaItem[] | null;
     payment_info: string | null;
   } | null;
   const t = (tenantRes.data as TenantRow) ?? null;
+  // Phase 9.8 多 banner + fallback og_image_url(舊單張)
+  const tenantBanners: MediaItem[] = Array.isArray(t?.banners) && t.banners.length > 0
+    ? t.banners
+    : t?.og_image_url
+      ? [{ type: 'image', url: t.og_image_url }]
+      : [];
 
   type ProductRow = ShopProduct & {
     product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; status: string }[] | null;
@@ -157,7 +165,7 @@ export async function loadShopData(
     tenant: {
       name: t?.name ?? '商品專區',
       logo_url: t?.logo_url ?? null,
-      banner_url: t?.og_image_url ?? null,
+      banners: tenantBanners,
       payment_info: t?.payment_info ?? null,
     },
   };
