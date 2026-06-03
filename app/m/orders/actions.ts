@@ -65,10 +65,10 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
     return { tenantSlug, orders: [] };
   }
 
-  // 訂單 + 簡要 items
+  // 訂單 + 簡要 items(Phase 11:含 variant_name)
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, status, payment_status, total_twd, created_at, order_items(product_name, qty)')
+    .select('id, order_no, status, payment_status, total_twd, created_at, order_items(qty, products(name), product_variants(variant_name))')
     .eq('tenant_id', TENANT_ID)
     .eq('user_id', (user as { id: string }).id)
     .order('created_at', { ascending: false })
@@ -86,10 +86,22 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
     payment_status: string;
     total_twd: number;
     created_at: string;
-    order_items: { product_name: string; qty: number }[] | null;
+    order_items: {
+      qty: number;
+      products: { name: string } | null;
+      product_variants: { variant_name: string } | null;
+    }[] | null;
   };
 
   const rows = ((orders as unknown) as Row[] | null) ?? [];
+
+  // 把 product + variant 組成顯示字串。default variant 不顯示變體名(避免「保衛(default)」)
+  const itemLabel = (it: Row['order_items'] extends (infer U)[] | null ? U : never): string => {
+    const name = it.products?.name ?? '(已刪商品)';
+    const variant = it.product_variants?.variant_name;
+    if (variant && variant !== 'default') return `${name}(${variant})`;
+    return name;
+  };
 
   return {
     tenantSlug,
@@ -97,11 +109,11 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
       const items = r.order_items ?? [];
       let summary = '';
       if (items.length === 0) summary = '(無明細)';
-      else if (items.length === 1) summary = `${items[0].product_name} × ${items[0].qty}`;
+      else if (items.length === 1) summary = `${itemLabel(items[0])} × ${items[0].qty}`;
       else {
         const first = items[0];
         const restCount = items.slice(1).reduce((sum, i) => sum + i.qty, 0);
-        summary = `${first.product_name} × ${first.qty} + ${restCount} 件`;
+        summary = `${itemLabel(first)} × ${first.qty} + ${restCount} 件`;
       }
       return {
         id: r.id,
