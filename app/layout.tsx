@@ -20,8 +20,8 @@ const displayMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'NEOP STALL · LINE Bot 商務平台',
-  description: 'NEO Potential Studio — 多攤位 LINE Bot + 電商',
+  title: 'NEOP STALL 管理後台',
+  description: '登入管理你的攤位',
   appleWebApp: {
     capable: true,
     title: 'NEOP STALL',
