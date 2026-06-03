@@ -16,7 +16,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 async function getProduct(id: string) {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, name, price_twd, image_url, status, tenant_id')
+    .select('id, name, price_twd, image_url, share_focus_x, status, tenant_id')
     .eq('id', id)
     .maybeSingle();
   if (error || !data) return null;
@@ -25,6 +25,7 @@ async function getProduct(id: string) {
     name: string;
     price_twd: number | null;
     image_url: string | null;
+    share_focus_x: number | null;
     status: string;
     tenant_id: string;
   };
@@ -52,7 +53,7 @@ export async function generateMetadata({
   if (!product) {
     return { title: 'NEOP STALL' };
   }
-  const ogUrl = `/api/og/product/${id}`;
+  const ogUrl = `/api/og/product/${id}?v=${product.share_focus_x ?? 50}`;
   const desc = product.price_twd !== null ? `NT$ ${product.price_twd.toLocaleString()}` : '';
   return {
     title: `${product.name} · ${product.tenant.name}`,
@@ -96,7 +97,7 @@ export default async function ShareProductPage({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`/api/og/product/${product.id}`}
+        src={`/api/og/product/${product.id}?v=${product.share_focus_x ?? 50}`}
         alt={product.name}
         style={{
           width: '100%',

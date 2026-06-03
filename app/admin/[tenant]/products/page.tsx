@@ -375,7 +375,7 @@ details[open] .chev { transform: rotate(90deg); }
                   <div style={sectionTitle}>📤 分享卡(IG Story 1080×1920)</div>
                   {(p.image_url || (p.media ?? []).some((m) => m.type === 'image')) ? (
                     <>
-                      <ShareButton productId={p.id} productName={p.name} />
+                      <ShareButton productId={p.id} productName={p.name} focusVersion={p.share_focus_x ?? 50} />
                       <p style={{ fontSize: 11, color: c.textMuted, marginTop: 8, lineHeight: 1.5 }}>
                         手機點按可跳系統分享(IG / Snapchat / WhatsApp / 訊息)。
                         <br />

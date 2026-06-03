@@ -19,9 +19,11 @@ import { useState, useEffect } from 'react';
 export function ShareButton({
   productId,
   productName,
+  focusVersion,
 }: {
   productId: string;
   productName: string;
+  focusVersion: number; // = products.share_focus_x,用作 cache buster
 }) {
   const [supported, setSupported] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -74,7 +76,7 @@ export function ShareButton({
   async function openPreview() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/og/product/${productId}`);
+      const res = await fetch(`/api/og/product/${productId}?v=${focusVersion}`);
       if (!res.ok) throw new Error('產分享圖失敗');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
