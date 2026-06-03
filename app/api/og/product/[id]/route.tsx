@@ -80,7 +80,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
   // 拆 2 個 query 比 join 穩定(Supabase nested select FK 推不出時整個 null)
   const { data: pData, error: pErr } = await supabaseAdmin
     .from('products')
-    .select('id, name, price_twd, image_url, media, tenant_id')
+    .select('id, name, price_twd, image_url, media, share_focus_x, tenant_id')
     .eq('id', id)
     .maybeSingle();
 
@@ -96,6 +96,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
     price_twd: number | null;
     image_url: string | null;
     media: MediaItem[] | null;
+    share_focus_x: number | null;
     tenant_id: string;
   };
   const p = pData as ProductRow;
@@ -104,6 +105,8 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
     (Array.isArray(p.media) ? p.media : []).find((m) => m.type === 'image')?.url ??
     p.image_url ??
     null;
+  // 橫向焦點(0-100,預設 50 = 中)— 讓 user 決定 3:4 → 9:16 兩側被裁多少
+  const focusX = p.share_focus_x ?? 50;
 
   const { data: tData } = await supabaseAdmin
     .from('tenants')
@@ -149,7 +152,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           position: 'relative',
         }}
       >
-        {/* 滿版商品照(cover) */}
+        {/* 滿版商品照(cover)— objectPosition 套 share_focus_x 控制橫向焦點 */}
         {coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -162,6 +165,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
               width: 1080,
               height: 1920,
               objectFit: 'cover',
+              objectPosition: `${focusX}% center`,
             }}
           />
         ) : (

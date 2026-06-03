@@ -505,6 +505,30 @@ export async function deletePriceTier(formData: FormData) {
 }
 
 // ====================
+// Phase 12.1(2026-06-04):分享卡橫向焦點
+// ====================
+
+/**
+ * 設 share_focus_x(0-100,預設 50 = 中)。
+ * OG 卡 3:4 → 9:16 兩側裁切時,讓使用者決定焦點偏左 / 中 / 右。
+ */
+export async function updateShareFocus(formData: FormData) {
+  const id = String(formData.get('product_id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const raw = Number(formData.get('share_focus_x'));
+  const focus = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 50;
+
+  await supabaseAdmin
+    .from('products')
+    .update({ share_focus_x: focus })
+    .eq('id', id);
+  revalidateProductRoutes(formData);
+  if (slug) {
+    redirect(`/admin/${slug}/products?saved=${id}#product-${id}`);
+  }
+}
+
+// ====================
 // Phase 9.6/9.7(2026-06-02):商品多媒體 — image + video
 // ====================
 

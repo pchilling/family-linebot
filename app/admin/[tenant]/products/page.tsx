@@ -10,6 +10,7 @@ import {
   updatePriceTier,
   updateProduct,
   updateProductSale,
+  updateShareFocus,
   updateVariant,
 } from '../../actions';
 import { ProductImageUploader } from './image-uploader';
@@ -43,6 +44,7 @@ type Product = {
   sale_discount_pct: number | null;
   sale_start_at: string | null;
   sale_end_at: string | null;
+  share_focus_x: number | null;
   category: string | null;
   status: string;
   product_variants: Variant[];
@@ -66,7 +68,7 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, category, status,
+      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, status,
        product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
     )
     .eq('tenant_id', tenantId)
@@ -371,7 +373,7 @@ details[open] .chev { transform: rotate(90deg); }
                 {/* 分享卡 v0(Phase 9,2026-05-26)— 手機 only Web Share API */}
                 <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
                   <div style={sectionTitle}>📤 分享卡(IG Story 1080×1920)</div>
-                  {p.image_url ? (
+                  {(p.image_url || (p.media ?? []).some((m) => m.type === 'image')) ? (
                     <>
                       <ShareButton productId={p.id} productName={p.name} />
                       <p style={{ fontSize: 11, color: c.textMuted, marginTop: 8, lineHeight: 1.5 }}>
@@ -379,7 +381,7 @@ details[open] .chev { transform: rotate(90deg); }
                         <br />
                         桌機看預覽:
                         <a
-                          href={`/api/og/product/${p.id}`}
+                          href={`/api/og/product/${p.id}?v=${p.share_focus_x ?? 50}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ marginLeft: 4, color: '#0070f3', textDecoration: 'underline' }}
@@ -387,6 +389,49 @@ details[open] .chev { transform: rotate(90deg); }
                           開新分頁
                         </a>
                       </p>
+
+                      {/* 橫向焦點 slider — 3:4 → 9:16 兩側裁切位置 */}
+                      <form
+                        action={updateShareFocus}
+                        style={{
+                          marginTop: 14,
+                          padding: '12px 14px',
+                          background: c.bg,
+                          border: `1px solid ${c.borderSubtle}`,
+                          borderRadius: 8,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                        }}
+                      >
+                        <input type="hidden" name="product_id" value={p.id} />
+                        <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: c.text }}>
+                            橫向焦點(3:4 → 9:16 兩側裁切位置)
+                          </span>
+                          <span style={{ fontSize: 11, color: c.textMuted, fontFamily: 'ui-monospace, monospace' }}>
+                            目前 {p.share_focus_x ?? 50}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          name="share_focus_x"
+                          min={0}
+                          max={100}
+                          step={5}
+                          defaultValue={p.share_focus_x ?? 50}
+                          style={{ width: '100%' }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: c.textMuted }}>
+                          <span>← 左</span>
+                          <span>中(50)</span>
+                          <span>右 →</span>
+                        </div>
+                        <SubmitButton size="sm" pendingText="儲存中…">
+                          儲存焦點
+                        </SubmitButton>
+                      </form>
                     </>
                   ) : (
                     <p style={{ fontSize: 12, color: '#d97706', margin: 0, lineHeight: 1.5 }}>

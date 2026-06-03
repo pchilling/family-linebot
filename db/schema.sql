@@ -1021,3 +1021,11 @@ alter table products add column if not exists sale_end_at timestamptz;
 --   order_item_to_stock_movement(insert/update)
 --   order_item_reverse_stock_movement(delete)
 -- 兩者都改成 insert stock_movements 時帶 new.variant_id / old.variant_id
+
+
+-- Phase 12.1:分享卡橫向焦點(2026-06-04)
+-- 3:4 商品圖在 9:16 IG Story OG 卡上會左右被裁 ~17%,讓 user 調焦點:
+-- 0 = 完全偏左、50 = 中(預設)、100 = 完全偏右
+-- OG route 用 objectPosition: '{x}% center' 套到 <img>
+alter table products add column if not exists share_focus_x int default 50
+  check (share_focus_x between 0 and 100);
