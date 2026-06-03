@@ -920,6 +920,82 @@ vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證�
 - 結帳 server 真實時間檢查,saleActive 用 round(variant.price × (100 − pct) /100)
 - sale 期間 tier 暫停(不衝突)
 
+### Phase 10:Dashboard 報表 + Quick Action 清(2026-06-03)
+
+純 SVG(無 lib)4 段報表 + UX 簡化:
+- **30 日營收 line chart**:Asia/Taipei 日切,polyline + grid + Y 軸刻度
+- **Top 5 商品 bar chart**:依 paid 訂單訂單數加總,橫向 bar
+- **訂單漏斗**:open → paid → shipped 三段(rect + 比例)
+- **30 日活動參與**:報名 / 簽到 / 出席 daily bar(三色疊)
+- 拿掉「快速操作」section(沒人用過)
+- Metric card 緊湊化:min-height 110、justify space-between
+
+### Phase 11:Variant Stage C 完整化(2026-06-03)
+
+把 variant 從 admin / API / 結帳一路推到 LIFF 客戶端 + 訂單顯示:
+- **Stage C SQL**:stock_movements trigger 多帶 variant_id(以前只到 product)
+- **LIFF /m/shop actions.ts**:`ShopVariant` type + `CartItem` 含 variant_id + placeOrder 依 variant.stock / price 結帳(server snapshot,不信 client)
+- **LIFF /m/shop page.tsx**:
+  - 卡片 ProductCardActions:單 variant 自動用,多 variant 下拉(disabled 缺貨)
+  - cart line 顯示 variant_name(多規格才顯示,單規格保持乾淨)
+  - changeQty / cart key 改 variant_id(同商品不同規格分行)
+- **公開店訂單頁 / admin 訂單明細**:join `product_variants(variant_name)` 顯示 variant badge(`default` 不顯示)
+- **LIFF /m/orders 訂單歷史**:
+  - 修 broken SELECT(原本 `order_items(product_name, qty)` 但 order_items 沒這欄,整頁炸)
+  - 改 nested join:`order_items(qty, products(name), product_variants(variant_name))`
+  - summary 字串現在含 variant:「保衛複方精油(15 ml)× 2」
+
+### Phase 11.1:Variant 收尾 + 客戶端細節(2026-06-03)
+
+- variant-selector.tsx `handleAdd` 的 imageUrl fallback 補 `productMedia[0]` 中間層(否則只 image_url=null 的商品 cart 顯示無圖)
+- cart 縮圖 80×80 正方 → 60×80(對齊商品圖 3:4 裁切比例)
+- 客戶商品購買區加 chip filter:「全部 / 最新 / 各 category」
+  - 公開店 /[slug]:URL `?f=` param,可分享連結
+  - LIFF /m/shop:React state,即時切換不換頁
+  - 全部:category asc + name asc;最新:created_at desc
+
+### Phase 12:Domain 遷移 + LIFF UX 大改造(2026-06-03 ~ 04)
+
+#### Domain migration:family-linebot-delta.vercel.app → stall.neop.tw
+
+- 買 `neop.tw`(GoDaddy NT$799)。子網域策略:`stall.neop.tw` 平台主入口,未來 `oilswa.neop.tw` 等 tenant subdomain(Phase 13)
+- DNS 從 GoDaddy 搬到 Cloudflare(免費快 + 之後 Email Routing)
+- Vercel 加 custom domain `stall.neop.tw`(CNAME `5428fc6109a1706b.vercel-dns-017.com`,Proxy disabled)
+- 環境變數新增 `NEXT_PUBLIC_PROD_URL=https://stall.neop.tw`
+- 3 處硬編碼 vercel.app URL 全改:
+  - `lib/line.ts:235` 寫死 fallbackImage → 改 env
+  - `app/admin/[tenant]/classes/[id]/qr/page.tsx:56` fallback 字串
+  - `app/m/shop/actions.ts:340` fallback 字串
+- 外部 dashboard 5 處更新:
+  - **LINE Messaging Webhook URL** → `/api/webhook`
+  - **LIFF apps × 3**:`/m/member`、`/m/shop`、`/m/checkin` 各自改 domain
+  - **Supabase Auth** Site URL + Redirect URLs(舊保留 7 日緩衝)
+  - **Google OAuth** Authorized redirect URIs(舊保留 7 日緩衝)
+- 舊 `family-linebot-delta.vercel.app` 設 308 Permanent Redirect → 新 domain
+- 全站預設 OG meta 改:`title: NEOP STALL 管理後台` / `description: 登入管理你的攤位`(原文「LINE Bot 商務平台」用在 admin login 分享不對勁)
+
+#### LIFF /m/shop UX 大改
+
+- 新檔 `app/m/shop/layout.tsx`:set title=「商品專區」(原本繼承全站「NEOP STALL 管理後台」)
+- ShopTenant 從單張 `banner_url` 改 `banners: MediaItem[]`(對齊 Phase 9.8 公開店)
+- 直接 import 共用 `<BannerHero>`(/[slug]/banner-hero.tsx)— 多媒體輪播 + 影片 + dots / arrows
+- **新檔 `app/m/shop/product-detail-modal.tsx`**(內容已是 view,檔名未改):
+  - 多張圖 dot 切換
+  - 名稱 / 類別 / 描述
+  - Variant chip(多 variant 才顯示,缺貨刪除線 + disabled)
+  - 數量 stepper(clamp 到 variant.stock)
+  - Sticky 底部 CTA(總價 + 加入購物車)
+  - 加完自動 onClose 回列表
+- 卡片精簡:只剩圖 + 名 + 最低 variant 價;**拿掉**下拉、加購按鈕、庫存數字
+- 整張卡 onClick → SPA 內 full-page view(不是 modal — list ↔ detail 隱現,header / banner / chip / grid / 底部 cart 鈕都隱藏)
+- addToCart 改吃 qty 參數(原本只能 +1)
+
+#### 測試訂單清理
+
+- 14 筆 oilswa 測試訂單(含 NT$18M 怪資料)+ order_items + stock_movements 清光
+- trigger 自動反向加 stock,手動 sync 回原狀(`保衛 9 / 藍寶 3 / 脊椎 9536 / LLV 5205`)
+- products.stock cache 也 sync 到 variant 真實值
+
 ### 其他小尾巴(沒成單獨 Phase)
 
 - SKU 自動產:`{order_prefix}-{流水號}` + variant `-V{n}`(2026-05-26)
@@ -934,25 +1010,26 @@ vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證�
 
 **Phase 4-Alpha 完成 ✅**(6 個 task 全 done)
 
-**Phase 4-Beta / Variant Stage C(下波合併)**:
-- LIFF `/m/shop` placeOrder 用 variant_id 而非 product_id
-- LIFF 商品詳情顯示 variant 選擇器(色 / 尺寸下拉)
-- inventory page 改列 variants 不是 products
-- orders detail 顯示 variant_name(join product_variants)
-- stock_movements trigger 切 variant.stock(目前 trigger 還 update products.stock)
-- Stage C 收尾後 deprecate products.sku / price_twd / cost_twd / stock(改 view 或 drop)
+**Phase 4-Beta / Variant Stage C ✅ 完成(Phase 11,2026-06-03)**:
+- ✅ LIFF `/m/shop` placeOrder 用 variant_id
+- ✅ LIFF 商品詳情顯示 variant 選擇器
+- ✅ orders detail 顯示 variant_name
+- ✅ stock_movements trigger 切 variant.stock
+- ⏳ inventory page 改列 variants 不是 products(尚未)
+- ⏳ Stage C 收尾後 deprecate products.sku / price_twd / cost_twd / stock(尚未)
 
-**Phase 4-Gamma(公開網站)**(2026-05-20 Gamma.1-3 + 部分 Gamma.5 完成 ✅):
+**Phase 4-Gamma(公開網站)**(2026-05-20 + Phase 12 收尾,大部分完成 ✅):
 - ✅ `/[slug]` 攤位首頁(Gamma.1)
 - ✅ `/[slug]/p/[product]` 商品詳情 + variant 選擇器(Gamma.2)
 - ✅ `/[slug]/cart` + `/checkout` + `/order/[order_no]` guest checkout 完整 flow(Gamma.3)
 - ✅ 商品 JSON-LD structured data(Gamma.5 部分)
-- ⏳ `/login` LINE Login + `/account` 跨 tenant 個資 + `/account/orders` 訂單歷史(Gamma.4,等需要)
-- ⏳ Vercel custom domain + sitemap / robots / noindex(Gamma.5 剩下,等對外開放)
+- ✅ Vercel custom domain `stall.neop.tw`(Phase 12)
+- ⏳ `/login` LINE Login + `/account` 跨 tenant 個資 + `/account/orders` 訂單歷史(Gamma.4)
+- ⏳ sitemap / robots / noindex
 
 **Phase 4-Delta(Week 9-12)**:員工驗收 + UX 微調
 
-**Phase 5(待評估)**:email 註冊 + 3 套美感主題 + 金流(ECPay / LINE Pay)
+**Phase 13 候選**:tenant subdomain(`oilswa.neop.tw` middleware routing)+ Members 邀請 UI + 法規 / 隱私 / 退款頁 + Cloudflare Email Routing(`peter@neop.tw`)+ LINE Login 訪客結帳 + 3 套美感主題 + 金流(ECPay / LINE Pay)
 
 **Stall Phase B users → tenant_customers rename(待 Variant Stage C 一併)**
 
@@ -985,9 +1062,11 @@ vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證�
 
 ### LINE Login channel(LIFF)
 - Channel ID: `2010125926`
-- LIFF ID: `2010125926-mRl3l3lO`
+- LIFF apps(3 個,2026-06-04 全部換 stall.neop.tw):
+  - `NEXT_PUBLIC_LIFF_ID` = `2010125926-mRl3l3lO` → `https://stall.neop.tw/m/member`(會員 / 活動)
+  - `NEXT_PUBLIC_LIFF_ID_SHOP` = `2010125926-aPB1bQtE` → `https://stall.neop.tw/m/shop`
+  - `NEXT_PUBLIC_LIFF_ID_CHECKIN` = `2010125926-M0ozLk50` → `https://stall.neop.tw/m/checkin`
 - LIFF size: Full
-- LIFF Endpoint URL: `https://family-linebot-delta.vercel.app/m/member`
 - Scope: `profile` + `openid`
 - Bot link feature: On (Aggressive),綁定上面 Messaging API channel
 
@@ -998,7 +1077,8 @@ vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證�
 
 ### Vercel
 - Project: `family-linebot`
-- Production URL: `https://family-linebot-delta.vercel.app`
+- Production URL: `https://stall.neop.tw`(2026-06-04 換)
+- 舊 URL `https://family-linebot-delta.vercel.app` 設 308 → `stall.neop.tw`
 - Env vars(Production + Preview + Development):
   - `LINE_CHANNEL_SECRET`
   - `LINE_CHANNEL_ACCESS_TOKEN`
@@ -1008,8 +1088,15 @@ vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證�
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY`
   - `DEFAULT_TENANT_ID`
-  - `NEXT_PUBLIC_LIFF_ID`
+  - `NEXT_PUBLIC_LIFF_ID` / `NEXT_PUBLIC_LIFF_ID_SHOP` / `NEXT_PUBLIC_LIFF_ID_CHECKIN`
   - `LIFF_CHANNEL_ID`
+  - `NEXT_PUBLIC_PROD_URL=https://stall.neop.tw`(2026-06-04 新增)
+
+### Domain / DNS
+- Registrar:**GoDaddy**(`neop.tw`,~NT$799/年。隱私不可選,TWNIC 公開政策)
+- DNS / CDN:**Cloudflare**(Free plan)
+  - `stall.neop.tw` CNAME → `5428fc6109a1706b.vercel-dns-017.com`(Proxy disabled,Vercel SSL)
+  - 之後可加 Email Routing 給 `peter@neop.tw`(尚未設)
 
 ### GitHub repo
 - `pchilling/family-linebot`(private)
@@ -1188,6 +1275,9 @@ NOTIFY pgrst, 'reload schema';
 - Telegram polling 之前斷過,要設 Windows Task Scheduler At Logon 自動啟動(尚未)
 - 進階教室目前綁在「專屬客服」內(用戶輸入「進階」keyword),未來實作 keyword webhook handler
 - LINE @ display name 從「愛油蛙」→「愛油哇」改過
+- ⚠️ **signUp 沒自動建 platform_users**(Phase 11 確認 bug):email / Google 註冊只創 Supabase Auth user。所以新人登入後 `getUserAllowedTenants` 撈不到 → 顯示「沒有 tenant 權限」。**workaround**:Owner 用 Phase 13 Members 邀請 UI(待做)或手動 SQL `insert platform_users` 補
+- ⚠️ `app/admin/[tenant]/settings/actions.ts:19` TODO:RLS 還沒 check tenant_members,**任何登入者技術上可改任何 tenant 設定**(實務上要猜 slug);staff 開放前必補
+- 舊 stock_movements DELETE trigger 在 variant_id 缺失時 fallback 寫 product,所以 Phase 12 清測試訂單時 variant.stock 被反向加(已手動還原)
 
 ---
 
