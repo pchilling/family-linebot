@@ -1,1058 +1,144 @@
 # Progress & Flows
 
-> 開發進度 + 各 flow step by step + 部署紀錄。最後更新:2026-06-03(Phase 9.9 限時優惠 % off)
+> 開發日記 + flows + 部署紀錄。最後更新:2026-06-04(progress.md 重構,改按月份 + 用戶層指標)
 
 ---
 
-## 一、開發進度 timeline
+## 一、線 1 / 線 2 進度(用戶層,每次更新)
 
-### Phase 0:平台 setup(2026-05-18)
+> ⚠️ **這是家族要的指標**。每次 push 完都該回來看一次。
+> 平台層 phase ship 不等於線 1 / 線 2 完成 — 這兩個是不同數字。
 
-| 階段 | 內容 | Commit |
-|---|---|---|
-| Step 1 | scaffold(Next.js 15 + TS,git init) | `6b744bd` |
-| Step 2 | LINE webhook 骨架 + echo reply | `0a07231` |
-| Step 3 | Supabase schema(tenants / users / messages) | `c059dc6` |
-| Step 4 | webhook 整合 DB(upsert users / log messages) | `a2a3761` |
-| Step 5 | Rich Menu setup script + placeholder PNG | `ca16519` |
-| Step 6 | Vercel 部署 + LINE webhook URL 接上 | — |
-
-### Phase 1:本月課程 from DB(2026-05-19)
-
-| 階段 | 內容 | Commit |
-|---|---|---|
-| 1.1 | classes 表 + webhook postback dispatch | `01371af` |
-| 1.2 | refactor:classes 改 region_id FK + 加 regions 表 | `4e6502c` |
-| 1.3 | filter future(只列未來 + 今天場次) | `f5bab8e` |
-| 1.4 | seed 12 假課(精油基礎 / 親子療癒 / 芳療師認證班) | (REST seed) |
-
-### Phase 2:/admin Classes CRUD(2026-05-19)
-
-| 階段 | 內容 | Commit |
-|---|---|---|
-| 2.1 | middleware + supabase-server + admin/login + actions + classes 列表 + 編輯刪除 | `0afedbf` |
-| 2.2 | admin user 設定(Supabase Auth UI Add user) | (Peter 自己 setup) |
-
-### Phase 3:LIFF 會員專區(2026-05-19)
-
-| 階段 | 內容 | Commit |
-|---|---|---|
-| 3.1 | ALTER users 加 full_name / phone / address / birthday | (SQL,vault 外跑) |
-| 3.2 | @line/liff + app/m/member page + actions | `f56f242` |
-| 3.3 | Rich Menu 第 4 格改「會員中心」(URI to LIFF) | `6a9d69b` |
-| 3.4 | LIFF Login channel 建 + Publish | (LINE Dev Console) |
-| 3.5 | Vercel env(`NEXT_PUBLIC_LIFF_ID` + `LIFF_CHANNEL_ID`) | (Vercel Dashboard) |
-| 3.6 | error banner fix(submit 失敗時可見訊息) | `11f736c` |
-
-### Stall Phase A 平台層 schema migration(2026-05-19)
-
-family-linebot 演化為 Stall(多租戶電商平台)第一步 — schema 拆分平台層 + tenant 層。oilswa 為第一個 Stall tenant。
-
-| 階段 | 內容 | Commit |
-|---|---|---|
-| A.1 | `platform_users`(跨 tenant 人)+ 搬 users 過去 + `tenant_members` + tenants 加 slug/plan/features 等 | `4abb3c4` |
-| A.2 | review round 2 修(`pg_advisory_xact_lock` / slug fallback / merged partial index) | `899901f` |
-| A.3 | v1.1 delta:雙入口架構 + auth provider 預埋 + SEO 欄位 + products.slug + guest checkout 預埋 + Cyndi tenant(Peter 代管) | `51c7e03` / `0ae4da4` |
-
-oilswa tenant `8106161d-ad82-4bad-ba61-da1aac65bb2c` (slug=oilswa, plan=enterprise)
-Cyndi tenant `8c032fc3-880a-4e96-9dc4-73684511f192`(slug=cyndi, plan=pro, Peter 代管)
-
-### Phase 4-Alpha admin tenant-aware(2026-05-19)
-
-對齊 STALL_ARCHITECTURE v1.1 第七章 Phase 4-Alpha 6 個 task,oilswa + Cyndi 平行。
-
-| 階段 | 內容 | Commit |
-|---|---|---|
-| 4α.1 | `/admin/[tenant]/products` prototype + getTenantBySlug helper + tenant layout nav | `cc8420f` |
-| 4α.2 | `/admin/[tenant]/classes` + `/orders` + `/orders/[id]` 全 migrate + 舊 routes redirect | `38b01b7` |
-| 4α.3 | `/admin/[tenant]/customers`(列 users + aggregate 訂單數/累積消費)+ `/admin/[tenant]/inventory`(低庫存警告 + stock_movements 異動表) | `303e33c` |
-
-URL pattern:
-- 預設 `/admin` → redirect `/admin/oilswa/products`
-- oilswa:課程 / 商品 / 訂單 / 客戶 / 庫存
-- cyndi:課程 / 商品 / 訂單 / 客戶 / 庫存(課程 tab 對 cyndi 空)
-- 舊 routes 全 redirect 預設 tenant
-
-### Variant 重構 Stage A 平台層 schema(2026-05-19)
-
-對齊 GraceHan 拆 product / variant 兩層,給 Cyndi 童裝色 × 尺寸 × SKU 各自庫存。
-
-| 階段 | 內容 | Commit |
-|---|---|---|
-| 5.2.A | `product_variants` 表 + seed default variants from products + alter order_items/stock_movements 加 variant_id + backfill | `15b1e63` / `f8c8e0e` |
-
-兼容性:
-- `order_items.variant_id` / `stock_movements.variant_id` 暫 nullable
-- 既有 `products.sku` / `price_twd` / `stock` 保留(legacy)
-- Stage C 才切 not null + deprecate
-
-### Variant 重構 Stage B admin UI(2026-05-19)
-
-| 階段 | 內容 | Commit |
-|---|---|---|
-| 5.2.B | `VariantRow` type + variant CRUD actions + `createProduct` 同步建 default variant + admin/products page 加 nested variant inline 編輯/新增/刪 | `0e98cea` |
-
-### 商業模式策略調整(2026-05-20)
-
-Stall 商業模式從原本 4 階(Free/Plus/Pro/Enterprise)收斂為 **Pro + Enterprise 2 階**。LINE Bot 改為獨立 add-on 服務(走 NEO 外部簽約),用 `tenants.features` jsonb 判斷,**不綁 plan**。所有 plan 不接金流,走「匯款 + 手動對帳」(長期策略,不是 Phase 1 限制)。
-
-| 項目 | 變更 |
-|---|---|
-| Plan 階級 | 4 階 → 2 階(Pro / Enterprise) |
-| LINE Bot | plan 內建 → `features.line_bot` add-on,聯繫 NEO 客製 |
-| LIFF | Phase 內建 → `features.liff` add-on,Enterprise 預設帶 |
-| 金流 | Phase 1 不做 → **長期不接**,顯示匯款帳戶 + 手動對帳 |
-| Self-serve sign-up | Phase 5 規劃 → 需要時才做(目前自己人 / 接案) |
-| Theme | 4 層 → 2 層(Pro / Enterprise) |
-
-各 tenant 對應:
-- oilswa = Enterprise,`features={"line_bot": true, "liff": true}`
-- cyndi = Pro(之後升 Enterprise),`features={}`,核心場景是 Phase 4-Gamma 公開網站
-- Kim = Pro(pending,公開網站上線後啟用)
-
-文件更新:`Stall_README.md`(§4/5/10/12)、`STALL_ARCHITECTURE.md`(決定 2/4/7、Phase 七、§八 DO/DON'T)。
-
-**待跑 SQL**:oilswa `features` backfill 加 `{"line_bot": true, "liff": true}`(Peter 自己在 Supabase Studio 跑)。
-
-### Phase 4-Gamma 開工(2026-05-20)
-
-公開網站第一波,只服務「自己人 / 接案」客戶,guest checkout 為主(LINE Login 留到需要時)。對齊 STALL_ARCHITECTURE §七 Phase 4-Gamma + 商業模式策略調整。
-
-| 子階段 | 內容 | 檔案 |
-|---|---|---|
-| **Gamma.1** | `/[slug]` 攤位首頁 + 主題 wrapper(brand_color null fallback)+ 商品列表 grid + 「攤位準備中」empty state | `app/[slug]/layout.tsx` + `app/[slug]/page.tsx` + `lib/supabase.ts`(加 `getTenantPublic` / `getActiveProducts`) |
-| **Gamma.2** | `/[slug]/p/[product]` 商品詳情(server)+ Variant 選擇器(radio,client)+ SEO metadata | `app/[slug]/p/[product]/page.tsx` + `variant-selector.tsx` + `lib/supabase.ts`(加 `getProductBySlug`) |
-| **Gamma.3a** | 購物車狀態(localStorage,tenant 隔離 key)+ sticky header CartLink + variant-selector「加入購物車」啟用 | `app/[slug]/cart-state.tsx` + 改 `layout.tsx` / `variant-selector.tsx` / 商品詳情 page |
-| **Gamma.3b** | `/[slug]/cart` 購物車頁(qty 增減 / 移除 / 小計 / 前往結帳) | `app/[slug]/cart/page.tsx` |
-| **Gamma.3c** | `/[slug]/checkout` 結帳表單(client)+ `createOrder` server action(從 DB 重拉 price 防竄改 + 庫存檢查)+ `/[slug]/order/[order_no]` 訂單成立頁 | `app/[slug]/checkout/page.tsx` + `actions.ts` + `app/[slug]/order/[order_no]/page.tsx` |
-| **Gamma.5 部分** | 商品頁加 schema.org Product / AggregateOffer JSON-LD(Google rich result) | 改 `app/[slug]/p/[product]/page.tsx` |
-
-下單完整 flow:
-```
-/[slug] → 點商品 → /[slug]/p/[product] → variant 選擇 + 加入購物車
-   ↓
-/[slug]/cart → 改數量 / 移除 / 前往結帳
-   ↓
-/[slug]/checkout → 填收件資料 + 送出
-   ↓
-createOrder server action(driver:從 DB 重拉 variant price/stock 驗證 → insert orders + order_items
-   → DB triggers 自動產 order_no / 算 total / 寫 stock_movements / 扣庫存)
-   ↓
-clear() 清前端購物車 → router.push
-   ↓
-/[slug]/order/OW-202605-NNNN(訂單成立 + 「賣家會私訊匯款資訊」黃色提醒)
-```
-
-新訂單在 admin `/admin/[tenant]/orders` 直接看得到(`source='web'`)。
-
-**未做(等需要再做)**:
-- LINE Login + `/account` + `/account/orders`(Gamma.4)— 目前都是自己人,guest checkout 夠
-- Vercel custom domain(Gamma.9)— 等對外開放再設
-- sitemap.xml / robots.txt — 對外才需要
-- cart / checkout / order 頁面 noindex meta — 本地測試先不處理
-
-### 分級調整 v2(2026-05-21):Free 階復活
-
-5/20 收斂成 2 階(Pro / Enterprise)後,5/21 為「自己人 / 個人 / 二手」用例(主要 target = Kim)再加回 **Free**。最終 3 階:Free / Pro / Enterprise。
-
-| 維度 | Free | Pro | Enterprise |
+| 線 | 月 1 目標 | 目前狀態 | 上次更新 |
 |---|---|---|---|
-| 公開網站 + 商品 + 訂單 flow | ✅ | ✅ | ✅ |
-| Admin(products / orders / customers / classes) | ✅ | ✅ | ✅ |
-| **inventory(`/admin/[tenant]/inventory`)** | **❌** | ✅ | ✅ |
-| 公開網站 **Made with Stall 浮水印** | **強制** | 拿掉 | 拿掉 |
-| 字體組 / 按鈕風格 | ❌ | ✅ | ✅ |
-| 客製設計 + 自訂網域 | ❌ | ❌ | ✅ |
-| LINE Bot / LIFF(features add-on) | 不開放 | 可加購 | 預設帶 |
+| 線 1(oilswa LINE@ 互動) | 學員資料庫 / 本月課程 / 教室簽到 / 活動報名 / 客服 inbox / 最新消息 | **待填**(由 Peter 寫) | 待填 |
+| 線 2(oilswa 後台 + 公開店) | 商品 CRUD / 訂單 / 客戶 / 庫存 / 公開店面 / variant / 報表 / domain | **待填**(由 Peter 寫) | 待填 |
 
-tenant 對應更新:
-- oilswa = **Enterprise**,features={line_bot, liff}
-- cyndi = **Pro**(之後升 Enterprise),features={}
-- Kim = **Free**(pending,還沒建 tenant),features={}
-
-**code gating 還沒實作**:目前 `tenants.plan` / `features` 都還沒用來真正鎖功能,Free / Pro 看到的 admin 一樣。要鎖 inventory + 加浮水印是後續 code 工程。
-
-文件更新:`Stall_README.md`(§4/§5)、`STALL_ARCHITECTURE.md`(決定 7、§八 DON'T)。
-
-### 5/21 整波收尾(2026-05-21):admin + Variant Stage C 部分 + Free gating + Kim tenant
-
-完整 Phase 4-Gamma admin 端 + 部分 Variant Stage C + Free gating 落地 + Kim tenant 建立。
-
-**Code 改動**:
-
-| 主題 | 檔案 | 重點 |
-|---|---|---|
-| Admin source-aware | `app/admin/[tenant]/orders/page.tsx` + `[id]/page.tsx` | 列表加「來源」欄(web/liff/manual);訪客客戶 fallback `shipping_recipient`;詳情加 source badge + 訪客客戶資訊區 + order_items 顯示 variant_name |
-| Inventory variant 改造 | `app/admin/[tenant]/inventory/page.tsx`(rewrite) | 改讀 `product_variants`、低庫存 per-variant、異動列加 variant badge |
-| Free gating(inventory) | 同上 | plan='free' 顯示鎖頭頁(沒查 DB,直接 return) |
-| Free gating(浮水印) | `app/[slug]/layout.tsx` | footer plan='free' 顯示「Made with Stall」細字 |
-
-**DB SQL(已跑)**:
-
-- `tenants.order_prefix` 欄位 + format check(`^[A-Z]{2,5}$`)+ generate_order_no trigger 改動態查(取代 hardcoded 'OW')+ backfill 既有 OW 訂單到各 tenant prefix
-- `update_product_stock` trigger 改寫 `product_variants.stock`(有 variant_id 用 variant、fallback products)
-- Kim tenant INSERT + tenant_members(Peter 為 owner)
-
-**schema.sql 同步更新**:Phase 5.3(order_prefix)、update_product_stock 重寫、Kim tenant block 全進 schema.sql,constraint add 用 `do $$ ... exception when duplicate_object ... end $$` 包起來避免 rerun 撞。
-
-**目前 3 個 tenant 狀態**:
-
-| Slug | Plan | Prefix | Features | Owner | 用途 |
-|---|---|---|---|---|---|
-| oilswa | enterprise | OW | `{line_bot, liff}` | Peter | 家族(三合一愛油哇) |
-| cyndi | pro | CY | `{}` | Peter 代管 | 接案(童裝代購) |
-| kim | free | KM | `{}` | Peter 代管 | 自己人(二手,slug placeholder) |
-
-**新 Tech debt**:
-
-- `products.stock` 之後不再被 trigger 更新(全寫 variant.stock);現有 admin product CRUD 還在 read / write `products.stock`,Stage C 結尾 deprecate 時要全清(legacy fallback 還在 trigger 內,沒 variant_id 的舊資料仍寫 product.stock,需 audit)
-- Free gating 只擋 inventory + footer 浮水印;**Pro 的字體 / 按鈕風格 客製** 還是 spec 概念,沒 code gate
-- Kim slug='kim' 是 placeholder(正常 SaaS 該本人選);沒 admin UI 改 slug,要跑 update SQL,且會 break 既有 URL
-- 沒 admin tenant settings 頁(brand_color / description / payment_info 都靠 SQL 設)
-
-### Admin 介面 + 訂單體驗強化(2026-05-21)
-
-整波收尾後續微調:admin 跨 tenant 操作順暢度 + 客人下單後 UX 完整。
-
-**Admin 介面**:
-
-- **Admin nav 改 2 列**(`app/admin/[tenant]/layout.tsx` + 新 `nav-links.tsx`):Row 1 = tenant 名 + plan badge(free 灰 / pro 藍 / enterprise 紫)+ `slug · prefix` + 「切到 X」其他 tenant + 預覽公開頁 ↗;Row 2 = 商品 / 訂單 / 客戶 / 庫存 🔒 / 課程 / 設定
-- **Nav active 高亮**(`nav-links.tsx` client component,用 `usePathname()`):active = 粗體 + 黑色 + 下方黑線
-- **Tenant settings 頁**(`app/admin/[tenant]/settings/page.tsx` + `actions.ts` 新):
-  - 可改:`name` / `description` / `brand_color`(color picker)/ `og_image_url` / `contact_info`
-  - Read-only 顯示:`plan` / `slug` / `order_prefix` / `features` / `status`
-  - `plan` / `features` / `slug` 不能在這裡改(需 NEO 介入)
-- **`getAllActiveTenants()` helper**(`lib/supabase.ts`)+ `TenantBySlug` 加 `order_prefix` 欄
-
-**訂單體驗**:
-
-- **`tenants.contact_info`** 欄位(Phase 5.4):free text 多行,賣家自寫 LINE / 電話 / Email / IG 等
-  - Settings 「對外聯絡資訊」textarea
-  - 訂單成立頁加「聯絡賣家」白卡(`whiteSpace: pre-wrap` 保留換行)
-- **Order lookup 頁**(`app/[slug]/order-lookup/page.tsx` + `actions.ts` 新):
-  - Guest 用 `order_no` + (Email 或電話)查訂單,比對成功跳 `/[slug]/order/[order_no]`
-  - **錯誤訊息統一**「找不到訂單,請確認...」(無論 order_no 錯 / Email 錯都同訊息,避免 enumeration)
-  - Tenant layout footer 加「查我的訂單 →」連結
-- **訂單成立頁加「📋 複製」按鈕**(`copy-button.tsx` 新,client + Clipboard API + execCommand fallback);加提醒「請保留此編號,日後可在『查我的訂單』查」
-
-**DB SQL 已跑**:
-```sql
-alter table tenants add column if not exists contact_info text;
-```
-
-**新 tech debt**:
-- Settings save 沒 toast / 錯誤訊息展示(server action 回 ok/error 但 UI 沒顯示)
-- Tenant switcher 列**所有** active tenant(沒做 tenant_members 過濾);多人登入時要加 RBAC
-- Order lookup 電話比對**完全相等**(沒 normalize 格式,`0900-000-000` ≠ `0900000000`)
-
-### Phase 6.1 教室簽到(2026-05-21,線 1 三合一愛油哇月 1 補完)
-
-學員透過教室 QR Code 自助簽到 + admin 手動補簽(Wave 3 還沒做)。設計上**只走 QR**:中老年學員不打 keyword、不點 Rich Menu 學東西,QR 是最簡單的 in-person 觸發。
-
-**Schema(Phase 6.1)**:
-- `attendances` 表(tenant_id / class_id / user_id / checked_in_at / method / created_by / note)
-- `unique(class_id, user_id)` 防同人同課重簽
-- `method` 4 種:liff / qr / manual / admin
-- `created_by → platform_users`:manual / admin 才填(audit 用)
-- `check_attendance_tenant` trigger:tenant_id 必須跟 classes.tenant_id 跟 users.tenant_id **兩邊都一致**(對齊 order_items_check_tenant pattern + 多檢查 user,防 oilswa 學員被誤建到 cyndi 簽到)
-- `user_id → users(id)`:跟 orders/messages 一致,等 Phase B 一次全 migrate 到 platform_user_id
-
-**Code**:
-- `app/m/checkin/page.tsx`(client LIFF,新):
-  - 沒 `?class_id` → 顯示「請掃教室 QR Code」引導
-  - 有 `?class_id` → 自動簽到,結果以綠卡(✓ 簽到成功)/ 紅卡(已簽 / 找不到 / 已取消)顯示
-  - 全在 LIFF 內,學員體驗:掃 QR → 看到結果 → 結束
-- `app/m/checkin/actions.ts`(server,新):
-  - verifyIdToken(用 NEXT_PUBLIC_LIFF_ID_CHECKIN / LIFF_CHANNEL_ID_CHECKIN fallback 既有 LIFF_CHANNEL_ID)
-  - `loadTodayClasses`(目前 page 沒呼叫,留給未來 admin / debug)
-  - `checkin`:check class + insert attendance,23505 unique violation 回友善「已簽過」
-
-**入口**:
-- 教室 QR Code:`https://liff.line.me/2010125926-M0ozLk50?class_id={class.id UUID}` — 老師印貼教室
-- ❌ Keyword「簽到」**沒做**(設計決定:老人不打字)
-- ❌ Rich Menu 一格**沒做**(保留「📰 最新消息」placeholder)
-- ⏳ Admin 手動勾 — Wave 3 還沒做
-
-**Setup**:
-- LIFF channel:`2010125926-M0ozLk50`,endpoint `/m/checkin`(同 LINE Login channel,LIFF_CHANNEL_ID 共用)
-- env vars:本機 `.env` + Vercel production 都加 `NEXT_PUBLIC_LIFF_ID_CHECKIN=2010125926-M0ozLk50`
-
-### 修 deploy 卡住的 type error(2026-05-21)
-
-**重大發現**:5/20 那批 5 個 commit(Phase 4-Gamma 公開網站 + admin 改造 + spec)推上 GitHub 後,**Vercel build 一直靜默失敗**,因此 production 一直跑舊版(Variant Stage B)。今天才發現 — Webhook 沒回應簽到 keyword、`/m/checkin` 404、追下去才看出 deploy 沒過。
-
-**3 個 TypeScript build error 修了**:
-1. `app/[slug]/order/[order_no]/page.tsx`:`Row` type 跟 supabase 回傳結構不合(OrderDetail 有 items 但 DB 是 order_items)→ 改用 `Omit<OrderDetail, 'items'>` + cast through unknown
-2. `app/admin/[tenant]/settings/actions.ts`:React 19 `<form action>` 要 `Promise<void>`,改 `throw on error` 取代 return result 物件(失去 toast 能力,Wave 4 加 useActionState 補)
-3. `app/m/checkin/actions.ts`:supabase 對 *-to-one regions join 推成 array → cast through unknown 繞過
-
-**Bonus fix**:
-- `package.json` setup:rich-menu 改用 `.env`(專案早已從 .env.local 遷移)
-- Rich Menu uploader 重跑 + 拿到新 richMenuId(`richmenu-c3bb1b7a3bc4e5415b663de524c1359b`,update 進 tenants.rich_menu_id)
-
-**Lesson**:Vercel build status 沒在 watch — 之後 push 後要 curl 確認(`curl -s -o /dev/null -w "%{http_code}" production-url/some-new-route`)。或啟 GitHub Actions / Vercel Slack webhook。
-
-### Phase 6.1 Wave 3 + settings toast(2026-05-21 下午前段)
-
-- **/admin/[tenant]/attendances Wave 3**(`c1a4498`):
-  - 詳情頁加 3 個新 section:「已報名」/「候補」/「已取消/沒到」
-  - server actions:`promoteWaitlist` / `cancelReservationAdmin` / `markNoShow`
-  - promote 後自動 reorder waitlist position;取消 confirmed 自動 promote 第 1 個候補
-- **Settings 加 toast**(`048b687`):
-  - 拆出 client `<SettingsForm/>` 用 `useActionState`
-  - server action signature 改 `(prev, formData) => SettingsState`
-  - success 綠 banner + 儲存時間 / error 紅 banner / pending 按鈕 disabled
-
-### Phase 6.2 — 活動報名 + 候補表單(2026-05-21 下午)
-
-「活動」沿用 classes 表;新增 `reservations` 表處理報名 / 候補 / 取消 / 沒到狀態。
-
-**Schema(Phase 6.2,新表)**:
-- `reservations(tenant_id, class_id, user_id, status, position, note, created_at, updated_at)`
-- status: `confirmed / waitlist / cancelled / no_show`
-- position: waitlist 順序(1-based);其他狀態 null
-- unique(class_id, user_id)
-- check_reservation_tenant trigger:跟 attendances 同 pattern(class.tenant 跟 user.tenant 雙檢查)
-- updated_at trigger + 3 個 index + RLS
-
-**Wave 1 — 學員 LIFF**(`0b40762`):
-- `/m/events` LIFF page(新):列未來 60 天活動 + 容量 / 已報 / 候補數
-- 按鈕 4 狀態:報名 / 候補 / ✓已報名(可取消) / ⏳候補中#N(可取消)
-- `actions.ts` server actions:loadEvents / reserveSpot / cancelReservation
-- env `NEXT_PUBLIC_LIFF_ID_EVENTS` / `LIFF_CHANNEL_ID_EVENTS`(可選,fallback 用既有 LIFF)
-
-**Wave 2 — admin 報名管理**(`b17fa66`):
-- 既有 `/admin/[tenant]/attendances?class_id=xxx` 詳情頁加新 section
-- 已報名 / 候補 / 已取消沒到 各自列表 + [↑升等][沒到][取消] 按鈕
-- 取消 confirmed 自動 promote 候補 + reorder
-
-**Wave 3 候補自動 promote(trigger)— 還沒做**
-
-### Admin 大改造(2026-05-21 下午後段)
-
-UI / UX 從 inline-styles top-nav 升級為 sidebar + Geist + design tokens 統一。
-
-**Design tokens**(`lib/admin-theme.ts` 新):
-- Neutral palette(zinc-like `#18181b` primary)
-- Geist Sans + Geist Mono via `next/font/google`(無 npm install)
-- 共用 style 積木:card / h1Style / h2Style / monoNum / sectionLabel / planBadge
-- 尺寸:sidebarWidth 248、contentMaxWidth 1120
-
-**檔案重寫**:
-- `app/admin/[tenant]/layout.tsx`:248px sticky sidebar(brand label + tenant + plan badge + 切換 + nav + 預覽公開頁 + email/登出)
-- `app/admin/[tenant]/nav-links.tsx`:vertical nav,active 左側 2px bar + 灰底 + 加粗
-- `app/admin/[tenant]/page.tsx`:Dashboard(refined metric cards + 2 col list section + quick actions)
-- `app/admin/layout.tsx`:從 top header pass-through(避免 sidebar + top-nav 重複)
-- `app/admin/login/page.tsx`:套 design tokens + 「Stall Admin」brand + error code 翻譯(`no_tenant_access` / `invalid_credentials`)
-
-**Dashboard 內容**(`62c2374`):
-- Hero:日期 small caps + 大字 tenant 名
-- 4 個 metric cards:今日訂單 / 簽到(或客戶 fallback)/ 待處理 / 庫存
-- 兩欄 ListSection:今日活動 + 未來 7 天有報名
-- Quick actions
-
-**客戶詳情頁** `/admin/[tenant]/customers/[id]`(`5593b81`):
-- 4 stat cards(累積消費 / 訂單數 / 簽到次數 / 未來報名)
-- 個資區(LINE 顯示名可複製給 LINE@ Manager)
-- 訂單 / 簽到 / 報名 3 個歷史表(各 50 筆)
-- 客戶列表 page 名字變 Link
-
-### 課程 → 活動 + features.activities flag gating(2026-05-21)
-
-(`0b15867`)
-
-- UI 文字:nav「課程」→「活動」、dashboard「今日課程」→「今日活動」
-- `tenants.features.activities = true` 才看到活動 / 出席 / 簽到 metric
-- cyndi / kim 不裝 → admin 看不到活動 nav / dashboard 沒活動區
-- lib/supabase.ts:`TenantBySlug` 加 features 欄、export `hasFeature(tenant, key)` helper
-
-**SQL**:`update tenants set features = features || '{"activities":true}'::jsonb where slug = 'oilswa'`
-
-### Per-user tenant access control(2026-05-21)
-
-(`fe422da`)
-
-Mapping:Supabase Auth email ↔ `platform_users.email` ↔ `tenant_members`
-
-**新 helpers**(lib/supabase.ts):
-- `getUserAllowedTenants(email)`:回該 user 在 tenant_members 內 active 的 tenants
-- `userHasTenantAccess(email, slug)`
-
-**Layout access check**:
-- 沒任何 tenant 權限 → redirect `/admin/login?error=no_tenant_access`
-- 沒這個 tenant 權限 → redirect 第一個有權限的 tenant
-- Sidebar 切換只列 user 有權的(不再全列)
-
-`/admin` redirect:dynamic,根據 user 第一個能看的 tenant(不再 hardcode oilswa)
-
-**SQL**:
-```sql
--- Peter (你目前 LINE-linked super admin):設 email matching Auth
-update platform_users set email = '<your-email>' where line_user_id = '<peter line id>';
--- 額外帳號:建 platform_users + tenant_members 給特定 tenant
-```
-
-### Phase 7 個性化 — Logo / Banner / Product 圖上傳 + 裁切(2026-05-21 晚)
-
-裝 `react-image-crop` (^11.0.10,3kb 輕量),統一 upload + crop pattern。
-用 Supabase Storage bucket `tenant-assets`(public bucket、user 手動建)。
-
-**Phase 7.1 Tenant Logo**(`82fc9e4` + `04f032e` + `9bd2e37` + `46e05c9`):
-- DB:`tenants.logo_url text`(SQL `alter table tenants add column if not exists logo_url text`)
-- settings/logo-uploader.tsx(client):
-  - 1:1 正方形裁切、`circularCrop` 顯示圓形遮罩、輸出 256×256 jpeg
-  - 5MB 上限,Canvas drawImage → toBlob → upload
-- settings/actions.ts uploadLogo:upload Storage → write `tenants.logo_url`
-  - path `{tenant_id}/logo-{ts}.jpg`(timestamp 防 CDN cache 殘留)
-- 顯示:
-  - Sidebar 頂部 44×44 圓形 + 切換列表 22×22 mini 圓
-  - 沒設 logo fallback 首字大寫 Geist Mono 灰底方塊
-  - 公開頁 layout header 36×36 圓 logo 在店名左邊
-  - 全部用 `borderRadius: '50%'`(底層裁切仍方形,CSS 變圓 — 標準做法)
-
-**Phase 7.2 Product / Variant 圖**(`8f48f84` + `14d0288` + `44fa0b4` + `d3b0038`):
-- DB:沿用既有 `products.image_url` / `product_variants.image_url`,無 schema 變
-- products/image-uploader.tsx(client,複用):
-  - 4:5 直式裁切(IG 貼文比例)、輸出 600×750 jpeg
-  - `entity` prop 切換 product / variant:傳 entityId,內部 switch action 呼叫
-  - 8MB 上限,變體預設 fallback 用 product 圖
-- products/image-actions.ts:
-  - uploadProductImage:確認 product 屬於 tenant → upload → write `products.image_url`
-  - uploadVariantImage:同 pattern,path `{tenant_id}/variants/{variant_id}-{ts}.jpg`
-- products/page.tsx:
-  - 每個 product card 頂部加 uploader(獨立於文字表單,即傳即儲)
-  - 每個 variant 列底部加 variant uploader(虛線分隔)
-  - 移除原本 URL 文字欄
-- 公開頁同步更新:
-  - 商品 grid card `aspect-ratio: 4/5`
-  - 商品詳情大圖 `aspect-ratio: 4/5 + object-fit: cover`
-  - 詳情頁 VariantSelector 重構為完整 client gallery:單欄(圖→名→類別→描述→變體→cart)
-  - **變體切換時自動換圖**(`variant.image_url ?? product.image_url` fallback)
-
-**Phase 7.3 Hero Banner**(`5ee8632`):
-- 沿用既有 `tenants.og_image_url`(同時作 OG 分享 + hero,1200×630)
-- settings/banner-uploader.tsx(client):
-  - 1200/630 ≈ 1.905 比例裁切、輸出 1200×630 jpeg
-  - 10MB 上限,「目前 banner」preview
-- settings/actions.ts uploadBanner:upload → write `tenants.og_image_url`
-- 公開頁 [slug]/page.tsx 商品列表前 render HeroBanner(aspect 1200/630 + object-fit cover + 圓角 10 + 微陰影)
-
-### Admin UX 強化(2026-05-21 晚)
-
-**Mobile RWD**(`7052326`):
-- Desktop ≥768px:sidebar 一樣 248px sticky 不變
-- Mobile <768px:sidebar 變 `position: fixed` drawer + `translateX(-100%)`
-- 左上漂浮 hamburger 40×40 按鈕 + 半透明 backdrop
-- 點 backdrop / 路由變化 自動關閉(usePathname useEffect)
-- body.overflow 鎖背景滾動
-- 實作:layout 加 inline `<style>` 用 @media + body.sidebar-open class 控制
-  client mobile-toggle.tsx 只負責 toggle class(無 React state,DOM 操作)
-
-**Orders filter / search**(`417d71c`):
-- 純 server-side(native form GET → URL query params,無 client component)
-- Filter 欄位:`q`(訂單號 / 收件人 / 電話 ilike)/ status / payment_status / source / from-to 日期
-- URL 可分享 / 加書籤 / 上一頁 work
-- 結果 200 上限,空狀態區分「條件無結果」vs「尚無訂單」
-
-**Nav badges**(`096d6d6`):
-- Sidebar nav 旁紅圓 18×18 數字 badge
-- 訂單:status='open' 計數
-- 庫存:active variant 且 stock ≤ 3(Pro+ 才有,Free 顯 PRO 灰字)
-- layout 平行撈 count,傳 props 給 NavLinks;>99 顯 99+
-
-**Login 頁 redesign**(`ae58ddd`,5/21 較早):
-- 套 admin-theme tokens + Geist 字型 +「Stall Admin」brand mark
-- ERROR_MESSAGES 翻譯 code:`no_tenant_access` / `invalid_credentials` / `signin_failed`
-
-**DB SQL 已跑**(這波):
-```sql
-alter table tenants add column if not exists logo_url text;
--- (Storage bucket "tenant-assets" 在 Supabase Dashboard 手動建,public)
-update platform_users set email='<peter email>' where line_user_id='U25423...';
--- + 新增 phsiung957 super admin / peter957733 → oilswa only(per-user access)
-```
-
-### Phase 6.3:最新消息(2026-05-21,Bot 月 3 收尾)
-
-LINE@ 用戶點 Rich Menu 第 2 格「📰 最新消息」改成 dynamic 撈 DB 最新 3 則 published news,
-不再 placeholder。
-
-新檔案:
-- `news` 表 + admin CRUD(app/admin/[tenant]/news/page.tsx + actions.ts)
-- webhook 加 `getRecentNews` + `formatNewsText` handler
-
-設計:
-- 公告板 mode,不主動推送(避免吃 LINE outbound quota 200/月)
-- status: draft / published / archived
-- published_at 從 draft → published 寫當前時間,降為 draft 保留歷史
-- partial index on (tenant_id, published_at desc) where status='published'
-- UI 措辭:「上線公開」而非「立刻發佈」(避免誤期推送)
-- 橘色提示框說明「公告板,不推送通知」(回應 user 用後困惑)
-
-Commits:`61a613b` news + `db47e15` nav 加最新消息 + `90d1d22` 措辭澄清
-
-### Perf 最佳化(2026-05-21 後段)
-
-User feedback「兩邊都慢、每個 page 點下去都好久」。curl 量到 cold 3.7s / warm 1.4s。
-
-**loading.tsx skeleton**(`adb6c51`):
-- `app/admin/[tenant]/loading.tsx`:hero + 4 metric cards + 2 list sections 骨架
-- `app/[slug]/loading.tsx`:banner + 4 product card 骨架
-- `@keyframes skeleton-pulse` 透過 dangerouslySetInnerHTML
-- 點下去馬上看畫面,perception 變超快
-
-**Admin layout query waterfall 拆**(`dfd3aff`):
-- 之前:auth → allowed → tenant → badges 4 個 sequential RTT
-- 改:[auth, tenant] 平行 → 後 [allowed, ordersPending, lowStock] 平行
-- 4 RTT → 2 RTT,省 ~200ms
-- Access check 移到後面(redirect 早無大效益)
-
-**公開頁 ISR**:
-- `/[slug]/page.tsx` revalidate=30 / `/[slug]/p/[product]/page.tsx` revalidate=60
-- 第二位訪客拿 CDN 快取(<400ms),不打 Supabase
-- admin revalidatePath 推 invalidate,不會看到太舊資料
-
-curl 量到:warm 從 1.4s → 0.77s(快 45%)、oilswa 0.86s → 0.45s(快 48%)。
-
-Vercel cold start ~3-4s 是 free tier 限制,需要 Pro / Edge runtime 才能再減。
-
-### Phase 7.4:CRM 介紹網(2026-05-21,純檔案不違 spec)
-
-`6ceb184`:users.member_id + referrer_member_id 兩 text 欄位
-
-- 不做 PV / 業績計算(對齊 spec 紅線)
-- 純 text 對應(不 FK),允許「上線還沒辦會員、下線先辦」這種倒著綁
-- LIFF /m/member:學員自填 ID + 介紹人 ID
-- Admin customer 詳情:顯示 ID + 介紹人 ID + 自動 reverse 查「我介紹進來的人」
-- 介紹人 ID 若 match 到系統內 user,自動 link 到該 user 詳情
-- 沒 match 顯示「此 ID 尚未在系統內、可能還沒辦會員」
-
-`995eb31`:customers 列表加 filter / search / sort(同 orders pattern)
-
-### Phase 7.5 / 7.6:客服訊息 inbox + Realtime + 未讀區分(2026-05-21~22)
-
-從「inbound 訊息全紀錄」演化到「explicit consent 客服模式 + 即時通知 + 未讀區分」。
-
-**1f07b67 — Inbox v1**:
-- /admin/[tenant]/messages 新頁面,列近 200 則 inbound message
-- 各訊息類型 badge(text / image / sticker / video / 等)
-- 文字直接顯示;非文字提示「LINE@ Manager 直接看」
-
-**b7db38c — Realtime nav badge**:
-- WebSocket 直連 Supabase Realtime,不吃 Vercel quota
-- lib/supabase-browser.ts:createBrowserClient(anon key)
-- webhook 收 inbound message → REST API broadcast 到 `tenant:{id}:messages`
-- nav-links 訂閱 channel,收到 broadcast 就 unread++
-- 進 /admin/[t]/messages 自動歸 0
-
-**a2de0a3 — Support mode**:
-- users.last_support_at + messages.is_support boolean
-- 預設只看 support 訊息(按客服後 30 分鐘窗口)
-- toggle [客服問題] / [所有訊息]
-
-**8a63d19 — Quick Reply explicit flow**:
-- 不再用 keyword 觸發 support mode
-- 按 Rich Menu「💬 專屬客服」→ bot 回 FAQ + Quick Reply chips「📝 我要詢問」/「取消」
-- 按「我要詢問」(postback action=start_support)→ users.last_support_at = now()
-- 按「取消」(action=cancel_support)→ last_support_at = null
-
-**7ec338f — 不再 echo**:
-- describeEvent text 訊息 keyword 沒命中 → 回 ''(silent)
-- non-text → '' (silent)
-- Bot 不再「你說:XXX」吵客戶
-
-**c9d3199 — Group + 未讀區分**:
-- messages.read_at timestamptz(null = 未讀)
-- groupByUser:按用戶折疊一張卡 = 一個用戶
-- <details>/<summary>(無 JS HTML 摺疊)
-- 預設 unread open / read closed
-- 卡片視覺:hasUnread = 黃底 + 紅左 border + 紅 badge「N 未讀」
-- mark-read-client.tsx(client):進頁 2 秒後 server action 自動標已讀
-
-**Bugfix**:
-- `a83666f` getMessages try/catch 防 SSR crash
-- `619b6d1` 拿掉 Server Component 內 <Link onClick>(Next.js 限制)
-
-### Phase 7.7 ~ 7.9:Demo prep 大波(2026-05-22 晚,29 個 commit)
-
-明天要 demo 給三合一,這波密集 polish + 補功能。
-
-**簽到 QR 系統**(`4789d61` + `ac37a5a`):
-- /admin/[tenant]/classes/[id]/qr 每活動專屬 QR 列印頁
-  - qrserver.com API(免 npm)生 PNG
-  - print-friendly @media print 隱 nav + 強制白底
-  - 「下載 PNG」/「看出席紀錄」按鈕
-- /m/checkin 加 profile gate(同 /m/member pattern)
-  - 沒填會員資料 → inline mini-form(真名 / 電話 / ID / 介紹人 ID)
-  - 填完一鍵簽到,不需切頁重掃 QR
-  - 自動 upsert user(沒加 bot 好友也能用)
-
-**Admin 商品管理 UX 大改造**(`93b28f5` + `88ebb3e`):
-- 每個商品變 <details> 折疊 card
-  - summary 顯示縮圖 + 名稱 + 狀態 + 變體數
-  - 展開分 4 sections:商品圖 / 基本資料 / 變體 / 危險區(刪除)
-- 「儲存」後 redirect ?saved=<id> + 自動展開該卡 + 綠 banner
-- 商品沒 slug 也能點(homepage link + getProductBySlug fallback by UUID)
-- createProduct auto-generate slug(英文 slugify + 6 字 hash / 中文 timestamp)
-
-**LIFF /m/shop 全面 redesign**(`4def224` + `5c6b5b6` + `90a936f` + `5da6750` + `7523d6b`):
-- Rich Menu Cell 3 改回 LIFF /m/shop(學員端 LINE 用 LIFF,公開頁 /oilswa 給 IG/分享)
-- Profile gate(同 /m/checkin)
-- Hero:tenant logo 56×56 + tenant name + 小 LINE pic + greeting
-- Hero banner(1200×630 用 og_image_url)
-- 商品 2-col grid + 4:5 卡片 + 名稱 line-clamp + monospace 價格
-- 底部 sticky cart bar「🛒 N 件 NT$ X →」
-- 結帳頁重設計:返回鍵 + 確認訂單 h2 + 56×70 縮圖商品明細 + 圓角 qty button
-  + 收件資訊卡片 + 大「確認送出 · NT$ X」黑 button
-- LIFF done 畫面也顯示完整匯款資訊 + 訂單編號 + 截圖提示
-
-**Payment Info(匯款資訊)**(`de02bfc` + `7523d6b`):
-- tenants.payment_info text 欄位(free text 多行,銀行/帳號/戶名 + 流程提示)
-- admin settings textarea + 範例 placeholder
-- 訂單成立頁(公開 / LIFF / push)都顯示
-- 範例已含「📍 三合一辦公室現場付款」option
-
-**LINE Bot push 訂單確認**(`b54dbca` + `2913ff9` + `5c5c717`):
-- placeOrder 後 push 訊息給客戶:訂單編號 + 總金額 + 匯款資訊 + 訂單詳情 link
-- Fire-and-forget → fix 成 await(Vercel serverless function return 後 kill 背景 task)
-- 總金額用本地 cart × price 算(order.total_twd 在 INSERT 時是 0,trigger items 後才算)
-
-**LIFF /m/orders 我的訂單**(`485f1d9`):
-- 學員 LIFF 看自己歷史訂單(近 50 筆)
-- 卡片:order_no(mono) + 商品 summary + 狀態 badge + 大金額
-- 點 → /[tenant]/order/[order_no] 公開頁
-- /m/member 加快速 link「🧾 查我的訂單 ›」
-
-**LIFF /m/events 重設計**(`0cec1ec`):
-- 對齊 /m/shop 設計語言
-- Hero + 小頭像 greeting
-- 活動卡片重設計:左日期區塊(月 small caps + 大日 + 週)+ 右主資訊
-- 容量 progress bar(綠 / 紅滿 visual)
-- 已報名 → 綠 left border + ghost button「✓ 已報名 點此取消」
-- 候補中 → 黃 badge「候補 #N」
-
-**Mobile RWD**(`5e78410` + `303ae2d` + `e241126` + `6353f8e`):
-- Admin layout @media (max-width: 767px) 多 layer CSS:
-  - Sidebar → fixed drawer + hamburger
-  - 內頁 padding 12px 緊湊
-  - **所有 grid → 1 col**(catch-all [style*="grid-template-columns"])
-  - **表格 → 卡片化**(thead 隱 / tr 變 card / td 變 block)
-  - Filter bar:position sticky 浮頂部 + flex column + 各欄 100%
-  - h1/h2 縮小防溢出 + 圖片 max-width 100%
-- 不破桌機 layout(全在 mobile breakpoint 內)
-
-**PWA 支援**(`febb96a` + `c7ad837`):
-- app/manifest.ts(MetadataRoute.Manifest 慣例)
-  - name "Stall · 多攤位電商 + LINE Bot"
-  - start_url "/",display "standalone"
-- app/icon.svg 256×256 黑底白「S」(maskable + any)
-- app/layout.tsx 加 appleWebApp metadata + viewport theme-color
-- 用戶可「加到主畫面」當 native App,無需 App Store
-
-**對帳 UI**(`ab87c16` + `e46fb31` + `8daf048`):
-- 訂單詳情頁加 quick action section(三狀態切):
-  - 未付款 → 黃底「💰 確認收款」+ 後 5 碼 + 付款方式 + 綠 button
-  - 已付款未出貨 → 綠底「✓ 已收款」+ 「📦 標已出貨」追蹤單號 input
-  - 已出貨 → 「📦 已出貨」+ 時間 + 追蹤單號
-- markOrderPaid / markOrderShipped server actions
-  - 自動 set paid_at / shipped_at(trigger 處理)
-  - Retry 機制:if payment_last5 column 未建 retry without
-- 訂單列表加 inline quick action(從 list 直接標 paid / shipped 不用進詳情)
-  - return_to=list 參數 → 留在列表 + 上方綠 banner
-- 訂單詳情頁 404 bug fix:payment_last5 SELECT 暫時拿掉直到 SQL 跑
-
-**Dashboard 修正**(`760b7f3` + `aa2bbaf`):
-- export const dynamic = 'force-dynamic' 避免任何 cache
-- 「今日營收」改算 created_at 範圍所有訂單(不再要求 paid_at + payment_status=paid)
-  - 反映「真實銷售」直覺,排除 cancelled / refunded
-- Card sub label 改「下單 NT$」更精準
-
-**待跑 SQL**:
-```sql
-alter table orders add column if not exists payment_last5 text;
-```
-(因 user 無法跑暫緩,程式碼已 retry 機制 graceful degrade)
-
-### Phase 7.8(a):Dashboard / Filter / Mobile RWD 精修(2026-05-22~23)
-
-Demo 前一波細修,主要修 mobile 顯示。
-
-**Dashboard mobile 2-col**(`958d882` + `f124861` + `1eb0ff7`):
-- 全域 catch-all `[style*="grid-template-columns"]` → 1fr 影響 dashboard,以 page 自帶 `<style>` + 高 specificity 蓋過
-- 手機 metric cards:2 col 1fr 1fr,padding 10×12,大數字 26px line-height 1
-- 卡片壓扁(height auto + min 76,gap 0,subtitle 緊靠數字)
-
-**iPad 中型 / 橫向 2x2**(`52d9cc7` + `fdd3ebf`):
-- `@media (min-width: 768px) and (max-width: 1300px)` → 2x2 grid(不是 1-col 也不是 4-col)
-- 涵蓋 iPad portrait + horizontal + 小筆電
-- list-grid 也 2 col,section margin 32
-
-**Filter 折疊 + 拿掉 sticky**(`d74fe03` + `c56c89b`):
-- orders / customers / messages filter 改 `<details>` 預設 closed
-- 有 filter 啟用時自動 open
-- 「條件啟用中」藍標醒目提示
-- 不再 sticky(scroll 順暢)
-
-### Phase 7.8(b):Root / PWA landing(2026-05-22~23)
-
-(`f7af71d` + `ab8b277` + `e219634`)
-
-- 原 `/` 是 dev placeholder「Family LINE Bot · webhook endpoint」
-- 改 PWA 啟動畫面:Brand「Stall」logo + 黑「進管理後台」button + 攤位列表(logo / name / plan)
-- PWA `start_url` 改 `/admin`(避開 client-side hydration bug)
-- 拿掉 `new Date().getFullYear()`(疑似 hydration mismatch 來源)
-
-iOS PWA 重裝後才會生效(iOS Safari 不會 auto-refresh manifest)。
-
-### Phase 7.8(c):活動管理 UX 大改造(2026-05-22)
-
-(`a500780`)
-
-- 折疊 details 卡片(同 admin products pattern)
-- 每張卡:左 50px 日期區塊 + 名稱 + 狀態 + 📝 報名 / ⏳ 候補 / ✓ 簽到 / 🔴 已滿
-- 右側突出大「📱 QR」藍 button
-- 分區 3 段:🔴 今天 / 未來 / 已結束(折疊)
-- 撈 stats:reservations + attendances 平行 query 出 Map<class_id, {confirmed/waitlist/attended}>
-- 新增活動 form 折疊
-- 危險區(刪除)藏 sub-details
-- 已結束活動半透明
-
-### Phase 7.9:活動圖片(Phase A) + Rich Menu Flex Carousel(Phase C)(2026-05-25)
-
-Demo 後 3 合一回饋:「活動要圖,Rich Menu 回更生動」。
-
-**Schema**:
-- `alter table classes add column image_url text`
-
-**Phase A:Class cover 圖**(`3a18e1a` + `6013059`):
-- ProductImageUploader 通用化:entity 加 `'class'`,aspect prop 動態
-- 4:5 直式(對齊商品 / IG 風格,user 後改要直式)
-- output 600×750 jpeg
-- uploadClassImage action:validate tenant ownership → upload → write `classes.image_url`
-- Admin classes summary 縮圖 40×50,展開區頂部 uploader section
-- LIFF /m/events 卡片頂部 4:5 cover image
-
-**Phase C:Rich Menu「📅 本月課程」改 Flex Carousel**(`7bae708` + `9b2ade2` + `bf6ef51` + `40e8c8e`):
-- webhook 收到 postback `action=monthly-classes` → 撈 classes → 建 Flex
-- `buildMonthlyClassesFlex` 在 `lib/line.ts`
-- 每場活動 1 個 kilo size bubble:
-  - hero:4:5 cover image(fallback /icon.svg)
-  - body:活動名 + 📅 時間 + 📍 地點 + 👤 講師 + 💰 收費 / 🆓 免費
-  - separator + description(150 字 / 6 行 / 字級 sm)
-  - footer:button「立刻報名」(收費)/「查看詳情」(免費)
-- 失敗 fallback 純文字 reply
-- Reply 不算 LINE outbound quota(都 user trigger)
-
-**Description 欄位 + 寫法教學**(`40e8c8e`):
-- admin classes form(新增 + 編輯)加「課程介紹」textarea
-- placeholder 範例「🌿 / 📌 / ⏱ / ✨」emoji 開頭 1 行 1 點
-- updateClass + createClass actions 接 description form 欄
-
-**免費 vs 收費課區分**(`da60bb2`):
-- 免費課 LIFF /m/events 顯示「🆓 免費課程 · 無須報名,直接到場」disabled box
-- 收費課保留完整報名 / 候補 / 取消 flow
-- Flex button 文字 / 顏色依 is_paid 切
-
-**updateClass redirect 修**(`39011dd`):
-- 原本儲存後沒 banner 反饋,user 以為沒生效
-- 加 redirect ?saved=<id> → 綠 banner「✓ 已儲存」+ 自動展開該卡
-
-### Phase 7.11:自助申請開店流程 + Email 註冊(2026-05-26)
-
-從「Peter 手動 SQL 開帳號」進到「Google 登入或 email 註冊 → 自助申請 → 立刻進 pending 後台 → Peter 審核」。
-Phase A(Google OAuth)已先完成。
-
-**Phase A:Google OAuth 登入**(`96124f9`):
-- `lib/super-admin.ts`(新):`isSuperAdmin(email)` 用 env `SUPER_ADMIN_EMAILS`
-- `app/auth/callback/route.ts`(新):OAuth callback handler,exchange code → session
-- `signInWithGoogle` action + login page Google button
-- Supabase Auth Google provider + OAuth consent screen test users
-
-**Email/password 自助註冊**(`25fae1b`):
-- login page 加 tab(登入 / 註冊)
-- `signUp` action:`signUp` + emailRedirectTo /auth/callback
-- 密碼 ≥6 字校驗 + 註冊成功 banner
-
-**B.1:申請表單 + 自動建 tenant**(`e4caae8`):
-- SQL:`tenants.status` 加 `pending` / `rejected`,加 applicant_phone /
-  business_type / application_notes / rejection_reason / reviewed_by / reviewed_at
-- `getUserAllowedTenants` filter 加 `'pending'`(申請中也能進 admin)
-- `app/admin/page.tsx` 改:沒 tenant → redirect `/admin/apply`(不再 no_tenant_access)
-- `app/admin/apply/page.tsx` + `actions.ts`(新):
-  - 表單(店名 / slug / order_prefix / 聯絡 / 簡介)
-  - 送出 → 建 tenant `status='pending'` + platform_users + tenant_members(owner)+ default region
-  - redirect `/admin/{slug}` 立刻可用後台
-
-**B.2:Super admin 審核頁 + pending banner**(`6846102`):
-- `TenantBySlug.status` 加欄
-- `[tenant]/layout.tsx`:tenant.status='pending' → 黃 banner、'rejected' → 紅 banner
-- `app/admin/applications/page.tsx`(新):
-  - 只 super admin 看,撈所有 pending + rejected
-  - 顯示 email / 電話 / 簡介 / 申請時間
-  - 核准(active)/ 拒絕(寫 reason)/ 重新開啟 button
-- `app/admin/applications/actions.ts`(新):approve / reject / reopen
-- super admin sidebar 加「📋 申請審核」+ pending badge(`f4a21e3`)
-
-**UX 微調**(`f4a21e3`):
-- placeholder 通用化(不放真實 tenant 資訊)
-- 拿掉「業態」欄(沒用到,簡介涵蓋)
-
-### Phase 8:NEOP Logo Integration(2026-05-26)
-
-把平台 brand identity 從「Stall Admin」進化成「Stall by NEOP」+ 視覺色從 monochrome 改 neop-green。
-
-**Brand tokens 鋪底**(`86404ae`):
-- `lib/admin-theme.ts` colors 加 4 token:
-  - `neopGreen` #05C878(主色 / CTA)
-  - `neopGreenBg` #E6FAF1
-  - `neopGreenHover` #04A263
-  - `neopBlack` #0A0A0A
-- `docs/BRAND.md`(新):logo concept / color tokens / usage rules /
-  哪裡用 NEOP 哪裡不能(LIFF / tenant 公開頁不能露出)
-- `public/brand/.gitkeep`:預留資料夾
-
-**視覺改動 + apply UX overhaul**(commit 2):
-- `app/admin/apply/page.tsx`:
-  - 頂部 logo `<img src="/brand/logo-mark.svg" />` + "Stall by NEOP"
-  - 登入身分 box → 純文字 + 登出 button
-  - CTA 改 neopGreen + hover state(<style> 注入 CSS)
-  - input focus state:neopGreen border + ring
-  - slug 欄改「店鋪網址」+ `/` inline prefix(取代工程感的「slug」)
-  - 聯絡人姓名拿掉 defaultValue,改 placeholder
-  - 手機 hint「不會給第三方」降焦慮
-  - 簡介 placeholder 給具體範例
-  - CTA 下方加「審核通常 24 小時內回覆」
-- `app/admin/[tenant]/layout.tsx` sidebar 頂部:logo + "NEOP"
-- (待 user 丟 logo-mark.png 進 public/brand/ 才完全生效)
-
-不動:
-- 公開店 / LIFF 不露 NEOP(那是 tenant 品牌)
-- `app/icon.svg` 待 user 用同檔覆蓋
-
-### Phase 8.1:Brand rename Stall → NEOP STALL(2026-05-26)
-
-User 正名:不是「Stall by NEOP」,而是「**NEOP STALL**」 — 母品牌 NEOP + 產品名 STALL。
-NEOP 粗體 / STALL 細體,同字級同色,粗細區分階層,tracking-tight 字距收緊。
-
-全面 rename:
-- `app/admin/apply/page.tsx` + `app/admin/login/page.tsx`:logo lockup
-- `app/admin/[tenant]/layout.tsx` sidebar:同 lockup 縮版(32×32 + 15px 文字)
-- `app/page.tsx` landing:大版 lockup(64×64 logo + 26px 文字)
-- `app/layout.tsx` metadata title + appleWebApp.title
-- `app/manifest.ts` PWA name + short_name + icons 從 svg → png + theme_color 改 neopBlack
-- `app/[slug]/layout.tsx` footer:Made with Stall → NEOP STALL
-- `docs/BRAND.md`:品牌架構說明 + lockup 規範
-
-### Phase 8.2:全站字型統一(2026-05-26)
-
-User 反映「Geist 太 Vercel-default,缺辨識度」。換 character 強的字。
-- `app/layout.tsx` 載 **Space Grotesk**(300-700)+ **JetBrains Mono**
-- CSS var name 沿用 `--font-geist-*`(避免改 8 處引用)
-- 公開頁 / admin / landing / footer 同字
-- admin 個別 layout 拿掉自家 Geist loader(現在 root 統一)
-
-### Phase 8.3:SubmitButton infrastructure(2026-05-26)
-
-User 反映送出後沒反饋以為當掉。React 19 `useFormStatus` 立刻反映 pending。
-- 新檔 `app/admin/_components/submit-button.tsx`(variant primary/danger/secondary + size sm/md + pendingText + fullWidth + spinner)
-- 套到:apply / login / news / classes / orders detail / applications(9 個 button 換掉)
-- products page 6 個 button 後續補(commit `fddb754`)
-- orders 列表 quick action(11px)layout 衝突,先不套
-
-### Phase 9:分享卡 v0(2026-05-26 ~ 27)
-
-vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證明 vision 不是空話。
-
-**Phase 9 OG image generation**:
-- 新檔 `app/api/og/product/[id]/route.tsx` next/og ImageResponse
-- 撈商品 + 攤位 logo,Satori 渲染 1080×1920 PNG
-- 設計多輪 iteration:
-  - 開始:full-bleed cover 圖 + 黑漸層 + 文字 overlay(Strava/Spotify Wrapped 風)
-  - 用戶反映需多次微調:logo 變扁、字級對齊、頂部 pill 排版、價格 vs 數字對齊
-  - 後改 Layout B(上半 4:5 / 3:4 圖 + 下半黑底資訊區)— 更不破壞商品圖
-  - 解 500 錯:Satori `display:flex` 嚴格、中文需載 Noto Sans TC、CDN cache header(無 store debug 改 s-maxage=3600)
-- 沒 cover 圖 fallback:radial gradient + tenant logo / 商品名首字大圓
-- 字型:loadGoogleFont helper 動態 subset 載 Noto Sans TC + JetBrains Mono
-
-**Phase 9.1-9.3 分享 modal(Strava 風)**:
-- 新檔 `app/admin/[tenant]/products/share-button.tsx`(client component)
-- 偵測 navigator.canShare,電腦不顯示
-- 點分享 → fetch OG PNG → 全螢幕 modal 預覽 → 平台 buttons:
-  - **Instagram**:走 navigator.share(iOS 系統 sheet → IG 選 Story / 貼文)
-  - **WhatsApp / LINE / Telegram / 訊息**:URL deep link(對方 app 抓 OG meta)
-- 公開分享落地頁 `app/share/p/[id]/page.tsx` + OG meta generateMetadata(WhatsApp 等抓得到圖)
-
-### Phase 9.5:商品分階定價 — tier pricing(2026-06-02)
-
-買 N 個以上換更便宜單價(衣服印刷 / 化妝品禮盒場景)。
-- SQL:`product_price_tiers`(product_id, min_qty ≥ 2, price_twd)
-- admin:商品內「分階定價」section,+ / 編 / 刪 / 範例(10+ NT$450、50+ NT$400)
-- 顧客頁:綠 pill 可點 quick-jump 切 qty(IG 推下一階)
-- 結帳重算:同 product_id 加總 qty 找最大 tier 套用,跨變體一起算
-- order_items.price_at_purchase 存 tier 後單價(歷史不變動)
-
-### Phase 9.6 / 9.7:商品多媒體 + 影片(2026-06-02)
-
-- SQL:`products.media jsonb`(`[{type:'image'|'video', url}]`)
-- 上傳 image(5MB,3:4 裁切)/ video(50MB)/ YouTube URL 三選一
-- 新檔 `media-manager.tsx` client component + useOptimistic(↑↓ 排序立刻反映,server 後台跑)
-- 顧客頁 carousel:CSS scroll-snap + touch swipe + 左右箭頭 + N/M 計數
-- YouTube iframe + 自家 mp4 autoplay muted loop
-- 列表 / LIFF shop 縮圖優先 media[0] image,fallback 舊 image_url
-- 商品圖 aspect 4:5 → 3:4(對齊 iPhone 4:3 直握原生)
-
-### Phase 9.8:Banner 多媒體 + 公開頁 hero carousel(2026-06-02)
-
-同 media pattern,但 banner 是 1200×630 寬比例給公開店 hero 用。
-- SQL:`tenants.banners jsonb`
-- 新檔 `banner-manager.tsx`(設定頁,useOptimistic ↑↓)
-- 新檔 `app/[slug]/banner-hero.tsx` carousel(5 秒自動換 + 影片不打斷 + 箭頭 / dots)
-- 公開店 hero 從單張 og_image_url 改 banner 陣列(fallback 舊欄)
-- 設定頁 OG meta「連結分享預覽圖」獨立(社交平台只接 1 張)
-
-### Phase 9.9:商品限時優惠 % off(2026-06-03)
-
-- SQL v1:`sale_price_twd` + start + end(每次特價設定 1 個絕對特價)
-- SQL v2:改 `sale_discount_pct`(1-99,各變體比例縮)— User 反映多變體不同價時 fixed sale_price 不合理
-- admin section「🔥 限時優惠」:折扣 % + 開始 / 結束 datetime-local
-- 顧客頁:紅 banner「🔥 限時 20% off」+ 倒數計時(每秒 tick)+ 原價刪除線 + 紅特價
-- 列表縮圖左上紅 pill「🔥 20% off」
-- 結帳 server 真實時間檢查,saleActive 用 round(variant.price × (100 − pct) /100)
-- sale 期間 tier 暫停(不衝突)
-
-### Phase 10:Dashboard 報表 + Quick Action 清(2026-06-03)
-
-純 SVG(無 lib)4 段報表 + UX 簡化:
-- **30 日營收 line chart**:Asia/Taipei 日切,polyline + grid + Y 軸刻度
-- **Top 5 商品 bar chart**:依 paid 訂單訂單數加總,橫向 bar
-- **訂單漏斗**:open → paid → shipped 三段(rect + 比例)
-- **30 日活動參與**:報名 / 簽到 / 出席 daily bar(三色疊)
-- 拿掉「快速操作」section(沒人用過)
-- Metric card 緊湊化:min-height 110、justify space-between
-
-### Phase 11:Variant Stage C 完整化(2026-06-03)
-
-把 variant 從 admin / API / 結帳一路推到 LIFF 客戶端 + 訂單顯示:
-- **Stage C SQL**:stock_movements trigger 多帶 variant_id(以前只到 product)
-- **LIFF /m/shop actions.ts**:`ShopVariant` type + `CartItem` 含 variant_id + placeOrder 依 variant.stock / price 結帳(server snapshot,不信 client)
-- **LIFF /m/shop page.tsx**:
-  - 卡片 ProductCardActions:單 variant 自動用,多 variant 下拉(disabled 缺貨)
-  - cart line 顯示 variant_name(多規格才顯示,單規格保持乾淨)
-  - changeQty / cart key 改 variant_id(同商品不同規格分行)
-- **公開店訂單頁 / admin 訂單明細**:join `product_variants(variant_name)` 顯示 variant badge(`default` 不顯示)
-- **LIFF /m/orders 訂單歷史**:
-  - 修 broken SELECT(原本 `order_items(product_name, qty)` 但 order_items 沒這欄,整頁炸)
-  - 改 nested join:`order_items(qty, products(name), product_variants(variant_name))`
-  - summary 字串現在含 variant:「保衛複方精油(15 ml)× 2」
-
-### Phase 11.1:Variant 收尾 + 客戶端細節(2026-06-03)
-
-- variant-selector.tsx `handleAdd` 的 imageUrl fallback 補 `productMedia[0]` 中間層(否則只 image_url=null 的商品 cart 顯示無圖)
-- cart 縮圖 80×80 正方 → 60×80(對齊商品圖 3:4 裁切比例)
-- 客戶商品購買區加 chip filter:「全部 / 最新 / 各 category」
-  - 公開店 /[slug]:URL `?f=` param,可分享連結
-  - LIFF /m/shop:React state,即時切換不換頁
-  - 全部:category asc + name asc;最新:created_at desc
-
-### Phase 12:Domain 遷移 + LIFF UX 大改造(2026-06-03 ~ 04)
-
-#### Domain migration:family-linebot-delta.vercel.app → stall.neop.tw
-
-- 買 `neop.tw`(GoDaddy NT$799)。子網域策略:`stall.neop.tw` 平台主入口,未來 `oilswa.neop.tw` 等 tenant subdomain(Phase 13)
-- DNS 從 GoDaddy 搬到 Cloudflare(免費快 + 之後 Email Routing)
-- Vercel 加 custom domain `stall.neop.tw`(CNAME `5428fc6109a1706b.vercel-dns-017.com`,Proxy disabled)
-- 環境變數新增 `NEXT_PUBLIC_PROD_URL=https://stall.neop.tw`
-- 3 處硬編碼 vercel.app URL 全改:
-  - `lib/line.ts:235` 寫死 fallbackImage → 改 env
-  - `app/admin/[tenant]/classes/[id]/qr/page.tsx:56` fallback 字串
-  - `app/m/shop/actions.ts:340` fallback 字串
-- 外部 dashboard 5 處更新:
-  - **LINE Messaging Webhook URL** → `/api/webhook`
-  - **LIFF apps × 3**:`/m/member`、`/m/shop`、`/m/checkin` 各自改 domain
-  - **Supabase Auth** Site URL + Redirect URLs(舊保留 7 日緩衝)
-  - **Google OAuth** Authorized redirect URIs(舊保留 7 日緩衝)
-- 舊 `family-linebot-delta.vercel.app` 設 308 Permanent Redirect → 新 domain
-- 全站預設 OG meta 改:`title: NEOP STALL 管理後台` / `description: 登入管理你的攤位`(原文「LINE Bot 商務平台」用在 admin login 分享不對勁)
-
-#### LIFF /m/shop UX 大改
-
-- 新檔 `app/m/shop/layout.tsx`:set title=「商品專區」(原本繼承全站「NEOP STALL 管理後台」)
-- ShopTenant 從單張 `banner_url` 改 `banners: MediaItem[]`(對齊 Phase 9.8 公開店)
-- 直接 import 共用 `<BannerHero>`(/[slug]/banner-hero.tsx)— 多媒體輪播 + 影片 + dots / arrows
-- **新檔 `app/m/shop/product-detail-modal.tsx`**(內容已是 view,檔名未改):
-  - 多張圖 dot 切換
-  - 名稱 / 類別 / 描述
-  - Variant chip(多 variant 才顯示,缺貨刪除線 + disabled)
-  - 數量 stepper(clamp 到 variant.stock)
-  - Sticky 底部 CTA(總價 + 加入購物車)
-  - 加完自動 onClose 回列表
-- 卡片精簡:只剩圖 + 名 + 最低 variant 價;**拿掉**下拉、加購按鈕、庫存數字
-- 整張卡 onClick → SPA 內 full-page view(不是 modal — list ↔ detail 隱現,header / banner / chip / grid / 底部 cart 鈕都隱藏)
-- addToCart 改吃 qty 參數(原本只能 +1)
-
-#### 測試訂單清理
-
-- 14 筆 oilswa 測試訂單(含 NT$18M 怪資料)+ order_items + stock_movements 清光
-- trigger 自動反向加 stock,手動 sync 回原狀(`保衛 9 / 藍寶 3 / 脊椎 9536 / LLV 5205`)
-- products.stock cache 也 sync 到 variant 真實值
-
-### 其他小尾巴(沒成單獨 Phase)
-
-- SKU 自動產:`{order_prefix}-{流水號}` + variant `-V{n}`(2026-05-26)
-- 最新消息 enterprise plan gate(2026-05-26)
-- 售價 / 庫存 拿掉「(legacy)」字、tier 改「分階」用詞
-- 隱藏顧客頁庫存數字(只售完顯示)
-- 量大優惠改可點 pill UX(Option A)
-- 字型 lockup 大寫 + tracking 0.15em + sans-serif(配合 geometric logo)
-- 課程狀態 badge(剩 N 位 / 已滿 / 候補)
-
-### Outstanding
-
-**Phase 4-Alpha 完成 ✅**(6 個 task 全 done)
-
-**Phase 4-Beta / Variant Stage C ✅ 完成(Phase 11,2026-06-03)**:
-- ✅ LIFF `/m/shop` placeOrder 用 variant_id
-- ✅ LIFF 商品詳情顯示 variant 選擇器
-- ✅ orders detail 顯示 variant_name
-- ✅ stock_movements trigger 切 variant.stock
-- ⏳ inventory page 改列 variants 不是 products(尚未)
-- ⏳ Stage C 收尾後 deprecate products.sku / price_twd / cost_twd / stock(尚未)
-
-**Phase 4-Gamma(公開網站)**(2026-05-20 + Phase 12 收尾,大部分完成 ✅):
-- ✅ `/[slug]` 攤位首頁(Gamma.1)
-- ✅ `/[slug]/p/[product]` 商品詳情 + variant 選擇器(Gamma.2)
-- ✅ `/[slug]/cart` + `/checkout` + `/order/[order_no]` guest checkout 完整 flow(Gamma.3)
-- ✅ 商品 JSON-LD structured data(Gamma.5 部分)
-- ✅ Vercel custom domain `stall.neop.tw`(Phase 12)
-- ⏳ `/login` LINE Login + `/account` 跨 tenant 個資 + `/account/orders` 訂單歷史(Gamma.4)
-- ⏳ sitemap / robots / noindex
-
-**Phase 4-Delta(Week 9-12)**:員工驗收 + UX 微調
-
-**Phase 13 候選**:tenant subdomain(`oilswa.neop.tw` middleware routing)+ Members 邀請 UI + 法規 / 隱私 / 退款頁 + Cloudflare Email Routing(`peter@neop.tw`)+ LINE Login 訪客結帳 + 3 套美感主題 + 金流(ECPay / LINE Pay)
-
-**Stall Phase B users → tenant_customers rename(待 Variant Stage C 一併)**
-
-**Tech debt**:
-- Peter platform_users.id (`59f07f39-...`)跟 users.id (`c5a10ccb-...`)沒對齊(Phase A placeholder 順序問題;Option B fix SQL 未跑)— code refactor 用 `line_user_id` 重建 mapping
-- Peter platform_users.display_name = hardcode 「Peter」(同根因,真實 LINE 名是 P🐻)
-- `product_variants.stock` 跟 `products.stock` 暫雙寫(Stage C trigger 切到 variant 層才同步)
-- Phase 2 啟用 email / Google auth 時,需 backfill 既有 platform_users 的 LINE auth method 到 `platform_user_auth_methods` 表
-
-### 線 1 / 線 2 進度(2026-05-19 Stage B 收尾)
-
-| 線 | 進度 |
-|---|---|
-| 線 1(三合一 LINE@) | 月 1 約 **60%**(學員資料庫 LIFF + 本月課程,缺出席紀錄 / 報名活動) |
-| 線 2(愛油哇後台) | 月 1 **80%**(商品 + 訂單 + 客戶 + 庫存 admin + LIFF 商品瀏覽下單 + variant 拆細;缺 LIFF 變體選擇 / 出貨流程細化) |
-
-線 2 大進展。**Cyndi tenant(童裝)也可直接用同套 admin** — variant Stage B 讓 Cyndi 可加多色 × 多尺寸 product。
-
-下個 milestone:Variant Stage C 切 LIFF + inventory + orders → 線 2 月 1 真正收尾 + Phase 4-Gamma 公開網站開始。
+> ⚠️ 上次有效更新是 5/19(線 1 = 60% / 線 2 = 80%),那之後 ship 了 9+ 個 phase 沒回來更新數字 — 這欄已知道不準。下次自己 sit down 評估後填上。
 
 ---
 
-## 二、外部設定紀錄(reproduce 用)
+## 二、近期工作(按月份 + W)
+
+舊 Phase 數字下面只作「歷史代號」括號附註,不再產新編號。
+
+### 2026-06 W1:差異化 + Variant 收尾 + Domain 遷移
+
+主題:把 NEOP STALL 從「能跑」推到「有差異化 + 對外開放」
+
+- **商品差異化大波**
+  - 分階定價 tier pricing(原 9.5,`0a20a6a`)
+  - 商品多媒體 + 影片 carousel(原 9.6 / 9.7,`22028e5` 起一連串)
+  - 限時優惠 v1 sale_price → v2 改 `sale_discount_pct` % off(原 9.9,`c4a9959` / `6e4fd2b`)
+  - Banner 多媒體 + 公開頁 hero carousel(原 9.8,`a849688`)
+- **Dashboard 4 段 SVG 報表**(原 10,`2dd9f5f` / `0a40c56`):30 日營收 line / Top 5 商品 bar / 訂單漏斗 / 30 日活動 daily bar;順手拿掉「快速操作」、metric card 緊湊
+- **Variant Stage C 完整收尾**(原 11,`e6d8700`):LIFF / 訂單 / stock_movements trigger 一路打通
+- **Variant + 客戶端細節**(原 11.1):variant-selector imageUrl fallback / cart 縮圖 80×80 → 60×80(3:4)/ 客戶商品購買區 chip filter「全部 / 最新 / 各 category」
+- **Domain 遷移 stall.neop.tw**(原 12):
+  - 買 `neop.tw`(GoDaddy)+ 母網域子網域策略
+  - DNS 搬 Cloudflare Free
+  - Vercel custom domain(CNAME → `5428fc6109a1706b.vercel-dns-017.com`,Proxy disabled)
+  - 環境變數 `NEXT_PUBLIC_PROD_URL` 新增、3 處硬編碼 `vercel.app` URL 全改
+  - 5 個外部 dashboard 更新:LINE Webhook / LIFF apps × 3 / Supabase Auth / Google OAuth
+  - 舊 `family-linebot-delta.vercel.app` 設 308 redirect
+- **OG metadata 文案改**:`NEOP STALL 管理後台 / 登入管理你的攤位`(原 LINE Bot 商務平台描述太冗)
+- **LIFF /m/shop UX 大改**:
+  - 加 `layout.tsx` 設 title=「商品專區」
+  - banner 從單張改 `MediaItem[]` + 引用 `<BannerHero>` 共用元件
+  - 商品 detail v1 = modal → v2 = SPA 內 full-page view(modal 在小螢幕擠)
+  - 卡片精簡:只剩圖 + 名 + 最低 variant 價;拿掉下拉、加購按鈕、庫存數字
+- **資料清理**:14 筆 oilswa 測試訂單 + order_items + stock_movements 清光,variant.stock 還原原始值
+
+### 2026-05 W5(5/26):Brand + Self-serve apply + 分享卡
+
+主題:從「家族 bot」轉成 NEOP STALL 平台品牌
+
+- **自助申請開店 flow**(原 7.11):/admin/apply + email/password 註冊 + Google OAuth + applications 審核
+- **NEOP Logo / 字型統一**(原 8 / 8.1 / 8.2):logo 整合到 layout、Rich Menu、share card;Inter / Space Grotesk 全站統一
+- **SubmitButton 共用 infra**(原 8.3):useFormStatus 把 pending 一次包好
+- **分享卡 v0**(原 9):`/share/p/[id]` OG image — 商品縮圖 / 賣家 / 價格;next/og + Satori
+
+### 2026-05 W4(5/22-25):Demo Prep + Bot 收尾 + admin UX
+
+主題:給家族 demo + LINE Bot 收尾 + admin UX 整批升級(單日 29 個 commit 那波)
+
+- **線 1 LINE Bot 收尾**:教室簽到 QR(原 6.1)+ 活動報名 / 候補(原 6.2)+ 最新消息(原 6.3)+ Rich Menu Flex Carousel(原 7.9 Phase C)
+- **客服 inbox**(原 7.5 / 7.6):messages 表 + admin Realtime + 未讀 badge
+- **CRM 介紹網**(原 7.4)
+- **活動圖片 + 活動管理 UX 大改造**(原 7.8c / 7.9 Phase A)
+- **Dashboard / Filter / Mobile RWD 精修**(原 7.8a/b)
+- **Demo prep 整批 commit**(原 7.7-7.9):各種小修 + UX 對齊
+
+### 2026-05 W3(5/18-21):平台奠基 + 公開店 v0
+
+主題:LINE Bot → 多 tenant 電商平台
+
+- **LINE Bot 骨架 + DB schema**(原 0/1/2/3):webhook / Supabase / classes / regions / LIFF 會員專區
+- **Stall Phase A 平台層 schema 拆分**(原 Stall Phase A):`platform_users` 跨 tenant + `tenant_members` + tenants 加 slug/plan/features;oilswa 第一個 tenant(`8106161d-...`)
+- **/admin/[tenant] tenant-aware**(原 4-Alpha):products / classes / orders / customers / inventory 全 migrate;舊 routes redirect
+- **Variant Stage A / B**(原 5.2.A/B):`product_variants` 表 + admin UI nested CRUD(Cyndi 童裝色 × 尺寸 × SKU)
+- **商業模式策略調整 + 分級調整 v2**:從 4 階 → 2 階 → Free / Pro / Enterprise 3 階;tenants 對應 oilswa = Enterprise / Cyndi = Pro / Kim = Free
+- **Phase 4-Gamma 公開網站**:`/[slug]` 攤位首頁 + 商品詳情 + 購物車 + checkout + 訂單頁;guest checkout(LINE Login 延後)+ schema.org JSON-LD
+- **5/21 整波收尾**:admin source-aware / inventory variant 改造 / Free gating(inventory 鎖頭 + Made with Stall 浮水印)/ Kim tenant 建立
+- **Admin nav 重設計 + Tenant settings 頁**:2 列 nav + 切 tenant + 預覽公開頁 + brand_color / contact_info CRUD
+- **Order lookup guest 查單頁**:order_no + Email/電話 比對 + enumeration 防護
+
+---
+
+## 三、Outstanding
+
+> 規律:每 ship 1 個 phase,Outstanding 多 2 個。所以每次重看必須**砍**東西,不只是加。
+
+### 排 1-2 個月內做
+
+| # | 項目 | 大小 | 為何排 |
+|---|---|---|---|
+| 1 | **Members 邀請 UI**(+ signUp 自動建 platform_users) | 小(3 檔) | 共用帳號是權宜;正式員工進來必要;順手修 signUp bug |
+| 2 | **法規 / 隱私 / 退款 / 寄送條款頁**(/policy 系列) | 文字工 | 對外開放收第一筆真錢前的法律必要條件 |
+| 3 | **Cloudflare Email Routing**(`peter@neop.tw`) | 15 分 | 免費,Domain 已就位,順手 |
+| 4 | **3 套美感主題**(Apothecary / Editorial / Corner Store) | 大(數天) | Cyndi / Kim 上線後差異化;延後沒急 |
+| 5 | **金流接入**(走 ECPay 聚合 = LINE Pay + 信用卡 + ATM 一次到位) | 中 + 等審 4-6 週 | 月營收要前先排 |
+
+### 候選 / 沒排程
+
+- inventory page 改列 variants 不是 products(Variant Stage C 收尾)
+- Stage C 後 deprecate `products.sku / price_twd / cost_twd / stock`(目前雙寫)
+- LIFF Phase 3「我的訂單 / 課程歷史」未實作(等 entity)
+- 12 假課之後 admin 替換真實課程
+
+### 已砍(連同理由)
+
+- **tenant subdomain(`oilswa.neop.tw` middleware routing)** — 路徑式 `stall.neop.tw/oilswa` 已能用,中老年 user 看不出差;tenant subdomain 等付費客戶要求時再做(2026-06-04 決)
+- **LINE Login 訪客結帳** — LIFF 已能直接付 + 公開店 guest checkout 已有;再加 LINE Login 邊際效益低,沒人要求(2026-06-04 決)
+- **進階教室 keyword webhook handler** — 沒人問過;現在綁「專屬客服」keyword 就夠
+
+---
+
+## 四、Tech debt
+
+### 必修(對外開放真錢前)
+
+- ⚠️ **Service role key 曾出現在本機 chat log**,**正式上線前必 rotate**(Supabase Settings → API → Generate new)
+- ⚠️ **signUp 沒自動建 platform_users**(Phase 11 確認 bug):email / Google 註冊只創 Supabase Auth user。`getUserAllowedTenants` 撈不到 → 「沒有 tenant 權限」。修法:Members 邀請 UI 內 upsert,或 /admin/page.tsx 加 lazy create
+- ⚠️ **RLS 沒 check tenant_members**(`app/admin/[tenant]/settings/actions.ts:19` TODO):任何登入者技術上可改任何 tenant 設定(實務上要猜 slug);staff 開放前必補
+
+### 可緩
+
+- Peter `platform_users.id` 跟 `users.id` 沒對齊(Phase A placeholder 順序);用 line_user_id 是真實 join 欄,非急
+- `product_variants.stock` 跟 `products.stock` 暫雙寫(Stage C 完整 deprecate 後可清)
+- Phase 2 啟用 auth methods 時需 backfill 既有 platform_users 的 LINE auth method 到 `platform_user_auth_methods`
+- 舊 `stock_movements` DELETE trigger 在 variant_id 缺失時 fallback 寫 product(Phase 12 清測試訂單時 variant.stock 被反向加,已手動還原)
+- Tenant switcher 列**所有** active tenant(沒 tenant_members 過濾);多人登入時要加 RBAC
+- Order lookup 電話比對完全相等(沒 normalize 格式,`0900-000-000` ≠ `0900000000`)
+- Telegram polling 之前斷過,要設 Windows Task Scheduler At Logon 自動啟動
+
+### 已砍
+
+- 「進階教室」keyword webhook handler:沒人問過
+
+---
+
+## 五、外部設定紀錄(reproduce 用)
 
 ### LINE Messaging API channel(bot)
 - Channel ID: `2010124883`
@@ -1073,7 +159,10 @@ vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證�
 ### Supabase
 - Project URL: `https://tkodwzgrbhhdalcjepad.supabase.co`
 - Region: Tokyo (ap-northeast-1)
-- Tenant 1: `8106161d-ad82-4bad-ba61-da1aac65bb2c`「三合一愛油哇 LINE@」
+- Tenants:
+  - oilswa: `8106161d-ad82-4bad-ba61-da1aac65bb2c`(Enterprise,三合一愛油哇)
+  - cyndi: `8c032fc3-880a-4e96-9dc4-73684511f192`(Pro,童裝代購)
+  - kim: 已建(Free,二手 placeholder)
 
 ### Vercel
 - Project: `family-linebot`
@@ -1103,7 +192,7 @@ vision 文件講「最核心 / 病毒擴散引擎」但 0% 實作,先 ship 證�
 
 ---
 
-## 三、User flows
+## 六、User flows
 
 ### Flow 1:第一次加 bot 好友
 
@@ -1174,10 +263,21 @@ liff.getProfile() + liff.getIDToken()
 ### Flow 4:用戶點「🛍 商品專區」
 
 ```
-Rich Menu 第 3 格 → URI action www.oilswa.com.tw
+Rich Menu 第 3 格 → URI action liff.line.me/2010125926-aPB1bQtE
        ↓
-LINE app 內 webview 直接連網站
-(無 webhook 互動)
+LINE app 內 webview 載 /m/shop(stall.neop.tw)
+       ↓
+profile gate(沒填 full_name / phone 不能逛)
+       ↓
+商品列表(chip filter + banner carousel)
+       ↓
+點商品 → SPA 內切 full-page detail
+       ↓
+選 variant + 數量 → 加入購物車
+       ↓
+checkout view(server placeOrder 拉 variant 真實價格 + 庫存)
+       ↓
+LINE push 訂單成立通知 + 匯款資訊
 ```
 
 ### Flow 5:用戶點「📰 最新消息」/「💬 專屬客服」
@@ -1193,30 +293,30 @@ reply placeholder 文字(news / contact 各自 FAQ + 真人 keyword)
 ### Flow 6:管理員改課
 
 ```
-admin 開 /admin/login
+admin 開 stall.neop.tw/admin/login
        ↓
-輸入 Supabase Auth email + password
+輸入 Supabase Auth email + password(或 Google OAuth)
        ↓
 signIn server action
   └─ supabase.auth.signInWithPassword → 寫 cookie
        ↓
-middleware refresh session → 已登入 → redirect /admin/classes
+middleware refresh session → 已登入
        ↓
-classes page server-side fetch regions + classes
+/admin → getUserAllowedTenants(email) → redirect /admin/<slug>
        ↓
-列表展示,inline 編輯每筆
+nav 點「活動」→ /admin/[tenant]/classes
        ↓
-按「儲存」→ updateClass server action
+inline 編輯每筆 → updateClass server action
   └─ supabaseAdmin .from('classes').update(...).eq('id', ...)
        ↓
-revalidatePath('/admin/classes') → 列表重新拉
+revalidatePath → 列表重新拉
        ↓
 用戶下次點本月課程 → 看到最新資料
 ```
 
 ---
 
-## 四、部署流程
+## 七、部署流程
 
 ```
 local edit → git add + commit → git push origin main
@@ -1227,7 +327,7 @@ local edit → git add + commit → git push origin main
                                        ↓
                         Deploy 完成(~1 分鐘)
                                        ↓
-                family-linebot-delta.vercel.app 自動更新
+                       stall.neop.tw 自動更新
 ```
 
 **注意**:
@@ -1238,72 +338,63 @@ local edit → git add + commit → git push origin main
 
 ---
 
-## 五、Schema 變更 SQL 累積(reproduce 用)
+## 八、Schema 變更 SQL 累積(reproduce 用)
+
+完整 schema 看 `db/schema.sql`(append-only 累積)。這裡只記里程碑:
 
 ```sql
 -- Phase 0 base
 create table tenants (...);
 create table users (...);
 create table messages (...);
-create trigger ...
-
--- 漏跑 ALTER 補救
-alter table tenants add column if not exists rich_menu_id text;
-alter table tenants add column if not exists created_at timestamptz not null default now();
 
 -- Phase 1
 create table regions (...);
-drop table classes;  -- 重建
 create table classes (...);  -- with region_id FK
 
--- Phase 3
+-- Phase 3 — LIFF 會員
 alter table users add column if not exists full_name text;
 alter table users add column if not exists phone text;
 alter table users add column if not exists address text;
 alter table users add column if not exists birthday date;
 
+-- Stall Phase A — 平台層拆分
+create table platform_users (...);
+create table tenant_members (...);
+alter table tenants add column if not exists slug text;
+alter table tenants add column if not exists owner_user_id uuid references platform_users(id);
+
+-- Variant Stage A — 5.2.A
+create table product_variants (...);
+alter table order_items add column if not exists variant_id uuid references product_variants(id) on delete restrict;
+alter table stock_movements add column if not exists variant_id uuid references product_variants(id) on delete restrict;
+
+-- 5/21 整波 — order_prefix per tenant
+alter table tenants add column if not exists order_prefix text;
+-- generate_order_no trigger 改動態查 prefix
+
+-- Phase 5.4 — contact_info
+alter table tenants add column if not exists contact_info text;
+
+-- Phase 7 — Logo / Banner / OG
+alter table tenants add column if not exists og_image_url text;
+
+-- Phase 9.5 — tier pricing
+create table product_price_tiers (...);
+
+-- Phase 9.6 — media jsonb
+alter table products add column if not exists media jsonb default '[]'::jsonb;
+
+-- Phase 9.8 — banner 多媒體
+alter table tenants add column if not exists banners jsonb default '[]'::jsonb;
+
+-- Phase 9.9 — 限時優惠
+alter table products add column if not exists sale_discount_pct int;
+alter table products add column if not exists sale_start_at timestamptz;
+alter table products add column if not exists sale_end_at timestamptz;
+
+-- Phase 11 — stock_movements trigger 帶 variant_id
+-- (rewrite trigger function,看 schema.sql)
+
 NOTIFY pgrst, 'reload schema';
-```
-
----
-
-## 六、已知 issues / TODO
-
-- 12 假課之後 admin 替換真實課程
-- LIFF Phase 3 僅 form 填,「我的訂單 / 課程歷史」未實作(等 Phase 4 entity)
-- ⚠️ Service role key 曾出現在本機 chat log,**正式上線前必 rotate**(Supabase Settings → API → Generate new)
-- Telegram polling 之前斷過,要設 Windows Task Scheduler At Logon 自動啟動(尚未)
-- 進階教室目前綁在「專屬客服」內(用戶輸入「進階」keyword),未來實作 keyword webhook handler
-- LINE @ display name 從「愛油蛙」→「愛油哇」改過
-- ⚠️ **signUp 沒自動建 platform_users**(Phase 11 確認 bug):email / Google 註冊只創 Supabase Auth user。所以新人登入後 `getUserAllowedTenants` 撈不到 → 顯示「沒有 tenant 權限」。**workaround**:Owner 用 Phase 13 Members 邀請 UI(待做)或手動 SQL `insert platform_users` 補
-- ⚠️ `app/admin/[tenant]/settings/actions.ts:19` TODO:RLS 還沒 check tenant_members,**任何登入者技術上可改任何 tenant 設定**(實務上要猜 slug);staff 開放前必補
-- 舊 stock_movements DELETE trigger 在 variant_id 缺失時 fallback 寫 product,所以 Phase 12 清測試訂單時 variant.stock 被反向加(已手動還原)
-
----
-
-## 七、Commit log(主幹)
-
-```
-6b744bd  init: family-linebot 專案骨架
-0a07231  feat: LINE webhook 骨架 + echo reply
-c059dc6  feat: Supabase schema (multi-tenant from day 1)
-a2a3761  feat: webhook 整合 DB
-ca16519  feat: Rich Menu 對齊提案 v5(5 格上 3 下 2)
-01371af  feat: 本月課程從 DB 拉真資料
-4e6502c  refactor: classes 改 region_id FK + 加 regions 表
-f5bab8e  feat: 本月課程只列未來 + 今天
-0afedbf  feat: /admin login + classes CRUD(Phase 2)
-f56f242  feat: LIFF 會員專區(Phase 3)
-6a9d69b  refactor: Rich Menu 第 4 格改「會員中心」(LIFF URI)
-11f736c  fix: LIFF form 加 inline error banner
-4abb3c4  feat: Stall Phase A migration — platform 層 schema
-899901f  fix: Phase A round 2(pg_advisory_xact_lock / slug fallback / merged index)
-51c7e03  feat: STALL_ARCHITECTURE v1.1 — 雙入口 + Cyndi tenant + schema delta
-0ae4da4  fix: Cyndi tenant features 從 {catalog:true} 改 {}
-cc8420f  feat: Phase 4-Alpha task 3 — /admin/[tenant]/products tenant-aware
-38b01b7  feat: Phase 4-Alpha task 3-4 完整 — admin routes tenant-aware
-303e33c  feat: Phase 4-Alpha task 5+6 — customers + inventory pages
-15b1e63  feat: Phase 5.2 Variant Stage A schema(product_variants + backfill)
-f8c8e0e  fix: stock_movements backfill 暫關 append-only trigger
-0e98cea  feat: Variant Stage B — admin/products page 加 nested variant CRUD
 ```
