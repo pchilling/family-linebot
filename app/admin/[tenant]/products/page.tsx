@@ -10,11 +10,11 @@ import {
   updatePriceTier,
   updateProduct,
   updateProductSale,
-  updateShareFocus,
   updateVariant,
 } from '../../actions';
 import { ProductImageUploader } from './image-uploader';
 import { ShareButton } from './share-button';
+import { ShareFocusEditor } from './share-focus-editor';
 import { SubmitButton } from '../../_components/submit-button';
 import { MediaManager } from './media-manager';
 
@@ -390,48 +390,20 @@ details[open] .chev { transform: rotate(90deg); }
                         </a>
                       </p>
 
-                      {/* 橫向焦點 slider — 3:4 → 9:16 兩側裁切位置 */}
-                      <form
-                        action={updateShareFocus}
-                        style={{
-                          marginTop: 14,
-                          padding: '12px 14px',
-                          background: c.bg,
-                          border: `1px solid ${c.borderSubtle}`,
-                          borderRadius: 8,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 8,
-                        }}
-                      >
-                        <input type="hidden" name="product_id" value={p.id} />
-                        <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                          <span style={{ fontSize: 12, fontWeight: 500, color: c.text }}>
-                            橫向焦點(3:4 → 9:16 兩側裁切位置)
-                          </span>
-                          <span style={{ fontSize: 11, color: c.textMuted, fontFamily: 'ui-monospace, monospace' }}>
-                            目前 {p.share_focus_x ?? 50}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          name="share_focus_x"
-                          min={0}
-                          max={100}
-                          step={5}
-                          defaultValue={p.share_focus_x ?? 50}
-                          style={{ width: '100%' }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: c.textMuted }}>
-                          <span>← 左</span>
-                          <span>中(50)</span>
-                          <span>右 →</span>
-                        </div>
-                        <SubmitButton size="sm" pendingText="儲存中…">
-                          儲存焦點
-                        </SubmitButton>
-                      </form>
+                      {/* 橫向焦點 — live preview client component */}
+                      {(() => {
+                        const focusImage =
+                          (p.media ?? []).find((m) => m.type === 'image')?.url ??
+                          p.image_url;
+                        return focusImage ? (
+                          <ShareFocusEditor
+                            productId={p.id}
+                            tenantSlug={tenant.slug}
+                            imageUrl={focusImage}
+                            initialFocus={p.share_focus_x ?? 50}
+                          />
+                        ) : null;
+                      })()}
                     </>
                   ) : (
                     <p style={{ fontSize: 12, color: '#d97706', margin: 0, lineHeight: 1.5 }}>
