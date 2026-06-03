@@ -128,7 +128,10 @@ export function VariantSelector({
       variantName: selected.variant_name,
       priceTwd: effectivePrice,
       qty,
-      imageUrl: selected.image_url ?? productImageUrl,
+      imageUrl:
+        selected.image_url ??
+        productMedia.find((m) => m.type === 'image')?.url ??
+        productImageUrl,
     });
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1800);
