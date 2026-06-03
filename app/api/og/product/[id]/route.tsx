@@ -152,22 +152,33 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
           position: 'relative',
         }}
       >
-        {/* 滿版商品照(cover)— objectPosition 套 share_focus_x 控制橫向焦點 */}
+        {/* 滿版商品照(cover)— 手動算 marginLeft(Satori 對 objectPosition 百分比有 quirk)*/}
+        {/* 3:4 原圖 scale 到 height=1920 → width=1440 → 在 1080 寬容器內水平 shift */}
+        {/* focus_x=0 → marginLeft=0(顯示最左);focus_x=100 → marginLeft=-360(顯示最右)*/}
         {coverImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverImage}
-            alt=""
+          <div
             style={{
               position: 'absolute',
               top: 0,
               left: 0,
               width: 1080,
               height: 1920,
-              objectFit: 'cover',
-              objectPosition: `${focusX}% center`,
+              overflow: 'hidden',
+              display: 'flex',
             }}
-          />
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={coverImage}
+              alt=""
+              width={1440}
+              height={1920}
+              style={{
+                marginLeft: -360 * (focusX / 100),
+                display: 'block',
+              }}
+            />
+          </div>
         ) : (
           // 沒圖 fallback:暗色 radial + tenant logo / 首字大字浮水印
           <div
