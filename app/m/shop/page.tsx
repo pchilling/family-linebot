@@ -361,8 +361,8 @@ export default function ShopPage() {
         }}
       />
 
-      {/* Hero:Tenant Logo + 名 + 招呼 + Banner */}
-      <header style={{ marginBottom: 18 }}>
+      {/* Hero:Tenant Logo + 名 + 招呼 + Banner — detail view 跟 checkout 時不顯示 */}
+      {!detailId && !showCheckout && <header style={{ marginBottom: 18 }}>
         {/* 第一列:Tenant logo + name(主視覺) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
           {tenant.logo_url ? (
@@ -429,11 +429,11 @@ export default function ShopPage() {
             <BannerHero banners={tenant.banners} tenantName={tenant.name} />
           </div>
         )}
-      </header>
+      </header>}
 
       {error && <div style={errorBanner}>{error}</div>}
 
-      {!showCheckout && (
+      {!showCheckout && !detailId && (
         <>
           {/* Chip filter row(橫滑) */}
           {products.length > 0 && categories.length > 0 && (
@@ -603,8 +603,8 @@ export default function ShopPage() {
         </>
       )}
 
-      {/* Bottom-fixed 購物車按鈕(有東西才出現) */}
-      {!showCheckout && cart.length > 0 && (
+      {/* Bottom-fixed 購物車按鈕(有東西才出現)— detail view 時隱藏(detail 有自己的 sticky CTA) */}
+      {!showCheckout && !detailId && cart.length > 0 && (
         <div
           style={{
             position: 'fixed',
