@@ -1,21 +1,53 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BannerHero } from './banner-hero';
 import { getActiveProducts, getTenantPublic } from '@/lib/supabase';
 
 type Props = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ f?: string }>;
 };
 
 // ISR:tenant brand / 商品 列表變動不頻繁,cache 30s。第二位訪客拿 CDN 快取 → 飛快。
 // admin 改動會 revalidatePath 推送,不會看到太舊資料。
 export const revalidate = 30;
 
-export default async function TenantHomePage({ params }: Props) {
+export default async function TenantHomePage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { f } = await searchParams;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
 
-  const products = await getActiveProducts(tenant.id);
+  const allProducts = await getActiveProducts(tenant.id);
+
+  // chip filter:全部 / 最新 / 各 category
+  const categories = [...new Set(allProducts.map((p) => p.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  const isCategory = !!f && categories.includes(f);
+
+  let products = [...allProducts];
+  if (f === 'latest') {
+    // server query 已經 created_at desc,保留
+  } else if (isCategory) {
+    products = allProducts
+      .filter((p) => p.category === f)
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+  } else {
+    // 全部 預設:category asc + name asc
+    products.sort((a, b) => {
+      const ca = a.category ?? '';
+      const cb = b.category ?? '';
+      if (ca !== cb) return ca.localeCompare(cb, 'zh-Hant');
+      return a.name.localeCompare(b.name, 'zh-Hant');
+    });
+  }
+
+  const activeKey = f === 'latest' || isCategory ? f : '';
+  const titleLabel = f === 'latest' ? '最新商品' : isCategory ? f : '所有商品';
+  const chips: { key: string; label: string; href: string }[] = [
+    { key: '', label: '全部', href: `/${slug}` },
+    { key: 'latest', label: '最新', href: `/${slug}?f=latest` },
+    ...categories.map((c) => ({ key: c, label: c, href: `/${slug}?f=${encodeURIComponent(c)}` })),
+  ];
 
   // Hero banner — Phase 9.8 multi-media,fallback 舊 og_image_url
   const banners = tenant.banners.length > 0
@@ -60,7 +92,7 @@ export default async function TenantHomePage({ params }: Props) {
         </div>
       )}
 
-      {products.length === 0 ? (
+      {allProducts.length === 0 ? (
         <div
           style={{
             textAlign: 'center',
@@ -81,10 +113,48 @@ export default async function TenantHomePage({ params }: Props) {
         </div>
       ) : (
         <>
+          {/* Chip filter row(橫滑) */}
+          {chips.length > 1 && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                overflowX: 'auto',
+                marginBottom: '1.25rem',
+                paddingBottom: 4,
+                scrollbarWidth: 'none',
+              }}
+            >
+              {chips.map((c) => {
+                const isActive = activeKey === c.key;
+                return (
+                  <Link
+                    key={c.key || 'all'}
+                    href={c.href}
+                    style={{
+                      padding: '6px 14px',
+                      background: isActive ? '#18181b' : '#ffffff',
+                      color: isActive ? '#ffffff' : '#52525b',
+                      border: `1px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
+                      borderRadius: 999,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {c.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
           {/* Section title */}
           <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'baseline', gap: 12 }}>
             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#18181b', letterSpacing: '-0.01em' }}>
-              所有商品
+              {titleLabel}
             </h2>
             <span style={{ fontSize: '0.8125rem', color: '#a1a1aa' }}>
               {products.length} 件

@@ -27,6 +27,7 @@ export default function ShopPage() {
   const [tenant, setTenant] = useState<ShopTenant>({ name: '商品專區', logo_url: null, banner_url: null, payment_info: null });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<string>(''); // '' = 全部 / 'latest' / category name
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -79,6 +80,27 @@ export default function ShopPage() {
     () => new Map(products.map((p) => [p.id, p])),
     [products],
   );
+
+  // chip filter:全部 / 最新 / 各 category
+  const categories = useMemo(
+    () => [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'zh-Hant')),
+    [products],
+  );
+  const visibleProducts = useMemo(() => {
+    const isCat = !!filter && categories.includes(filter);
+    if (filter === 'latest') return products; // server 已 created_at desc
+    if (isCat) {
+      return products
+        .filter((p) => p.category === filter)
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+    }
+    return [...products].sort((a, b) => {
+      const ca = a.category ?? '';
+      const cb = b.category ?? '';
+      if (ca !== cb) return ca.localeCompare(cb, 'zh-Hant');
+      return a.name.localeCompare(b.name, 'zh-Hant');
+    });
+  }, [products, filter, categories]);
   // Phase 11:variantId → variant info(含 product 反查)
   const variantMap = useMemo(() => {
     const m = new Map<string, { variant_name: string; price_twd: number; stock: number; product_id: string; product_name: string }>();
@@ -422,13 +444,58 @@ export default function ShopPage() {
 
       {!showCheckout && (
         <>
+          {/* Chip filter row(橫滑) */}
+          {products.length > 0 && categories.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                overflowX: 'auto',
+                marginBottom: 10,
+                paddingBottom: 2,
+                scrollbarWidth: 'none',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {[
+                { key: '', label: '全部' },
+                { key: 'latest', label: '最新' },
+                ...categories.map((c) => ({ key: c, label: c })),
+              ].map((c) => {
+                const isActive = filter === c.key;
+                return (
+                  <button
+                    key={c.key || 'all'}
+                    type="button"
+                    onClick={() => setFilter(c.key)}
+                    style={{
+                      padding: '5px 12px',
+                      background: isActive ? '#18181b' : '#fff',
+                      color: isActive ? '#fff' : '#52525b',
+                      border: `1px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Section title */}
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'baseline', gap: 10 }}>
             <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#18181b' }}>
-              所有商品
+              {filter === 'latest' ? '最新商品' : filter || '所有商品'}
             </h2>
             <span style={{ fontSize: 12, color: '#a1a1aa' }}>
-              {products.length} 件
+              {visibleProducts.length} 件
             </span>
           </div>
 
@@ -451,7 +518,7 @@ export default function ShopPage() {
                 paddingBottom: cart.length > 0 ? 80 : 0,
               }}
             >
-              {products.map((p) => (
+              {visibleProducts.map((p) => (
                 <article
                   key={p.id}
                   className="shop-card"
