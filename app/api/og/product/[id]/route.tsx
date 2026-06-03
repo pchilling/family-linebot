@@ -80,7 +80,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
   // 拆 2 個 query 比 join 穩定(Supabase nested select FK 推不出時整個 null)
   const { data: pData, error: pErr } = await supabaseAdmin
     .from('products')
-    .select('id, name, price_twd, image_url, tenant_id')
+    .select('id, name, price_twd, image_url, media, tenant_id')
     .eq('id', id)
     .maybeSingle();
 
@@ -89,14 +89,21 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
     return new Response('Product not found', { status: 404 });
   }
 
+  type MediaItem = { type: 'image' | 'video'; url: string };
   type ProductRow = {
     id: string;
     name: string;
     price_twd: number | null;
     image_url: string | null;
+    media: MediaItem[] | null;
     tenant_id: string;
   };
   const p = pData as ProductRow;
+  // 縮圖優先 media 第一張 image,fallback image_url
+  const coverImage =
+    (Array.isArray(p.media) ? p.media : []).find((m) => m.type === 'image')?.url ??
+    p.image_url ??
+    null;
 
   const { data: tData } = await supabaseAdmin
     .from('tenants')
@@ -135,219 +142,164 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
     (
       <div
         style={{
-          width: '100%',
-          height: '100%',
+          width: 1080,
+          height: 1920,
           display: 'flex',
-          flexDirection: 'column',
           background: '#0A0A0A',
+          position: 'relative',
         }}
       >
-        {/* 上半:3:4 圖完整顯示(1080×1440)+ 底部漸層柔接 */}
-        <div
-          style={{
-            width: 1080,
-            height: 1440,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background:
-              'radial-gradient(circle at center, #1f2937 0%, #0A0A0A 70%)',
-            position: 'relative',
-          }}
-        >
-          {product.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={product.image_url}
-              alt=""
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
-            />
-          ) : (
-            // 沒 cover fallback:NEOP green 圓 + 攤位 logo / 商品名首字
-            <div
-              style={{
-                width: 540,
-                height: 540,
-                borderRadius: 999,
-                background:
-                  'linear-gradient(135deg, rgba(5,200,120,0.18) 0%, rgba(5,200,120,0.04) 100%)',
-                border: '2px solid rgba(5,200,120,0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {product.tenants?.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={product.tenants.logo_url}
-                  alt=""
-                  width={320}
-                  height={320}
-                  style={{
-                    borderRadius: 999,
-                    objectFit: 'cover',
-                  }}
-                />
-              ) : (
-                <span
-                  style={{
-                    fontSize: 220,
-                    fontWeight: 700,
-                    color: '#05C878',
-                    fontFamily: 'Noto Sans TC',
-                    lineHeight: 1,
-                  }}
-                >
-                  {product.name.slice(0, 1)}
-                </span>
-              )}
-            </div>
-          )}
-          {/* 圖底柔接 — 100px 漸層化解硬切 */}
+        {/* 滿版商品照(cover) */}
+        {coverImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverImage}
+            alt=""
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 1080,
+              height: 1920,
+              objectFit: 'cover',
+            }}
+          />
+        ) : (
+          // 沒圖 fallback:暗色 radial + tenant logo / 首字大字浮水印
           <div
             style={{
               position: 'absolute',
+              top: 0,
               left: 0,
-              right: 0,
-              bottom: 0,
-              height: 100,
-              background:
-                'linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0.7) 60%, rgba(10,10,10,1) 100%)',
+              width: 1080,
+              height: 1920,
               display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'radial-gradient(circle at center, #1f2937 0%, #0A0A0A 70%)',
             }}
-          />
-        </div>
-
-        {/* 下半:1080×480 黑底資訊區
-            結構:column(pill / 標題-logo row / 價格),logo 跟標題同一橫線 */}
-        <div
-          style={{
-            width: 1080,
-            height: 480,
-            display: 'flex',
-            flexDirection: 'column',
-            padding: '48px 72px 56px',
-            color: '#ffffff',
-            background: '#0A0A0A',
-            boxSizing: 'border-box',
-          }}
-        >
-          {/* Tenant pill — 透明邊框版(less corporate)*/}
-          {product.tenants && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: product.tenants.logo_url ? '6px 20px 6px 6px' : '8px 20px',
-                background: 'rgba(255,255,255,0.08)',
-                border: '1.5px solid rgba(5,200,120,0.6)',
-                borderRadius: 999,
-                marginBottom: 16,
-                alignSelf: 'flex-start',
-              }}
-            >
-              {product.tenants.logo_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={product.tenants.logo_url}
-                  alt=""
-                  width={36}
-                  height={36}
-                  style={{
-                    borderRadius: 999,
-                    objectFit: 'cover',
-                    marginRight: 12,
-                  }}
-                />
-              )}
+          >
+            {product.tenants?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={product.tenants.logo_url}
+                alt=""
+                width={420}
+                height={420}
+                style={{ borderRadius: 999, objectFit: 'cover', opacity: 0.35 }}
+              />
+            ) : (
               <span
                 style={{
-                  fontSize: 20,
+                  fontSize: 320,
                   fontWeight: 700,
-                  color: '#ffffff',
-                  letterSpacing: '-0.01em',
+                  color: '#1f2937',
                   fontFamily: 'Noto Sans TC',
                   lineHeight: 1,
                 }}
               >
-                {product.tenants.name}
+                {product.name.slice(0, 1)}
               </span>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {/* 標題 + logo 同一橫線 row(頂部對齊)*/}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'flex-start',
-              gap: 32,
-              width: '100%',
-            }}
-          >
-            <div
+        {/* 底部漸層黑(透明 → 0.9)— 約 900px,讓白字可讀 */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 900,
+            background:
+              'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 30%, rgba(0,0,0,0.65) 65%, rgba(0,0,0,0.9) 100%)',
+            display: 'flex',
+          }}
+        />
+
+        {/* 白字內容:tenant 細字 → 商品名大字 → NT$ 價 */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 80,
+            bottom: 96,
+            width: 840,
+            display: 'flex',
+            flexDirection: 'column',
+            color: '#ffffff',
+          }}
+        >
+          {product.tenants && (
+            <span
               style={{
-                fontSize: 64,
-                fontWeight: 700,
-                lineHeight: 1,
-                letterSpacing: '-0.02em',
+                fontSize: 32,
+                fontWeight: 400,
+                opacity: 0.88,
+                letterSpacing: '0.12em',
                 fontFamily: 'Noto Sans TC',
-                display: 'flex',
-                flex: 1,
-                minWidth: 0,
+                lineHeight: 1,
+                marginBottom: 32,
               }}
             >
-              {product.name}
-            </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`${origin}/brand/logo-mark-white.png`}
-              alt=""
-              width={140}
-              height={140}
-              style={{ display: 'block', objectFit: 'contain', flexShrink: 0 }}
-            />
-          </div>
-
+              {product.tenants.name}
+            </span>
+          )}
+          <span
+            style={{
+              fontSize: 92,
+              fontWeight: 700,
+              lineHeight: 1.05,
+              letterSpacing: '-0.02em',
+              fontFamily: 'Noto Sans TC',
+              marginBottom: 36,
+              display: 'flex',
+            }}
+          >
+            {product.name}
+          </span>
           {product.price_twd !== null && (
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                marginTop: 8,
+                alignItems: 'baseline',
                 fontFamily: 'JetBrains Mono',
                 fontSize: 56,
                 lineHeight: 1,
-                color: '#05C878',
               }}
             >
               <span
                 style={{
                   fontWeight: 400,
                   opacity: 0.85,
-                  marginRight: 12,
-                  letterSpacing: '0.02em',
+                  marginRight: 14,
+                  letterSpacing: '0.04em',
                 }}
               >
                 NT$
               </span>
-              <span
-                style={{
-                  fontWeight: 700,
-                  letterSpacing: '-0.02em',
-                }}
-              >
+              <span style={{ fontWeight: 700, letterSpacing: '-0.01em' }}>
                 {product.price_twd.toLocaleString()}
               </span>
             </div>
           )}
         </div>
 
+        {/* NEOP logo 右下角小浮水印 */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${origin}/brand/logo-mark-white.png`}
+          alt=""
+          width={72}
+          height={72}
+          style={{
+            position: 'absolute',
+            bottom: 72,
+            right: 72,
+            objectFit: 'contain',
+            opacity: 0.55,
+          }}
+        />
       </div>
     ),
     {
