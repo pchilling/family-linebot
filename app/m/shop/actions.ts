@@ -337,7 +337,7 @@ async function pushOrderConfirmation(
     .maybeSingle();
   const tenant = (t as { slug: string; payment_info: string | null; name: string } | null) ?? null;
 
-  const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://family-linebot-delta.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw';
   const orderUrl = tenant ? `${baseUrl}/${tenant.slug}/order/${orderNo}` : '';
 
   const lines = [

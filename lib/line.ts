@@ -232,7 +232,7 @@ export function buildMonthlyClassesFlex(
   const liffEventsId = process.env.NEXT_PUBLIC_LIFF_ID_EVENTS ?? process.env.NEXT_PUBLIC_LIFF_ID;
   if (!liffEventsId) return null;
   const eventsUrl = `https://liff.line.me/${liffEventsId}`;
-  const fallbackImage = 'https://family-linebot-delta.vercel.app/icon.svg';
+  const fallbackImage = `${process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw'}/icon.svg`;
 
   const bubbles: messagingApi.FlexBubble[] = classes.slice(0, 10).map((c) => {
     const dt = new Date(c.scheduled_at);

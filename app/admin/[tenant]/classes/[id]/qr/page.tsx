@@ -53,7 +53,7 @@ export default async function ClassQrPage({
   if (!c) notFound();
 
   // 用 production URL 確保 LINE 內可開
-  const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://family-linebot-delta.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw';
   const checkinUrl = `${baseUrl}/m/checkin?class_id=${c.id}`;
   // qrserver.com 公開 QR API,免費,免裝 npm
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&qzone=2&data=${encodeURIComponent(checkinUrl)}`;
