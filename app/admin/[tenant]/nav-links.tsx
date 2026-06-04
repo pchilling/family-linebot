@@ -99,6 +99,7 @@ export function NavLinks({
       href: `/admin/${tenantSlug}/messages`,
       badge: unreadMessages,
     },
+    { key: 'members', label: '成員', href: `/admin/${tenantSlug}/members` },
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 
