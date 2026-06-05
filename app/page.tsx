@@ -202,6 +202,22 @@ export default async function Home() {
               申請開店 →
             </Link>
           </div>
+          {/* 法規連結 */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 14,
+              marginBottom: 18,
+              fontSize: 11,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Link href="/policy/terms" style={{ color: '#a1a1aa', textDecoration: 'none' }}>服務條款</Link>
+            <Link href="/policy/privacy" style={{ color: '#a1a1aa', textDecoration: 'none' }}>隱私權</Link>
+            <Link href="/policy/refund" style={{ color: '#a1a1aa', textDecoration: 'none' }}>退款</Link>
+            <Link href="/policy/shipping" style={{ color: '#a1a1aa', textDecoration: 'none' }}>寄送</Link>
+          </div>
           <div
             style={{
               fontSize: 11,

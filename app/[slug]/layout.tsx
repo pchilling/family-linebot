@@ -130,6 +130,22 @@ export default async function TenantLayout({ children, params }: Props) {
             查我的訂單 →
           </a>
         </div>
+        {/* 法規連結 */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '0.875rem',
+            marginBottom: '0.75rem',
+            fontSize: '0.75rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <a href="/policy/terms" style={{ color: '#9ca3af', textDecoration: 'none' }}>服務條款</a>
+          <a href="/policy/privacy" style={{ color: '#9ca3af', textDecoration: 'none' }}>隱私權</a>
+          <a href="/policy/refund" style={{ color: '#9ca3af', textDecoration: 'none' }}>退款</a>
+          <a href="/policy/shipping" style={{ color: '#9ca3af', textDecoration: 'none' }}>寄送</a>
+        </div>
         <div style={{ color: '#9ca3af', fontSize: '0.8125rem' }}>
           © {new Date().getFullYear()} {tenant.name}
         </div>
