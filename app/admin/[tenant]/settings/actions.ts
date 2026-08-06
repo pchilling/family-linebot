@@ -223,17 +223,34 @@ export async function removeBanner(slug: string): Promise<UploadLogoResult> {
 type BannerItem = { type: 'image' | 'video'; url: string };
 
 async function getTenantBanners(tenantId: string): Promise<BannerItem[]> {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('tenants')
     .select('banners')
     .eq('id', tenantId)
     .maybeSingle();
-  const b = (data as { banners?: BannerItem[] | null } | null)?.banners;
-  return Array.isArray(b) ? b : [];
+  if (error) {
+    console.error('[getTenantBanners]', error);
+    throw new Error('讀取現有 banner 失敗:' + error.message);
+  }
+  let b = (data as { banners?: unknown } | null)?.banners;
+  // 防禦:若 banners 欄位被存成 JSON 字串(schema drift),先 parse 回陣列,
+  // 否則會被當成空陣列 → 下一次寫入時覆蓋掉既有 banner。
+  if (typeof b === 'string') {
+    try {
+      b = JSON.parse(b);
+    } catch {
+      b = null;
+    }
+  }
+  return Array.isArray(b) ? (b as BannerItem[]) : [];
 }
 
 async function setTenantBanners(tenantId: string, banners: BannerItem[]) {
-  await supabaseAdmin.from('tenants').update({ banners }).eq('id', tenantId);
+  const { error } = await supabaseAdmin.from('tenants').update({ banners }).eq('id', tenantId);
+  if (error) {
+    console.error('[setTenantBanners]', error);
+    throw new Error('儲存 banner 失敗:' + error.message);
+  }
 }
 
 function bannerRedirect(slug: string) {
@@ -302,16 +319,24 @@ export async function uploadTenantBannerImage(formData: FormData): Promise<Uploa
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const ext = (file as File).name?.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const safeExt = ['jpg','jpeg','png','webp'].includes(ext) ? ext : 'jpg';
-  const contentType = safeExt === 'png' ? 'image/png' : safeExt === 'webp' ? 'image/webp' : 'image/jpeg';
+  const safeExt = ['jpg','jpeg','png','webp','gif'].includes(ext) ? ext : 'jpg';
+  const contentType =
+    safeExt === 'png' ? 'image/png' :
+    safeExt === 'webp' ? 'image/webp' :
+    safeExt === 'gif' ? 'image/gif' :
+    'image/jpeg';
   const path = `${tenant.id}/banners/media/${Date.now()}.${safeExt}`;
   const { error: upErr } = await supabaseAdmin.storage
     .from('tenant-assets')
     .upload(path, file, { contentType, upsert: false });
   if (upErr) { console.error('[uploadTenantBannerImage]', upErr); return { ok: false, error: '上傳失敗' }; }
   const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
-  const current = await getTenantBanners(tenant.id);
-  await setTenantBanners(tenant.id, [...current, { type: 'image', url: publicUrl }]);
+  try {
+    const current = await getTenantBanners(tenant.id);
+    await setTenantBanners(tenant.id, [...current, { type: 'image', url: publicUrl }]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '儲存 banner 失敗' };
+  }
   revalidatePath(`/admin/${slug}/settings`);
   revalidatePath(`/${slug}`);
   return { ok: true, url: publicUrl };
@@ -335,8 +360,72 @@ export async function uploadTenantBannerVideo(formData: FormData): Promise<Uploa
     .upload(path, file, { contentType, upsert: false });
   if (upErr) { console.error('[uploadTenantBannerVideo]', upErr); return { ok: false, error: '上傳失敗' }; }
   const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
-  const current = await getTenantBanners(tenant.id);
-  await setTenantBanners(tenant.id, [...current, { type: 'video', url: publicUrl }]);
+  try {
+    const current = await getTenantBanners(tenant.id);
+    await setTenantBanners(tenant.id, [...current, { type: 'video', url: publicUrl }]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '儲存 banner 失敗' };
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/${slug}`);
+  return { ok: true, url: publicUrl };
+}
+
+// ====================
+// Banner 瀏覽器直傳 Supabase Storage(2026-08-06)
+// Server Action body 走不了大檔(next.config bodySizeLimit 2mb + Vercel 4.5MB 硬限制),
+// 改成:createBannerUploadUrl 發簽名上傳連結 → 瀏覽器直傳 → finalizeBannerUpload 記進 banners。
+// ====================
+
+export type BannerUploadUrlResult =
+  | { ok: true; path: string; token: string }
+  | { ok: false; error: string };
+
+export async function createBannerUploadUrl(formData: FormData): Promise<BannerUploadUrlResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const type = String(formData.get('type') ?? '').trim();
+  const filename = String(formData.get('filename') ?? '').trim();
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (type !== 'image' && type !== 'video') return { ok: false, error: '類型錯誤' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  const safeExt =
+    type === 'image'
+      ? (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg')
+      : (['mp4', 'mov', 'webm', 'm4v'].includes(ext) ? ext : 'mp4');
+  const dir = type === 'image' ? 'media' : 'videos';
+  const path = `${tenant.id}/banners/${dir}/${Date.now()}.${safeExt}`;
+
+  const { data, error } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    console.error('[createBannerUploadUrl]', error);
+    return { ok: false, error: '建立上傳連結失敗' };
+  }
+  return { ok: true, path: data.path, token: data.token };
+}
+
+export async function finalizeBannerUpload(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const type = String(formData.get('type') ?? '').trim();
+  const path = String(formData.get('path') ?? '').trim();
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (type !== 'image' && type !== 'video') return { ok: false, error: '類型錯誤' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+  // path 必須落在該 tenant 自己的 banners 目錄,防止塞別人的檔案路徑
+  if (!path.startsWith(`${tenant.id}/banners/`)) return { ok: false, error: '路徑不合法' };
+
+  const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+  try {
+    const current = await getTenantBanners(tenant.id);
+    await setTenantBanners(tenant.id, [...current, { type, url: publicUrl }]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '儲存 banner 失敗' };
+  }
   revalidatePath(`/admin/${slug}/settings`);
   revalidatePath(`/${slug}`);
   return { ok: true, url: publicUrl };

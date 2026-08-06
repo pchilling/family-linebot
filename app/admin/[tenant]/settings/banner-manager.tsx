@@ -1,12 +1,13 @@
 'use client';
 
 import { useOptimistic, useRef, useState } from 'react';
+import { createSupabaseBrowser } from '@/lib/supabase-browser';
 import {
   addTenantBanner,
+  createBannerUploadUrl,
+  finalizeBannerUpload,
   removeTenantBanner,
   reorderTenantBanner,
-  uploadTenantBannerImage,
-  uploadTenantBannerVideo,
 } from './actions';
 
 type BannerItem = { type: 'image' | 'video'; url: string };
@@ -51,15 +52,41 @@ export function BannerManager({
     },
   );
 
+  // 檔案不走 Server Action(Vercel body 4.5MB 硬限制),改瀏覽器直傳 Supabase Storage:
+  // 1. createBannerUploadUrl 拿簽名上傳連結 → 2. 直傳 → 3. finalizeBannerUpload 記進 banners
   async function handleUpload(type: 'image' | 'video', file: File) {
     setErr(null);
     setUploading(type);
     try {
-      const fd = new FormData();
-      fd.append('tenant_slug', tenantSlug);
-      fd.append('file', file);
-      const res =
-        type === 'image' ? await uploadTenantBannerImage(fd) : await uploadTenantBannerVideo(fd);
+      const maxMb = type === 'image' ? 5 : 50;
+      if (file.size > maxMb * 1024 * 1024) {
+        setErr(`${type === 'image' ? '圖檔' : '影片'}應 < ${maxMb}MB`);
+        return;
+      }
+      const signFd = new FormData();
+      signFd.append('tenant_slug', tenantSlug);
+      signFd.append('type', type);
+      signFd.append('filename', file.name);
+      const sign = await createBannerUploadUrl(signFd);
+      if (!sign.ok) {
+        setErr(sign.error);
+        return;
+      }
+      const supabase = createSupabaseBrowser();
+      const { error: upErr } = await supabase.storage
+        .from('tenant-assets')
+        .uploadToSignedUrl(sign.path, sign.token, file, {
+          contentType: file.type || undefined,
+        });
+      if (upErr) {
+        setErr('上傳失敗:' + upErr.message);
+        return;
+      }
+      const finFd = new FormData();
+      finFd.append('tenant_slug', tenantSlug);
+      finFd.append('type', type);
+      finFd.append('path', sign.path);
+      const res = await finalizeBannerUpload(finFd);
       if (!res.ok) setErr(res.error);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
