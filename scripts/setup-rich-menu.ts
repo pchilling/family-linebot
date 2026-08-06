@@ -41,47 +41,50 @@ async function main() {
   const blobClient = new MessagingApiBlobClient({ channelAccessToken: token });
 
   // ====================
-  // Layout:上 3 + 下 2(對齊提案 v5 的 5 格設計)
-  // 上排:3 欄各 833 / 833 / 834,高 843
-  // 下排:2 欄各 1250,高 843
+  // Layout:上 3 + 下 2(OILS WA 品牌版設計,2026-08-06)
+  // 圖片頂部有 logo 橫幅,卡片整體下移:
+  //   上下排分界 y=1043(卡片間隙中線,非圖片一半)
+  //   上排三格分界 x=858 / 1642,下排兩格分界 x=1254
+  // logo 橫幅併入上排點擊區(點到照樣觸發該欄按鈕)
   // ====================
-  const TOP_W1 = 833;
-  const TOP_W2 = 833;
-  const TOP_W3 = 834;
-  const BOT_W = 1250;
-  const H = 843;
+  const TOP_X1 = 858;
+  const TOP_X2 = 1642;
+  const BOT_X = 1254;
+  const ROW_Y = 1043;
+  const W = 2500;
+  const FULL_H = 1686;
 
   const richMenu = {
-    size: { width: 2500, height: 1686 },
+    size: { width: W, height: FULL_H },
     selected: true,
     name: 'family-linebot default',
     chatBarText: '主選單',
     areas: [
       // 上排
       {
-        bounds: { x: 0, y: 0, width: TOP_W1, height: H },
+        bounds: { x: 0, y: 0, width: TOP_X1, height: ROW_Y },
         action: { type: 'postback' as const, data: 'action=monthly-classes', displayText: '📅 本月課程' },
       },
       {
         // 第 2 格:📰 最新消息 placeholder。簽到改走 keyword「簽到」+ QR 掃 LIFF
-        bounds: { x: TOP_W1, y: 0, width: TOP_W2, height: H },
+        bounds: { x: TOP_X1, y: 0, width: TOP_X2 - TOP_X1, height: ROW_Y },
         action: { type: 'postback' as const, data: 'action=news', displayText: '📰 最新消息' },
       },
       {
         // 商品專區:LIFF /m/shop(profile gating + LINE userId binding)
         // 公開頁 /oilswa 給 IG / 分享 link 用,LIFF /m/shop 給 LINE 用戶用
         // (2026-05-22 改回 LIFF,因為 LINE 用戶要 profile gating + 結帳自動帶 user_id)
-        bounds: { x: TOP_W1 + TOP_W2, y: 0, width: TOP_W3, height: H },
+        bounds: { x: TOP_X2, y: 0, width: W - TOP_X2, height: ROW_Y },
         action: { type: 'uri' as const, uri: 'https://liff.line.me/2010125926-aPB1bQtE', label: '🛍 商品專區' },
       },
       // 下排
       {
-        bounds: { x: 0, y: H, width: BOT_W, height: H },
+        bounds: { x: 0, y: ROW_Y, width: BOT_X, height: FULL_H - ROW_Y },
         // 會員中心走 LIFF webview(URI 開 LIFF 短連結)
         action: { type: 'uri' as const, uri: 'https://liff.line.me/2010125926-mRl3l3lO', label: '👤 會員中心' },
       },
       {
-        bounds: { x: BOT_W, y: H, width: BOT_W, height: H },
+        bounds: { x: BOT_X, y: ROW_Y, width: W - BOT_X, height: FULL_H - ROW_Y },
         action: { type: 'postback' as const, data: 'action=contact', displayText: '💬 專屬客服' },
       },
     ],
