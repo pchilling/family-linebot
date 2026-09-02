@@ -39,7 +39,11 @@ async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
   if (f.payment) query = query.eq('payment_status', f.payment);
   if (f.source) query = query.eq('source', f.source);
   if (f.from) query = query.gte('created_at', `${f.from}T00:00:00+08:00`);
-  if (f.to) query = query.lt('created_at', `${f.to}T00:00:00+08:00`);
+  if (f.to) {
+    // 含當天(2026-09-02 修):原本 lt 當天 00:00 會漏掉 to 當日的訂單
+    const end = new Date(new Date(`${f.to}T00:00:00+08:00`).getTime() + 86400000);
+    query = query.lt('created_at', end.toISOString());
+  }
   if (f.q) {
     // 搜尋:order_no 或 shipping_recipient 或 shipping_phone(任一 ilike 命中)
     const q = f.q.replace(/[%,]/g, ''); // 防 supabase or syntax 被亂寫
@@ -254,6 +258,35 @@ export default async function OrdersListPage({
             清除
           </Link>
         )}
+        {/* 匯出 CSV(2026-09-02):帶目前套用的篩選條件,先查詢再匯出 */}
+        <a
+          href={`/admin/${tenant.slug}/orders/export?${new URLSearchParams(
+            Object.fromEntries(
+              Object.entries({
+                status: filters.status ?? '',
+                payment: filters.payment ?? '',
+                source: filters.source ?? '',
+                q: filters.q ?? '',
+                from: filters.from ?? '',
+                to: filters.to ?? '',
+              }).filter(([, v]) => v !== ''),
+            ),
+          ).toString()}`}
+          style={{
+            marginLeft: 'auto',
+            padding: '6px 14px',
+            background: '#fff',
+            color: '#15803d',
+            border: '1px solid #bbf7d0',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ⬇ 匯出 Excel(CSV)
+        </a>
         </form>
       </details>
 

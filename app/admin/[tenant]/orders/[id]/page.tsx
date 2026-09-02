@@ -107,11 +107,19 @@ export default async function OrderDetailPage({
         ← 返回 {tenant.name} 訂單列表
       </Link>
 
-      <h1 style={{ fontSize: 22, marginTop: 12, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <h1 style={{ fontSize: 22, marginTop: 12, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         訂單 {o.order_no}
         <span style={{ display: 'inline-block', padding: '2px 10px', background: sourceColor(o.source) + '22', color: sourceColor(o.source), borderRadius: 3, fontSize: 13, fontWeight: 500 }}>
           {sourceLabel(o.source)}
         </span>
+        <a
+          href={`/admin/${tenant.slug}/orders/${o.id}/print`}
+          target="_blank"
+          rel="noopener"
+          style={{ marginLeft: 'auto', padding: '6px 14px', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
+        >
+          🖨 列印出貨單(A4)
+        </a>
       </h1>
       <p style={{ color: '#666', fontSize: 13, marginBottom: 24 }}>
         建立 {formatTw(o.created_at)} · 最後更新 {formatTw(o.updated_at)}
