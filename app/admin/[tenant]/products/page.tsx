@@ -160,7 +160,7 @@ export default async function ProductsPage({
   searchParams,
 }: {
   params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; cats?: string }>;
 }) {
   const { tenant: slug } = await params;
   const sp = await searchParams;
@@ -233,6 +233,7 @@ details[open] .chev { transform: rotate(90deg); }
       {/* C#8(2026-09-02):分類顯示順序 — 商城前台的分類 chip 和「全部」分組照這裡排 */}
       {orderedCats.length > 1 && (
         <details
+          open={sp.cats === 'open'}
           style={{
             background: c.card,
             border: `1px solid ${c.border}`,

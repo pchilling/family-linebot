@@ -464,7 +464,12 @@ export async function moveCategoryOrder(formData: FormData) {
 
   revalidateProductRoutes(formData);
   const slug = String(formData.get('tenant_slug') || '').trim();
-  if (slug) revalidatePath(`/${slug}`);
+  if (slug) {
+    revalidatePath(`/${slug}`);
+    // redirect 強制整頁刷新(2026-09-03 修:只 revalidate 畫面不會即時更新,看起來像沒反應)
+    // ?cats=open 讓排序面板保持展開
+    redirect(`/admin/${slug}/products?cats=open`);
+  }
 }
 
 // ====================
