@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { markOrderPaid, markOrderShipped } from '../../actions';
+import { ConfirmButton } from '../../_components/confirm-button';
 
 type OrderRow = {
   id: string;
@@ -366,23 +367,9 @@ function QuickAction({
         <input type="hidden" name="id" value={order.id} />
         <input type="hidden" name="tenant_slug" value={tenantSlug} />
         <input type="hidden" name="return_to" value="list" />
-        <button
-          type="submit"
-          style={{
-            padding: '5px 10px',
-            background: '#16a34a',
-            color: '#fff',
-            border: 0,
-            borderRadius: 4,
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <ConfirmButton bg="#16a34a" confirmText={`確定把訂單 ${order.order_no} 標記為「已收款」?`}>
           ✓ 已收款
-        </button>
+        </ConfirmButton>
         {linkBtn}
       </form>
     );
@@ -394,23 +381,9 @@ function QuickAction({
         <input type="hidden" name="id" value={order.id} />
         <input type="hidden" name="tenant_slug" value={tenantSlug} />
         <input type="hidden" name="return_to" value="list" />
-        <button
-          type="submit"
-          style={{
-            padding: '5px 10px',
-            background: '#0070f3',
-            color: '#fff',
-            border: 0,
-            borderRadius: 4,
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <ConfirmButton bg="#0070f3" confirmText={`確定把訂單 ${order.order_no} 標記為「已出貨」?`}>
           📦 已出貨
-        </button>
+        </ConfirmButton>
         {linkBtn}
       </form>
     );

@@ -21,6 +21,7 @@ type Variant = 'primary' | 'danger' | 'secondary';
  *   - pendingText: 送出時顯示的文字,default「處理中…」
  *   - fullWidth: button width 100%
  *   - size: 'sm' / 'md'
+ *   - confirmText: 設了就先跳 confirm 對話框,按取消不送出(2026-09-02,防誤觸)
  */
 export function SubmitButton({
   children,
@@ -28,12 +29,14 @@ export function SubmitButton({
   variant = 'primary',
   fullWidth = false,
   size = 'md',
+  confirmText,
 }: {
   children: React.ReactNode;
   pendingText?: React.ReactNode;
   variant?: Variant;
   fullWidth?: boolean;
   size?: 'sm' | 'md';
+  confirmText?: string;
 }) {
   const { pending } = useFormStatus();
 
@@ -56,6 +59,9 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={pending}
+      onClick={(e) => {
+        if (confirmText && !window.confirm(confirmText)) e.preventDefault();
+      }}
       className="neop-cta"
       style={{
         padding,

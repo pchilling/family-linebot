@@ -239,7 +239,7 @@ export default async function OrderDetailPage({
                   <option value="line_pay">LINE Pay</option>
                 </select>
               </label>
-              <SubmitButton pendingText="標記中…">✓ 確認已收款</SubmitButton>
+              <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已收款」?">✓ 確認已收款</SubmitButton>
             </form>
           </>
         ) : (
@@ -268,7 +268,7 @@ export default async function OrderDetailPage({
               <span style={labelText}>📦 標已出貨(選填追蹤單號)</span>
               <input name="tracking_no" defaultValue={o.tracking_no ?? ''} style={input} placeholder="例:7-11 取貨號 / 黑貓單號" />
             </label>
-            <SubmitButton pendingText="標記中…">📦 標已出貨</SubmitButton>
+            <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已出貨」?">📦 標已出貨</SubmitButton>
           </form>
         )}
 
@@ -332,7 +332,7 @@ export default async function OrderDetailPage({
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#999' }}>(狀態改 paid / shipped 時 trigger 自動填)</span>
           </div>
 
-          <SubmitButton pendingText="儲存中…">儲存</SubmitButton>
+          <SubmitButton pendingText="儲存中…" confirmText="確定儲存這些訂單變更?">儲存</SubmitButton>
         </form>
       </section>
     </main>

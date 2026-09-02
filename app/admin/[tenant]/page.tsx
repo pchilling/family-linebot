@@ -112,6 +112,8 @@ export default async function TenantDashboardPage({ params }: Props) {
           .from('classes')
           .select('id, name, scheduled_at, capacity, status')
           .eq('tenant_id', tenant.id)
+          // 只列收費課(2026-09-02):免費課直接到場不用管理,總覽只看要對帳的
+          .eq('is_paid', true)
           .gte('scheduled_at', dayStart)
           .lt('scheduled_at', dayEnd)
           .neq('status', 'cancelled')
