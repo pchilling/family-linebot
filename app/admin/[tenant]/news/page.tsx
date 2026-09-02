@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
-import { createNews, deleteNews, updateNews } from './actions';
+import { createNews, deleteNews, pushNews, updateNews } from './actions';
+import { NewsImageField } from './image-field';
 import { SubmitButton } from '../../_components/submit-button';
 
 type NewsRow = {
@@ -8,6 +9,7 @@ type NewsRow = {
   title: string;
   body: string | null;
   link_url: string | null;
+  image_url: string | null;
   status: string;
   published_at: string | null;
   created_at: string;
@@ -17,7 +19,7 @@ type NewsRow = {
 async function getAllNews(tenantId: string): Promise<NewsRow[]> {
   const { data } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, link_url, status, published_at, created_at, updated_at')
+    .select('id, title, body, link_url, image_url, status, published_at, created_at, updated_at')
     .eq('tenant_id', tenantId)
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
@@ -106,10 +108,13 @@ export default async function NewsPage({
           marginBottom: 24,
         }}
       >
-        <strong>運作方式:公告板,不推送通知。</strong>
+        <strong>運作方式:公告板 + 可選推播。</strong>
         <br />
-        上線公開的消息只有當 LINE@ 用戶**主動**點 Rich Menu 第 2 格「📰 最新消息」時才會看到(最近 3 則)。
-        Bot 不會主動推送給好友(避免吃 LINE 免費 quota)。
+        已發佈的消息會在用戶點選單「📰 最新消息」時顯示(最近 5 則)。
+        勾「同步推播」或按消息上的「📣 推播」才會主動發給所有好友——
+        <strong>每次推播吃 LINE 免費額度(好友數 × 1 則,每月 500 則)</strong>,請斟酌使用。
+        <br />
+        有上傳圖片的消息會以<strong>整張圖卡</strong>顯示(點圖開連結),沒圖則是文字卡。
       </div>
 
       {/* 新增 form */}
@@ -131,7 +136,7 @@ export default async function NewsPage({
             />
           </label>
           <label style={label}>
-            🔗 連結 URL(選填,Flex 會多一顆「開啟連結」button)
+            🔗 連結 URL(選填;有圖時點圖開此連結,沒圖時 Flex 多一顆「開啟連結」button)
             <input
               name="link_url"
               type="url"
@@ -139,9 +144,17 @@ export default async function NewsPage({
               placeholder="https://youtu.be/... 或 https://shop.com/..."
             />
           </label>
+          <div style={label}>
+            🖼 圖片(選填;有圖 → 整張圖卡,像海報)
+            <NewsImageField tenantSlug={tenant.slug} />
+          </div>
           <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8, color: '#18181b', fontSize: 13 }}>
             <input name="publish" type="checkbox" />
-            建立後上線公開(可在 Rich Menu「最新消息」被讀到;不會主動推送通知)
+            建立後上線公開(可在 Rich Menu「最新消息」被讀到)
+          </label>
+          <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontSize: 13 }}>
+            <input name="push" type="checkbox" />
+            📣 發布後同步推播給所有好友(吃 LINE 免費額度,需同時勾上面的公開)
           </label>
           <div>
             <SubmitButton size="sm" pendingText="新增中…">新增</SubmitButton>
@@ -253,6 +266,10 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
                 placeholder="https://..."
               />
             </label>
+            <div style={label}>
+              🖼 圖片(選填;有圖 → 整張圖卡)
+              <NewsImageField tenantSlug={slug} defaultUrl={n.image_url} />
+            </div>
             <label style={label}>
               狀態
               <select name="status" defaultValue={n.status} style={input}>
@@ -265,6 +282,22 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
               <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
             </div>
           </form>
+
+          {/* D#3:單則推播(只有已發佈能推) */}
+          {n.status === 'published' && (
+            <form action={pushNews} style={{ marginTop: 10 }}>
+              <input type="hidden" name="id" value={n.id} />
+              <input type="hidden" name="tenant_slug" value={slug} />
+              <SubmitButton
+                size="sm"
+                variant="secondary"
+                pendingText="推播中…"
+                confirmText="確定把這則消息推播給「所有」LINE 好友?會吃免費額度(好友數 × 1 則)。"
+              >
+                📣 推播這則給所有好友
+              </SubmitButton>
+            </form>
+          )}
 
           <form action={deleteNews} style={{ marginTop: 10 }}>
             <input type="hidden" name="id" value={n.id} />

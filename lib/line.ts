@@ -436,13 +436,42 @@ export type NewsForFlex = {
   title: string;
   body: string | null;
   link_url: string | null;
+  image_url: string | null; // D#4(2026-09-02):有圖 → 純圖卡,點圖開 link_url
   published_at: string;
 };
+
+/**
+ * D#4:純圖公告 bubble — 整張卡就是那張圖(海報感),有 link_url 點圖直接開。
+ */
+function buildImageNewsBubble(n: NewsForFlex): messagingApi.FlexBubble {
+  return {
+    type: 'bubble' as const,
+    size: 'mega' as const,
+    body: {
+      type: 'box' as const,
+      layout: 'vertical' as const,
+      paddingAll: 'none' as const,
+      contents: [
+        {
+          type: 'image' as const,
+          url: n.image_url!,
+          size: 'full' as const,
+          aspectRatio: '3:4' as const,
+          aspectMode: 'cover' as const,
+          ...(n.link_url
+            ? { action: { type: 'uri' as const, label: '開啟', uri: n.link_url.trim() } }
+            : {}),
+        },
+      ],
+    },
+  };
+}
 
 export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | null {
   if (items.length === 0) return null;
 
   const bubbles: messagingApi.FlexBubble[] = items.slice(0, 10).map((n) => {
+    if (n.image_url) return buildImageNewsBubble(n);
     const dateStr = n.published_at
       ? new Date(n.published_at).toLocaleDateString('zh-TW', {
           timeZone: 'Asia/Taipei',
@@ -535,6 +564,34 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
       contents: bubbles,
     },
   };
+}
+
+/**
+ * D#3(2026-09-02):把單則消息廣播給所有好友。
+ * ⚠️ 吃 LINE 免費額度(500 則/月,每個好友算 1 則),由後台「推播」按鈕觸發。
+ * 有圖 → 純圖卡;沒圖 → 文字(標題 + 內文 + 連結)。
+ */
+export async function broadcastNewsItem(n: NewsForFlex): Promise<void> {
+  let message: messagingApi.Message;
+  if (n.image_url) {
+    message = {
+      type: 'flex',
+      altText: n.title,
+      contents: buildImageNewsBubble(n),
+    };
+  } else {
+    const lines = [`📰 ${n.title}`];
+    if (n.body) {
+      lines.push('');
+      lines.push(n.body);
+    }
+    if (n.link_url) {
+      lines.push('');
+      lines.push(n.link_url.trim());
+    }
+    message = { type: 'text', text: lines.join('\n') };
+  }
+  await lineClient.broadcast({ messages: [message] });
 }
 
 function formatClassLine(c: ClassRow): string {
