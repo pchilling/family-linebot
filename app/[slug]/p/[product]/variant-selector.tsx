@@ -278,7 +278,8 @@ export function VariantSelector({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626' }}>
-                      🔥 限時 {sale!.discountPct}% off(全變體)
+                      {/* 2026-09-03:改台灣「折」講法 */}
+                      🔥 限時{(() => { const k = 100 - sale!.discountPct; return `${k % 10 === 0 ? k / 10 : k}折`; })()}(全規格)
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

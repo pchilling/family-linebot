@@ -3,6 +3,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ShopProduct } from './actions';
 
+// 2026-09-03:限時優惠接進 LIFF —— 判斷是否生效 + % off 轉台灣「折」講法
+// (跟 page.tsx 共用;放這裡避免 page ↔ modal 循環引用)
+export function saleActiveOf(
+  p: Pick<ShopProduct, 'sale_discount_pct' | 'sale_start_at' | 'sale_end_at'>,
+  nowMs: number,
+): boolean {
+  return (
+    p.sale_discount_pct !== null &&
+    p.sale_discount_pct > 0 &&
+    !!p.sale_start_at &&
+    !!p.sale_end_at &&
+    nowMs >= new Date(p.sale_start_at).getTime() &&
+    nowMs < new Date(p.sale_end_at).getTime()
+  );
+}
+export function pctToZhe(pct: number): string {
+  const keep = 100 - pct; // 10% off → 90 → 9折;15% off → 85 → 85折
+  return `${keep % 10 === 0 ? keep / 10 : keep}折`;
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '已結束';
+  const totalSec = Math.floor(ms / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hrs = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (days > 0) return `${days} 天 ${hrs} 小時 ${mins} 分`;
+  if (hrs > 0) return `${hrs} 小時 ${mins} 分 ${secs} 秒`;
+  return `${mins} 分 ${secs} 秒`;
+}
+
 type Props = {
   product: ShopProduct;
   onClose: () => void; // 「返回」按鈕觸發
@@ -30,6 +62,15 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   const inStock = (selected?.stock ?? 0) > 0;
   const maxQty = selected?.stock ?? 1;
   const hasMulti = variants.length > 1;
+
+  // 2026-09-03:限時優惠 — 每秒 tick 更新倒數,單價 / 總價用折後價
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const onSale = saleActiveOf(product, nowMs);
+  useEffect(() => {
+    if (!product.sale_end_at) return;
+    const t = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [product.sale_end_at]);
 
   // C#5(2026-09-02):media 圖 + 各規格圖聯集(去重,media 在前),可滑動
   const images = useMemo(() => {
@@ -60,7 +101,11 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   }, [selectedId]);
 
   const price = selected?.price_twd ?? 0;
-  const total = price * qty;
+  const effPrice = onSale
+    ? Math.round((price * (100 - product.sale_discount_pct!)) / 100)
+    : price;
+  const total = effPrice * qty;
+  const originalTotal = price * qty;
 
   // 進 detail view 時滾到頂
   useEffect(() => {
@@ -195,6 +240,29 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
       {product.category && (
         <div style={{ fontSize: 13, color: '#a1a1aa', marginTop: 6 }}>{product.category}</div>
       )}
+
+      {/* 2026-09-03:限時優惠橫幅(生效中才顯示) */}
+      {onSale && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 14px',
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            border: '1px solid #fecaca',
+            borderRadius: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#dc2626' }}>
+            🔥 限時{pctToZhe(product.sale_discount_pct!)}
+          </span>
+          <span style={{ fontSize: 12, color: '#991b1b' }}>
+            ⏰ 剩餘 {formatCountdown(new Date(product.sale_end_at!).getTime() - nowMs)}
+          </span>
+        </div>
+      )}
       {product.description && (
         <p
           style={{
@@ -324,17 +392,27 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: '#71717a' }}>總計</div>
-            <div
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                color: '#b45309', // 價格用暖棕突顯(2026-09-02),不跟一般文字混在一起
-                fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              NT$ {total.toLocaleString()}
+            <div style={{ fontSize: 11, color: '#71717a' }}>
+              總計{onSale ? `(${pctToZhe(product.sale_discount_pct!)})` : ''}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontSize: 20,
+                  fontWeight: 700,
+                  // 特價紅 / 平常暖棕(2026-09-02)
+                  color: onSale ? '#dc2626' : '#b45309',
+                  fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                NT$ {total.toLocaleString()}
+              </span>
+              {onSale && (
+                <span style={{ fontSize: 12, color: '#a1a1aa', textDecoration: 'line-through' }}>
+                  {originalTotal.toLocaleString()}
+                </span>
+              )}
             </div>
           </div>
           <button

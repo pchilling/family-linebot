@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
-import { ProductDetailModal } from './product-detail-modal';
+import { ProductDetailModal, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   loadShopData,
   placeOrder,
@@ -102,16 +102,28 @@ export default function ShopPage() {
       .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
     return [...ordered, ...rest];
   }, [products, tenant.category_order]);
+  const hasSale = useMemo(
+    () => products.some((p) => saleActiveOf(p, Date.now())),
+    [products],
+  );
   const visibleProducts = useMemo(() => {
+    const nowMs = Date.now();
     const isCat = !!filter && categories.includes(filter);
     if (filter === 'latest') return products; // server 已 created_at desc
+    if (filter === 'sale') {
+      // 2026-09-03:「特價中」chip — 只列限時優惠生效中的商品
+      return products.filter((p) => saleActiveOf(p, nowMs));
+    }
     if (isCat) {
       return products
         .filter((p) => p.category === filter)
         .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
     }
     return [...products].sort((a, b) => {
-      // C#8:「全部」照分類設定順序分組,同分類內照商品名
+      // 2026-09-03:「全部」特價優先 → 有角標次之 → 其餘照分類設定順序分組
+      const pa = saleActiveOf(a, nowMs) ? 0 : a.badge ? 1 : 2;
+      const pb = saleActiveOf(b, nowMs) ? 0 : b.badge ? 1 : 2;
+      if (pa !== pb) return pa - pb;
       const ia = a.category ? categories.indexOf(a.category) : categories.length;
       const ib = b.category ? categories.indexOf(b.category) : categories.length;
       if (ia !== ib) return ia - ib;
@@ -119,11 +131,17 @@ export default function ShopPage() {
     });
   }, [products, filter, categories]);
   // Phase 11:variantId → variant info(含 product 反查)
+  // 2026-09-03:price_twd 存「折後價」(sale 生效時打折),購物車/結帳顯示與計算全走這裡
   const variantMap = useMemo(() => {
+    const nowMs = Date.now();
     const m = new Map<string, { variant_name: string; price_twd: number; stock: number; product_id: string; product_name: string }>();
     for (const p of products) {
+      const onSale = saleActiveOf(p, nowMs);
       for (const v of p.variants) {
-        m.set(v.id, { variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, product_id: p.id, product_name: p.name });
+        const eff = onSale
+          ? Math.round((v.price_twd * (100 - p.sale_discount_pct!)) / 100)
+          : v.price_twd;
+        m.set(v.id, { variant_name: v.variant_name, price_twd: eff, stock: v.stock, product_id: p.id, product_name: p.name });
       }
     }
     return m;
@@ -477,6 +495,8 @@ export default function ShopPage() {
               {[
                 { key: '', label: '全部' },
                 { key: 'latest', label: '最新' },
+                // 2026-09-03:有生效中的限時優惠才出現「特價中」chip
+                ...(hasSale ? [{ key: 'sale', label: '🔥 特價中' }] : []),
                 ...categories.map((c) => ({ key: c, label: c })),
               ].map((c) => {
                 const isActive = filter === c.key;
@@ -509,7 +529,7 @@ export default function ShopPage() {
           {/* Section title */}
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'baseline', gap: 10 }}>
             <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#18181b' }}>
-              {filter === 'latest' ? '最新商品' : filter || '所有商品'}
+              {filter === 'latest' ? '最新商品' : filter === 'sale' ? '🔥 特價中' : filter || '所有商品'}
             </h2>
             <span style={{ fontSize: 12, color: '#a1a1aa' }}>
               {visibleProducts.length} 件
@@ -551,27 +571,41 @@ export default function ShopPage() {
                     position: 'relative',
                   }}
                 >
-                  {/* C#9:角標(後台商品「角標」欄位) */}
-                  {p.badge && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        left: 8,
-                        zIndex: 2,
-                        padding: '3px 9px',
-                        background: '#dc2626',
-                        color: '#fff',
-                        borderRadius: 6,
-                        fontSize: 11,
-                        fontWeight: 800,
-                        letterSpacing: '0.03em',
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-                      }}
-                    >
-                      {p.badge}
-                    </span>
-                  )}
+                  {/* C#9 角標 + 2026-09-03 限時優惠自動折扣標(疊直排,特價在上) */}
+                  <span style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                    {saleActiveOf(p, Date.now()) && (
+                      <span
+                        style={{
+                          padding: '3px 9px',
+                          background: '#dc2626',
+                          color: '#fff',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          letterSpacing: '0.03em',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                        }}
+                      >
+                        🔥 {pctToZhe(p.sale_discount_pct!)}
+                      </span>
+                    )}
+                    {p.badge && (
+                      <span
+                        style={{
+                          padding: '3px 9px',
+                          background: '#b45309',
+                          color: '#fff',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          letterSpacing: '0.03em',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                        }}
+                      >
+                        {p.badge}
+                      </span>
+                    )}
+                  </span>
                   {(() => {
                     // Phase 9.6:縮圖優先 media 第一張 image,fallback image_url
                     const firstImg = (p.media ?? []).find((m) => m.type === 'image');
@@ -620,23 +654,47 @@ export default function ShopPage() {
                     </div>
                     {(() => {
                       // 顯示最低 variant 價(沒 variant 就 fallback product.price_twd)
+                      // 2026-09-03:特價生效 → 折後紅字 + 劃線原價
                       const minPrice = p.variants.length > 0
                         ? Math.min(...p.variants.map((v) => v.price_twd))
                         : p.price_twd;
+                      const onSale = saleActiveOf(p, Date.now());
+                      const salePrice = onSale
+                        ? Math.round((minPrice * (100 - p.sale_discount_pct!)) / 100)
+                        : null;
                       const allOut = p.variants.length > 0 && p.variants.every((v) => v.stock === 0);
                       return (
                         <div style={{ marginTop: 6 }}>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: 14,
-                              color: '#18181b',
-                              fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                              letterSpacing: '-0.01em',
-                            }}
-                          >
-                            NT$ {minPrice.toLocaleString()}
-                          </div>
+                          {salePrice !== null ? (
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: 14,
+                                  color: '#dc2626',
+                                  fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+                                  letterSpacing: '-0.01em',
+                                }}
+                              >
+                                NT$ {salePrice.toLocaleString()}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#a1a1aa', textDecoration: 'line-through' }}>
+                                {minPrice.toLocaleString()}
+                              </span>
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                fontWeight: 700,
+                                fontSize: 14,
+                                color: '#18181b',
+                                fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+                                letterSpacing: '-0.01em',
+                              }}
+                            >
+                              NT$ {minPrice.toLocaleString()}
+                            </div>
+                          )}
                           {allOut && (
                             <div style={{ fontSize: 10, color: '#dc2626', marginTop: 2 }}>缺貨</div>
                           )}

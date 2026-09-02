@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabase';
+import { getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { lineClient } from '@/lib/line';
 
 const LIFF_CHANNEL_ID = process.env.LIFF_CHANNEL_ID!;
@@ -43,6 +43,10 @@ export type ShopProduct = {
   media: { type: 'image' | 'video'; url: string }[]; // Phase 9.6
   category: string | null;
   badge: string | null; // 批次 C #9:卡片角標
+  // 2026-09-03:限時優惠接進 LIFF(原本只有公開商城有)
+  sale_discount_pct: number | null;
+  sale_start_at: string | null;
+  sale_end_at: string | null;
   stock: number;
   variants: ShopVariant[]; // Phase 11:variant-aware
 };
@@ -119,7 +123,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, badge, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
+      .select('id, name, description, price_twd, image_url, media, category, badge, sale_discount_pct, sale_start_at, sale_end_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -174,6 +178,9 @@ export async function loadShopData(
       media: Array.isArray(p.media) ? p.media : [],
       category: p.category,
       badge: p.badge ?? null,
+      sale_discount_pct: p.sale_discount_pct ?? null,
+      sale_start_at: p.sale_start_at ?? null,
+      sale_end_at: p.sale_end_at ?? null,
       stock: p.stock,
       variants: (p.product_variants ?? [])
         .filter((v) => v.status === 'active')
@@ -287,6 +294,45 @@ export async function placeOrder(
     }
   }
 
+  // 2026-09-03:結帳單價套 sale + tier(跟公開商城 createOrder 同邏輯,原本 LIFF 照原價收錢)
+  // 優先級:sale 生效 → % off 通殺;否則 tier(同 product 整單 qty 算)
+  const qtyByProduct = new Map<string, number>();
+  for (const c of cart) {
+    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
+    if (v) qtyByProduct.set(v.product_id, (qtyByProduct.get(v.product_id) ?? 0) + c.qty);
+  }
+  const productIds = Array.from(qtyByProduct.keys());
+  const { data: saleRows } = await supabaseAdmin
+    .from('products')
+    .select('id, sale_discount_pct, sale_start_at, sale_end_at')
+    .in('id', productIds);
+  const saleByProduct = new Map<string, { pct: number | null; start: string | null; end: string | null }>();
+  for (const row of (saleRows as { id: string; sale_discount_pct: number | null; sale_start_at: string | null; sale_end_at: string | null }[] | null) ?? []) {
+    saleByProduct.set(row.id, { pct: row.sale_discount_pct, start: row.sale_start_at, end: row.sale_end_at });
+  }
+  const tierByProduct = new Map<string, { min_qty: number; price_twd: number }[]>();
+  await Promise.all(
+    productIds.map(async (pid) => {
+      const tiers = await getProductTiers(pid);
+      tierByProduct.set(pid, tiers.map((t) => ({ min_qty: t.min_qty, price_twd: t.price_twd })));
+    }),
+  );
+  const now = new Date();
+  const effectivePrice = (v: VRow, qty: number): number => {
+    const sale = saleByProduct.get(v.product_id);
+    const saleActive =
+      !!sale && sale.pct !== null && sale.pct > 0 && sale.start && sale.end &&
+      now >= new Date(sale.start) && now < new Date(sale.end);
+    if (saleActive) return Math.round((v.price_twd * (100 - sale!.pct!)) / 100);
+    const totalQty = qtyByProduct.get(v.product_id) ?? qty;
+    return pickPriceFromTiers(tierByProduct.get(v.product_id) ?? [], totalQty, v.price_twd);
+  };
+  // 折後小計(免運門檻與通知金額都用這個)
+  const pricedSubtotal = cart.reduce((sum, c) => {
+    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
+    return sum + (v ? effectivePrice(v, c.qty) : 0) * c.qty;
+  }, 0);
+
   // D#13:運費 server 端重算(不信 client)。tenant 沒設規則 = 0
   const { data: tRow } = await supabaseAdmin
     .from('tenants')
@@ -301,11 +347,7 @@ export async function placeOrder(
   if (shipOptions.length > 0) {
     const opt = shipOptions.find((o) => o.key === shippingMethod);
     if (!opt) throw new Error('請選擇配送方式');
-    const subtotal = cart.reduce((sum, c) => {
-      const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
-      return sum + (v?.price_twd ?? 0) * c.qty;
-    }, 0);
-    shippingFee = opt.free_over && subtotal >= opt.free_over ? 0 : opt.fee;
+    shippingFee = opt.free_over && pricedSubtotal >= opt.free_over ? 0 : opt.fee;
     shippingKey = opt.key;
   }
 
@@ -330,6 +372,7 @@ export async function placeOrder(
   }
 
   // Phase 11:insert order_items 帶 variant_id,trigger 自動扣 variant.stock
+  // 2026-09-03:price_at_purchase 用折後價(sale / tier)
   const itemsToInsert = cart.map((c) => {
     const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id)!;
     return {
@@ -338,7 +381,7 @@ export async function placeOrder(
       product_id: v.product_id,
       variant_id: c.variant_id,
       qty: c.qty,
-      price_at_purchase: v.price_twd,
+      price_at_purchase: effectivePrice(v, c.qty),
     };
   });
   const { error: itemsErr } = await supabaseAdmin
@@ -356,11 +399,7 @@ export async function placeOrder(
   // 必須 await,push 完才能 return。增加 ~200ms 但保證送出。失敗仍不影響訂單(catch)。
   // ⚠️ order.total_twd 在 INSERT 時是 0(由 refresh_order_total trigger 在 items 後算),
   //    所以這裡用本地 cart × price snapshot 直接算
-  const totalForPush =
-    cart.reduce((sum, c) => {
-      const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
-      return sum + (v?.price_twd ?? 0) * c.qty;
-    }, 0) + shippingFee; // D#13:通知金額含運費
+  const totalForPush = pricedSubtotal + shippingFee; // 折後小計 + 運費
   try {
     await pushOrderConfirmation(lineUserId, order.order_no, totalForPush);
   } catch (e) {

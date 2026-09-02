@@ -500,7 +500,7 @@ details[open] .chev { transform: rotate(90deg); }
                       </select>
                     </label>
                     <label style={label}>
-                      <span style={labelText}>角標(卡片左上,如 HOT / 9折,空 = 不顯示)</span>
+                      <span style={labelText}>角標(純文字標籤,如 HOT / 新品。⚠️ 要真的打折請用下方「限時優惠」)</span>
                       <input name="badge" defaultValue={p.badge ?? ''} maxLength={8} style={input} placeholder="HOT" />
                     </label>
                     <label style={{ ...label, gridColumn: '1 / -1' }}>
@@ -517,8 +517,8 @@ details[open] .chev { transform: rotate(90deg); }
                 <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
                   <div style={sectionTitle}>🔥 限時優惠(全變體 % off)</div>
                   <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
-                    輸入折扣 % off(例 20 = 20% off / 8 折)。生效時所有變體比例縮(原價 × (100−pct) /100)。
-                    分階暫停。清空 % = 取消優惠。
+                    輸入折扣 %(<strong>10 = 9折、20 = 8折、15 = 85折</strong>)。生效時商城卡片自動出現「🔥 9折」標、
+                    LINE 商城與公開商城結帳都按折扣價收。分階暫停。清空 % = 取消優惠。
                     {p.sale_discount_pct !== null && p.sale_start_at && p.sale_end_at && (() => {
                       const now = new Date();
                       const start = new Date(p.sale_start_at);
