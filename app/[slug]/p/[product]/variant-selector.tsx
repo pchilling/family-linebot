@@ -479,7 +479,8 @@ export function VariantSelector({
                   <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
                     {selected.variant_name} × {qty}
                   </span>
-                  <span style={{ fontSize: '1.5rem', fontWeight: 700, color: savedPerUnit > 0 ? '#15803d' : '#1f2937' }}>
+                  {/* 價格用暖棕突顯(2026-09-02);有折扣時維持綠色強調省錢 */}
+                  <span style={{ fontSize: '1.5rem', fontWeight: 700, color: savedPerUnit > 0 ? '#15803d' : '#b45309' }}>
                     NT$ {totalPrice.toLocaleString()}
                   </span>
                 </div>

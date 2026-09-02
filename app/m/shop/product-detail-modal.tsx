@@ -167,13 +167,15 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
                   onClick={() => !isOut && setSelectedId(v.id)}
                   disabled={isOut}
                   style={{
-                    padding: '9px 16px',
-                    border: `1px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
+                    // 放大好按(2026-09-02):至少 44px 高的觸控目標
+                    padding: '12px 20px',
+                    minHeight: 44,
+                    border: `1.5px solid ${isActive ? '#18181b' : '#d4d4d8'}`,
                     background: isActive ? '#18181b' : '#fff',
                     color: isActive ? '#fff' : isOut ? '#a1a1aa' : '#18181b',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 500,
+                    borderRadius: 10,
+                    fontSize: 15,
+                    fontWeight: 600,
                     cursor: isOut ? 'not-allowed' : 'pointer',
                     textDecoration: isOut ? 'line-through' : 'none',
                     fontFamily: 'inherit',
@@ -208,9 +210,29 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
             >
               −
             </button>
-            <span style={{ minWidth: 32, textAlign: 'center', fontSize: 16, fontWeight: 600 }}>
-              {qty}
-            </span>
+            {/* 可直接輸入數量(2026-09-02):買大量不用狂點 + */}
+            <input
+              type="number"
+              min={1}
+              max={maxQty}
+              value={qty}
+              inputMode="numeric"
+              onChange={(ev) => {
+                const v = parseInt(ev.target.value || '1', 10);
+                if (!isNaN(v)) setQty(Math.max(1, Math.min(maxQty || 1, v)));
+              }}
+              style={{
+                width: 64,
+                textAlign: 'center',
+                fontSize: 16,
+                fontWeight: 600,
+                border: '1px solid #e4e4e7',
+                borderRadius: 8,
+                padding: '8px 4px',
+                fontFamily: 'inherit',
+                outline: 'none',
+              }}
+            />
             <button
               type="button"
               onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
@@ -252,7 +274,7 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
               style={{
                 fontSize: 20,
                 fontWeight: 700,
-                color: '#18181b',
+                color: '#b45309', // 價格用暖棕突顯(2026-09-02),不跟一般文字混在一起
                 fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
                 letterSpacing: '-0.01em',
               }}
