@@ -40,6 +40,7 @@ export type EventListItem = {
   id: string;
   name: string;
   instructor: string | null;
+  description: string | null;
   scheduled_at: string;
   region_name: string | null;
   capacity: number | null;
@@ -78,7 +79,7 @@ export async function loadEvents(idToken: string): Promise<EventsData> {
   const { data: classes, error: cErr } = await supabaseAdmin
     .from('classes')
     .select(
-      'id, name, instructor, scheduled_at, capacity, is_paid, price_twd, image_url, regions(name)',
+      'id, name, instructor, description, scheduled_at, capacity, is_paid, price_twd, image_url, regions(name)',
     )
     .eq('tenant_id', TENANT_ID)
     .gte('scheduled_at', now.toISOString())
@@ -95,6 +96,7 @@ export async function loadEvents(idToken: string): Promise<EventsData> {
     id: string;
     name: string;
     instructor: string | null;
+    description: string | null;
     scheduled_at: string;
     capacity: number | null;
     is_paid: boolean;
@@ -151,6 +153,7 @@ export async function loadEvents(idToken: string): Promise<EventsData> {
       id: c.id,
       name: c.name,
       instructor: c.instructor,
+      description: c.description,
       scheduled_at: c.scheduled_at,
       region_name: c.regions?.name ?? null,
       capacity: c.capacity,

@@ -33,6 +33,26 @@ const c = {
   dangerBorder: '#fecaca',
 };
 
+/**
+ * 讀 URL 上的 ?event=<id>。
+ * LIFF 轉址有兩種情況:init 後直接留在 search,或包在 liff.state 裡,兩邊都查。
+ */
+function getDeepLinkEventId(): string | null {
+  try {
+    const sp = new URLSearchParams(window.location.search);
+    const direct = sp.get('event');
+    if (direct) return direct;
+    const ls = sp.get('liff.state');
+    if (ls) {
+      const inner = new URLSearchParams(ls.startsWith('?') ? ls.slice(1) : ls);
+      return inner.get('event');
+    }
+  } catch {
+    /* noop */
+  }
+  return null;
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -60,6 +80,8 @@ export default function EventsPage() {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
+  // 深連結:bot 卡片帶 ?event=<id> 進來 → 捲到該卡 + 高亮(2026-09-02)
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -78,6 +100,7 @@ export default function EventsPage() {
         const data = await loadEvents(tok);
         setTenant(data.tenant);
         setEvents(data.events);
+        setFocusId(getDeepLinkEventId());
         setStatus('ready');
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
@@ -85,6 +108,15 @@ export default function EventsPage() {
       }
     })();
   }, []);
+
+  // ready 後捲到深連結指定的活動卡
+  useEffect(() => {
+    if (status !== 'ready' || !focusId) return;
+    const el = document.getElementById(`event-${focusId}`);
+    if (el) {
+      window.setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    }
+  }, [status, focusId]);
 
   async function refresh(tok: string) {
     const data = await loadEvents(tok);
@@ -270,17 +302,28 @@ ${spinKeyframes}
             const isWaitlist = e.my_status === 'waitlist';
             const isMine = isConfirmed || isWaitlist;
 
+            const isFocused = focusId === e.id;
+
             return (
               <article
                 key={e.id}
+                id={`event-${e.id}`}
                 className="event-card"
                 style={{
                   background: c.card,
-                  border: `1px solid ${isMine ? c.successBorder : c.border}`,
-                  borderLeft: isMine ? `3px solid ${c.success}` : `1px solid ${c.border}`,
+                  border: isFocused
+                    ? `2px solid ${c.accent}`
+                    : `1px solid ${isMine ? c.successBorder : c.border}`,
+                  borderLeft: isFocused
+                    ? `3px solid ${c.accent}`
+                    : isMine
+                      ? `3px solid ${c.success}`
+                      : `1px solid ${c.border}`,
                   borderRadius: 10,
                   overflow: 'hidden',
                   transition: 'transform 0.15s, border-color 0.2s',
+                  scrollMarginTop: 12,
+                  boxShadow: isFocused ? '0 4px 16px rgba(0,0,0,0.10)' : 'none',
                 }}
               >
                 {/* Cover 圖(有設才顯示)— 4:5 直式 */}
@@ -351,6 +394,11 @@ ${spinKeyframes}
                         <> · 💰 <strong style={{ color: c.text }}>NT$ {e.price_twd ?? '-'}</strong></>
                       )}
                     </div>
+
+                    {/* 課程說明(2026-09-02):深連結進來的那張卡預設展開 */}
+                    {e.description && (
+                      <ExpandableText text={e.description} defaultExpanded={isFocused} />
+                    )}
 
                     {/* 容量 progress */}
                     {cap !== null && (
@@ -460,6 +508,51 @@ ${spinKeyframes}
         若課程已滿,你會被加到候補名單,前面取消時自動候補上。
       </p>
     </main>
+  );
+}
+
+/**
+ * 課程說明摺疊顯示:超過 60 字先收起,點「顯示更多」展開。
+ * 深連結高亮的卡片 defaultExpanded=true 直接全文。
+ */
+function ExpandableText({ text, defaultExpanded }: { text: string; defaultExpanded?: boolean }) {
+  const [open, setOpen] = useState(!!defaultExpanded);
+  const isLong = text.length > 60;
+  const shown = open || !isLong ? text : text.slice(0, 60) + '…';
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 13,
+          color: c.textSec,
+          lineHeight: 1.65,
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {shown}
+      </p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          style={{
+            marginTop: 4,
+            padding: 0,
+            background: 'none',
+            border: 0,
+            color: c.textMuted,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            textDecoration: 'underline',
+          }}
+        >
+          {open ? '收合' : '顯示更多'}
+        </button>
+      )}
+    </div>
   );
 }
 

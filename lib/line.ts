@@ -236,6 +236,8 @@ export function buildMonthlyClassesFlex(
   const fallbackImage = `${process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw'}/icon.png`;
 
   const bubbles: messagingApi.FlexBubble[] = classes.slice(0, 10).map((c) => {
+    // 深連結到單一活動:LIFF events 頁收到 ?event= 會捲到該卡並高亮(2026-09-02)
+    const eventUrl = `${eventsUrl}?event=${c.id}`;
     const dt = new Date(c.scheduled_at);
     const dateStr = dt.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric' });
     const wd = dt.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', weekday: 'narrow' });
@@ -380,7 +382,7 @@ export function buildMonthlyClassesFlex(
         action: {
           type: 'uri' as const,
           label: '查看',
-          uri: eventsUrl,
+          uri: eventUrl,
         },
       },
       body: {
@@ -402,7 +404,7 @@ export function buildMonthlyClassesFlex(
             action: {
               type: 'uri' as const,
               label: c.is_paid ? '立刻報名' : '查看詳情',
-              uri: eventsUrl,
+              uri: eventUrl,
             },
           },
         ],
