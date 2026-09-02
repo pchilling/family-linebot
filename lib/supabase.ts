@@ -344,6 +344,8 @@ export type TenantPublic = {
   plan: string;
   description: string | null;
   brand_color: string | null;
+  shop_bg_color: string | null; // C#7(2026-09-02):商城底色
+  category_order: string[]; // C#8:分類顯示順序
   og_image_url: string | null;
   logo_url: string | null;
   banners: MediaItem[]; // Phase 9.8:多媒體 banner,empty 時 fallback og_image_url
@@ -356,14 +358,18 @@ export type TenantPublic = {
 export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, description, brand_color, og_image_url, logo_url, banners, status')
+    .select('id, slug, name, plan, description, brand_color, shop_bg_color, category_order, og_image_url, logo_url, banners, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
   if ((data as { status?: string }).status && (data as { status?: string }).status !== 'active') return null;
   const { status: _status, ...rest } = data as TenantPublic & { status?: string };
   const tp = rest as TenantPublic;
-  return { ...tp, banners: Array.isArray(tp.banners) ? tp.banners : [] };
+  return {
+    ...tp,
+    banners: Array.isArray(tp.banners) ? tp.banners : [],
+    category_order: Array.isArray(tp.category_order) ? tp.category_order : [],
+  };
 }
 
 export type ProductPublic = {
@@ -374,6 +380,7 @@ export type ProductPublic = {
   image_url: string | null;
   media: MediaItem[]; // Phase 9.6:列表縮圖優先用 media[0] (image),fallback image_url
   category: string | null;
+  badge: string | null; // C#9(2026-09-02):卡片角標
   min_price_twd: number; // 該 product 所有 active variant 的最低價(展示用)
   // Phase 9.9 v2:限時優惠用 % off(每變體比例縮)
   sale_discount_pct: number | null;
@@ -412,7 +419,7 @@ export function applySaleDiscount(basePrice: number, pct: number): number {
 export async function getActiveProducts(tenantId: string): Promise<ProductPublic[]> {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(price_twd, status)')
+    .select('id, slug, name, description, image_url, media, category, badge, sale_discount_pct, sale_start_at, sale_end_at, product_variants(price_twd, status)')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -431,6 +438,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
     sale_discount_pct: number | null;
     sale_start_at: string | null;
     sale_end_at: string | null;
+    badge: string | null;
     product_variants: { price_twd: number; status: string }[] | null;
   };
   return (data as Row[] | null ?? []).map((p) => {
@@ -444,6 +452,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
       image_url: p.image_url,
       media: p.media ?? [],
       category: p.category,
+      badge: p.badge ?? null,
       min_price_twd: min,
       sale_discount_pct: p.sale_discount_pct ?? null,
       sale_start_at: p.sale_start_at ?? null,

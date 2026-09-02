@@ -31,6 +31,7 @@ export type ShopVariant = {
   variant_name: string;
   price_twd: number;
   stock: number;
+  image_url: string | null; // 批次 C #5:選規格切圖
 };
 
 export type ShopProduct = {
@@ -41,6 +42,7 @@ export type ShopProduct = {
   image_url: string | null;
   media: { type: 'image' | 'video'; url: string }[]; // Phase 9.6
   category: string | null;
+  badge: string | null; // 批次 C #9:卡片角標
   stock: number;
   variants: ShopVariant[]; // Phase 11:variant-aware
 };
@@ -51,11 +53,23 @@ export type ShopMember = {
   address: string | null;
 };
 
+// 批次 D #13:運費規則(tenants.shipping_rules jsonb;null = 不收運費)
+export type ShippingOption = {
+  key: string;
+  label: string;
+  fee: number;
+  free_over?: number;
+  note?: string;
+};
+
 export type ShopTenant = {
   name: string;
   logo_url: string | null;
   banners: { type: 'image' | 'video'; url: string }[]; // Phase 9.8 多媒體 carousel
   payment_info: string | null;
+  shop_bg_color: string | null; // 批次 C #7:商城底色
+  category_order: string[]; // 批次 C #8:分類顯示順序
+  shipping_options: ShippingOption[]; // 空陣列 = 不收運費
 };
 
 export type ShopData = {
@@ -105,7 +119,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, stock, product_variants(id, variant_name, price_twd, stock, status)')
+      .select('id, name, description, price_twd, image_url, media, category, badge, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -118,7 +132,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, banners, payment_info')
+      .select('name, logo_url, og_image_url, banners, payment_info, shop_bg_color, category_order, shipping_rules')
       .eq('id', TENANT_ID)
       .maybeSingle(),
   ]);
@@ -135,6 +149,9 @@ export async function loadShopData(
     og_image_url: string | null;
     banners: MediaItem[] | null;
     payment_info: string | null;
+    shop_bg_color: string | null;
+    category_order: string[] | null;
+    shipping_rules: { options?: ShippingOption[] } | null;
   } | null;
   const t = (tenantRes.data as TenantRow) ?? null;
   // Phase 9.8 多 banner + fallback og_image_url(舊單張)
@@ -145,7 +162,7 @@ export async function loadShopData(
       : [];
 
   type ProductRow = ShopProduct & {
-    product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; status: string }[] | null;
+    product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; image_url: string | null; status: string }[] | null;
   };
   return {
     products: ((productsRes.data ?? []) as ProductRow[]).map((p) => ({
@@ -156,10 +173,11 @@ export async function loadShopData(
       image_url: p.image_url,
       media: Array.isArray(p.media) ? p.media : [],
       category: p.category,
+      badge: p.badge ?? null,
       stock: p.stock,
       variants: (p.product_variants ?? [])
         .filter((v) => v.status === 'active')
-        .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock })),
+        .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, image_url: v.image_url ?? null })),
     })),
     member: (memberRes.data as ShopMember | null) ?? null,
     tenant: {
@@ -167,6 +185,9 @@ export async function loadShopData(
       logo_url: t?.logo_url ?? null,
       banners: tenantBanners,
       payment_info: t?.payment_info ?? null,
+      shop_bg_color: t?.shop_bg_color ?? null,
+      category_order: Array.isArray(t?.category_order) ? t.category_order : [],
+      shipping_options: Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : [],
     },
   };
 }
@@ -231,6 +252,7 @@ export async function placeOrder(
   const recipient = String(formData.get('recipient') || '').trim();
   const phone = String(formData.get('phone') || '').trim();
   const address = String(formData.get('address') || '').trim();
+  const shippingMethod = String(formData.get('shipping_method') || '').trim();
 
   if (cart.length === 0) throw new Error('購物車是空的');
   if (!recipient || !phone || !address) throw new Error('收件人 / 電話 / 地址 必填');
@@ -265,6 +287,28 @@ export async function placeOrder(
     }
   }
 
+  // D#13:運費 server 端重算(不信 client)。tenant 沒設規則 = 0
+  const { data: tRow } = await supabaseAdmin
+    .from('tenants')
+    .select('shipping_rules')
+    .eq('id', TENANT_ID)
+    .maybeSingle();
+  const shipOptions =
+    ((tRow as { shipping_rules?: { options?: ShippingOption[] } | null } | null)?.shipping_rules
+      ?.options ?? []) as ShippingOption[];
+  let shippingFee = 0;
+  let shippingKey: string | null = null;
+  if (shipOptions.length > 0) {
+    const opt = shipOptions.find((o) => o.key === shippingMethod);
+    if (!opt) throw new Error('請選擇配送方式');
+    const subtotal = cart.reduce((sum, c) => {
+      const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
+      return sum + (v?.price_twd ?? 0) * c.qty;
+    }, 0);
+    shippingFee = opt.free_over && subtotal >= opt.free_over ? 0 : opt.fee;
+    shippingKey = opt.key;
+  }
+
   // insert order(order_no / total_twd 由 trigger 自動)
   const { data: order, error: orderErr } = await supabaseAdmin
     .from('orders')
@@ -275,6 +319,8 @@ export async function placeOrder(
       shipping_recipient: recipient,
       shipping_phone: phone,
       shipping_address: address,
+      shipping_method: shippingKey,
+      shipping_fee_twd: shippingFee,
     })
     .select('id, order_no, total_twd')
     .single();
@@ -310,10 +356,11 @@ export async function placeOrder(
   // 必須 await,push 完才能 return。增加 ~200ms 但保證送出。失敗仍不影響訂單(catch)。
   // ⚠️ order.total_twd 在 INSERT 時是 0(由 refresh_order_total trigger 在 items 後算),
   //    所以這裡用本地 cart × price snapshot 直接算
-  const totalForPush = cart.reduce((sum, c) => {
-    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
-    return sum + (v?.price_twd ?? 0) * c.qty;
-  }, 0);
+  const totalForPush =
+    cart.reduce((sum, c) => {
+      const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
+      return sum + (v?.price_twd ?? 0) * c.qty;
+    }, 0) + shippingFee; // D#13:通知金額含運費
   try {
     await pushOrderConfirmation(lineUserId, order.order_no, totalForPush);
   } catch (e) {
@@ -360,7 +407,7 @@ async function pushOrderConfirmation(
     lines.push('—— 下一步:匯款 ——');
     lines.push(tenant.payment_info);
     lines.push('');
-    lines.push('匯款後請按主選單「💬 專屬客服」告知後 5 碼。');
+    lines.push('匯款後請開下方「訂單詳情」連結,直接填寫帳號後 5 碼。');
   } else {
     lines.push('');
     lines.push('客服會盡快聯繫您確認付款。');

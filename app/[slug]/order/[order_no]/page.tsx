@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
+import { reportPaymentLast5 } from './actions';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
@@ -21,6 +22,10 @@ type OrderDetail = {
   status: string;
   payment_status: string;
   total_twd: number;
+  shipping_method: string | null;
+  shipping_fee_twd: number;
+  payment_last5: string | null;
+  payment_reported_at: string | null;
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
@@ -34,7 +39,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
+      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -67,6 +72,10 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     status: row.status,
     payment_status: row.payment_status,
     total_twd: row.total_twd,
+    shipping_method: row.shipping_method ?? null,
+    shipping_fee_twd: row.shipping_fee_twd ?? 0,
+    payment_last5: row.payment_last5 ?? null,
+    payment_reported_at: row.payment_reported_at ?? null,
     shipping_recipient: row.shipping_recipient,
     shipping_phone: row.shipping_phone,
     shipping_address: row.shipping_address,
@@ -105,15 +114,24 @@ export default async function OrderPage({ params }: Props) {
   const order = await getOrder(tenant.id, order_no);
   if (!order) notFound();
 
-  // 額外拉 tenant.contact_info + payment_info(沒在 getTenantPublic)
+  // 額外拉 tenant.contact_info + payment_info + shipping_rules(沒在 getTenantPublic)
   const { data: tenantExtra } = await supabaseAdmin
     .from('tenants')
-    .select('contact_info, payment_info')
+    .select('contact_info, payment_info, shipping_rules')
     .eq('id', tenant.id)
     .maybeSingle();
-  type ExtraRow = { contact_info: string | null; payment_info: string | null } | null;
+  type ExtraRow = {
+    contact_info: string | null;
+    payment_info: string | null;
+    shipping_rules: { options?: { key: string; label: string }[] } | null;
+  } | null;
   const contactInfo = (tenantExtra as ExtraRow)?.contact_info ?? null;
   const paymentInfo = (tenantExtra as ExtraRow)?.payment_info ?? null;
+  const shipLabel =
+    ((tenantExtra as ExtraRow)?.shipping_rules?.options ?? []).find(
+      (o) => o.key === order.shipping_method,
+    )?.label ?? null;
+  const grandTotal = order.total_twd + order.shipping_fee_twd;
 
   const createdAt = new Date(order.created_at).toLocaleString('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -178,7 +196,7 @@ export default async function OrderPage({ params }: Props) {
             {paymentInfo}
           </div>
           <div style={{ marginTop: '0.75rem', color: '#92400e', fontSize: '0.8125rem', lineHeight: 1.5 }}>
-            💡 建議截圖此頁,匯款後告知賣家後 5 碼。訂單編號 <strong>{order.order_no}</strong>。
+            💡 匯款完成後,直接在下方填寫帳號<strong>後 5 碼</strong>,不用另外聯絡客服。
           </div>
         </section>
       ) : (
@@ -198,6 +216,70 @@ export default async function OrderPage({ params }: Props) {
             賣家會主動私訊您匯款方式。請保留此訂單編號,完成匯款後通知賣家對帳。
           </div>
         </div>
+      )}
+
+      {/* D#14(2026-09-02):匯款後 5 碼自助回報 */}
+      {order.payment_status === 'paid' ? (
+        <section style={{ padding: '1rem 1.25rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginBottom: '1rem', fontSize: '0.875rem', color: '#15803d', fontWeight: 500 }}>
+          ✓ 已收到您的款項,無需再回報。
+        </section>
+      ) : (
+        <section style={{ padding: '1.25rem', background: '#fff', border: `1.5px solid ${order.payment_reported_at ? '#bbf7d0' : '#fbbf24'}`, borderRadius: 8, marginBottom: '1rem' }}>
+          {order.payment_reported_at ? (
+            <>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#15803d', marginBottom: 4 }}>
+                ✓ 已回報後 5 碼:<span style={{ fontFamily: 'ui-monospace, monospace' }}>{order.payment_last5}</span>
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: '#6b7280', lineHeight: 1.6 }}>
+                {new Date(order.payment_reported_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 送出,等待賣家核帳。
+              </div>
+              <details style={{ marginTop: 10 }}>
+                <summary style={{ fontSize: '0.8125rem', color: '#6b7280', cursor: 'pointer' }}>填錯了?重新回報</summary>
+                <form action={reportPaymentLast5} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <input type="hidden" name="tenant_slug" value={slug} />
+                  <input type="hidden" name="order_no" value={order.order_no} />
+                  <input
+                    name="last5"
+                    inputMode="numeric"
+                    pattern="[0-9]{5}"
+                    maxLength={5}
+                    required
+                    placeholder="12345"
+                    style={{ flex: 1, padding: '0.625rem 0.75rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '1rem', fontFamily: 'ui-monospace, monospace', letterSpacing: '0.15em' }}
+                  />
+                  <button type="submit" style={{ padding: '0.625rem 1rem', background: '#1f2937', color: '#fff', border: 0, borderRadius: 6, fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}>
+                    更新
+                  </button>
+                </form>
+              </details>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
+                ✏️ 我已匯款 — 填寫帳號後 5 碼
+              </div>
+              <p style={{ margin: '0 0 10px', fontSize: '0.8125rem', color: '#6b7280', lineHeight: 1.6 }}>
+                填寫您匯出帳戶的<strong>後 5 碼</strong>,賣家核帳後會將訂單標為已付款。
+              </p>
+              <form action={reportPaymentLast5} style={{ display: 'flex', gap: 8 }}>
+                <input type="hidden" name="tenant_slug" value={slug} />
+                <input type="hidden" name="order_no" value={order.order_no} />
+                <input
+                  name="last5"
+                  inputMode="numeric"
+                  pattern="[0-9]{5}"
+                  maxLength={5}
+                  required
+                  placeholder="12345"
+                  style={{ flex: 1, padding: '0.625rem 0.75rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '1rem', fontFamily: 'ui-monospace, monospace', letterSpacing: '0.15em' }}
+                />
+                <button type="submit" style={{ padding: '0.625rem 1.25rem', background: '#1f2937', color: '#fff', border: 0, borderRadius: 6, fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  送出
+                </button>
+              </form>
+            </>
+          )}
+        </section>
       )}
 
       {contactInfo && (
@@ -259,19 +341,25 @@ export default async function OrderPage({ params }: Props) {
             <div style={{ fontWeight: 500 }}>NT$ {item.subtotal_twd.toLocaleString()}</div>
           </div>
         ))}
-        <div
-          style={{
-            marginTop: '1rem',
-            paddingTop: '1rem',
-            borderTop: '1px solid #e5e7eb',
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: '1rem',
-            fontWeight: 600,
-          }}
-        >
-          <span>應付總額</span>
-          <span>NT$ {order.total_twd.toLocaleString()}</span>
+        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          {(order.shipping_fee_twd > 0 || order.shipping_method) && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#6b7280' }}>
+                <span>商品小計</span>
+                <span>NT$ {order.total_twd.toLocaleString()}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#6b7280' }}>
+                <span>運費{shipLabel ? `(${shipLabel})` : ''}</span>
+                <span style={{ color: order.shipping_fee_twd === 0 ? '#15803d' : undefined }}>
+                  {order.shipping_fee_twd === 0 ? '免運' : `NT$ ${order.shipping_fee_twd.toLocaleString()}`}
+                </span>
+              </div>
+            </>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 600 }}>
+            <span>應付總額</span>
+            <span style={{ color: '#b45309' }}>NT$ {grandTotal.toLocaleString()}</span>
+          </div>
         </div>
       </section>
 

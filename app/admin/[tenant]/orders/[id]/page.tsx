@@ -19,8 +19,11 @@ type OrderDetail = {
   status: string;
   payment_status: string;
   payment_method: string | null;
-  payment_last5?: string | null; // 等 SQL 跑了才會有值
+  payment_last5: string | null;
+  payment_reported_at: string | null; // D#14:客人自助回報時間
   total_twd: number;
+  shipping_method: string | null;
+  shipping_fee_twd: number;
   source: string;
   shipping_recipient: string | null;
   shipping_phone: string | null;
@@ -46,9 +49,9 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      // payment_last5 column 還沒跑 SQL,先不拉(SELECT 不存在欄位會整個 query fail → 404)
-      // SQL alter table orders add column payment_last5 跑了之後可以再加回
-      `id, order_no, status, payment_status, payment_method, total_twd, source,
+      // payment_last5 / payment_reported_at / shipping_*:Phase 14-15 SQL(2026-09-02)已加
+      `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
+       total_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
        users(line_user_id, display_name, full_name, phone),
@@ -160,9 +163,23 @@ export default async function OrderDetailPage({
                 </tr>
               );
             })}
+            {(o.shipping_fee_twd ?? 0) > 0 && (
+              <>
+                <tr>
+                  <td colSpan={3} style={{ ...td, textAlign: 'right', color: '#666', fontSize: 13 }}>商品小計</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#666', fontSize: 13 }}>NT$ {o.total_twd.toLocaleString()}</td>
+                </tr>
+                <tr>
+                  <td colSpan={3} style={{ ...td, textAlign: 'right', color: '#666', fontSize: 13 }}>運費{o.shipping_method ? `(${o.shipping_method})` : ''}</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#666', fontSize: 13 }}>NT$ {o.shipping_fee_twd.toLocaleString()}</td>
+                </tr>
+              </>
+            )}
             <tr>
               <td colSpan={3} style={{ ...td, textAlign: 'right', fontWeight: 600 }}>總計</td>
-              <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontSize: 16 }}>NT$ {o.total_twd.toLocaleString()}</td>
+              <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontSize: 16 }}>
+                NT$ {(o.total_twd + (o.shipping_fee_twd ?? 0)).toLocaleString()}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -222,8 +239,17 @@ export default async function OrderDetailPage({
         {!isPaid ? (
           <>
             <h2 style={{ fontSize: 15, marginBottom: 4, color: '#92400e' }}>💰 確認收款</h2>
+            {/* D#14:客人在訂單頁自助回報的後五碼直接帶入 */}
+            {o.payment_reported_at && (
+              <div style={{ padding: '8px 12px', background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 6, fontSize: 13, color: '#92400e', marginBottom: 10, fontWeight: 600 }}>
+                💬 客人已回報後 5 碼「{o.payment_last5}」({formatTw(o.payment_reported_at)}),核對入帳後按下方確認。
+              </div>
+            )}
             <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 14px', lineHeight: 1.6 }}>
-              客人匯款後告知後 5 碼,在這裡標記為已付款。標完訂單變綠、Dashboard 今日營收會算進去。
+              核對銀行入帳後標記為已付款。標完訂單變綠、Dashboard 今日營收會算進去。
+              {(o.shipping_fee_twd ?? 0) > 0 && (
+                <> 應收金額 <strong>NT$ {(o.total_twd + o.shipping_fee_twd).toLocaleString()}</strong>(含運費 {o.shipping_fee_twd})。</>
+              )}
             </p>
             <form action={markOrderPaid} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <input type="hidden" name="id" value={o.id} />
@@ -236,6 +262,7 @@ export default async function OrderDetailPage({
                   pattern="[0-9]*"
                   inputMode="numeric"
                   style={input}
+                  defaultValue={o.payment_last5 ?? ''}
                   placeholder="12345"
                 />
               </label>

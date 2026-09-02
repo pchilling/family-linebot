@@ -26,6 +26,7 @@ export async function updateTenantSettings(
   const name = String(formData.get('name') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
   const brandColor = String(formData.get('brand_color') ?? '').trim();
+  const shopBgColor = String(formData.get('shop_bg_color') ?? '').trim(); // C#7 商城底色
   const ogImageUrl = String(formData.get('og_image_url') ?? '').trim();
   // contact_info 是 free text(多行),頭尾空白 trim,內部換行保留
   const contactInfo = String(formData.get('contact_info') ?? '').replace(/^\s+|\s+$/g, '');
@@ -36,6 +37,9 @@ export async function updateTenantSettings(
 
   if (brandColor && !/^#[0-9a-fA-F]{6}$/.test(brandColor)) {
     return { status: 'error', error: '主題色需為 #RRGGBB 格式' };
+  }
+  if (shopBgColor && !/^#[0-9a-fA-F]{6}$/.test(shopBgColor)) {
+    return { status: 'error', error: '商城底色需為 #RRGGBB 格式' };
   }
   if (ogImageUrl && !/^https?:\/\//.test(ogImageUrl)) {
     return { status: 'error', error: '分享圖網址需以 http:// 或 https:// 開頭' };
@@ -50,6 +54,7 @@ export async function updateTenantSettings(
       name,
       description: description || null,
       brand_color: brandColor || null,
+      shop_bg_color: shopBgColor || null,
       og_image_url: ogImageUrl || null,
       contact_info: contactInfo || null,
       payment_info: paymentInfo || null,

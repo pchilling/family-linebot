@@ -23,6 +23,7 @@ type OrderDetail = {
   payment_status: string;
   payment_method: string | null;
   total_twd: number;
+  shipping_fee_twd: number | null;
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
@@ -62,7 +63,7 @@ export default async function OrderPrintPage({
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      `id, order_no, status, payment_status, payment_method, total_twd,
+      `id, order_no, status, payment_status, payment_method, total_twd, shipping_fee_twd,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note, created_at,
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
     )
@@ -163,10 +164,16 @@ export default async function OrderPrintPage({
               </tr>
             );
           })}
+          {(o.shipping_fee_twd ?? 0) > 0 && (
+            <tr>
+              <td colSpan={5} style={{ textAlign: 'right', color: '#555' }}>運費</td>
+              <td style={{ textAlign: 'right', color: '#555' }}>NT$ {(o.shipping_fee_twd ?? 0).toLocaleString()}</td>
+            </tr>
+          )}
           <tr>
             <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700 }}>總計</td>
             <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 15 }}>
-              NT$ {o.total_twd.toLocaleString()}
+              NT$ {(o.total_twd + (o.shipping_fee_twd ?? 0)).toLocaleString()}
             </td>
           </tr>
         </tbody>

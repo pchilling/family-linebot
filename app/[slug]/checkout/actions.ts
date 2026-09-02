@@ -11,6 +11,26 @@ export type CreateOrderResult =
   | { ok: true; orderNo: string }
   | { ok: false; error: string };
 
+// D#13:運費規則(tenants.shipping_rules.options;空陣列 = 該攤位不收運費)
+export type ShippingOption = {
+  key: string;
+  label: string;
+  fee: number;
+  free_over?: number;
+  note?: string;
+};
+
+export async function getShippingOptions(tenantSlug: string): Promise<ShippingOption[]> {
+  const { data } = await supabaseAdmin
+    .from('tenants')
+    .select('shipping_rules')
+    .eq('slug', tenantSlug)
+    .maybeSingle();
+  const rules = (data as { shipping_rules?: { options?: ShippingOption[] } | null } | null)
+    ?.shipping_rules;
+  return Array.isArray(rules?.options) ? rules.options : [];
+}
+
 export async function createOrder(formData: FormData): Promise<CreateOrderResult> {
   const tenantSlug = String(formData.get('tenantSlug') ?? '').trim();
   const recipient = String(formData.get('recipient') ?? '').trim();
@@ -18,6 +38,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const address = String(formData.get('address') ?? '').trim();
   const note = String(formData.get('note') ?? '').trim();
   const guestEmail = String(formData.get('guestEmail') ?? '').trim();
+  const shippingMethod = String(formData.get('shipping_method') ?? '').trim();
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
 
   if (!tenantSlug) return { ok: false, error: '無攤位資訊' };
@@ -79,31 +100,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     if (v.stock < item.qty) return { ok: false, error: '庫存不足' };
   }
 
-  // 建 order(order_no / total_twd 由 trigger 處理)
-  const { data: orderRow, error: oErr } = await supabaseAdmin
-    .from('orders')
-    .insert({
-      tenant_id: tenant.id,
-      status: 'open',
-      payment_status: 'pending',
-      source: 'web',
-      shipping_recipient: recipient,
-      shipping_phone: phone,
-      shipping_address: address,
-      note: note || null,
-      guest_email: guestEmail || null,
-      guest_phone: phone,
-    })
-    .select('id, order_no')
-    .single();
-
-  if (oErr || !orderRow) {
-    console.error('[createOrder insert order]', oErr);
-    return { ok: false, error: '建立訂單失敗' };
-  }
-
   // Phase 9.5/9.9:結帳時用 sale + tier 重算每個 line 的單價
   // 優先級:sale 生效 → sale 通殺;否則 tier(以同 product_id 整單 qty 算)
+  // (D#13 改序:先算完單價才能算折後小計 → 運費免運門檻 → 再建 order)
   const qtyByProduct = new Map<string, number>();
   for (const item of cartItems) {
     const v = variantMap.get(item.variantId);
@@ -140,7 +139,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
 
   const now = new Date();
 
-  const itemsToInsert = cartItems.map((item) => {
+  const pricedItems = cartItems.map((item) => {
     const v = variantMap.get(item.variantId)!;
     const sale = saleByProduct.get(v.product_id);
     const saleActive =
@@ -162,13 +161,54 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     }
     return {
       tenant_id: tenant.id,
-      order_id: (orderRow as { id: string }).id,
       product_id: v.product_id,
       variant_id: v.id,
       qty: item.qty,
       price_at_purchase: effective,
     };
   });
+
+  // D#13:運費 server 端計算(免運門檻用折扣後的商品小計)
+  const subtotal = pricedItems.reduce((s, it) => s + it.price_at_purchase * it.qty, 0);
+  const shipOptions = await getShippingOptions(tenantSlug);
+  let shippingFee = 0;
+  let shippingKey: string | null = null;
+  if (shipOptions.length > 0) {
+    const opt = shipOptions.find((o) => o.key === shippingMethod);
+    if (!opt) return { ok: false, error: '請選擇配送方式' };
+    shippingFee = opt.free_over && subtotal >= opt.free_over ? 0 : opt.fee;
+    shippingKey = opt.key;
+  }
+
+  // 建 order(order_no / total_twd 由 trigger 處理;total_twd = 商品小計,運費另存)
+  const { data: orderRow, error: oErr } = await supabaseAdmin
+    .from('orders')
+    .insert({
+      tenant_id: tenant.id,
+      status: 'open',
+      payment_status: 'pending',
+      source: 'web',
+      shipping_recipient: recipient,
+      shipping_phone: phone,
+      shipping_address: address,
+      shipping_method: shippingKey,
+      shipping_fee_twd: shippingFee,
+      note: note || null,
+      guest_email: guestEmail || null,
+      guest_phone: phone,
+    })
+    .select('id, order_no')
+    .single();
+
+  if (oErr || !orderRow) {
+    console.error('[createOrder insert order]', oErr);
+    return { ok: false, error: '建立訂單失敗' };
+  }
+
+  const itemsToInsert = pricedItems.map((it) => ({
+    ...it,
+    order_id: (orderRow as { id: string }).id,
+  }));
 
   const { error: iErr } = await supabaseAdmin.from('order_items').insert(itemsToInsert);
 

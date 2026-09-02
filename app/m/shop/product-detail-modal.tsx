@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ShopProduct } from './actions';
 
 type Props = {
@@ -24,21 +24,40 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   const [selectedId, setSelectedId] = useState(firstInStock?.id ?? '');
   const [qty, setQty] = useState(1);
   const [imgIdx, setImgIdx] = useState(0);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   const selected = variants.find((v) => v.id === selectedId) ?? firstInStock;
   const inStock = (selected?.stock ?? 0) > 0;
   const maxQty = selected?.stock ?? 1;
   const hasMulti = variants.length > 1;
 
-  // 圖:media image 優先,fallback image_url
+  // C#5(2026-09-02):media 圖 + 各規格圖聯集(去重,media 在前),可滑動
   const images = useMemo(() => {
     const arr: string[] = [];
     for (const m of product.media ?? []) {
-      if (m.type === 'image') arr.push(m.url);
+      if (m.type === 'image' && !arr.includes(m.url)) arr.push(m.url);
+    }
+    for (const v of variants) {
+      if (v.image_url && !arr.includes(v.image_url)) arr.push(v.image_url);
     }
     if (arr.length === 0 && product.image_url) arr.push(product.image_url);
     return arr;
-  }, [product.media, product.image_url]);
+  }, [product.media, product.image_url, variants]);
+
+  function scrollToImg(i: number) {
+    setImgIdx(i);
+    const el = scrollerRef.current;
+    const target = el?.children[i] as HTMLElement | undefined;
+    if (el && target) el.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+  }
+
+  // 選規格 → 自動滑到該規格綁定的圖
+  useEffect(() => {
+    if (!selected?.image_url) return;
+    const i = images.indexOf(selected.image_url);
+    if (i >= 0) scrollToImg(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   const price = selected?.price_twd ?? 0;
   const total = price * qty;
@@ -80,22 +99,57 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
         <span style={{ fontSize: 13, color: '#71717a' }}>返回</span>
       </div>
 
-      {/* Image carousel */}
+      {/* Image carousel — C#5:scroll-snap 手指左右滑 */}
       {images.length > 0 ? (
         <div style={{ marginBottom: 16 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={images[imgIdx]}
-            alt={product.name}
-            style={{
-              width: '100%',
-              aspectRatio: '3 / 4',
-              objectFit: 'cover',
-              borderRadius: 10,
-              display: 'block',
-              background: '#f4f4f5',
-            }}
-          />
+          <div style={{ position: 'relative' }}>
+            <div
+              ref={scrollerRef}
+              onScroll={() => {
+                const el = scrollerRef.current;
+                if (!el || el.clientWidth === 0) return;
+                const i = Math.round(el.scrollLeft / el.clientWidth);
+                setImgIdx(Math.max(0, Math.min(images.length - 1, i)));
+              }}
+              style={{
+                display: 'flex',
+                overflowX: 'auto',
+                scrollSnapType: 'x mandatory',
+                WebkitOverflowScrolling: 'touch',
+                borderRadius: 10,
+                scrollbarWidth: 'none',
+              }}
+            >
+              {images.map((url, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={`${url}-${i}`}
+                  src={url}
+                  alt={`${product.name} ${i + 1}`}
+                  style={{
+                    flexShrink: 0,
+                    width: '100%',
+                    aspectRatio: '3 / 4',
+                    objectFit: 'cover',
+                    scrollSnapAlign: 'start',
+                    display: 'block',
+                    background: '#f4f4f5',
+                  }}
+                />
+              ))}
+            </div>
+            {images.length > 1 && (
+              <div
+                style={{
+                  position: 'absolute', top: 10, right: 10,
+                  padding: '3px 10px', background: 'rgba(0,0,0,0.55)', color: '#fff',
+                  borderRadius: 999, fontSize: 12, fontWeight: 600, pointerEvents: 'none',
+                }}
+              >
+                {imgIdx + 1} / {images.length}
+              </div>
+            )}
+          </div>
           {images.length > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
               {images.map((_, i) => (
@@ -103,11 +157,12 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
                   key={i}
                   type="button"
                   aria-label={`切到第 ${i + 1} 張`}
-                  onClick={() => setImgIdx(i)}
+                  onClick={() => scrollToImg(i)}
                   style={{
-                    width: 7, height: 7, borderRadius: '50%', padding: 0,
+                    width: i === imgIdx ? 18 : 7, height: 7, borderRadius: 4, padding: 0,
                     background: i === imgIdx ? '#18181b' : '#d4d4d8',
                     border: 0, cursor: 'pointer',
+                    transition: 'width 0.2s, background 0.2s',
                   }}
                 />
               ))}

@@ -13,6 +13,9 @@ type OrderRow = {
   source: string;
   shipping_recipient: string | null;
   shipping_phone: string | null;
+  shipping_fee_twd: number | null;
+  payment_reported_at: string | null;
+  payment_last5: string | null;
   created_at: string;
   users: { display_name: string | null; full_name: string | null } | null;
 };
@@ -31,7 +34,7 @@ async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, created_at, users(display_name, full_name)',
+      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_fee_twd, payment_reported_at, payment_last5, created_at, users(display_name, full_name)',
     )
     .eq('tenant_id', tenantId);
 
@@ -340,13 +343,28 @@ export default async function OrdersListPage({
                     <div style={{ color: '#888' }}>(無客戶資料)</div>
                   )}
                 </td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString()}</td>
+                <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>
+                  NT$ {(o.total_twd + (o.shipping_fee_twd ?? 0)).toLocaleString()}
+                  {(o.shipping_fee_twd ?? 0) > 0 && (
+                    <div style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>含運 {o.shipping_fee_twd}</div>
+                  )}
+                </td>
                 <td style={td}>
                   <span style={{ display: 'inline-block', padding: '2px 8px', background: statusColor(o.status) + '22', color: statusColor(o.status), borderRadius: 3, fontSize: 12 }}>
                     {statusLabel(o.status)}
                   </span>
                 </td>
-                <td style={td}>{statusLabel(o.payment_status)}</td>
+                <td style={td}>
+                  {statusLabel(o.payment_status)}
+                  {/* D#14:客人已自助回報後五碼,提醒核帳 */}
+                  {o.payment_status === 'pending' && o.payment_reported_at && (
+                    <div style={{ marginTop: 3 }}>
+                      <span style={{ display: 'inline-block', padding: '1px 7px', background: '#fef3c7', color: '#92400e', borderRadius: 3, fontSize: 11, fontWeight: 700 }}>
+                        💬 回報 {o.payment_last5}
+                      </span>
+                    </div>
+                  )}
+                </td>
                 <td style={{ ...td, fontSize: 13, color: '#666' }}>{formatTw(o.created_at)}</td>
                 <td style={td}>
                   <QuickAction

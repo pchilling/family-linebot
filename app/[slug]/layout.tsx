@@ -32,7 +32,8 @@ export default async function TenantLayout({ children, params }: Props) {
     <div
       style={{
         minHeight: '100vh',
-        background: '#fafafa',
+        // C#7(2026-09-02):攤位自訂商城底色,沒設維持淺灰
+        background: tenant.shop_bg_color ?? '#fafafa',
         color: '#111827',
       }}
     >

@@ -21,7 +21,12 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
   const allProducts = await getActiveProducts(tenant.id);
 
   // chip filter:全部 / 最新 / 各 category
-  const categories = [...new Set(allProducts.map((p) => p.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  // C#8(2026-09-02):tenant.category_order 有列的照設定順序,沒列的照筆劃排後面
+  const found = [...new Set(allProducts.map((p) => p.category).filter((c): c is string => !!c))];
+  const categories = [
+    ...tenant.category_order.filter((c) => found.includes(c)),
+    ...found.filter((c) => !tenant.category_order.includes(c)).sort((a, b) => a.localeCompare(b, 'zh-Hant')),
+  ];
   const isCategory = !!f && categories.includes(f);
 
   let products = [...allProducts];
@@ -32,11 +37,11 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
       .filter((p) => p.category === f)
       .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
   } else {
-    // 全部 預設:category asc + name asc
+    // 全部 預設:照分類設定順序分組 + name asc
     products.sort((a, b) => {
-      const ca = a.category ?? '';
-      const cb = b.category ?? '';
-      if (ca !== cb) return ca.localeCompare(cb, 'zh-Hant');
+      const ia = a.category ? categories.indexOf(a.category) : categories.length;
+      const ib = b.category ? categories.indexOf(b.category) : categories.length;
+      if (ia !== ib) return ia - ib;
       return a.name.localeCompare(b.name, 'zh-Hant');
     });
   }
@@ -184,6 +189,27 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
                 }}
               >
                 <div style={{ overflow: 'hidden', position: 'relative' }}>
+                  {/* C#9(2026-09-02):自訂角標(HOT / 9折…)。有 sale badge 時排它下面 */}
+                  {p.badge && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        padding: '4px 10px',
+                        background: '#b45309',
+                        color: '#fff',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        letterSpacing: '0.03em',
+                        zIndex: 1,
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                      }}
+                    >
+                      {p.badge}
+                    </div>
+                  )}
                   {/* Phase 9.9 v2:sale badge 顯示 % off 在縮圖左上 */}
                   {(() => {
                     const now = new Date();

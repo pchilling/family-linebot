@@ -1061,3 +1061,43 @@ end;
 $$ language plpgsql;
 
 alter table orders add column if not exists payment_last5 text;
+
+
+-- ====================
+-- Phase 15:批次 C + D(2026-09-02)
+-- C:商品角標 / 商城底色 / 分類排序
+-- D:運費規則 / 匯款後五碼回報 / 最新消息圖片+推播
+-- ====================
+
+-- C #9:商品卡角標(HOT / 9折 之類,自由文字,空 = 不顯示)
+alter table products add column if not exists badge text;
+
+-- C #7:商城底色(LIFF + 公開頁,#RRGGBB;null = 預設灰白)
+alter table tenants add column if not exists shop_bg_color text;
+
+-- C #8:分類顯示順序(jsonb 字串陣列;沒列到的分類照筆劃排在後面)
+alter table tenants add column if not exists category_order jsonb default '[]'::jsonb;
+
+-- D #13:運費。orders 記結帳當下選的配送方式與運費(總計 = total_twd + shipping_fee_twd)
+alter table orders add column if not exists shipping_method text;
+alter table orders add column if not exists shipping_fee_twd int not null default 0 check (shipping_fee_twd >= 0);
+
+-- D #13:每 tenant 運費規則(null = 該攤位不收運費,結帳不顯示配送選項)
+alter table tenants add column if not exists shipping_rules jsonb;
+
+-- D #14:客人自助回報匯款後五碼的時間(payment_last5 Phase 14 已加)
+alter table orders add column if not exists payment_reported_at timestamptz;
+
+-- D #4:最新消息圖片(有圖 → bot 回純圖卡,點圖開 link_url)
+alter table news add column if not exists image_url text;
+
+-- oilswa 運費規則(僅此攤位;Cyndi / Kim 沒設定 = 維持無運費)
+update tenants set shipping_rules = '{
+  "options": [
+    { "key": "normal", "label": "宅配・一般地區", "fee": 100, "free_over": 2000 },
+    { "key": "east",   "label": "宅配・宜花東",   "fee": 300, "free_over": 6000 },
+    { "key": "pickup", "label": "門市自取/偏遠離島", "fee": 0,
+      "note": "偏遠及離島地區請選此項,並於備註留言或來電告知配送方式" }
+  ]
+}'::jsonb
+where slug = 'oilswa' and shipping_rules is null;

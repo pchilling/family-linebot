@@ -9,6 +9,7 @@ type Props = {
     name: string;
     description: string;
     brand_color: string;
+    shop_bg_color: string;
     og_image_url: string;
     contact_info: string;
     payment_info: string;
@@ -90,6 +91,30 @@ export function SettingsForm({ tenantSlug, defaults }: Props) {
           </span>
         </div>
         <span style={hint}>店名顯示色 / 公開網站主色調</span>
+      </label>
+
+      {/* C#7(2026-09-02):商城底色 */}
+      <label style={label}>
+        <span style={labelText}>商城底色</span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input
+            type="color"
+            name="shop_bg_color"
+            defaultValue={defaults.shop_bg_color || '#fafafa'}
+            style={{
+              width: 60,
+              height: 38,
+              padding: 2,
+              border: '1px solid #ccc',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          />
+          <span style={{ fontSize: 13, color: '#666', fontFamily: 'monospace' }}>
+            目前:{defaults.shop_bg_color || '(未設,預設淺灰 #fafafa)'}
+          </span>
+        </div>
+        <span style={hint}>LINE 商品專區 + 公開商城的頁面背景色,建議淺色(深色會看不清文字)</span>
       </label>
 
       <label style={label}>

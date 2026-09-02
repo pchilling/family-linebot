@@ -26,7 +26,16 @@ export default function ShopPage() {
   const [linePic, setLinePic] = useState('');
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [member, setMember] = useState<ShopMember | null>(null);
-  const [tenant, setTenant] = useState<ShopTenant>({ name: '商品專區', logo_url: null, banners: [], payment_info: null });
+  const [tenant, setTenant] = useState<ShopTenant>({
+    name: '商品專區',
+    logo_url: null,
+    banners: [],
+    payment_info: null,
+    shop_bg_color: null,
+    category_order: [],
+    shipping_options: [],
+  });
+  const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
   const [cart, setCart] = useState<CartItem[]>([]);
   const [filter, setFilter] = useState<string>(''); // '' = 全部 / 'latest' / category name
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -84,10 +93,15 @@ export default function ShopPage() {
   );
 
   // chip filter:全部 / 最新 / 各 category
-  const categories = useMemo(
-    () => [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'zh-Hant')),
-    [products],
-  );
+  // C#8:tenant.category_order 有列的照設定順序排前面,沒列的照筆劃排後面
+  const categories = useMemo(() => {
+    const found = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))];
+    const ordered = tenant.category_order.filter((c) => found.includes(c));
+    const rest = found
+      .filter((c) => !tenant.category_order.includes(c))
+      .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    return [...ordered, ...rest];
+  }, [products, tenant.category_order]);
   const visibleProducts = useMemo(() => {
     const isCat = !!filter && categories.includes(filter);
     if (filter === 'latest') return products; // server 已 created_at desc
@@ -97,9 +111,10 @@ export default function ShopPage() {
         .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
     }
     return [...products].sort((a, b) => {
-      const ca = a.category ?? '';
-      const cb = b.category ?? '';
-      if (ca !== cb) return ca.localeCompare(cb, 'zh-Hant');
+      // C#8:「全部」照分類設定順序分組,同分類內照商品名
+      const ia = a.category ? categories.indexOf(a.category) : categories.length;
+      const ib = b.category ? categories.indexOf(b.category) : categories.length;
+      if (ia !== ib) return ia - ib;
       return a.name.localeCompare(b.name, 'zh-Hant');
     });
   }, [products, filter, categories]);
@@ -124,6 +139,16 @@ export default function ShopPage() {
   );
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
+
+  // D#13:運費(有設定 shipping_options 的攤位才有;滿額免運)
+  const shipOption = tenant.shipping_options.find((o) => o.key === shipKey) ?? null;
+  const shipFee = shipOption
+    ? shipOption.free_over && cartTotal >= shipOption.free_over
+      ? 0
+      : shipOption.fee
+    : 0;
+  const grandTotal = cartTotal + shipFee;
+  const needShipping = tenant.shipping_options.length > 0;
 
   function addToCart(productId: string, variantId: string, qty: number = 1) {
     setCart((prev) => {
@@ -339,8 +364,9 @@ export default function ShopPage() {
   }
 
   // shop view(含 cart drawer + checkout form)
+  // C#7:攤位有設商城底色就套用
   return (
-    <main style={page}>
+    <main style={{ ...page, ...(tenant.shop_bg_color ? { background: tenant.shop_bg_color } : {}) }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -522,8 +548,30 @@ export default function ShopPage() {
                     display: 'flex',
                     flexDirection: 'column',
                     cursor: 'pointer',
+                    position: 'relative',
                   }}
                 >
+                  {/* C#9:角標(後台商品「角標」欄位) */}
+                  {p.badge && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 8,
+                        zIndex: 2,
+                        padding: '3px 9px',
+                        background: '#dc2626',
+                        color: '#fff',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        letterSpacing: '0.03em',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                      }}
+                    >
+                      {p.badge}
+                    </span>
+                  )}
                   {(() => {
                     // Phase 9.6:縮圖優先 media 第一張 image,fallback image_url
                     const firstImg = (p.media ?? []).find((m) => m.type === 'image');
@@ -747,31 +795,96 @@ export default function ShopPage() {
                 );
               })}
             </ul>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'baseline',
-                marginTop: 14,
-                paddingTop: 14,
-                borderTop: '2px solid #18181b',
-              }}
-            >
-              <span style={{ fontSize: 14, color: '#71717a' }}>總計</span>
-              <span style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: '#18181b',
-                fontFamily: 'ui-monospace, monospace',
-                letterSpacing: '-0.01em',
-              }}>
-                NT$ {cartTotal.toLocaleString()}
-              </span>
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '2px solid #18181b', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {needShipping && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#52525b' }}>
+                    <span>商品小計</span>
+                    <span style={{ fontFamily: 'ui-monospace, monospace' }}>NT$ {cartTotal.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#52525b' }}>
+                    <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
+                    <span style={{ fontFamily: 'ui-monospace, monospace', color: shipOption && shipFee === 0 ? '#16a34a' : undefined }}>
+                      {shipOption ? (shipFee === 0 ? '免運 🎉' : `NT$ ${shipFee.toLocaleString()}`) : '請選配送方式'}
+                    </span>
+                  </div>
+                </>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: 14, color: '#71717a' }}>總計</span>
+                <span style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  color: '#b45309',
+                  fontFamily: 'ui-monospace, monospace',
+                  letterSpacing: '-0.01em',
+                }}>
+                  NT$ {grandTotal.toLocaleString()}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* 結帳資訊 form */}
           <form action={onSubmitOrder} style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* D#13:配送方式(攤位有設運費規則才顯示) */}
+            {needShipping && (
+              <div>
+                <div style={cardTitle}>配送方式 *</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {tenant.shipping_options.map((opt) => {
+                    const isFree = !!opt.free_over && cartTotal >= opt.free_over;
+                    const isActive = shipKey === opt.key;
+                    return (
+                      <label
+                        key={opt.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                          padding: '12px 14px',
+                          border: `1.5px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
+                          borderRadius: 10,
+                          background: isActive ? '#fafafa' : '#fff',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="shipping_method"
+                          value={opt.key}
+                          required
+                          checked={isActive}
+                          onChange={() => setShipKey(opt.key)}
+                          style={{ marginTop: 3 }}
+                        />
+                        <span style={{ flex: 1 }}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: '#18181b' }}>
+                            <span>{opt.label}</span>
+                            <span style={{ fontFamily: 'ui-monospace, monospace', color: isFree || opt.fee === 0 ? '#16a34a' : '#18181b' }}>
+                              {opt.fee === 0 ? '免運費' : isFree ? '免運 🎉' : `NT$ ${opt.fee}`}
+                            </span>
+                          </span>
+                          {opt.free_over ? (
+                            <span style={{ display: 'block', fontSize: 11.5, color: isFree ? '#16a34a' : '#71717a', marginTop: 3 }}>
+                              {isFree
+                                ? `已滿 NT$ ${opt.free_over.toLocaleString()},免運`
+                                : `滿 NT$ ${opt.free_over.toLocaleString()} 免運(還差 NT$ ${(opt.free_over - cartTotal).toLocaleString()})`}
+                            </span>
+                          ) : null}
+                          {opt.note && (
+                            <span style={{ display: 'block', fontSize: 11.5, color: '#b45309', marginTop: 3, lineHeight: 1.5 }}>
+                              ⚠️ {opt.note}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div style={cardTitle}>收件資訊</div>
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -825,7 +938,7 @@ export default function ShopPage() {
             >
               {status === 'submitting'
                 ? '送出中…'
-                : `確認送出 · NT$ ${cartTotal.toLocaleString()}`}
+                : `確認送出 · NT$ ${grandTotal.toLocaleString()}`}
             </button>
           </form>
 

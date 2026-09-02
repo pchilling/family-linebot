@@ -275,6 +275,7 @@ export async function createProduct(formData: FormData) {
   const stock = numOrNull(formData.get('stock')) ?? 0;
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const category = String(formData.get('category') || '').trim() || null;
+  const badge = String(formData.get('badge') || '').trim() || null;
 
   // SKU 系統產:{tenant.order_prefix}-{3 位流水號}
   const prefix = await getTenantPrefix(tenantId);
@@ -297,6 +298,7 @@ export async function createProduct(formData: FormData) {
       stock,
       image_url,
       category,
+      badge,
       status: 'active',
     })
     .select('id')
@@ -403,12 +405,13 @@ export async function updateProduct(formData: FormData) {
   const stock = numOrNull(formData.get('stock')) ?? 0;
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const category = String(formData.get('category') || '').trim() || null;
+  const badge = String(formData.get('badge') || '').trim() || null;
   const status = String(formData.get('status') || 'active');
   const slug = String(formData.get('tenant_slug') || '').trim();
 
   await supabaseAdmin
     .from('products')
-    .update({ sku, name, description, price_twd, cost_twd, stock, image_url, category, status })
+    .update({ sku, name, description, price_twd, cost_twd, stock, image_url, category, badge, status })
     .eq('id', id);
   revalidateProductRoutes(formData);
 
@@ -422,6 +425,46 @@ export async function deleteProduct(formData: FormData) {
   const id = String(formData.get('id'));
   await supabaseAdmin.from('products').delete().eq('id', id);
   revalidateProductRoutes(formData);
+}
+
+/**
+ * C#8(2026-09-02):分類顯示順序上移 / 下移。
+ * tenants.category_order(jsonb 字串陣列)存完整順序;
+ * 實際順序 = 有設定的照設定 + 沒設定的照筆劃(跟前台一致),搬移後存回完整清單。
+ */
+export async function moveCategoryOrder(formData: FormData) {
+  const tenantId = tIdFromForm(formData);
+  const category = String(formData.get('category') || '').trim();
+  const direction = String(formData.get('direction') || '').trim();
+  if (!category || (direction !== 'up' && direction !== 'down')) return;
+
+  const [{ data: tRow }, { data: prods }] = await Promise.all([
+    supabaseAdmin.from('tenants').select('category_order').eq('id', tenantId).maybeSingle(),
+    supabaseAdmin.from('products').select('category').eq('tenant_id', tenantId).not('category', 'is', null),
+  ]);
+  const saved: string[] = Array.isArray((tRow as { category_order?: string[] } | null)?.category_order)
+    ? ((tRow as { category_order: string[] }).category_order)
+    : [];
+  const found = [...new Set(((prods ?? []) as { category: string | null }[]).map((p) => p.category).filter((c): c is string => !!c))];
+  const effective = [
+    ...saved.filter((c) => found.includes(c)),
+    ...found.filter((c) => !saved.includes(c)).sort((a, b) => a.localeCompare(b, 'zh-Hant')),
+  ];
+
+  const idx = effective.indexOf(category);
+  const target = direction === 'up' ? idx - 1 : idx + 1;
+  if (idx < 0 || target < 0 || target >= effective.length) return;
+  [effective[idx], effective[target]] = [effective[target], effective[idx]];
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ category_order: effective })
+    .eq('id', tenantId);
+  if (error) console.error('[moveCategoryOrder]', error);
+
+  revalidateProductRoutes(formData);
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  if (slug) revalidatePath(`/${slug}`);
 }
 
 // ====================

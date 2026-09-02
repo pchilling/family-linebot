@@ -7,6 +7,7 @@ import {
   deletePriceTier,
   deleteProduct,
   deleteVariant,
+  moveCategoryOrder,
   updatePriceTier,
   updateProduct,
   updateProductSale,
@@ -46,6 +47,7 @@ type Product = {
   sale_end_at: string | null;
   share_focus_x: number | null;
   category: string | null;
+  badge: string | null;
   status: string;
   product_variants: Variant[];
 };
@@ -68,7 +70,7 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, status,
+      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, status,
        product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
     )
     .eq('tenant_id', tenantId)
@@ -169,6 +171,21 @@ export default async function ProductsPage({
   // Phase 9.5:撈這個 tenant 全 tier,group by product_id
   const tiersMap = await getTiersMap(tenant.id);
 
+  // C#8(2026-09-02):分類顯示順序(有設定照設定,沒設定照筆劃,跟商城前台一致)
+  const { data: catRow } = await supabaseAdmin
+    .from('tenants')
+    .select('category_order')
+    .eq('id', tenant.id)
+    .maybeSingle();
+  const savedOrder: string[] = Array.isArray((catRow as { category_order?: string[] } | null)?.category_order)
+    ? ((catRow as { category_order: string[] }).category_order)
+    : [];
+  const foundCats = [...new Set(products.map((p) => p.category).filter((cat): cat is string => !!cat))];
+  const orderedCats = [
+    ...savedOrder.filter((cat) => foundCats.includes(cat)),
+    ...foundCats.filter((cat) => !savedOrder.includes(cat)).sort((a, b) => a.localeCompare(b, 'zh-Hant')),
+  ];
+
   const savedId = sp.saved ?? '';
   const savedIsVariant = savedId.startsWith('variant_');
   const savedProductId = savedIsVariant ? null : savedId;
@@ -213,6 +230,52 @@ details[open] .chev { transform: rotate(90deg); }
         </p>
       </header>
 
+      {/* C#8(2026-09-02):分類顯示順序 — 商城前台的分類 chip 和「全部」分組照這裡排 */}
+      {orderedCats.length > 1 && (
+        <details
+          style={{
+            background: c.card,
+            border: `1px solid ${c.border}`,
+            borderRadius: 8,
+            marginBottom: 16,
+            overflow: 'hidden',
+          }}
+        >
+          <summary style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500 }}>
+            <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11 }}>▶</span>
+            ↕ 分類顯示順序
+            <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>
+              目前:{orderedCats.join(' → ')}
+            </span>
+          </summary>
+          <div style={{ padding: '4px 18px 16px', borderTop: `1px solid ${c.borderSubtle}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{ fontSize: 12, color: c.textMuted, margin: '10px 0 4px' }}>
+              商城(LINE 商品專區 + 公開頁)的分類 chip 順序與「全部」的分組順序照這裡排。
+            </p>
+            {orderedCats.map((cat, i) => (
+              <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: c.bg, borderRadius: 6 }}>
+                <span style={{ fontSize: 12, color: c.textMuted, fontFamily: 'ui-monospace, monospace', width: 18 }}>{i + 1}</span>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{cat}</span>
+                <form action={moveCategoryOrder} style={{ display: 'inline' }}>
+                  <input type="hidden" name="tenant_id" value={tenant.id} />
+                  <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                  <input type="hidden" name="category" value={cat} />
+                  <input type="hidden" name="direction" value="up" />
+                  <button type="submit" disabled={i === 0} style={{ width: 28, height: 28, padding: 0, background: c.card, border: `1px solid ${c.border}`, borderRadius: 4, cursor: i === 0 ? 'not-allowed' : 'pointer', opacity: i === 0 ? 0.4 : 1, fontFamily: 'inherit' }} title="往上">↑</button>
+                </form>
+                <form action={moveCategoryOrder} style={{ display: 'inline' }}>
+                  <input type="hidden" name="tenant_id" value={tenant.id} />
+                  <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                  <input type="hidden" name="category" value={cat} />
+                  <input type="hidden" name="direction" value="down" />
+                  <button type="submit" disabled={i === orderedCats.length - 1} style={{ width: 28, height: 28, padding: 0, background: c.card, border: `1px solid ${c.border}`, borderRadius: 4, cursor: i === orderedCats.length - 1 ? 'not-allowed' : 'pointer', opacity: i === orderedCats.length - 1 ? 0.4 : 1, fontFamily: 'inherit' }} title="往下">↓</button>
+                </form>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       {/* 新增商品 折疊 */}
       <details
         style={{
@@ -248,6 +311,7 @@ details[open] .chev { transform: rotate(90deg); }
             <datalist id="cats"><option value="精油" /><option value="保養品" /><option value="保健" /><option value="配件" /><option value="童裝" /></datalist>
             <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} /></label>
             <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
+            <label style={label}><span style={labelText}>角標(選填,如 HOT / 9折)</span><input name="badge" maxLength={8} style={input} placeholder="HOT" /></label>
             <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
             <label style={{ ...label, gridColumn: '1 / -1' }}>
               <span style={labelText}>描述</span>
@@ -433,6 +497,10 @@ details[open] .chev { transform: rotate(90deg); }
                         <option value="inactive">暫停</option>
                         <option value="discontinued">下架</option>
                       </select>
+                    </label>
+                    <label style={label}>
+                      <span style={labelText}>角標(卡片左上,如 HOT / 9折,空 = 不顯示)</span>
+                      <input name="badge" defaultValue={p.badge ?? ''} maxLength={8} style={input} placeholder="HOT" />
                     </label>
                     <label style={{ ...label, gridColumn: '1 / -1' }}>
                       <span style={labelText}>描述</span>
