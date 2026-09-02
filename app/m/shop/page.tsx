@@ -637,7 +637,25 @@ export default function ShopPage() {
               fontFamily: 'inherit',
             }}
           >
-            <span>🛒 購物車 {cartCount} 件</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              {/* 線條購物袋 icon,同公開頁 CartLink 造型 */}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                <path d="M3 6h18" />
+                <path d="M16 10a4 4 0 0 1-8 0" />
+              </svg>
+              購物車 {cartCount} 件
+            </span>
             <span>NT$ {cartTotal.toLocaleString()} →</span>
           </button>
         </div>
