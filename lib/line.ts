@@ -412,7 +412,8 @@ export function buildMonthlyClassesFlex(
 
   return {
     type: 'flex',
-    altText: `本月課程 ${classes.length} 場`,
+    // altText 用實際顯示張數(carousel 只放前 10),超過時不虛報總數
+    altText: `本月課程 ${Math.min(classes.length, 10)} 場`,
     contents: {
       type: 'carousel',
       contents: bubbles,

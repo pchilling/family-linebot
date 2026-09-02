@@ -85,6 +85,9 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
         ? event.postback
         : null;
 
+  const postbackAction =
+    event.type === 'postback' ? new URLSearchParams(event.postback.data).get('action') : null;
+
   // Support mode 偵測:explicit button flow(2026-05-21 改造)
   // 學員按客服 → 出現 Quick Reply「我要詢問 / 取消」
   // - 按「我要詢問」 → action=start_support → 進 30 分鐘 support mode
@@ -92,13 +95,12 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
   // - 不再有 keyword 自動觸發(避免打字誤觸)
   let isSupport = false;
   if (event.type === 'postback' && userId) {
-    const action = new URLSearchParams(event.postback.data).get('action');
-    if (action === 'start_support') {
+    if (postbackAction === 'start_support') {
       await supabaseAdmin
         .from('users')
         .update({ last_support_at: new Date().toISOString() })
         .eq('id', userId);
-    } else if (action === 'cancel_support') {
+    } else if (postbackAction === 'cancel_support') {
       await supabaseAdmin
         .from('users')
         .update({ last_support_at: null })
@@ -116,16 +118,58 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
       const ageMs = Date.now() - new Date(lastAt).getTime();
       if (ageMs < 30 * 60 * 1000) {
         isSupport = true;
+        // 展延(2026-09-02):客服對話中每則訊息刷新 30 分鐘,避免聊到一半默默過期
+        await supabaseAdmin
+          .from('users')
+          .update({ last_support_at: new Date().toISOString() })
+          .eq('id', userId);
       }
     }
   }
 
-  const replyText = await buildReplyText(tenantId, event);
+  // 決定回覆內容。monthly-classes / news 資料只查一次,同時組 Flex + 文字 fallback
+  // (Phase C / 7.10 的 Flex Carousel;失敗或無資料 fallback 純文字)
+  let replyText = '';
+  let flexMessage: messagingApi.FlexMessage | null = null;
+  if (postbackAction === 'monthly-classes') {
+    try {
+      const classes = await getClassesForCurrentMonth(tenantId);
+      flexMessage = buildMonthlyClassesFlex(classes);
+      replyText = formatMonthlyClassesText(classes);
+    } catch (e) {
+      console.error('[webhook monthly-classes]', e);
+      replyText = describeEvent(event);
+    }
+  } else if (postbackAction === 'news') {
+    try {
+      const newsList = await getRecentNews(tenantId, 5);
+      flexMessage = buildNewsFlex(newsList);
+      replyText = formatNewsText(newsList);
+    } catch (e) {
+      console.error('[webhook news]', e);
+      replyText = describeEvent(event);
+    }
+  } else {
+    replyText = describeEvent(event);
+  }
+
+  // 自動引導(2026-09-02):非關鍵字純文字留言、又不在客服模式 → 回引導 + 客服按鈕
+  // (原本這種留言 bot 完全沉默,用戶以為有人會看到,實際沒人被通知)
+  let isGuideReply = false;
+  if (event.type === 'message' && event.message.type === 'text' && !isSupport && !replyText) {
+    isGuideReply = true;
+    replyText = [
+      '收到您的訊息 🙂',
+      '',
+      '如需真人協助,請先按下方「📝 我要詢問」,',
+      '再傳送您的問題,客服上線就會回覆您。',
+    ].join('\n');
+  }
+
   const canReply = replyText && 'replyToken' in event && event.replyToken;
-  // 客服 postback 帶 Quick Reply chips(我要詢問 / 取消),其他都純文字
+  // 客服 postback 和自動引導帶 Quick Reply chips(我要詢問 / 取消),其他都純文字
   const quickReply: messagingApi.QuickReply | undefined =
-    event.type === 'postback' &&
-    new URLSearchParams(event.postback.data).get('action') === 'contact'
+    postbackAction === 'contact' || isGuideReply
       ? { items: getContactQuickReplyItems() }
       : undefined;
 
@@ -145,30 +189,6 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
 
   if (canReply) {
     const replyToken = event.replyToken;
-
-    // Phase C(2026-05-25):本月課程 postback → Flex Carousel(有圖片更生動)
-    // Phase 7.10(2026-05-25):最新消息 postback → Flex Carousel(避開數字 auto-link 變藍)
-    // 失敗或無資料 fallback 純文字
-    let flexMessage: messagingApi.FlexMessage | null = null;
-    if (event.type === 'postback') {
-      const action = new URLSearchParams(event.postback.data).get('action');
-      if (action === 'monthly-classes') {
-        try {
-          const { getClassesForCurrentMonth } = await import('@/lib/supabase');
-          const classes = await getClassesForCurrentMonth(tenantId);
-          flexMessage = buildMonthlyClassesFlex(classes);
-        } catch (e) {
-          console.warn('[webhook flex monthly-classes]', e);
-        }
-      } else if (action === 'news') {
-        try {
-          const newsList = await getRecentNews(tenantId, 5);
-          flexMessage = buildNewsFlex(newsList);
-        } catch (e) {
-          console.warn('[webhook flex news]', e);
-        }
-      }
-    }
 
     const replyMessage: messagingApi.Message = flexMessage ?? {
       type: 'text',
@@ -199,43 +219,12 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
 
   // Realtime broadcast:只在 support 模式內的 inbound text 才推 admin
   // (避免所有訊息都跳 badge,只看客服問題)
+  // 進 tasks 一起 await(2026-09-02):serverless response 結束後 fire-and-forget 可能被凍結
   if (event.type === 'message' && isSupport) {
-    void broadcastNewMessage(tenantId, userId, event.message.type);
+    tasks.push(broadcastNewMessage(tenantId, userId, event.message.type));
   }
 
   await Promise.allSettled(tasks);
-}
-
-/**
- * 決定回覆文字:postback 特定 action 從 DB 拉真資料,其餘 fallback 到 describeEvent 的 placeholder。
- */
-async function buildReplyText(tenantId: string, event: WebhookEvent): Promise<string> {
-  if (event.type !== 'postback') return describeEvent(event);
-
-  const params = new URLSearchParams(event.postback.data);
-  const action = params.get('action');
-
-  if (action === 'monthly-classes') {
-    try {
-      const classes = await getClassesForCurrentMonth(tenantId);
-      return formatMonthlyClassesText(classes);
-    } catch (e) {
-      console.error('[buildReplyText monthly-classes]', e);
-      return describeEvent(event);
-    }
-  }
-
-  if (action === 'news') {
-    try {
-      const newsList = await getRecentNews(tenantId, 3);
-      return formatNewsText(newsList);
-    } catch (e) {
-      console.error('[buildReplyText news]', e);
-      return describeEvent(event);
-    }
-  }
-
-  return describeEvent(event);
 }
 
 // ====================
