@@ -100,6 +100,8 @@ export default function MemberPage() {
           __html: `
 input:focus, textarea:focus { outline: none; border-color: ${c.borderFocus} !important; }
 .input::placeholder { color: ${c.textDisabled}; }
+/* iOS WebView 的 date input 有固有寬度不會縮,會撐出卡片外;壓掉原生外觀讓它跟其他欄位同寬同高 */
+input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; display: block; min-height: 46px; text-align: left; }
 @keyframes fadein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
           `,
         }}
