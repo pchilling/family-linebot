@@ -1029,3 +1029,35 @@ alter table products add column if not exists sale_end_at timestamptz;
 -- OG route 用 objectPosition: '{x}% center' 套到 <img>
 alter table products add column if not exists share_focus_x int default 50
   check (share_focus_x between 0 and 100);
+
+
+-- ====================
+-- Phase 14:批次 B 修正(2026-09-02)
+-- 1. handle_order_cancel 帶 variant_id
+--    原本取消/退款退庫存的 stock_movements 沒帶 variant_id,
+--    → update_product_stock 走 legacy 分支退到 products.stock(沒人在看的舊欄位),
+--    → 規格庫存(product_variants.stock)不會補回。
+--    Phase 11 Stage C 只修了 order_item 的兩個 function,漏了這個。
+-- 2. orders.payment_last5:對帳後五碼欄位(markOrderPaid 一直想存但欄位不存在,
+--    防呆 fallback 默默丟掉;批次 D 的「客人自助回報後五碼」也要用)
+-- ====================
+
+create or replace function handle_order_cancel()
+returns trigger as $$
+begin
+  if new.status in ('cancelled', 'refunded')
+     and old.status not in ('cancelled', 'refunded') then
+    insert into stock_movements (tenant_id, product_id, variant_id, qty_delta, reason, reference_id, note)
+      select tenant_id, product_id, variant_id, qty, 'order_cancel', order_id, 'order ' || new.status
+        from order_items where order_id = new.id;
+  elsif old.status in ('cancelled', 'refunded')
+        and new.status not in ('cancelled', 'refunded') then
+    insert into stock_movements (tenant_id, product_id, variant_id, qty_delta, reason, reference_id, note)
+      select tenant_id, product_id, variant_id, -qty, 'order', order_id, 'order reactivated from ' || old.status
+        from order_items where order_id = new.id;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+alter table orders add column if not exists payment_last5 text;

@@ -31,6 +31,42 @@ async function getVariants(tenantId: string): Promise<VariantStock[]> {
   return (data ?? []) as unknown as VariantStock[];
 }
 
+// 篩選 + 排序(2026-09-02):資料量小,全撈後在記憶體處理
+type InvFilters = { q?: string; cat?: string; sort?: string };
+
+function applyFilters(variants: VariantStock[], f: InvFilters): VariantStock[] {
+  let rows = variants;
+  if (f.q) {
+    const needle = f.q.toLowerCase();
+    rows = rows.filter(
+      (v) =>
+        (v.products?.name ?? '').toLowerCase().includes(needle) ||
+        v.sku.toLowerCase().includes(needle) ||
+        v.variant_name.toLowerCase().includes(needle),
+    );
+  }
+  if (f.cat) {
+    rows = rows.filter((v) => (v.products?.category ?? '(未分類)') === f.cat);
+  }
+  const sorted = [...rows];
+  switch (f.sort) {
+    case 'stock_desc':
+      sorted.sort((a, b) => b.stock - a.stock);
+      break;
+    case 'name':
+      sorted.sort((a, b) => (a.products?.name ?? '').localeCompare(b.products?.name ?? '', 'zh-TW'));
+      break;
+    case 'category':
+      sorted.sort((a, b) =>
+        ((a.products?.category ?? '') || '~').localeCompare((b.products?.category ?? '') || '~', 'zh-TW'),
+      );
+      break;
+    default: // stock_asc(預設,缺貨排前面)
+      sorted.sort((a, b) => a.stock - b.stock);
+  }
+  return sorted;
+}
+
 async function getRecentMovements(tenantId: string): Promise<RecentMovement[]> {
   const { data } = await supabaseAdmin
     .from('stock_movements')
@@ -43,8 +79,9 @@ async function getRecentMovements(tenantId: string): Promise<RecentMovement[]> {
 
 function reasonLabel(r: string): string {
   return ({
-    order: '出貨(訂單)',
-    order_cancel: '退回(取消)',
+    // 2026-09-02 改字:扣庫存發生在「下單」當下,原本寫「出貨(訂單)」會誤導成出貨才扣
+    order: '下單扣庫存',
+    order_cancel: '取消退回',
     restock: '進貨',
     damage: '損耗',
     manual_adjust: '手動調整',
@@ -72,8 +109,15 @@ const h2: React.CSSProperties = { fontSize: 16, marginBottom: 12 };
 const th: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontWeight: 600, fontSize: 13, color: '#444' };
 const td: React.CSSProperties = { padding: '12px 8px', verticalAlign: 'middle', fontSize: 14 };
 
-export default async function InventoryPage({ params }: { params: Promise<{ tenant: string }> }) {
+export default async function InventoryPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenant: string }>;
+  searchParams: Promise<{ q?: string; cat?: string; sort?: string }>;
+}) {
   const { tenant: slug } = await params;
+  const filters = await searchParams;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
 
@@ -105,15 +149,19 @@ export default async function InventoryPage({ params }: { params: Promise<{ tena
     );
   }
 
-  const [variants, movements] = await Promise.all([
+  const [allVariants, movements] = await Promise.all([
     getVariants(tenant.id),
     getRecentMovements(tenant.id),
   ]);
 
-  // 低庫存:variant active + product active + stock <= 3
-  const lowStock = variants.filter(
+  // 低庫存看全部(不受篩選影響);表格套用篩選 + 排序
+  const lowStock = allVariants.filter(
     (v) => v.stock <= 3 && v.status === 'active' && v.products?.status === 'active',
   );
+  const categories = Array.from(
+    new Set(allVariants.map((v) => v.products?.category ?? '(未分類)')),
+  ).sort((a, b) => a.localeCompare(b, 'zh-TW'));
+  const variants = applyFilters(allVariants, filters);
 
   return (
     <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
@@ -140,9 +188,57 @@ export default async function InventoryPage({ params }: { params: Promise<{ tena
         </section>
       )}
 
+      {/* 篩選 + 排序 + 匯出(2026-09-02) */}
+      <form
+        method="GET"
+        style={{
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          marginBottom: 16,
+          padding: 12,
+          background: '#fafafa',
+          border: '1px solid #eee',
+          borderRadius: 6,
+        }}
+      >
+        <input
+          type="search"
+          name="q"
+          defaultValue={filters.q ?? ''}
+          placeholder="搜商品名 / 規格 / SKU"
+          style={{ flex: '1 1 180px', padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}
+        />
+        <select name="cat" defaultValue={filters.cat ?? ''} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}>
+          <option value="">全部分類</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
+        <select name="sort" defaultValue={filters.sort ?? 'stock_asc'} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}>
+          <option value="stock_asc">庫存少 → 多</option>
+          <option value="stock_desc">庫存多 → 少</option>
+          <option value="name">商品名</option>
+          <option value="category">分類</option>
+        </select>
+        <button
+          type="submit"
+          style={{ padding: '8px 16px', background: '#18181b', color: '#fff', border: 0, borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          套用
+        </button>
+        <a
+          href={`/admin/${slug}/inventory/export`}
+          style={{ marginLeft: 'auto', padding: '8px 16px', background: '#fff', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 4, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+        >
+          ⬇ 匯出 Excel(CSV)
+        </a>
+      </form>
+
       <section style={section}>
-        <h2 style={h2}>商品規格庫存 ({variants.length})</h2>
-        {variants.length === 0 && <p style={{ color: '#666' }}>(尚無 variant)</p>}
+        <h2 style={h2}>商品規格庫存 ({variants.length}{variants.length !== allVariants.length ? ` / ${allVariants.length}` : ''})</h2>
+        {variants.length === 0 && <p style={{ color: '#666' }}>(沒有符合的規格)</p>}
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
