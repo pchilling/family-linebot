@@ -232,7 +232,8 @@ export function buildMonthlyClassesFlex(
   const liffEventsId = process.env.NEXT_PUBLIC_LIFF_ID_EVENTS ?? process.env.NEXT_PUBLIC_LIFF_ID;
   if (!liffEventsId) return null;
   const eventsUrl = `https://liff.line.me/${liffEventsId}`;
-  const fallbackImage = `${process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw'}/icon.svg`;
+  // LINE Flex 圖片只吃 JPEG/PNG(SVG 不支援),/icon.png 由 app/icon.png 提供
+  const fallbackImage = `${process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw'}/icon.png`;
 
   const bubbles: messagingApi.FlexBubble[] = classes.slice(0, 10).map((c) => {
     const dt = new Date(c.scheduled_at);

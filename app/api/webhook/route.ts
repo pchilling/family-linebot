@@ -311,7 +311,7 @@ function formatNewsText(items: NewsRow[]): string {
       '',
       '目前無公告。',
       '',
-      '有問題請輸入「真人」或點專屬客服。',
+      '有問題請點主選單「💬 專屬客服」。',
     ].join('\n');
   }
 
