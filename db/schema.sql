@@ -1101,3 +1101,11 @@ update tenants set shipping_rules = '{
   ]
 }'::jsonb
 where slug = 'oilswa' and shipping_rules is null;
+
+
+-- ====================
+-- Phase 15.1(2026-09-05):公開商城頂部標頭列底色
+-- 商城底色(shop_bg_color)上線後,頂部白色 header 列顯得突兀,一併開放自訂
+-- null = 維持白色
+-- ====================
+alter table tenants add column if not exists header_bg_color text;

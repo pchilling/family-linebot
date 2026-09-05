@@ -13,6 +13,7 @@ type TenantFull = {
   description: string | null;
   brand_color: string | null;
   shop_bg_color: string | null;
+  header_bg_color: string | null;
   og_image_url: string | null;
   logo_url: string | null;
   banners: BannerItem[] | null;
@@ -29,7 +30,7 @@ async function getTenantFull(slug: string): Promise<TenantFull | null> {
   const { data } = await supabaseAdmin
     .from('tenants')
     .select(
-      'id, name, description, brand_color, shop_bg_color, og_image_url, logo_url, banners, contact_info, payment_info, plan, slug, order_prefix, features, status',
+      'id, name, description, brand_color, shop_bg_color, header_bg_color, og_image_url, logo_url, banners, contact_info, payment_info, plan, slug, order_prefix, features, status',
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -62,40 +63,9 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
     <main style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, marginBottom: 20 }}>{tenant.name} · 攤位設定</h1>
 
+      {/* 2026-09-05 版面重整:文字/顏色設定最上,圖片素材集中一區,系統資訊最後 */}
       <section style={section}>
-        <h2 style={h2}>Logo</h2>
-        <LogoUploader tenantSlug={tenant.slug} currentLogoUrl={tenant.logo_url} />
-      </section>
-
-      <section style={section}>
-        <h2 style={h2}>公開頁 Banner(多圖 / 影片 / YouTube 輪播)</h2>
-        <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
-          建議尺寸 <strong>1200 × 630</strong>(寬:高 ≈ 1.9:1)。影片同比例。
-          <br />
-          首格 = 公開頁 hero 開頭。↑↓ 排序、上傳圖 / 影片、貼 YouTube URL。
-        </p>
-        <BannerManager
-          tenantSlug={tenant.slug}
-          banners={tenant.banners ?? []}
-          legacyOgImageUrl={tenant.og_image_url}
-        />
-      </section>
-
-      <section style={section}>
-        <h2 style={h2}>連結分享預覽圖</h2>
-        <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
-          把你的攤位網址貼到 WhatsApp / LINE / FB / IG 訊息時,對方看到的那張小縮圖。
-          <br />
-          建議尺寸 <strong>1200 × 630</strong>(寬:高 ≈ 1.9:1)。社交平台只接 1 張圖(不能影片或輪播)。
-        </p>
-        <BannerUploader
-          tenantSlug={tenant.slug}
-          currentBannerUrl={tenant.og_image_url}
-        />
-      </section>
-
-      <section style={section}>
-        <h2 style={h2}>品牌資訊</h2>
+        <h2 style={h2}>品牌設定</h2>
         <SettingsForm
           tenantSlug={tenant.slug}
           defaults={{
@@ -103,10 +73,44 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
             description: tenant.description ?? '',
             brand_color: tenant.brand_color ?? '',
             shop_bg_color: tenant.shop_bg_color ?? '',
-            og_image_url: tenant.og_image_url ?? '',
+            header_bg_color: tenant.header_bg_color ?? '',
             contact_info: tenant.contact_info ?? '',
             payment_info: tenant.payment_info ?? '',
           }}
+        />
+      </section>
+
+      <section style={section}>
+        <h2 style={h2}>🖼 圖片素材</h2>
+
+        <h3 style={{ fontSize: 13, margin: '0 0 10px', color: '#444' }}>Logo</h3>
+        <LogoUploader tenantSlug={tenant.slug} currentLogoUrl={tenant.logo_url} />
+
+        <hr style={{ border: 0, borderTop: '1px solid #eee', margin: '20px 0' }} />
+
+        <h3 style={{ fontSize: 13, margin: '0 0 6px', color: '#444' }}>
+          公開頁 Banner(多圖 / 影片 / YouTube 輪播)
+        </h3>
+        <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
+          建議尺寸 <strong>1200 × 630</strong>(寬:高 ≈ 1.9:1)。影片同比例。
+          首格 = 公開頁 hero 開頭。↑↓ 排序、上傳圖 / 影片、貼 YouTube URL。
+        </p>
+        <BannerManager
+          tenantSlug={tenant.slug}
+          banners={tenant.banners ?? []}
+          legacyOgImageUrl={tenant.og_image_url}
+        />
+
+        <hr style={{ border: 0, borderTop: '1px solid #eee', margin: '20px 0' }} />
+
+        <h3 style={{ fontSize: 13, margin: '0 0 6px', color: '#444' }}>連結分享預覽圖</h3>
+        <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
+          把攤位網址貼到 WhatsApp / LINE / FB / IG 訊息時,對方看到的那張小縮圖。
+          建議 <strong>1200 × 630</strong>。社交平台只接 1 張圖(不能影片或輪播)。
+        </p>
+        <BannerUploader
+          tenantSlug={tenant.slug}
+          currentBannerUrl={tenant.og_image_url}
         />
       </section>
 

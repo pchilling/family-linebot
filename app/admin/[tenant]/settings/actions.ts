@@ -27,7 +27,9 @@ export async function updateTenantSettings(
   const description = String(formData.get('description') ?? '').trim();
   const brandColor = String(formData.get('brand_color') ?? '').trim();
   const shopBgColor = String(formData.get('shop_bg_color') ?? '').trim(); // C#7 商城底色
-  const ogImageUrl = String(formData.get('og_image_url') ?? '').trim();
+  const headerBgColor = String(formData.get('header_bg_color') ?? '').trim(); // Phase 15.1 頂部列底色
+  // og_image_url 不再由這個表單管理(2026-09-05):改由「連結分享預覽圖」上傳區獨佔,
+  // 避免兩處互蓋。這裡不碰該欄位。
   // contact_info 是 free text(多行),頭尾空白 trim,內部換行保留
   const contactInfo = String(formData.get('contact_info') ?? '').replace(/^\s+|\s+$/g, '');
   const paymentInfo = String(formData.get('payment_info') ?? '').replace(/^\s+|\s+$/g, '');
@@ -41,8 +43,8 @@ export async function updateTenantSettings(
   if (shopBgColor && !/^#[0-9a-fA-F]{6}$/.test(shopBgColor)) {
     return { status: 'error', error: '商城底色需為 #RRGGBB 格式' };
   }
-  if (ogImageUrl && !/^https?:\/\//.test(ogImageUrl)) {
-    return { status: 'error', error: '分享圖網址需以 http:// 或 https:// 開頭' };
+  if (headerBgColor && !/^#[0-9a-fA-F]{6}$/.test(headerBgColor)) {
+    return { status: 'error', error: '頂部列底色需為 #RRGGBB 格式' };
   }
 
   const tenant = await getTenantBySlug(slug);
@@ -55,7 +57,7 @@ export async function updateTenantSettings(
       description: description || null,
       brand_color: brandColor || null,
       shop_bg_color: shopBgColor || null,
-      og_image_url: ogImageUrl || null,
+      header_bg_color: headerBgColor || null,
       contact_info: contactInfo || null,
       payment_info: paymentInfo || null,
     })

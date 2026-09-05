@@ -41,7 +41,8 @@ export default async function TenantLayout({ children, params }: Props) {
         style={{
           padding: '1rem 1.5rem',
           borderBottom: '1px solid #e5e7eb',
-          background: '#ffffff',
+          // Phase 15.1(2026-09-05):頂部列底色可自訂,沒設維持白色
+          background: tenant.header_bg_color ?? '#ffffff',
           position: 'sticky',
           top: 0,
           zIndex: 10,

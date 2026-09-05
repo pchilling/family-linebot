@@ -3,6 +3,12 @@
 import { useActionState } from 'react';
 import { updateTenantSettings, type SettingsState } from './actions';
 
+/**
+ * 攤位設定主表單。
+ * 2026-09-05 重整版面:欄位分三組(基本資料 / 商城外觀 / 聯絡與金流),
+ * 三個顏色選擇器併一排;分享圖(og_image_url)改由頁面上的「連結分享預覽圖」
+ * 上傳區獨佔管理,不再放表單欄位(原本兩處管同一值,容易互蓋)。
+ */
 type Props = {
   tenantSlug: string;
   defaults: {
@@ -10,7 +16,7 @@ type Props = {
     description: string;
     brand_color: string;
     shop_bg_color: string;
-    og_image_url: string;
+    header_bg_color: string;
     contact_info: string;
     payment_info: string;
   };
@@ -40,6 +46,52 @@ const btn: React.CSSProperties = {
   fontWeight: 500,
   cursor: 'pointer',
 };
+const groupTitle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#71717a',
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  paddingBottom: 6,
+  borderBottom: '1px solid #eee',
+  marginTop: 8,
+};
+
+function ColorField({
+  name,
+  title,
+  current,
+  fallback,
+  fallbackLabel,
+}: {
+  name: string;
+  title: string;
+  current: string;
+  fallback: string;
+  fallbackLabel: string;
+}) {
+  return (
+    <label style={{ ...label, flex: '1 1 140px' }}>
+      <span style={labelText}>{title}</span>
+      <input
+        type="color"
+        name={name}
+        defaultValue={current || fallback}
+        style={{
+          width: '100%',
+          height: 38,
+          padding: 2,
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          cursor: 'pointer',
+        }}
+      />
+      <span style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>
+        {current || fallbackLabel}
+      </span>
+    </label>
+  );
+}
 
 export function SettingsForm({ tenantSlug, defaults }: Props) {
   const [state, formAction, pending] = useActionState(updateTenantSettings, initial);
@@ -47,6 +99,9 @@ export function SettingsForm({ tenantSlug, defaults }: Props) {
   return (
     <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <input type="hidden" name="tenant_slug" value={tenantSlug} />
+
+      {/* ── 基本資料 ── */}
+      <div style={{ ...groupTitle, marginTop: 0 }}>🏪 基本資料</div>
 
       <label style={label}>
         <span style={labelText}>店名</span>
@@ -70,64 +125,38 @@ export function SettingsForm({ tenantSlug, defaults }: Props) {
         <span style={hint}>留空則公開頁不顯示</span>
       </label>
 
-      <label style={label}>
-        <span style={labelText}>主題色</span>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <input
-            type="color"
-            name="brand_color"
-            defaultValue={defaults.brand_color || '#1f2937'}
-            style={{
-              width: 60,
-              height: 38,
-              padding: 2,
-              border: '1px solid #ccc',
-              borderRadius: 4,
-              cursor: 'pointer',
-            }}
-          />
-          <span style={{ fontSize: 13, color: '#666', fontFamily: 'monospace' }}>
-            目前:{defaults.brand_color || '(未設,預設 #1f2937)'}
-          </span>
-        </div>
-        <span style={hint}>店名顯示色 / 公開網站主色調</span>
-      </label>
+      {/* ── 商城外觀 ── */}
+      <div style={groupTitle}>🎨 商城外觀</div>
 
-      {/* C#7(2026-09-02):商城底色 */}
-      <label style={label}>
-        <span style={labelText}>商城底色</span>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <input
-            type="color"
-            name="shop_bg_color"
-            defaultValue={defaults.shop_bg_color || '#fafafa'}
-            style={{
-              width: 60,
-              height: 38,
-              padding: 2,
-              border: '1px solid #ccc',
-              borderRadius: 4,
-              cursor: 'pointer',
-            }}
-          />
-          <span style={{ fontSize: 13, color: '#666', fontFamily: 'monospace' }}>
-            目前:{defaults.shop_bg_color || '(未設,預設淺灰 #fafafa)'}
-          </span>
-        </div>
-        <span style={hint}>LINE 商品專區 + 公開商城的頁面背景色,建議淺色(深色會看不清文字)</span>
-      </label>
-
-      <label style={label}>
-        <span style={labelText}>分享圖網址(og:image)</span>
-        <input
-          name="og_image_url"
-          defaultValue={defaults.og_image_url}
-          type="url"
-          style={input}
-          placeholder="https://..."
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <ColorField
+          name="brand_color"
+          title="主題色"
+          current={defaults.brand_color}
+          fallback="#1f2937"
+          fallbackLabel="未設(#1f2937)"
         />
-        <span style={hint}>用於 LINE / IG / Threads 分享時的預覽圖。建議 1200×630</span>
-      </label>
+        <ColorField
+          name="shop_bg_color"
+          title="商城底色"
+          current={defaults.shop_bg_color}
+          fallback="#fafafa"
+          fallbackLabel="未設(淺灰)"
+        />
+        <ColorField
+          name="header_bg_color"
+          title="頂部列底色"
+          current={defaults.header_bg_color}
+          fallback="#ffffff"
+          fallbackLabel="未設(白色)"
+        />
+      </div>
+      <span style={{ ...hint, marginTop: -6 }}>
+        主題色 = 店名文字色;底色建議淺色(深色會看不清文字);頂部列是公開商城最上面放 logo / 購物車的那條
+      </span>
+
+      {/* ── 聯絡與金流 ── */}
+      <div style={groupTitle}>💬 聯絡與金流</div>
 
       <label style={label}>
         <span style={labelText}>對外聯絡資訊</span>

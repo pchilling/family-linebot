@@ -345,6 +345,7 @@ export type TenantPublic = {
   description: string | null;
   brand_color: string | null;
   shop_bg_color: string | null; // C#7(2026-09-02):商城底色
+  header_bg_color: string | null; // Phase 15.1(2026-09-05):公開商城頂部列底色
   category_order: string[]; // C#8:分類顯示順序
   og_image_url: string | null;
   logo_url: string | null;
@@ -358,7 +359,7 @@ export type TenantPublic = {
 export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, description, brand_color, shop_bg_color, category_order, og_image_url, logo_url, banners, status')
+    .select('id, slug, name, plan, description, brand_color, shop_bg_color, header_bg_color, category_order, og_image_url, logo_url, banners, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
