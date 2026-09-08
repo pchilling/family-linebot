@@ -77,6 +77,7 @@ export default async function TenantDashboardPage({ params }: Props) {
     classesTodayResp,
     pendingPaymentResp,
     pendingShipResp,
+    reportedResp,
     lowStockResp,
     upcomingResvResp,
     revenue30dResp,
@@ -91,19 +92,21 @@ export default async function TenantDashboardPage({ params }: Props) {
       .gte('created_at', dayStart)
       .lt('created_at', dayEnd),
     // 今日下單總額(不管付款狀態 — 反映「真實銷售」直覺)
-    // 排除 cancelled / refunded(這些 trigger 自動退庫存,不算)
+    // 排除 cancelled / refunded;2026-09-08:含運費(對帳實收金額)
     supabaseAdmin
       .from('orders')
-      .select('total_twd, status')
+      .select('total_twd, shipping_fee_twd, status')
       .eq('tenant_id', tenant.id)
       .gte('created_at', dayStart)
       .lt('created_at', dayEnd)
       .not('status', 'in', '(cancelled,refunded)'),
+    // 2026-09-08:今日簽到只算收費課(免費課到場不需管理)
     hasActivities
       ? supabaseAdmin
           .from('attendances')
-          .select('id', { count: 'exact', head: true })
+          .select('id, classes!inner(is_paid)', { count: 'exact', head: true })
           .eq('tenant_id', tenant.id)
+          .eq('classes.is_paid', true)
           .gte('checked_in_at', dayStart)
           .lt('checked_in_at', dayEnd)
       : Promise.resolve({ count: null }),
@@ -130,6 +133,14 @@ export default async function TenantDashboardPage({ params }: Props) {
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenant.id)
       .eq('status', 'paid'),
+    // 2026-09-08:客人已回報後五碼、等核帳的筆數(最需要行動的數字)
+    supabaseAdmin
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenant.id)
+      .eq('payment_status', 'pending')
+      .not('payment_reported_at', 'is', null)
+      .not('status', 'in', '(cancelled,refunded)'),
     tenant.plan === 'free'
       ? Promise.resolve({ data: null, count: null })
       : supabaseAdmin
@@ -143,6 +154,8 @@ export default async function TenantDashboardPage({ params }: Props) {
           .from('classes')
           .select('id, name, scheduled_at, capacity, reservations!inner(status, position)')
           .eq('tenant_id', tenant.id)
+          // 2026-09-08:只列收費課(免費課無報名機制)
+          .eq('is_paid', true)
           .gte('scheduled_at', nowIso)
           .lt('scheduled_at', week7)
           .neq('status', 'cancelled')
@@ -150,10 +163,10 @@ export default async function TenantDashboardPage({ params }: Props) {
           .order('scheduled_at')
           .limit(20)
       : Promise.resolve({ data: null }),
-    // 報表 A:過去 30 天每日營收
+    // 報表 A:過去 30 天每日營收(2026-09-08:含運費)
     supabaseAdmin
       .from('orders')
-      .select('created_at, total_twd')
+      .select('created_at, total_twd, shipping_fee_twd')
       .eq('tenant_id', tenant.id)
       .gte('created_at', days30Ago)
       .not('status', 'in', '(cancelled,refunded)'),
@@ -171,20 +184,22 @@ export default async function TenantDashboardPage({ params }: Props) {
       .select('status, payment_status')
       .eq('tenant_id', tenant.id)
       .gte('created_at', days30Ago),
-    // 報表 D:活動趨勢(過去 30 天 attendances per day)
+    // 報表 D:活動趨勢(過去 30 天 attendances per day;2026-09-08 只算收費課)
     hasActivities
       ? supabaseAdmin
           .from('attendances')
-          .select('checked_in_at')
+          .select('checked_in_at, classes!inner(is_paid)')
           .eq('tenant_id', tenant.id)
+          .eq('classes.is_paid', true)
           .gte('checked_in_at', days30Ago)
       : Promise.resolve({ data: null }),
   ]);
 
   const ordersToday = ordersTodayResp.count ?? 0;
   const revenueToday = (
-    (revenueTodayResp.data as { total_twd: number }[] | null) ?? []
-  ).reduce((s, o) => s + (o.total_twd ?? 0), 0);
+    (revenueTodayResp.data as { total_twd: number; shipping_fee_twd: number | null }[] | null) ?? []
+  ).reduce((s, o) => s + (o.total_twd ?? 0) + (o.shipping_fee_twd ?? 0), 0);
+  const reportedCount = reportedResp.count ?? 0;
   const attendancesToday = attendancesTodayResp.count ?? 0;
   type TodayClass = { id: string; name: string; scheduled_at: string; capacity: number | null; status: string };
   const classesToday = ((classesTodayResp.data as unknown) as TodayClass[] | null) ?? [];
@@ -237,10 +252,10 @@ export default async function TenantDashboardPage({ params }: Props) {
     dayKeys.push(k);
     dayMap.set(k, 0);
   }
-  for (const o of (revenue30dResp.data as { created_at: string; total_twd: number | null }[] | null) ?? []) {
+  for (const o of (revenue30dResp.data as { created_at: string; total_twd: number | null; shipping_fee_twd: number | null }[] | null) ?? []) {
     const tw = new Date(new Date(o.created_at).getTime() + 8 * 60 * 60 * 1000);
     const k = `${tw.getUTCFullYear()}-${String(tw.getUTCMonth() + 1).padStart(2, '0')}-${String(tw.getUTCDate()).padStart(2, '0')}`;
-    if (dayMap.has(k)) dayMap.set(k, dayMap.get(k)! + (o.total_twd ?? 0));
+    if (dayMap.has(k)) dayMap.set(k, dayMap.get(k)! + (o.total_twd ?? 0) + (o.shipping_fee_twd ?? 0));
   }
   const revenueSeries = dayKeys.map((k) => ({ date: k, revenue: dayMap.get(k) ?? 0 }));
   const revenueMax = Math.max(1, ...revenueSeries.map((d) => d.revenue));
@@ -389,10 +404,10 @@ export default async function TenantDashboardPage({ params }: Props) {
         />
         {hasActivities ? (
           <MetricCard
-            label="今日簽到"
+            label="今日簽到(收費課)"
             value={attendancesToday}
             link={`/admin/${slug}/attendances`}
-            sub={`活動 ${classesToday.length} 場`}
+            sub={`收費活動 ${classesToday.length} 場`}
           />
         ) : (
           <MetricCard label="客戶" value="—" sub="客戶名單" link={`/admin/${slug}/customers`} muted />
@@ -401,8 +416,12 @@ export default async function TenantDashboardPage({ params }: Props) {
           label="待付款"
           value={pendingPayment}
           link={`/admin/${slug}/orders`}
-          sub={`待出貨 ${pendingShip}`}
-          warn={pendingPayment > 0 || pendingShip > 0}
+          sub={
+            reportedCount > 0
+              ? `已回報五碼待核 ${reportedCount} · 待出貨 ${pendingShip}`
+              : `待出貨 ${pendingShip}`
+          }
+          warn={pendingPayment > 0 || pendingShip > 0 || reportedCount > 0}
         />
         {tenant.plan === 'free' ? (
           <MetricCard label="庫存" value="—" sub="Pro 方案才有" muted />
@@ -429,9 +448,9 @@ export default async function TenantDashboardPage({ params }: Props) {
           }}
         >
           <ListSection
-            title="今日活動"
+            title="今日收費活動"
             count={classesToday.length}
-            empty="今日無活動"
+            empty="今日無收費活動"
             items={classesToday.map((c) => ({
               id: c.id,
               primary: c.name,
@@ -538,7 +557,7 @@ export default async function TenantDashboardPage({ params }: Props) {
       {hasActivities && (
         <section style={{ marginBottom: space['10'] }}>
           <div style={{ ...sectionLabel, marginBottom: space['3'] }}>
-            過去 30 天簽到({activityTotal30} 人次累積)
+            過去 30 天收費課簽到({activityTotal30} 人次累積)
           </div>
           <div
             style={{
