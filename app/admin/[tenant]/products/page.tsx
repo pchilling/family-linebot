@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin, type PriceTier } from '@/lib/supabase';
+import { getTenantBySlug, isSaleActive, supabaseAdmin, type PriceTier } from '@/lib/supabase';
 import {
   createPriceTier,
   createProduct,
@@ -173,7 +173,14 @@ export default async function ProductsPage({
   searchParams,
 }: {
   params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ saved?: string; cats?: string; q?: string; pg?: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    cats?: string;
+    q?: string;
+    pg?: string;
+    cat?: string | string[];
+    flag?: string | string[];
+  }>;
 }) {
   const { tenant: slug } = await params;
   const sp = await searchParams;
@@ -214,18 +221,33 @@ export default async function ProductsPage({
 
   // 搜尋 + 分頁(2026-09-08):52 個商品整頁重算是所有「儲存」都很慢的元凶,
   // 一頁只渲染 10 個,儲存後 redirect 回來的頁面小很多
+  // 2026-09-08 v2:加分類複選 chip + 特性篩選(有角標 / 特價中 / 缺貨)
   const q = (sp.q ?? '').trim();
+  const selCats = Array.isArray(sp.cat) ? sp.cat : sp.cat ? [sp.cat] : [];
+  const selFlags = Array.isArray(sp.flag) ? sp.flag : sp.flag ? [sp.flag] : [];
   const PER_PAGE = 10;
+  const nowForSale = new Date();
   let filtered = products;
   if (q) {
     const needle = q.toLowerCase();
-    filtered = products.filter(
+    filtered = filtered.filter(
       (p) =>
         p.name.toLowerCase().includes(needle) ||
         (p.sku ?? '').toLowerCase().includes(needle) ||
         (p.category ?? '').toLowerCase().includes(needle),
     );
   }
+  if (selCats.length > 0) {
+    filtered = filtered.filter((p) => p.category && selCats.includes(p.category));
+  }
+  if (selFlags.includes('badge')) filtered = filtered.filter((p) => !!p.badge);
+  if (selFlags.includes('sale')) filtered = filtered.filter((p) => isSaleActive(p, nowForSale));
+  if (selFlags.includes('out')) {
+    filtered = filtered.filter(
+      (p) => p.product_variants.length > 0 && p.product_variants.every((v) => (v.stock ?? 0) <= 0),
+    );
+  }
+  const hasFilter = !!q || selCats.length > 0 || selFlags.length > 0;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const page = Math.min(totalPages, Math.max(1, parseInt(sp.pg ?? '1', 10) || 1));
   let pageProducts = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -233,8 +255,14 @@ export default async function ProductsPage({
     const pinned = products.find((p) => p.id === pinnedId);
     if (pinned) pageProducts = [pinned, ...pageProducts];
   }
-  const pageHref = (n: number) =>
-    `/admin/${tenant.slug}/products?${new URLSearchParams({ ...(q ? { q } : {}), pg: String(n) }).toString()}`;
+  const pageHref = (n: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    for (const cat of selCats) params.append('cat', cat);
+    for (const fl of selFlags) params.append('flag', fl);
+    params.set('pg', String(n));
+    return `/admin/${tenant.slug}/products?${params.toString()}`;
+  };
 
   return (
     <main style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto', color: c.text }}>
@@ -247,6 +275,15 @@ details summary::-webkit-details-marker { display: none; }
 details[open] .chev { transform: rotate(90deg); }
 .chev { display: inline-block; transition: transform 150ms ease; }
 @keyframes fadein { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+/* 2026-09-08:篩選 chip(checkbox 藏起來,選中變黑底白字) */
+.fchip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.fchip span {
+  display: inline-block; padding: 7px 14px; border: 1px solid ${c.border}; border-radius: 999px;
+  font-size: 12px; color: ${c.textSec}; background: ${c.card}; cursor: pointer; user-select: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.fchip input:checked + span { background: ${c.accent}; color: #fff; border-color: ${c.accent}; font-weight: 600; }
+.fchip input:focus-visible + span { outline: 2px solid ${c.accent}; outline-offset: 2px; }
           `,
         }}
       />
@@ -355,33 +392,73 @@ details[open] .chev { transform: rotate(90deg); }
         </div>
       </details>
 
-      {/* 搜尋 + 分頁列(2026-09-08) */}
+      {/* 搜尋 + 篩選 + 分頁列(2026-09-08 v2:分類複選 chip + 特性篩選) */}
       {products.length > 0 && (
         <form
           method="GET"
           action={`/admin/${tenant.slug}/products`}
-          style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            marginBottom: 14,
+            padding: '12px 14px',
+            background: c.card,
+            border: `1px solid ${c.border}`,
+            borderRadius: 8,
+          }}
         >
-          <input
-            type="search"
-            name="q"
-            defaultValue={q}
-            placeholder="搜商品名 / SKU / 分類"
-            style={{ ...input, width: 'auto', flex: '1 1 200px', maxWidth: 320 }}
-          />
-          <button type="submit" style={{ padding: '8px 16px', background: c.accent, color: '#fff', border: 0, borderRadius: 5, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-            搜尋
-          </button>
-          {q && (
-            <a href={`/admin/${tenant.slug}/products`} style={{ padding: '8px 12px', fontSize: 13, color: c.textSec, textDecoration: 'none', border: `1px solid ${c.border}`, borderRadius: 5, background: c.card }}>
-              清除
-            </a>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="search"
+              name="q"
+              defaultValue={q}
+              placeholder="搜商品名 / SKU / 分類"
+              style={{ ...input, width: 'auto', flex: '1 1 200px', maxWidth: 320 }}
+            />
+            <button type="submit" style={{ padding: '8px 16px', background: c.accent, color: '#fff', border: 0, borderRadius: 5, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              套用篩選
+            </button>
+            {hasFilter && (
+              <a href={`/admin/${tenant.slug}/products`} style={{ padding: '8px 12px', fontSize: 13, color: c.textSec, textDecoration: 'none', border: `1px solid ${c.border}`, borderRadius: 5, background: c.card }}>
+                清除
+              </a>
+            )}
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: c.textMuted, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {hasFilter ? `${filtered.length} 個符合 · ` : ''}第 {page} / {totalPages} 頁
+              {page > 1 && <a href={pageHref(page - 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>‹ 上一頁</a>}
+              {page < totalPages && <a href={pageHref(page + 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>下一頁 ›</a>}
+            </span>
+          </div>
+
+          {orderedCats.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, marginRight: 2 }}>分類</span>
+              {orderedCats.map((cat) => (
+                <label key={cat} className="fchip">
+                  <input type="checkbox" name="cat" value={cat} defaultChecked={selCats.includes(cat)} />
+                  <span>{cat}</span>
+                </label>
+              ))}
+            </div>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: c.textMuted, display: 'flex', alignItems: 'center', gap: 8 }}>
-            {q ? `${filtered.length} 個符合 · ` : ''}第 {page} / {totalPages} 頁
-            {page > 1 && <a href={pageHref(page - 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>‹ 上一頁</a>}
-            {page < totalPages && <a href={pageHref(page + 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>下一頁 ›</a>}
-          </span>
+
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, marginRight: 2 }}>特性</span>
+            <label className="fchip">
+              <input type="checkbox" name="flag" value="badge" defaultChecked={selFlags.includes('badge')} />
+              <span>🏷 有角標</span>
+            </label>
+            <label className="fchip">
+              <input type="checkbox" name="flag" value="sale" defaultChecked={selFlags.includes('sale')} />
+              <span>🔥 特價中</span>
+            </label>
+            <label className="fchip">
+              <input type="checkbox" name="flag" value="out" defaultChecked={selFlags.includes('out')} />
+              <span>⛔ 缺貨</span>
+            </label>
+            <span style={{ fontSize: 11, color: c.textMuted, marginLeft: 4 }}>勾好按「套用篩選」</span>
+          </div>
         </form>
       )}
 
