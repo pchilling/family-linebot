@@ -502,7 +502,8 @@ async function pushOrderConfirmation(
         contents: [
           {
             type: 'button', style: 'primary', color: '#16a34a', height: 'sm',
-            action: { type: 'uri', label: '✏️ 我已匯款・填後 5 碼', uri: orderUrl },
+            // #report 錨點:開頁直接落在後五碼表單(2026-09-08)
+            action: { type: 'uri', label: '✏️ 我已匯款・填後 5 碼', uri: `${orderUrl}#report` },
           },
           {
             type: 'button', style: 'secondary', height: 'sm',
