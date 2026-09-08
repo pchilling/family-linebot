@@ -1116,3 +1116,20 @@ alter table tenants add column if not exists header_bg_color text;
 -- 角標(badge)原本固定紅/棕色,開放每個商品自選(#RRGGBB;null = 預設)
 -- ====================
 alter table products add column if not exists badge_color text;
+
+
+-- ====================
+-- Phase 15.3(2026-09-08):oilswa 自取選項文字修正
+-- 原 label「門市自取/偏遠離島」配 fee 0 會顯示「偏遠離島 免運費」,誤導 —
+-- 偏遠離島實際是自行聯絡貨運。label 改純「門市自取」,偏遠離島說明移到 note。
+-- (已由 Claude 直接 update 線上資料,此處留存執行過的等效 SQL)
+-- ====================
+update tenants set shipping_rules = '{
+  "options": [
+    { "key": "normal", "label": "宅配・一般地區", "fee": 100, "free_over": 2000 },
+    { "key": "east",   "label": "宅配・宜花東",   "fee": 300, "free_over": 6000 },
+    { "key": "pickup", "label": "門市自取", "fee": 0,
+      "note": "偏遠及離島地區也請選此項——運費請自行聯絡貨運配送,並於備註留言或來電告知" }
+  ]
+}'::jsonb
+where slug = 'oilswa';
