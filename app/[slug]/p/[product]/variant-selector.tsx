@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { IconClock, IconFlame, IconZap } from '@/lib/icons';
 import { useCart } from '../../cart-state';
 
 // 本地 type 避免 client component 從 server-only module(supabaseAdmin)拉 runtime
@@ -277,9 +278,9 @@ export function VariantSelector({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626' }}>
-                      {/* 2026-09-03:改台灣「折」講法 */}
-                      🔥 限時{(() => { const k = 100 - sale!.discountPct; return `${k % 10 === 0 ? k / 10 : k}折`; })()}(全規格)
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {/* 2026-09-03:改台灣「折」講法;2026-09-08 emoji → icon */}
+                      <IconFlame size={14} /> 限時{(() => { const k = 100 - sale!.discountPct; return `${k % 10 === 0 ? k / 10 : k}折`; })()}(全規格)
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -296,8 +297,8 @@ export function VariantSelector({
                       NT$ {saleUnitPrice.toLocaleString()}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: '#991b1b' }}>
-                    ⏰ 剩餘 <strong>{saleCountdown}</strong>
+                  <div style={{ fontSize: 12, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <IconClock size={12} /> 剩餘 <strong>{saleCountdown}</strong>
                   </div>
                 </div>
               )}
@@ -316,7 +317,7 @@ export function VariantSelector({
                       gap: 6,
                     }}
                   >
-                    ⚡ 一次買多更便宜
+                    <IconZap size={13} /> 一次買多更便宜
                     {(() => {
                       // 找下一個還沒達到的 tier,提示「再買 N 件省更多」
                       const next = tiers.find((t) => qty < t.min_qty);

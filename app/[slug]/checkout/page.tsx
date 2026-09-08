@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
+import { IconReceipt } from '@/lib/icons';
 import { createOrder, getShippingOptions, type ShippingOption } from './actions';
 
 type Props = {
@@ -164,7 +165,7 @@ export default function CheckoutPage({ params }: Props) {
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#374151' }}>
               <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
               <span style={{ color: shipOption && shipFee === 0 ? '#15803d' : undefined }}>
-                {shipOption ? (shipFee === 0 ? '免運 🎉' : `NT$ ${shipFee.toLocaleString()}`) : '請選配送方式'}
+                {shipOption ? (shipFee === 0 ? '免運' : `NT$ ${shipFee.toLocaleString()}`) : '請選配送方式'}
               </span>
             </div>
           )}
@@ -213,7 +214,7 @@ export default function CheckoutPage({ params }: Props) {
                       <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontWeight: 600, color: '#1f2937' }}>
                         <span>{opt.label}</span>
                         <span style={{ color: isFree || opt.fee === 0 ? '#15803d' : '#1f2937' }}>
-                          {opt.fee === 0 ? '免運費' : isFree ? '免運 🎉' : `NT$ ${opt.fee}`}
+                          {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${opt.fee}`}
                         </span>
                       </span>
                       {opt.free_over ? (
@@ -225,7 +226,7 @@ export default function CheckoutPage({ params }: Props) {
                       ) : null}
                       {opt.note && (
                         <span style={{ display: 'block', fontSize: '0.75rem', color: '#b45309', marginTop: 3, lineHeight: 1.5 }}>
-                          ⚠️ {opt.note}
+                          ※ {opt.note}
                         </span>
                       )}
                     </span>
@@ -274,7 +275,7 @@ export default function CheckoutPage({ params }: Props) {
         {/* Phase 15.4(2026-09-08):統編發票(選填,展開才填) */}
         <details style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem 1rem' }}>
           <summary style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
-            🧾 需要統編發票?(選填)
+            <IconReceipt size={14} style={{ marginRight: 6 }} />需要統編發票?(選填)
           </summary>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
             <div>

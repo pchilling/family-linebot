@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { IconClock, IconFlame } from '@/lib/icons';
 import type { ShopProduct } from './actions';
 
 // 2026-09-03:限時優惠接進 LIFF —— 判斷是否生效 + % off 轉台灣「折」講法
@@ -263,11 +264,11 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
             gap: 4,
           }}
         >
-          <span style={{ fontSize: 14, fontWeight: 800, color: '#dc2626' }}>
-            🔥 限時{pctToZhe(product.sale_discount_pct!)}
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#dc2626', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <IconFlame size={14} /> 限時{pctToZhe(product.sale_discount_pct!)}
           </span>
-          <span style={{ fontSize: 12, color: '#991b1b' }}>
-            ⏰ 剩餘 {formatCountdown(new Date(product.sale_end_at!).getTime() - nowMs)}
+          <span style={{ fontSize: 12, color: '#991b1b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <IconClock size={12} /> 剩餘 {formatCountdown(new Date(product.sale_end_at!).getTime() - nowMs)}
           </span>
         </div>
       )}

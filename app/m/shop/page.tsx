@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
+import { IconBank, IconCheck, IconFlame, IconPencil, IconReceipt } from '@/lib/icons';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   loadShopData,
@@ -369,8 +370,8 @@ export default function ShopPage() {
             borderRadius: 12,
             marginBottom: 14,
           }}>
-            <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 10, fontSize: 16 }}>
-              💰 下一步:匯款
+            <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 10, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconBank size={17} /> 下一步:匯款
             </div>
             <div style={{
               padding: '12px 14px',
@@ -386,7 +387,7 @@ export default function ShopPage() {
               {tenant.payment_info}
             </div>
             <div style={{ marginTop: 12, color: '#92400e', fontSize: 12, lineHeight: 1.5 }}>
-              💡 匯款完成後,直接在下方填帳號<strong>後 5 碼</strong>;晚點匯也沒關係,LINE 通知裡的按鈕隨時可以填。
+              匯款完成後,直接在下方填帳號<strong>後 5 碼</strong>;晚點匯也沒關係,LINE 通知裡的按鈕隨時可以填。
             </div>
           </div>
         ) : (
@@ -404,32 +405,40 @@ export default function ShopPage() {
           </div>
         )}
 
-        {/* 2026-09-08:成立畫面直接回報後 5 碼 */}
+        {/* 2026-09-08:成立畫面直接回報後 5 碼(v2 白底簡潔卡) */}
         {reportState === 'done' ? (
-          <div style={{ padding: '1.25rem', background: '#f0fdf4', border: '2px solid #86efac', borderRadius: 12 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#15803d' }}>✓ 已回報後 5 碼</div>
-            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 24, fontWeight: 700, letterSpacing: '0.3em', color: '#166534' }}>
-                {last5}
-              </span>
-              <span style={{ fontSize: 13, color: '#6b7280' }}>等待賣家核帳</span>
+          <div style={{ padding: '1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <span style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IconCheck size={17} />
+            </span>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>已回報後 5 碼</div>
+              <div style={{ fontSize: 12, color: '#9ca3af' }}>等待賣家核帳</div>
             </div>
+            <span style={{ marginLeft: 'auto', fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: 22, fontWeight: 700, letterSpacing: '0.25em', color: '#15803d' }}>
+              {last5}
+            </span>
           </div>
         ) : (
           <div
             style={{
               padding: '1.25rem',
-              background: '#fffbeb',
-              border: '2px solid #f59e0b',
+              background: '#fff',
+              border: '1px solid #e5e7eb',
               borderRadius: 12,
-              boxShadow: '0 2px 10px rgba(245, 158, 11, 0.15)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             }}
           >
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#92400e' }}>✏️ 匯款完成了嗎?</div>
-            <p style={{ margin: '6px 0 12px', fontSize: 13, color: '#78350f', lineHeight: 1.6 }}>
-              填入匯出帳戶的<strong>後 5 碼數字</strong>,賣家核帳後就會把訂單標為已付款。
-            </p>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ width: 36, height: 36, borderRadius: 10, background: '#fef3c7', color: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <IconPencil size={17} />
+              </span>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>回報匯款後 5 碼</div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 1 }}>匯款完成後填寫,賣家核帳後訂單即轉為已付款</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
               <input
                 inputMode="numeric"
                 maxLength={5}
@@ -440,10 +449,10 @@ export default function ShopPage() {
                 style={{
                   flex: '1 1 150px',
                   minWidth: 0,
-                  padding: 14,
-                  border: '2px solid #f59e0b',
+                  padding: 12,
+                  border: '1.5px solid #d1d5db',
                   borderRadius: 10,
-                  fontSize: 22,
+                  fontSize: 20,
                   fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
                   letterSpacing: '0.35em',
                   textAlign: 'center',
@@ -457,24 +466,24 @@ export default function ShopPage() {
                 disabled={reportState === 'saving'}
                 style={{
                   flex: '1 0 auto',
-                  minHeight: 52,
-                  padding: '14px 24px',
-                  background: reportState === 'saving' ? '#a1a1aa' : '#b45309',
+                  minHeight: 48,
+                  padding: '0 24px',
+                  background: reportState === 'saving' ? '#a1a1aa' : '#111827',
                   color: '#fff',
                   border: 0,
                   borderRadius: 10,
-                  fontSize: 16,
-                  fontWeight: 800,
+                  fontSize: 15,
+                  fontWeight: 700,
                   cursor: reportState === 'saving' ? 'wait' : 'pointer',
                   whiteSpace: 'nowrap',
                   fontFamily: 'inherit',
                 }}
               >
-                {reportState === 'saving' ? '送出中…' : '送出回報 ✓'}
+                {reportState === 'saving' ? '送出中…' : '送出'}
               </button>
             </div>
             {reportState === 'error' && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#dc2626', fontWeight: 600 }}>⚠️ {reportErr}</div>
+              <div style={{ marginTop: 8, fontSize: 12, color: '#dc2626', fontWeight: 600 }}>{reportErr}</div>
             )}
           </div>
         )}
@@ -597,7 +606,16 @@ export default function ShopPage() {
                 { key: '', label: '全部' },
                 { key: 'latest', label: '最新' },
                 // 2026-09-03:有生效中的限時優惠才出現「特價中」chip
-                ...(hasSale ? [{ key: 'sale', label: '🔥 特價中' }] : []),
+                ...(hasSale
+                  ? [{
+                      key: 'sale',
+                      label: (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <IconFlame size={12} />特價中
+                        </span>
+                      ) as React.ReactNode,
+                    }]
+                  : []),
                 ...categories.map((c) => ({ key: c, label: c })),
               ].map((c) => {
                 const isActive = filter === c.key;
@@ -630,7 +648,7 @@ export default function ShopPage() {
           {/* Section title */}
           <div style={{ marginBottom: 12, display: 'flex', alignItems: 'baseline', gap: 10 }}>
             <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#18181b' }}>
-              {filter === 'latest' ? '最新商品' : filter === 'sale' ? '🔥 特價中' : filter || '所有商品'}
+              {filter === 'latest' ? '最新商品' : filter === 'sale' ? '特價中' : filter || '所有商品'}
             </h2>
             <span style={{ fontSize: 12, color: '#a1a1aa' }}>
               {visibleProducts.length} 件
@@ -685,9 +703,12 @@ export default function ShopPage() {
                           fontWeight: 800,
                           letterSpacing: '0.03em',
                           boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
                         }}
                       >
-                        🔥 {pctToZhe(p.sale_discount_pct!)}
+                        <IconFlame size={11} />{pctToZhe(p.sale_discount_pct!)}
                       </span>
                     )}
                     {p.badge && (
@@ -965,7 +986,7 @@ export default function ShopPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#52525b' }}>
                     <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
                     <span style={{ fontFamily: 'ui-monospace, monospace', color: shipOption && shipFee === 0 ? '#16a34a' : undefined }}>
-                      {shipOption ? (shipFee === 0 ? '免運 🎉' : `NT$ ${shipFee.toLocaleString()}`) : '請選配送方式'}
+                      {shipOption ? (shipFee === 0 ? '免運' : `NT$ ${shipFee.toLocaleString()}`) : '請選配送方式'}
                     </span>
                   </div>
                 </>
@@ -1022,7 +1043,7 @@ export default function ShopPage() {
                           <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: '#18181b' }}>
                             <span>{opt.label}</span>
                             <span style={{ fontFamily: 'ui-monospace, monospace', color: isFree || opt.fee === 0 ? '#16a34a' : '#18181b' }}>
-                              {opt.fee === 0 ? '免運費' : isFree ? '免運 🎉' : `NT$ ${opt.fee}`}
+                              {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${opt.fee}`}
                             </span>
                           </span>
                           {opt.free_over ? (
@@ -1034,7 +1055,7 @@ export default function ShopPage() {
                           ) : null}
                           {opt.note && (
                             <span style={{ display: 'block', fontSize: 11.5, color: '#b45309', marginTop: 3, lineHeight: 1.5 }}>
-                              ⚠️ {opt.note}
+                              ※ {opt.note}
                             </span>
                           )}
                         </span>
@@ -1082,7 +1103,7 @@ export default function ShopPage() {
             {/* Phase 15.4(2026-09-08):統編發票(選填,展開才填) */}
             <details style={{ border: '1px solid #e4e4e7', borderRadius: 10, padding: '10px 14px' }}>
               <summary style={{ fontSize: 13, fontWeight: 500, color: '#52525b', cursor: 'pointer' }}>
-                🧾 需要統編發票?(選填)
+                <IconReceipt size={14} style={{ marginRight: 6 }} />需要統編發票?(選填)
               </summary>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>

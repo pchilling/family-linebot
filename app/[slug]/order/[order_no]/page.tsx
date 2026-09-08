@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
 import { reportPaymentLast5 } from './actions';
+import { IconBank, IconCheck, IconCheckCircle, IconClock, IconPackage, IconPencil, IconUndo, IconX } from '@/lib/icons';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
@@ -149,25 +150,30 @@ export default async function OrderPage({ params }: Props) {
   });
 
   // 2026-09-08:狀態感知頁首 — 回頭查單第一眼就看到目前進度(原本永遠顯示「訂單已成立」)
+  // v2:「回報五碼」明確納入流程步驟,客人才知道要做這件事
   const isCancelled = order.status === 'cancelled' || order.status === 'refunded';
   const stage =
-    order.status === 'delivered' ? 3 : order.status === 'shipped' ? 2 : order.payment_status === 'paid' ? 1 : 0;
+    order.status === 'delivered' ? 4
+    : order.status === 'shipped' ? 3
+    : order.payment_status === 'paid' ? 2
+    : order.payment_reported_at ? 1
+    : 0;
   const banner = isCancelled
     ? {
-        icon: order.status === 'cancelled' ? '✕' : '↩',
+        icon: order.status === 'cancelled' ? <IconX size={18} /> : <IconUndo size={18} />,
         title: order.status === 'cancelled' ? '訂單已取消' : '訂單已退款',
         bg: '#f4f4f5', border: '#e4e4e7', color: '#52525b',
       }
     : stage === 0
-      ? order.payment_reported_at
-        ? { icon: '🕐', title: '已回報匯款,等待賣家核帳', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
-        : { icon: '🕐', title: '訂單成立,等待匯款', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
+      ? { icon: <IconClock size={18} />, title: '訂單成立,請匯款後回報後 5 碼', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
       : stage === 1
-        ? { icon: '✓', title: '已收款,商品準備中', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' }
+        ? { icon: <IconClock size={18} />, title: '已回報後 5 碼,等待賣家核帳', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
         : stage === 2
-          ? { icon: '📦', title: '已出貨', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8' }
-          : { icon: '🎉', title: '已送達,感謝您的訂購', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' };
-  const steps = ['下單', '付款', '出貨', '送達'];
+          ? { icon: <IconCheckCircle size={18} />, title: '已收款,商品準備中', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' }
+          : stage === 3
+            ? { icon: <IconPackage size={18} />, title: '已出貨', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8' }
+            : { icon: <IconCheckCircle size={18} />, title: '已送達,感謝您的訂購', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' };
+  const steps = ['下單', '回報五碼', '已收款', '出貨', '送達'];
 
   return (
     <div>
@@ -181,7 +187,7 @@ export default async function OrderPage({ params }: Props) {
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: '1.125rem', fontWeight: 700, color: banner.color, marginBottom: '0.25rem' }}>
+        <div style={{ fontSize: '1.125rem', fontWeight: 700, color: banner.color, marginBottom: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {banner.icon} {banner.title}
         </div>
         <div style={{ color: banner.color, fontSize: '0.875rem' }}>
@@ -189,37 +195,41 @@ export default async function OrderPage({ params }: Props) {
           <CopyButton text={order.order_no} />
         </div>
 
-        {/* 進度條(取消/退款不顯示) */}
+        {/* 進度條(取消/退款不顯示):已完成 = 實心,下一步 = 空心高亮引導 */}
         {!isCancelled && (
-          <div style={{ display: 'flex', alignItems: 'center', maxWidth: 340, margin: '1rem auto 0' }}>
-            {steps.map((s, i) => (
-              <div key={s} style={{ display: 'flex', alignItems: 'center', flex: i === 0 ? '0 0 auto' : 1 }}>
-                {i > 0 && (
-                  <div style={{ flex: 1, height: 2, background: i <= stage ? banner.color : '#e5e7eb', margin: '0 4px', marginBottom: 16 }} />
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div
-                    style={{
-                      width: 22, height: 22, borderRadius: '50%',
-                      background: i <= stage ? banner.color : '#fff',
-                      border: `2px solid ${i <= stage ? banner.color : '#d1d5db'}`,
-                      color: '#fff', fontSize: 12, fontWeight: 700,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    {i < stage || (i === stage && stage > 0) ? '✓' : i === stage ? '•' : ''}
+          <div style={{ display: 'flex', alignItems: 'center', maxWidth: 380, margin: '1rem auto 0' }}>
+            {steps.map((s, i) => {
+              const done = i <= stage;
+              const isNext = i === stage + 1;
+              return (
+                <div key={s} style={{ display: 'flex', alignItems: 'center', flex: i === 0 ? '0 0 auto' : 1 }}>
+                  {i > 0 && (
+                    <div style={{ flex: 1, height: 2, background: done ? banner.color : '#e5e7eb', margin: '0 3px', marginBottom: 16 }} />
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div
+                      style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: done ? banner.color : '#fff',
+                        border: `2px solid ${done || isNext ? banner.color : '#d1d5db'}`,
+                        color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {done && <IconCheck size={12} color="#fff" />}
+                    </div>
+                    <span style={{ fontSize: 10.5, color: done || isNext ? banner.color : '#9ca3af', fontWeight: isNext || i === stage ? 700 : 400, whiteSpace: 'nowrap' }}>
+                      {s}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 11, color: i <= stage ? banner.color : '#9ca3af', fontWeight: i === stage ? 700 : 400 }}>
-                    {s}
-                  </span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {stage === 0 && !isCancelled && (paymentInfo ? (
+      {stage <= 1 && !isCancelled && (paymentInfo ? (
         <section
           style={{
             padding: '1.25rem',
@@ -229,8 +239,8 @@ export default async function OrderPage({ params }: Props) {
             marginBottom: '1.5rem',
           }}
         >
-          <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '0.5rem', fontSize: '1rem' }}>
-            💰 下一步:匯款
+          <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '0.5rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <IconBank size={17} /> 下一步:匯款
           </div>
           <div
             style={{
@@ -249,7 +259,7 @@ export default async function OrderPage({ params }: Props) {
             {paymentInfo}
           </div>
           <div style={{ marginTop: '0.75rem', color: '#92400e', fontSize: '0.8125rem', lineHeight: 1.5 }}>
-            💡 匯款完成後,直接在下方填寫帳號<strong>後 5 碼</strong>,不用另外聯絡客服。
+            匯款完成後,直接在下方填寫帳號<strong>後 5 碼</strong>,不用另外聯絡客服。
           </div>
         </section>
       ) : (
@@ -271,27 +281,29 @@ export default async function OrderPage({ params }: Props) {
         </div>
       ))}
 
-      {/* D#14(2026-09-02):匯款後 5 碼自助回報
-          2026-09-08 改版:id=report 錨點(LINE 卡片按鈕直接跳到這)+ 醒目大卡設計 */}
+      {/* D#14:匯款後 5 碼自助回報 — 2026-09-08 v3:白底簡潔卡 + icon 磚,不再用大黃塊 */}
       {isCancelled ? null : order.payment_status === 'paid' ? (
-        <section id="report" style={{ scrollMarginTop: 16, padding: '1rem 1.25rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, marginBottom: '1rem', fontSize: '0.9375rem', color: '#15803d', fontWeight: 600 }}>
-          ✓ 已收到您的款項,無需再回報。
+        <section id="report" style={{ scrollMarginTop: 16, padding: '0.875rem 1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.9375rem', color: '#15803d', fontWeight: 600 }}>
+          <IconCheckCircle size={18} /> 已收到您的款項,無需再回報。
         </section>
       ) : order.payment_reported_at ? (
-        <section id="report" style={{ scrollMarginTop: 16, padding: '1.25rem', background: '#f0fdf4', border: '2px solid #86efac', borderRadius: 12, marginBottom: '1rem' }}>
-          <div style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#15803d' }}>
-            ✓ 已回報後 5 碼
-          </div>
-          <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.3em', color: '#166534' }}>
-              {order.payment_last5}
+        <section id="report" style={{ scrollMarginTop: 16, padding: '1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IconCheck size={17} />
             </span>
-            <span style={{ fontSize: '0.8125rem', color: '#6b7280' }}>
-              {new Date(order.payment_reported_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 送出 · 等待賣家核帳
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#111827' }}>已回報後 5 碼</div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 1 }}>
+                {new Date(order.payment_reported_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 送出 · 等待賣家核帳
+              </div>
+            </div>
+            <span style={{ marginLeft: 'auto', fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: '1.375rem', fontWeight: 700, letterSpacing: '0.25em', color: '#15803d' }}>
+              {order.payment_last5}
             </span>
           </div>
           <details style={{ marginTop: 12 }}>
-            <summary style={{ fontSize: '0.8125rem', color: '#6b7280', cursor: 'pointer' }}>填錯了?重新回報</summary>
+            <summary style={{ fontSize: '0.8125rem', color: '#9ca3af', cursor: 'pointer' }}>填錯了?重新回報</summary>
             <form action={reportPaymentLast5} style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <input type="hidden" name="tenant_slug" value={slug} />
               <input type="hidden" name="order_no" value={order.order_no} />
@@ -302,9 +314,9 @@ export default async function OrderPage({ params }: Props) {
                 maxLength={5}
                 required
                 placeholder="•••••"
-                style={{ flex: '1 1 150px', padding: '0.75rem', border: '2px solid #d1d5db', borderRadius: 10, fontSize: '1.25rem', fontFamily: 'ui-monospace, monospace', letterSpacing: '0.3em', textAlign: 'center' }}
+                style={{ flex: '1 1 150px', minWidth: 0, padding: '0.7rem', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: '1.125rem', fontFamily: 'ui-monospace, monospace', letterSpacing: '0.3em', textAlign: 'center', boxSizing: 'border-box' }}
               />
-              <button type="submit" style={{ flex: '0 0 auto', padding: '0.75rem 1.5rem', background: '#1f2937', color: '#fff', border: 0, borderRadius: 10, fontSize: '0.9375rem', fontWeight: 700, cursor: 'pointer' }}>
+              <button type="submit" style={{ flex: '0 0 auto', padding: '0.7rem 1.5rem', background: '#111827', color: '#fff', border: 0, borderRadius: 10, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
                 更新
               </button>
             </form>
@@ -315,21 +327,26 @@ export default async function OrderPage({ params }: Props) {
           id="report"
           style={{
             scrollMarginTop: 16,
-            padding: '1.5rem 1.25rem',
-            background: '#fffbeb',
-            border: '2px solid #f59e0b',
+            padding: '1.25rem',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
             borderRadius: 12,
             marginBottom: '1rem',
-            boxShadow: '0 2px 10px rgba(245, 158, 11, 0.18)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           }}
         >
-          <div style={{ fontSize: '1.125rem', fontWeight: 800, color: '#92400e' }}>
-            ✏️ 匯款完成了嗎?
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 36, height: 36, borderRadius: 10, background: '#fef3c7', color: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IconPencil size={17} />
+            </span>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>回報匯款後 5 碼</div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 1 }}>
+                匯款完成後填寫,賣家核帳後訂單即轉為已付款
+              </div>
+            </div>
           </div>
-          <p style={{ margin: '6px 0 14px', fontSize: '0.875rem', color: '#78350f', lineHeight: 1.6 }}>
-            填入您匯出帳戶的<strong>後 5 碼數字</strong>並送出,賣家核帳後就會把訂單標為已付款——不用另外聯絡客服。
-          </p>
-          <form action={reportPaymentLast5} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <form action={reportPaymentLast5} style={{ display: 'flex', gap: 10, marginTop: '1rem', flexWrap: 'wrap' }}>
             <input type="hidden" name="tenant_slug" value={slug} />
             <input type="hidden" name="order_no" value={order.order_no} />
             <input
@@ -341,12 +358,12 @@ export default async function OrderPage({ params }: Props) {
               placeholder="•••••"
               aria-label="匯款帳號後 5 碼"
               style={{
-                flex: '1 1 160px',
+                flex: '1 1 150px',
                 minWidth: 0,
-                padding: '0.875rem',
-                border: '2px solid #f59e0b',
+                padding: '0.75rem',
+                border: '1.5px solid #d1d5db',
                 borderRadius: 10,
-                fontSize: '1.375rem',
+                fontSize: '1.25rem',
                 fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
                 letterSpacing: '0.35em',
                 textAlign: 'center',
@@ -358,20 +375,19 @@ export default async function OrderPage({ params }: Props) {
               type="submit"
               style={{
                 flex: '1 0 auto',
-                minHeight: 52,
-                padding: '0.875rem 1.5rem',
-                background: '#b45309',
+                minHeight: 48,
+                padding: '0 1.5rem',
+                background: '#111827',
                 color: '#fff',
                 border: 0,
                 borderRadius: 10,
-                fontSize: '1rem',
-                fontWeight: 800,
+                fontSize: '0.9375rem',
+                fontWeight: 700,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                boxShadow: '0 2px 6px rgba(180, 83, 9, 0.3)',
               }}
             >
-              送出回報 ✓
+              送出
             </button>
           </form>
         </section>

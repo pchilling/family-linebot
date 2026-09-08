@@ -276,7 +276,15 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
             boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
           }}
         >
-          <span>🧾 查我的訂單</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+              <path d="M8 8h8" />
+              <path d="M8 12h8" />
+              <path d="M8 16h5" />
+            </svg>
+            查我的訂單
+          </span>
           <span style={{ color: c.textMuted, fontSize: 16 }}>›</span>
         </a>
       )}

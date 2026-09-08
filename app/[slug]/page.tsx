@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BannerHero } from './banner-hero';
 import { getActiveProducts, getTenantPublic, isSaleActive, applySaleDiscount } from '@/lib/supabase';
+import { IconFlame } from '@/lib/icons';
 
 // % off → 台灣「折」講法(10% off → 9折;15% off → 85折)
 function pctToZhe(pct: number): string {
@@ -69,12 +70,22 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
   }
 
   const activeKey = f === 'latest' || f === 'sale' || isCategory ? f : '';
-  const titleLabel = f === 'latest' ? '最新商品' : f === 'sale' ? '🔥 特價中' : isCategory ? f : '所有商品';
-  const chips: { key: string; label: string; href: string }[] = [
+  const titleLabel = f === 'latest' ? '最新商品' : f === 'sale' ? '特價中' : isCategory ? f : '所有商品';
+  const chips: { key: string; label: React.ReactNode; href: string }[] = [
     { key: '', label: '全部', href: `/${slug}` },
     { key: 'latest', label: '最新', href: `/${slug}?f=latest` },
-    ...(hasSale ? [{ key: 'sale', label: '🔥 特價中', href: `/${slug}?f=sale` }] : []),
-    ...categories.map((c) => ({ key: c, label: c, href: `/${slug}?f=${encodeURIComponent(c)}` })),
+    ...(hasSale
+      ? [{
+          key: 'sale',
+          label: (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <IconFlame size={13} />特價中
+            </span>
+          ) as React.ReactNode,
+          href: `/${slug}?f=sale`,
+        }]
+      : []),
+    ...categories.map((c) => ({ key: c, label: c as React.ReactNode, href: `/${slug}?f=${encodeURIComponent(c)}` })),
   ];
 
   // Hero banner — Phase 9.8 multi-media,fallback 舊 og_image_url
@@ -251,8 +262,10 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
                         boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
                       }}
                     >
-                      {/* 2026-09-03:改台灣「折」講法 */}
-                      🔥 {pctToZhe(p.sale_discount_pct!)}
+                      {/* 2026-09-03:改台灣「折」講法;2026-09-08 emoji → icon */}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <IconFlame size={11} />{pctToZhe(p.sale_discount_pct!)}
+                      </span>
                     </div>
                   )}
                   {(() => {

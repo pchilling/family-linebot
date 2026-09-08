@@ -116,7 +116,14 @@ export default function MyOrdersPage() {
             borderRadius: 12,
           }}
         >
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🧾</div>
+          <div style={{ marginBottom: 12, color: '#d4d4d8' }}>
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+              <path d="M8 8h8" />
+              <path d="M8 12h8" />
+              <path d="M8 16h5" />
+            </svg>
+          </div>
           <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500, color: '#18181b' }}>
             還沒有訂單
           </p>
