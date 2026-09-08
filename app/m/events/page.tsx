@@ -593,6 +593,8 @@ const spinner: React.CSSProperties = {
 const spinKeyframes = '@keyframes spin { to { transform: rotate(360deg); } }';
 const btnBase: React.CSSProperties = {
   width: '100%',
+  // 2026-09-08:div 版標籤(免費課程)預設 content-box,100% + padding 會超寬被裁右邊
+  boxSizing: 'border-box',
   padding: '10px 14px',
   borderRadius: 7,
   fontSize: 14,
