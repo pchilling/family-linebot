@@ -68,7 +68,7 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
   // 訂單 + 簡要 items(Phase 11:含 variant_name)
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, status, payment_status, total_twd, created_at, order_items(qty, products(name), product_variants(variant_name))')
+    .select('id, order_no, status, payment_status, total_twd, shipping_fee_twd, created_at, order_items(qty, products(name), product_variants(variant_name))')
     .eq('tenant_id', TENANT_ID)
     .eq('user_id', (user as { id: string }).id)
     .order('created_at', { ascending: false })
@@ -85,6 +85,7 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
     status: string;
     payment_status: string;
     total_twd: number;
+    shipping_fee_twd: number | null;
     created_at: string;
     order_items: {
       qty: number;
@@ -120,7 +121,8 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
         order_no: r.order_no,
         status: r.status,
         payment_status: r.payment_status,
-        total_twd: r.total_twd,
+        // D#13:列表顯示含運總額
+        total_twd: r.total_twd + (r.shipping_fee_twd ?? 0),
         created_at: r.created_at,
         items_summary: summary,
       };

@@ -31,6 +31,7 @@ type OrderDetail = {
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
+  tracking_no: string | null;
   note: string | null;
   guest_email: string | null;
   created_at: string;
@@ -41,7 +42,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
+      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, tracking_no, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -83,6 +84,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     shipping_recipient: row.shipping_recipient,
     shipping_phone: row.shipping_phone,
     shipping_address: row.shipping_address,
+    tracking_no: row.tracking_no ?? null,
     note: row.note,
     guest_email: row.guest_email,
     created_at: row.created_at,
@@ -146,31 +148,78 @@ export default async function OrderPage({ params }: Props) {
     minute: '2-digit',
   });
 
+  // 2026-09-08:狀態感知頁首 — 回頭查單第一眼就看到目前進度(原本永遠顯示「訂單已成立」)
+  const isCancelled = order.status === 'cancelled' || order.status === 'refunded';
+  const stage =
+    order.status === 'delivered' ? 3 : order.status === 'shipped' ? 2 : order.payment_status === 'paid' ? 1 : 0;
+  const banner = isCancelled
+    ? {
+        icon: order.status === 'cancelled' ? '✕' : '↩',
+        title: order.status === 'cancelled' ? '訂單已取消' : '訂單已退款',
+        bg: '#f4f4f5', border: '#e4e4e7', color: '#52525b',
+      }
+    : stage === 0
+      ? order.payment_reported_at
+        ? { icon: '🕐', title: '已回報匯款,等待賣家核帳', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
+        : { icon: '🕐', title: '訂單成立,等待匯款', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
+      : stage === 1
+        ? { icon: '✓', title: '已收款,商品準備中', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' }
+        : stage === 2
+          ? { icon: '📦', title: '已出貨', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8' }
+          : { icon: '🎉', title: '已送達,感謝您的訂購', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' };
+  const steps = ['下單', '付款', '出貨', '送達'];
+
   return (
     <div>
       <div
         style={{
-          padding: '1.5rem',
-          background: '#f0fdf4',
-          border: '1px solid #bbf7d0',
+          padding: '1.5rem 1.25rem 1.25rem',
+          background: banner.bg,
+          border: `1px solid ${banner.border}`,
           borderRadius: 8,
           marginBottom: '1.5rem',
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: '1.125rem', fontWeight: 600, color: '#166534', marginBottom: '0.25rem' }}>
-          ✓ 訂單已成立
+        <div style={{ fontSize: '1.125rem', fontWeight: 700, color: banner.color, marginBottom: '0.25rem' }}>
+          {banner.icon} {banner.title}
         </div>
-        <div style={{ color: '#15803d', fontSize: '0.875rem' }}>
+        <div style={{ color: banner.color, fontSize: '0.875rem' }}>
           訂單編號 <strong>{order.order_no}</strong>
           <CopyButton text={order.order_no} />
         </div>
-        <div style={{ marginTop: '0.5rem', color: '#15803d', fontSize: '0.75rem', opacity: 0.85 }}>
-          請保留此編號,日後可在「查我的訂單」查詢狀態
-        </div>
+
+        {/* 進度條(取消/退款不顯示) */}
+        {!isCancelled && (
+          <div style={{ display: 'flex', alignItems: 'center', maxWidth: 340, margin: '1rem auto 0' }}>
+            {steps.map((s, i) => (
+              <div key={s} style={{ display: 'flex', alignItems: 'center', flex: i === 0 ? '0 0 auto' : 1 }}>
+                {i > 0 && (
+                  <div style={{ flex: 1, height: 2, background: i <= stage ? banner.color : '#e5e7eb', margin: '0 4px', marginBottom: 16 }} />
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div
+                    style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: i <= stage ? banner.color : '#fff',
+                      border: `2px solid ${i <= stage ? banner.color : '#d1d5db'}`,
+                      color: '#fff', fontSize: 12, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    {i < stage || (i === stage && stage > 0) ? '✓' : i === stage ? '•' : ''}
+                  </div>
+                  <span style={{ fontSize: 11, color: i <= stage ? banner.color : '#9ca3af', fontWeight: i === stage ? 700 : 400 }}>
+                    {s}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {paymentInfo ? (
+      {stage === 0 && !isCancelled && (paymentInfo ? (
         <section
           style={{
             padding: '1.25rem',
@@ -220,11 +269,11 @@ export default async function OrderPage({ params }: Props) {
             賣家會主動私訊您匯款方式。請保留此訂單編號,完成匯款後通知賣家對帳。
           </div>
         </div>
-      )}
+      ))}
 
       {/* D#14(2026-09-02):匯款後 5 碼自助回報
           2026-09-08 改版:id=report 錨點(LINE 卡片按鈕直接跳到這)+ 醒目大卡設計 */}
-      {order.payment_status === 'paid' ? (
+      {isCancelled ? null : order.payment_status === 'paid' ? (
         <section id="report" style={{ scrollMarginTop: 16, padding: '1rem 1.25rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, marginBottom: '1rem', fontSize: '0.9375rem', color: '#15803d', fontWeight: 600 }}>
           ✓ 已收到您的款項,無需再回報。
         </section>
@@ -472,6 +521,12 @@ export default async function OrderPage({ params }: Props) {
           <dd style={{ margin: 0 }}>{STATUS_LABEL[order.status] ?? order.status}</dd>
           <dt style={{ color: '#9ca3af' }}>付款</dt>
           <dd style={{ margin: 0 }}>{PAYMENT_LABEL[order.payment_status] ?? order.payment_status}</dd>
+          {order.tracking_no && (
+            <>
+              <dt style={{ color: '#9ca3af' }}>追蹤單號</dt>
+              <dd style={{ margin: 0, fontFamily: 'ui-monospace, monospace' }}>{order.tracking_no}</dd>
+            </>
+          )}
           <dt style={{ color: '#9ca3af' }}>下單時間</dt>
           <dd style={{ margin: 0 }}>{createdAt}</dd>
         </dl>
