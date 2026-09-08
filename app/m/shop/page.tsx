@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
-import { IconBank, IconCheck, IconFlame, IconPencil, IconReceipt } from '@/lib/icons';
+import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconPencil, IconReceipt } from '@/lib/icons';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   loadShopData,
@@ -892,20 +892,31 @@ export default function ShopPage() {
 
       {showCheckout && cart.length > 0 && (
         <section style={{ animation: 'shop-fadein 0.25s ease' }}>
-          {/* 上方:返回按鈕 + 標題 */}
+          {/* 上方:返回按鈕 + 標題(2026-09-08:膠囊型 + chevron icon) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <button
               type="button"
               onClick={() => setShowCheckout(false)}
               aria-label="返回"
               style={{
-                width: 36, height: 36, padding: 0,
-                background: '#fff', border: '1px solid #e4e4e7',
-                borderRadius: 8, cursor: 'pointer', fontSize: 16,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '9px 16px 9px 12px',
+                minHeight: 40,
+                background: '#fff',
+                border: '1px solid #e4e4e7',
+                borderRadius: 999,
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#374151',
+                fontFamily: 'inherit',
+                touchAction: 'manipulation',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
               }}
             >
-              ←
+              <IconChevronLeft size={16} /> 返回
             </button>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>確認訂單</h2>
           </div>

@@ -111,6 +111,14 @@ export function IconFlame({ size = 16, color = 'currentColor', style }: IconProp
   );
 }
 
+export function IconChevronLeft({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
 export function IconCalendar({ size = 16, color = 'currentColor', style }: IconProps) {
   return (
     <svg {...svgProps(size, color, style)}>

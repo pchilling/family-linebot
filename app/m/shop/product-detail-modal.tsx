@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { IconClock, IconFlame } from '@/lib/icons';
+import { IconChevronLeft, IconClock, IconFlame } from '@/lib/icons';
 import type { ShopProduct } from './actions';
 
 // 2026-09-03:限時優惠接進 LIFF —— 判斷是否生效 + % off 轉台灣「折」講法
@@ -146,23 +146,32 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
 
   return (
     <section style={{ animation: 'shop-fadein 0.25s ease', paddingBottom: 100 }}>
-      {/* ← 返回 + 標題列 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+      {/* 返回鈕(2026-09-08 改版:膠囊型 + chevron icon) */}
+      <div style={{ marginBottom: 14 }}>
         <button
           type="button"
           onClick={onClose}
           aria-label="返回商品列表"
           style={{
-            width: 36, height: 36, padding: 0,
-            background: '#fff', border: '1px solid #e4e4e7',
-            borderRadius: 8, cursor: 'pointer', fontSize: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '9px 16px 9px 12px',
+            minHeight: 40,
+            background: '#fff',
+            border: '1px solid #e4e4e7',
+            borderRadius: 999,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 600,
+            color: '#374151',
             fontFamily: 'inherit',
+            touchAction: 'manipulation',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
           }}
         >
-          ←
+          <IconChevronLeft size={16} /> 返回
         </button>
-        <span style={{ fontSize: 13, color: '#71717a' }}>返回</span>
       </div>
 
       {/* Image carousel — C#5:scroll-snap 手指左右滑 */}
