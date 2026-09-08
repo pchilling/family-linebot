@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
-import { IconCalendar, IconCheck, IconClock } from '@/lib/icons';
+import { IconCalendar, IconCheck, IconChevronLeft, IconClock } from '@/lib/icons';
 import {
   cancelReservation,
   loadEvents,
@@ -81,8 +81,8 @@ export default function EventsPage() {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
-  // 深連結:bot 卡片帶 ?event=<id> 進來 → 捲到該卡 + 高亮(2026-09-02)
-  const [focusId, setFocusId] = useState<string | null>(null);
+  // 2026-09-08 v2:單場活動改開專屬詳情頁(同商品專區 list ↔ detail);深連結 ?event= 直接落在詳情
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -101,7 +101,7 @@ export default function EventsPage() {
         const data = await loadEvents(tok);
         setTenant(data.tenant);
         setEvents(data.events);
-        setFocusId(getDeepLinkEventId());
+        setDetailId(getDeepLinkEventId());
         setStatus('ready');
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
@@ -110,14 +110,10 @@ export default function EventsPage() {
     })();
   }, []);
 
-  // ready 後捲到深連結指定的活動卡
+  // 進出詳情頁時捲到頂
   useEffect(() => {
-    if (status !== 'ready' || !focusId) return;
-    const el = document.getElementById(`event-${focusId}`);
-    if (el) {
-      window.setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-    }
-  }, [status, focusId]);
+    window.scrollTo({ top: 0 });
+  }, [detailId]);
 
   async function refresh(tok: string) {
     const data = await loadEvents(tok);
@@ -166,6 +162,134 @@ export default function EventsPage() {
     }
   }
 
+  /** 容量進度條 — 列表卡與詳情頁共用 */
+  function renderCapacity(e: EventListItem) {
+    const cap = e.capacity ?? null;
+    if (cap === null) return null;
+    const remaining = Math.max(0, cap - e.confirmed_count);
+    const isFull = remaining === 0;
+    const fillPct = cap > 0 ? Math.min(100, (e.confirmed_count / cap) * 100) : 0;
+    return (
+      <div style={{ marginTop: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.textSec, marginBottom: 4 }}>
+          <span>
+            已報 <strong style={{ color: isFull ? c.danger : c.text }}>{e.confirmed_count}</strong>
+            {' / '}
+            {cap}
+            {e.waitlist_count > 0 && (
+              <span style={{ color: c.warning }}> · 候補 {e.waitlist_count}</span>
+            )}
+          </span>
+          <span style={{ color: isFull ? c.danger : c.textMuted, fontWeight: isFull ? 700 : 400 }}>
+            {isFull ? '已滿' : `剩 ${remaining}`}
+          </span>
+        </div>
+        <div style={{ height: 4, background: c.borderSubtle, borderRadius: 2, overflow: 'hidden' }}>
+          <div
+            style={{
+              width: `${fillPct}%`,
+              height: '100%',
+              background: isFull ? c.danger : c.success,
+              transition: 'width 0.3s',
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  /** 報名/取消/免費課按鈕 — 列表卡與詳情頁共用;stopPropagation 避免同時觸發卡片點擊 */
+  function renderEventActions(e: EventListItem) {
+    const cap = e.capacity ?? null;
+    const remaining = cap !== null ? Math.max(0, cap - e.confirmed_count) : null;
+    const isFull = cap !== null && remaining === 0;
+    const isPending = pendingId === e.id;
+    const isConfirmed = e.my_status === 'confirmed';
+    const isWaitlist = e.my_status === 'waitlist';
+    const isMine = isConfirmed || isWaitlist;
+
+    if (!e.is_paid) {
+      return (
+        <div
+          style={{
+            ...btnBase,
+            background: c.successBg,
+            color: c.success,
+            textAlign: 'center',
+            cursor: 'default',
+            border: `1px solid ${c.successBorder}`,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          <IconCheck size={14} /> 免費課程 · 無須報名,直接到場
+        </div>
+      );
+    }
+    return (
+      <>
+        {isConfirmed && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={(ev) => { ev.stopPropagation(); handleCancel(e.id); }}
+            style={{
+              ...btnBase,
+              background: c.card,
+              color: c.success,
+              border: `1px solid ${c.successBorder}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+            }}
+          >
+            {isPending ? '處理中…' : (<><IconCheck size={14} /> 已報名 · 點此取消</>)}
+          </button>
+        )}
+        {isWaitlist && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={(ev) => { ev.stopPropagation(); handleCancel(e.id); }}
+            style={{
+              ...btnBase,
+              background: c.card,
+              color: c.warning,
+              border: `1px solid ${c.warningBg}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+            }}
+          >
+            {isPending ? '處理中…' : (<><IconClock size={14} /> 候補 #{e.my_position} · 點此取消</>)}
+          </button>
+        )}
+        {!isMine && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={(ev) => { ev.stopPropagation(); handleReserve(e.id); }}
+            style={{
+              ...btnBase,
+              background: isFull ? c.warning : c.accent,
+              color: '#fff',
+              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+            }}
+          >
+            {isPending ? '處理中…' : isFull ? `候補(已 ${e.waitlist_count} 人)` : '我要報名'}
+          </button>
+        )}
+      </>
+    );
+  }
+
   if (status === 'loading') {
     return (
       <main style={page}>
@@ -184,6 +308,127 @@ export default function EventsPage() {
         <div style={centered}>
           <p style={{ color: c.danger, fontSize: 14, fontWeight: 600 }}>發生錯誤:{error}</p>
         </div>
+      </main>
+    );
+  }
+
+  // ── 單場專屬詳情頁(列表點卡片或 bot 深連結 ?event= 進來)──
+  const detailEvent = detailId ? events.find((x) => x.id === detailId) : undefined;
+  if (detailEvent) {
+    const e = detailEvent;
+    const isConfirmed = e.my_status === 'confirmed';
+    const isWaitlist = e.my_status === 'waitlist';
+    const isMine = isConfirmed || isWaitlist;
+    return (
+      <main style={page}>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `@keyframes flashfade { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } } ${spinKeyframes}`,
+          }}
+        />
+        <div style={{ marginBottom: 14 }}>
+          <button type="button" onClick={() => setDetailId(null)} style={backPill}>
+            <IconChevronLeft size={16} /> 所有活動
+          </button>
+        </div>
+
+        {flash && (
+          <div
+            style={{
+              padding: '10px 14px',
+              background: flash.type === 'ok' ? c.successBg : c.dangerBg,
+              border: `1px solid ${flash.type === 'ok' ? c.successBorder : c.dangerBorder}`,
+              color: flash.type === 'ok' ? c.success : c.danger,
+              borderRadius: 8,
+              marginBottom: 14,
+              fontSize: 14,
+              fontWeight: 500,
+              animation: 'flashfade 0.25s ease',
+            }}
+          >
+            {flash.msg}
+          </div>
+        )}
+
+        <article
+          style={{
+            background: c.card,
+            border: `1px solid ${c.border}`,
+            borderRadius: 12,
+            overflow: 'hidden',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          {/* 詳情頁顯示完整原圖(不裁切),列表才限高 */}
+          {e.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={e.image_url} alt={e.name} style={{ width: '100%', display: 'block' }} />
+          )}
+          <div style={{ padding: '18px 16px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, lineHeight: 1.3 }}>{e.name}</h1>
+              {isMine && (
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    background: isConfirmed ? c.successBg : c.warningBg,
+                    color: isConfirmed ? c.success : c.warning,
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {isConfirmed ? '已報名' : `候補 #${e.my_position}`}
+                </span>
+              )}
+            </div>
+
+            <div
+              style={{
+                margin: '12px 0 4px',
+                padding: '12px 14px',
+                background: '#fafafa',
+                border: `1px solid ${c.borderSubtle}`,
+                borderRadius: 10,
+                display: 'grid',
+                gridTemplateColumns: '52px 1fr',
+                rowGap: 8,
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              <span style={{ color: c.textMuted }}>時間</span>
+              <span style={{ fontWeight: 600 }}>{formatDate(e.scheduled_at)} {formatTime(e.scheduled_at)}</span>
+              {e.region_name && (
+                <>
+                  <span style={{ color: c.textMuted }}>地點</span>
+                  <span>{e.region_name}</span>
+                </>
+              )}
+              {e.instructor && (
+                <>
+                  <span style={{ color: c.textMuted }}>講師</span>
+                  <span>{e.instructor}</span>
+                </>
+              )}
+              <span style={{ color: c.textMuted }}>費用</span>
+              <span style={{ fontWeight: 600, color: e.is_paid ? '#b45309' : c.success }}>
+                {e.is_paid ? `NT$ ${e.price_twd ?? '-'}` : '免費'}
+              </span>
+            </div>
+
+            {renderCapacity(e)}
+
+            {e.description && (
+              <p style={{ margin: '12px 0 16px', fontSize: 14, color: c.textSec, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {e.description}
+              </p>
+            )}
+
+            {renderEventActions(e)}
+          </div>
+        </article>
       </main>
     );
   }
@@ -295,30 +540,21 @@ ${spinKeyframes}
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {events.map((e) => {
-            const cap = e.capacity ?? null;
-            const remaining = cap !== null ? Math.max(0, cap - e.confirmed_count) : null;
-            const isFull = cap !== null && remaining === 0;
-            const fillPct = cap !== null && cap > 0 ? Math.min(100, (e.confirmed_count / cap) * 100) : 0;
-            const isPending = pendingId === e.id;
             const isConfirmed = e.my_status === 'confirmed';
             const isWaitlist = e.my_status === 'waitlist';
             const isMine = isConfirmed || isWaitlist;
 
-            const isFocused = focusId === e.id;
-
             return (
               <article
                 key={e.id}
-                id={`event-${e.id}`}
                 className="event-card"
+                onClick={() => setDetailId(e.id)}
                 style={{
-                  // 2026-09-08 改版:對齊訂單頁設計語言 — 白卡細框,不再用左色條
                   background: c.card,
-                  border: isFocused ? `2px solid ${c.accent}` : `1px solid ${c.border}`,
+                  border: `1px solid ${c.border}`,
                   borderRadius: 12,
                   overflow: 'hidden',
-                  transition: 'border-color 0.2s',
-                  scrollMarginTop: 12,
+                  cursor: 'pointer',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                 }}
               >
@@ -392,118 +628,11 @@ ${spinKeyframes}
                       )}
                     </div>
 
-                    {/* 課程說明(2026-09-02):深連結進來的那張卡預設展開 */}
-                    {e.description && (
-                      <ExpandableText text={e.description} defaultExpanded={isFocused} />
-                    )}
+                    {e.description && <ExpandableText text={e.description} />}
 
-                    {/* 容量 progress */}
-                    {cap !== null && (
-                      <div style={{ marginTop: 8, marginBottom: 10 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.textSec, marginBottom: 4 }}>
-                          <span>
-                            已報 <strong style={{ color: isFull ? c.danger : c.text }}>{e.confirmed_count}</strong>
-                            {' / '}
-                            {cap}
-                            {e.waitlist_count > 0 && (
-                              <span style={{ color: c.warning }}> · 候補 {e.waitlist_count}</span>
-                            )}
-                          </span>
-                          <span style={{ color: isFull ? c.danger : c.textMuted, fontWeight: isFull ? 700 : 400 }}>
-                            {isFull ? '已滿' : `剩 ${remaining}`}
-                          </span>
-                        </div>
-                        <div style={{ height: 4, background: c.borderSubtle, borderRadius: 2, overflow: 'hidden' }}>
-                          <div
-                            style={{
-                              width: `${fillPct}%`,
-                              height: '100%',
-                              background: isFull ? c.danger : c.success,
-                              transition: 'width 0.3s',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
+                    {renderCapacity(e)}
 
-                    {/* Button — 只有付費課需要報名,免費課顯示「無須報名 · 直接參加」 */}
-                    {!e.is_paid ? (
-                      <div
-                        style={{
-                          ...btnBase,
-                          background: c.successBg,
-                          color: c.success,
-                          textAlign: 'center',
-                          cursor: 'default',
-                          border: `1px solid ${c.successBorder}`,
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        <IconCheck size={14} /> 免費課程 · 無須報名,直接到場
-                      </div>
-                    ) : (
-                      <>
-                        {isConfirmed && (
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleCancel(e.id)}
-                            style={{
-                              ...btnBase,
-                              background: c.card,
-                              color: c.success,
-                              border: `1px solid ${c.successBorder}`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 6,
-                              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-                            }}
-                          >
-                            {isPending ? '處理中…' : (<><IconCheck size={14} /> 已報名 · 點此取消</>)}
-                          </button>
-                        )}
-                        {isWaitlist && (
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleCancel(e.id)}
-                            style={{
-                              ...btnBase,
-                              background: c.card,
-                              color: c.warning,
-                              border: `1px solid ${c.warningBg}`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 6,
-                              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-                            }}
-                          >
-                            {isPending ? '處理中…' : (<><IconClock size={14} /> 候補 #{e.my_position} · 點此取消</>)}
-                          </button>
-                        )}
-                        {!isMine && (
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleReserve(e.id)}
-                            style={{
-                              ...btnBase,
-                              background: isFull ? c.warning : c.accent,
-                              color: '#fff',
-                              ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-                            }}
-                          >
-                            {isPending ? '處理中…' : isFull ? `候補(已 ${e.waitlist_count} 人)` : '我要報名'}
-                          </button>
-                        )}
-                      </>
-                    )}
+                    {renderEventActions(e)}
                   </div>
                 </div>
               </article>
@@ -520,12 +649,9 @@ ${spinKeyframes}
   );
 }
 
-/**
- * 課程說明摺疊顯示:超過 60 字先收起,點「顯示更多」展開。
- * 深連結高亮的卡片 defaultExpanded=true 直接全文。
- */
-function ExpandableText({ text, defaultExpanded }: { text: string; defaultExpanded?: boolean }) {
-  const [open, setOpen] = useState(!!defaultExpanded);
+/** 課程說明摺疊顯示:超過 60 字先收起,點「顯示更多」展開(詳情頁直接全文,不經過這裡)。 */
+function ExpandableText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
   const isLong = text.length > 60;
   const shown = open || !isLong ? text : text.slice(0, 60) + '…';
   return (
@@ -544,7 +670,7 @@ function ExpandableText({ text, defaultExpanded }: { text: string; defaultExpand
       {isLong && (
         <button
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={(ev) => { ev.stopPropagation(); setOpen((o) => !o); }}
           style={{
             marginTop: 4,
             padding: 0,
@@ -591,6 +717,23 @@ const spinner: React.CSSProperties = {
   animation: 'spin 0.8s linear infinite',
 };
 const spinKeyframes = '@keyframes spin { to { transform: rotate(360deg); } }';
+const backPill: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '9px 16px 9px 12px',
+  minHeight: 40,
+  background: '#fff',
+  border: '1px solid #e4e4e7',
+  borderRadius: 999,
+  cursor: 'pointer',
+  fontSize: 14,
+  fontWeight: 600,
+  color: '#374151',
+  fontFamily: 'inherit',
+  touchAction: 'manipulation',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+};
 const btnBase: React.CSSProperties = {
   width: '100%',
   // 2026-09-08:div 版標籤(免費課程)預設 content-box,100% + padding 會超寬被裁右邊

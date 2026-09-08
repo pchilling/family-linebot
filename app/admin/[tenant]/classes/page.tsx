@@ -293,7 +293,7 @@ details[open] .chev { transform: rotate(90deg); }
               <UploadImageField
                 tenantSlug={tenant.slug}
                 folder="classes"
-                hint="建議直式 3:4,課程卡片與報名頁都會顯示;之後也可在活動卡內更換"
+                hint="建議直式 4:5(如 1080×1350)— LINE 課程卡固定以 4:5 裁切;報名頁詳情會顯示完整原圖。之後也可在活動卡內更換"
               />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>

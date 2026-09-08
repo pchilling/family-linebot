@@ -65,7 +65,8 @@ export function UploadImageField({
           <img
             src={url}
             alt="圖片預覽"
-            style={{ width: 90, aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 6, border: '1px solid #e4e4e7' }}
+            // 預覽用 4:5 裁切,跟 LINE 課程卡的顯示比例一致,傳完就能看出會被裁掉哪裡
+            style={{ width: 90, aspectRatio: '4 / 5', objectFit: 'cover', borderRadius: 6, border: '1px solid #e4e4e7' }}
           />
           <button
             type="button"
@@ -105,7 +106,7 @@ export function UploadImageField({
         </label>
       )}
       {hint && <span style={{ fontSize: 11, color: '#71717a' }}>{hint}</span>}
-      {err && <span style={{ fontSize: 11, color: '#dc2626' }}>⚠️ {err}</span>}
+      {err && <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>{err}</span>}
     </div>
   );
 }
