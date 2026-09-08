@@ -263,9 +263,13 @@ export async function placeOrder(
   const phone = String(formData.get('phone') || '').trim();
   const address = String(formData.get('address') || '').trim();
   const shippingMethod = String(formData.get('shipping_method') || '').trim();
+  // Phase 15.4:統編發票(選填)
+  const invoiceTaxId = String(formData.get('invoice_tax_id') || '').trim();
+  const invoiceTitle = String(formData.get('invoice_title') || '').trim();
 
   if (cart.length === 0) throw new Error('購物車是空的');
   if (!recipient || !phone || !address) throw new Error('收件人 / 電話 / 地址 必填');
+  if (invoiceTaxId && !/^\d{8}$/.test(invoiceTaxId)) throw new Error('統一編號需為 8 位數字');
 
   // 找 user
   const { data: user, error: userErr } = await supabaseAdmin
@@ -366,6 +370,8 @@ export async function placeOrder(
       shipping_address: address,
       shipping_method: shippingKey,
       shipping_fee_twd: shippingFee,
+      invoice_tax_id: invoiceTaxId || null,
+      invoice_title: invoiceTitle || null,
     })
     .select('id, order_no, total_twd')
     .single();

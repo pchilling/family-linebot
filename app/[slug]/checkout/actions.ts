@@ -39,12 +39,18 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const note = String(formData.get('note') ?? '').trim();
   const guestEmail = String(formData.get('guestEmail') ?? '').trim();
   const shippingMethod = String(formData.get('shipping_method') ?? '').trim();
+  // Phase 15.4:統編發票(選填)
+  const invoiceTaxId = String(formData.get('invoice_tax_id') ?? '').trim();
+  const invoiceTitle = String(formData.get('invoice_title') ?? '').trim();
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
 
   if (!tenantSlug) return { ok: false, error: '無攤位資訊' };
   if (!recipient) return { ok: false, error: '請填收件人姓名' };
   if (!phone) return { ok: false, error: '請填聯絡電話' };
   if (!address) return { ok: false, error: '請填寄送地址' };
+  if (invoiceTaxId && !/^\d{8}$/.test(invoiceTaxId)) {
+    return { ok: false, error: '統一編號需為 8 位數字' };
+  }
 
   let cartItems: CartItemInput[];
   try {
@@ -193,6 +199,8 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       shipping_address: address,
       shipping_method: shippingKey,
       shipping_fee_twd: shippingFee,
+      invoice_tax_id: invoiceTaxId || null,
+      invoice_title: invoiceTitle || null,
       note: note || null,
       guest_email: guestEmail || null,
       guest_phone: phone,

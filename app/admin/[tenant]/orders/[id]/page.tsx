@@ -21,6 +21,8 @@ type OrderDetail = {
   payment_method: string | null;
   payment_last5: string | null;
   payment_reported_at: string | null; // D#14:客人自助回報時間
+  invoice_tax_id: string | null; // Phase 15.4:統編發票
+  invoice_title: string | null;
   total_twd: number;
   shipping_method: string | null;
   shipping_fee_twd: number;
@@ -51,6 +53,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
     .select(
       // payment_last5 / payment_reported_at / shipping_*:Phase 14-15 SQL(2026-09-02)已加
       `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
+       invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
@@ -124,9 +127,16 @@ export default async function OrderDetailPage({
           🖨 列印出貨單(A4)
         </a>
       </h1>
-      <p style={{ color: '#666', fontSize: 13, marginBottom: 24 }}>
+      <p style={{ color: '#666', fontSize: 13, marginBottom: o.invoice_tax_id ? 8 : 24 }}>
         建立 {formatTw(o.created_at)} · 最後更新 {formatTw(o.updated_at)}
       </p>
+      {/* Phase 15.4:客人要求開統編發票 → 醒目提示 */}
+      {o.invoice_tax_id && (
+        <div style={{ marginBottom: 24, padding: '8px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
+          🧾 需開發票 — 統編 <span style={{ fontFamily: 'ui-monospace, monospace' }}>{o.invoice_tax_id}</span>
+          {o.invoice_title && <> · 抬頭「{o.invoice_title}」</>}
+        </div>
+      )}
 
       <section style={section}>
         <h2 style={h2}>訂單明細</h2>

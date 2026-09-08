@@ -978,6 +978,30 @@ export default function ShopPage() {
               />
             </label>
 
+            {/* Phase 15.4(2026-09-08):統編發票(選填,展開才填) */}
+            <details style={{ border: '1px solid #e4e4e7', borderRadius: 10, padding: '10px 14px' }}>
+              <summary style={{ fontSize: 13, fontWeight: 500, color: '#52525b', cursor: 'pointer' }}>
+                🧾 需要統編發票?(選填)
+              </summary>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>統一編號(8 碼)</span>
+                  <input
+                    name="invoice_tax_id"
+                    inputMode="numeric"
+                    pattern="[0-9]{8}"
+                    maxLength={8}
+                    style={shopInput}
+                    placeholder="12345678"
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>發票抬頭</span>
+                  <input name="invoice_title" style={shopInput} placeholder="公司 / 行號名稱" />
+                </label>
+              </div>
+            </details>
+
             <button
               type="submit"
               disabled={status === 'submitting'}

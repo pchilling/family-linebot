@@ -26,6 +26,8 @@ type OrderDetail = {
   shipping_fee_twd: number;
   payment_last5: string | null;
   payment_reported_at: string | null;
+  invoice_tax_id: string | null;
+  invoice_title: string | null;
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
@@ -39,7 +41,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
+      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -76,6 +78,8 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     shipping_fee_twd: row.shipping_fee_twd ?? 0,
     payment_last5: row.payment_last5 ?? null,
     payment_reported_at: row.payment_reported_at ?? null,
+    invoice_tax_id: row.invoice_tax_id ?? null,
+    invoice_title: row.invoice_title ?? null,
     shipping_recipient: row.shipping_recipient,
     shipping_phone: row.shipping_phone,
     shipping_address: row.shipping_address,
@@ -428,6 +432,18 @@ export default async function OrderPage({ params }: Props) {
             <>
               <dt style={{ color: '#9ca3af' }}>Email</dt>
               <dd style={{ margin: 0 }}>{order.guest_email}</dd>
+            </>
+          )}
+          {order.invoice_tax_id && (
+            <>
+              <dt style={{ color: '#9ca3af' }}>統一編號</dt>
+              <dd style={{ margin: 0, fontFamily: 'ui-monospace, monospace' }}>{order.invoice_tax_id}</dd>
+            </>
+          )}
+          {order.invoice_title && (
+            <>
+              <dt style={{ color: '#9ca3af' }}>發票抬頭</dt>
+              <dd style={{ margin: 0 }}>{order.invoice_title}</dd>
             </>
           )}
           {order.note && (

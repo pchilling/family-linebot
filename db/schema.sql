@@ -1119,6 +1119,15 @@ alter table products add column if not exists badge_color text;
 
 
 -- ====================
+-- Phase 15.4(2026-09-08):發票欄位
+-- 客人結帳可選填統一編號(8 碼)+ 發票抬頭,存訂單。
+-- 訂單頁 / 後台 / 出貨單 / 匯出都顯示。
+-- ====================
+alter table orders add column if not exists invoice_tax_id text;
+alter table orders add column if not exists invoice_title text;
+
+
+-- ====================
 -- Phase 15.3(2026-09-08):oilswa 自取選項文字修正
 -- 原 label「門市自取/偏遠離島」配 fee 0 會顯示「偏遠離島 免運費」,誤導 —
 -- 偏遠離島實際是自行聯絡貨運。label 改純「門市自取」,偏遠離島說明移到 note。

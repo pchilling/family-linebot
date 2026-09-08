@@ -271,6 +271,31 @@ export default function CheckoutPage({ params }: Props) {
           />
         </div>
 
+        {/* Phase 15.4(2026-09-08):統編發票(選填,展開才填) */}
+        <details style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem 1rem' }}>
+          <summary style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+            🧾 需要統編發票?(選填)
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
+            <div>
+              <label htmlFor="invoiceTaxId" style={labelStyle}>統一編號(8 碼)</label>
+              <input
+                id="invoiceTaxId"
+                name="invoice_tax_id"
+                inputMode="numeric"
+                pattern="[0-9]{8}"
+                maxLength={8}
+                style={inputStyle}
+                placeholder="12345678"
+              />
+            </div>
+            <div>
+              <label htmlFor="invoiceTitle" style={labelStyle}>發票抬頭</label>
+              <input id="invoiceTitle" name="invoice_title" style={inputStyle} placeholder="公司 / 行號名稱" />
+            </div>
+          </div>
+        </details>
+
         {error && (
           <div
             style={{

@@ -38,6 +38,8 @@ type OrderDetail = {
   total_twd: number;
   shipping_fee_twd: number | null;
   shipping_method: string | null;
+  invoice_tax_id: string | null;
+  invoice_title: string | null;
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
@@ -96,6 +98,7 @@ export default async function OrderPrintPage({
     .from('orders')
     .select(
       `id, order_no, status, payment_status, payment_method, total_twd, shipping_fee_twd, shipping_method,
+       invoice_tax_id, invoice_title,
        shipping_recipient, shipping_phone, shipping_address, tracking_no, note, created_at,
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
     )
@@ -193,6 +196,18 @@ export default async function OrderPrintPage({
               <>
                 <span style={{ color: '#9ca3af' }}>追蹤單號</span>
                 <span className="num">{o.tracking_no}</span>
+              </>
+            )}
+            {o.invoice_tax_id && (
+              <>
+                <span style={{ color: '#9ca3af' }}>統一編號</span>
+                <span className="num">{o.invoice_tax_id}</span>
+              </>
+            )}
+            {o.invoice_title && (
+              <>
+                <span style={{ color: '#9ca3af' }}>發票抬頭</span>
+                <span>{o.invoice_title}</span>
               </>
             )}
           </div>
