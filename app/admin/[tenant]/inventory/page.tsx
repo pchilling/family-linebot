@@ -32,7 +32,8 @@ async function getVariants(tenantId: string): Promise<VariantStock[]> {
 }
 
 // 篩選 + 排序(2026-09-02):資料量小,全撈後在記憶體處理
-type InvFilters = { q?: string; cat?: string; sort?: string };
+// 2026-09-08:分類改可複選(對齊商品管理的 chip 篩選)
+type InvFilters = { q?: string; cats: string[]; sort?: string };
 
 function applyFilters(variants: VariantStock[], f: InvFilters): VariantStock[] {
   let rows = variants;
@@ -45,8 +46,8 @@ function applyFilters(variants: VariantStock[], f: InvFilters): VariantStock[] {
         v.variant_name.toLowerCase().includes(needle),
     );
   }
-  if (f.cat) {
-    rows = rows.filter((v) => (v.products?.category ?? '(未分類)') === f.cat);
+  if (f.cats.length > 0) {
+    rows = rows.filter((v) => f.cats.includes(v.products?.category ?? '(未分類)'));
   }
   const sorted = [...rows];
   switch (f.sort) {
@@ -114,10 +115,14 @@ export default async function InventoryPage({
   searchParams,
 }: {
   params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ q?: string; cat?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; cat?: string | string[]; sort?: string }>;
 }) {
   const { tenant: slug } = await params;
-  const filters = await searchParams;
+  const sp = await searchParams;
+  const q = (sp.q ?? '').trim();
+  const selCats = Array.isArray(sp.cat) ? sp.cat : sp.cat ? [sp.cat] : [];
+  const sort = sp.sort ?? 'stock_asc';
+  const filters: InvFilters = { q, cats: selCats, sort };
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
 
@@ -188,53 +193,102 @@ export default async function InventoryPage({
         </section>
       )}
 
-      {/* 篩選 + 排序 + 匯出(2026-09-02) */}
-      <form
-        method="GET"
-        style={{
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          marginBottom: 16,
-          padding: 12,
-          background: '#fafafa',
-          border: '1px solid #eee',
-          borderRadius: 6,
-        }}
-      >
-        <input
-          type="search"
-          name="q"
-          defaultValue={filters.q ?? ''}
-          placeholder="搜商品名 / 規格 / SKU"
-          style={{ flex: '1 1 180px', padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}
-        />
-        <select name="cat" defaultValue={filters.cat ?? ''} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}>
-          <option value="">全部分類</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-        <select name="sort" defaultValue={filters.sort ?? 'stock_asc'} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}>
-          <option value="stock_asc">庫存少 → 多</option>
-          <option value="stock_desc">庫存多 → 少</option>
-          <option value="name">商品名</option>
-          <option value="category">分類</option>
-        </select>
-        <button
-          type="submit"
-          style={{ padding: '8px 16px', background: '#18181b', color: '#fff', border: 0, borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-        >
-          套用
-        </button>
-        <a
-          href={`/admin/${slug}/inventory/export`}
-          style={{ marginLeft: 'auto', padding: '8px 16px', background: '#fff', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 4, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
-        >
-          ⬇ 匯出 Excel(CSV)
-        </a>
-      </form>
+      {/* 篩選 + 排序 + 匯出(2026-09-08 v2:分類/排序改點擊即套用 chip,對齊商品管理) */}
+      {(() => {
+        const buildHref = (cats: string[], s: string) => {
+          const params = new URLSearchParams();
+          if (q) params.set('q', q);
+          for (const cat of cats) params.append('cat', cat);
+          if (s && s !== 'stock_asc') params.set('sort', s);
+          const str = params.toString();
+          return `/admin/${slug}/inventory${str ? `?${str}` : ''}`;
+        };
+        const toggleCatHref = (cat: string) =>
+          buildHref(selCats.includes(cat) ? selCats.filter((x) => x !== cat) : [...selCats, cat], sort);
+        const chipStyle = (on: boolean): React.CSSProperties => ({
+          display: 'inline-block',
+          padding: '7px 14px',
+          border: `1px solid ${on ? '#18181b' : '#ddd'}`,
+          borderRadius: 999,
+          fontSize: 12,
+          color: on ? '#fff' : '#52525b',
+          background: on ? '#18181b' : '#fff',
+          fontWeight: on ? 600 : 400,
+          textDecoration: 'none',
+          userSelect: 'none',
+          touchAction: 'manipulation',
+        });
+        const sortOptions = [
+          { key: 'stock_asc', label: '庫存少→多' },
+          { key: 'stock_desc', label: '庫存多→少' },
+          { key: 'name', label: '商品名' },
+          { key: 'category', label: '分類' },
+        ];
+        const hasFilter = !!q || selCats.length > 0;
+        return (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              marginBottom: 16,
+              padding: 12,
+              background: '#fff',
+              border: '1px solid #eee',
+              borderRadius: 8,
+            }}
+          >
+            <form method="GET" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {selCats.map((cat) => (
+                <input key={cat} type="hidden" name="cat" value={cat} />
+              ))}
+              {sort !== 'stock_asc' && <input type="hidden" name="sort" value={sort} />}
+              <input
+                type="search"
+                name="q"
+                defaultValue={q}
+                placeholder="搜商品名 / 規格 / SKU"
+                style={{ flex: '1 1 180px', maxWidth: 320, padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}
+              />
+              <button
+                type="submit"
+                style={{ padding: '8px 16px', background: '#18181b', color: '#fff', border: 0, borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                搜尋
+              </button>
+              {hasFilter && (
+                <a href={`/admin/${slug}/inventory`} style={{ padding: '8px 12px', fontSize: 13, color: '#52525b', textDecoration: 'none', border: '1px solid #ddd', borderRadius: 4, background: '#fff' }}>
+                  清除全部
+                </a>
+              )}
+              <a
+                href={`/admin/${slug}/inventory/export`}
+                style={{ marginLeft: 'auto', padding: '8px 16px', background: '#fff', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 4, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+              >
+                匯出 Excel(CSV)
+              </a>
+            </form>
+            {categories.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: '#999', fontWeight: 600, marginRight: 2 }}>分類</span>
+                {categories.map((cat) => (
+                  <a key={cat} href={toggleCatHref(cat)} style={chipStyle(selCats.includes(cat))}>
+                    {cat}
+                  </a>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: '#999', fontWeight: 600, marginRight: 2 }}>排序</span>
+              {sortOptions.map((o) => (
+                <a key={o.key} href={buildHref(selCats, o.key)} style={chipStyle(sort === o.key)}>
+                  {o.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <section style={section}>
         <h2 style={h2}>商品規格庫存 ({variants.length}{variants.length !== allVariants.length ? ` / ${allVariants.length}` : ''})</h2>
