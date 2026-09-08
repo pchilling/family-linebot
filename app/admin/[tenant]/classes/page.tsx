@@ -3,6 +3,7 @@ import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { createClass, deleteClass, updateClass } from '../../actions';
 import { ProductImageUploader } from '../products/image-uploader';
 import { SubmitButton } from '../../_components/submit-button';
+import { UploadImageField } from '../../_components/upload-image-field';
 
 type Region = { id: string; name: string };
 type ClassRow = {
@@ -286,6 +287,15 @@ details[open] .chev { transform: rotate(90deg); }
                 Rich Menu「📅 本月課程」+ LIFF 報名頁都會顯示這段。建議用換行 + emoji 讓視覺更生動,150 字以內。
               </span>
             </label>
+            {/* 2026-09-08:建立時就能傳活動圖(原本要先建立才能傳) */}
+            <div style={{ ...label, gridColumn: '1 / -1' }}>
+              <span style={labelText}>活動圖(選填)</span>
+              <UploadImageField
+                tenantSlug={tenant.slug}
+                folder="classes"
+                hint="建議直式 3:4,課程卡片與報名頁都會顯示;之後也可在活動卡內更換"
+              />
+            </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <SubmitButton pendingText="建立中…">建立活動</SubmitButton>
             </div>

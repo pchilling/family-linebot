@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
 
@@ -104,6 +104,39 @@ function toIsoTaipei(local: string): string {
   return `${local}:00+08:00`;
 }
 
+/**
+ * 2026-09-08:表單「建立前」就能上傳圖片的通用簽名連結
+ * (原本活動要先建立才能傳圖)。folder 白名單防亂塞路徑。
+ */
+export type AdminUploadUrlResult =
+  | { ok: true; path: string; token: string; publicUrl: string }
+  | { ok: false; error: string };
+
+export async function createAdminImageUploadUrl(formData: FormData): Promise<AdminUploadUrlResult> {
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const folder = String(formData.get('folder') || '').trim();
+  const filename = String(formData.get('filename') || '').trim();
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!['classes'].includes(folder)) return { ok: false, error: '資料夾不合法' };
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg';
+  const path = `${tenant.id}/${folder}/${Date.now()}.${safeExt}`;
+
+  const { data, error } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    console.error('[createAdminImageUploadUrl]', error);
+    return { ok: false, error: '建立上傳連結失敗' };
+  }
+  const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+  return { ok: true, path: data.path, token: data.token, publicUrl };
+}
+
 export async function createClass(formData: FormData) {
   const region_id = String(formData.get('region_id'));
   const name = String(formData.get('name')).trim();
@@ -117,6 +150,8 @@ export async function createClass(formData: FormData) {
   const cap_num = cap_str ? Number(cap_str) : NaN;
   const capacity = Number.isFinite(cap_num) && cap_num > 0 ? cap_num : null;
   const description = String(formData.get('description') || '').replace(/^\s+|\s+$/g, '') || null;
+  // 2026-09-08:建立時就能帶圖(前端直傳完把 URL 塞 hidden input)
+  const image_url = String(formData.get('image_url') || '').trim() || null;
 
   await supabaseAdmin.from('classes').insert({
     tenant_id: tIdFromForm(formData),
@@ -129,6 +164,7 @@ export async function createClass(formData: FormData) {
     duration_min,
     capacity,
     description,
+    image_url,
     status: 'open',
   });
   revalForRoute(formData, 'classes');
