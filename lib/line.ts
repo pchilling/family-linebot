@@ -229,7 +229,10 @@ export function buildMonthlyClassesFlex(
   classes: ClassRow[],
 ): messagingApi.FlexMessage | null {
   if (classes.length === 0) return null;
-  const liffEventsId = process.env.NEXT_PUBLIC_LIFF_ID_EVENTS ?? process.env.NEXT_PUBLIC_LIFF_ID;
+  // 2026-09-08:活動報名 LIFF(2010125926-xN0zYRAJ,endpoint /m/events)直接當預設值 —
+  // LIFF ID 是公開資訊(rich menu 按鈕本來就寫死),不再依賴環境變數;
+  // trim + || 防呆:env 值帶空白/換行曾讓按鈕 URI 非法、整張卡被 LINE 退件
+  const liffEventsId = (process.env.NEXT_PUBLIC_LIFF_ID_EVENTS || '2010125926-xN0zYRAJ').trim();
   if (!liffEventsId) return null;
   const eventsUrl = `https://liff.line.me/${liffEventsId}`;
   // LINE Flex 圖片只吃 JPEG/PNG(SVG 不支援),/icon.png 由 app/icon.png 提供

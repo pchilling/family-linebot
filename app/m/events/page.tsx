@@ -10,8 +10,8 @@ import {
   type EventsTenant,
 } from './actions';
 
-const LIFF_ID =
-  process.env.NEXT_PUBLIC_LIFF_ID_EVENTS ?? process.env.NEXT_PUBLIC_LIFF_ID!;
+// 2026-09-08:活動報名專屬 LIFF(endpoint /m/events)寫死當預設值,不再 fallback 會員中心
+const LIFF_ID = (process.env.NEXT_PUBLIC_LIFF_ID_EVENTS || '2010125926-xN0zYRAJ').trim();
 
 const c = {
   bg: '#fafafa',
