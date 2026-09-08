@@ -124,15 +124,7 @@ export default async function TenantLayout({ children, params }: Props) {
           marginTop: '4rem',
         }}
       >
-        <div style={{ marginBottom: '0.5rem' }}>
-          <a
-            href={`/${slug}/order-lookup`}
-            style={{ color: '#6b7280', fontSize: '0.8125rem', textDecoration: 'none' }}
-          >
-            查我的訂單 →
-          </a>
-        </div>
-        {/* 法規連結 */}
+        {/* 法規連結(2026-09-08:查訂單併入此列,不再獨立一行 — 留給弄丟連結的網頁訪客) */}
         <div
           style={{
             display: 'flex',
@@ -143,6 +135,7 @@ export default async function TenantLayout({ children, params }: Props) {
             flexWrap: 'wrap',
           }}
         >
+          <a href={`/${slug}/order-lookup`} style={{ color: '#9ca3af', textDecoration: 'none' }}>查訂單</a>
           <a href="/policy/terms" style={{ color: '#9ca3af', textDecoration: 'none' }}>服務條款</a>
           <a href="/policy/privacy" style={{ color: '#9ca3af', textDecoration: 'none' }}>隱私權</a>
           <a href="/policy/refund" style={{ color: '#9ca3af', textDecoration: 'none' }}>退款</a>
