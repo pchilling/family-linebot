@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
-import { ProductDetailModal, pctToZhe, saleActiveOf } from './product-detail-modal';
+import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   loadShopData,
   placeOrder,
@@ -593,8 +593,9 @@ export default function ShopPage() {
                       <span
                         style={{
                           padding: '3px 9px',
-                          background: '#b45309',
-                          color: '#fff',
+                          // Phase 15.2:自選角標色,亮色底自動配深字
+                          background: p.badge_color ?? '#b45309',
+                          color: badgeFg(p.badge_color ?? '#b45309'),
                           borderRadius: 6,
                           fontSize: 11,
                           fontWeight: 800,

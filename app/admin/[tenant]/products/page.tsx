@@ -48,9 +48,22 @@ type Product = {
   share_focus_x: number | null;
   category: string | null;
   badge: string | null;
+  badge_color: string | null;
   status: string;
   product_variants: Variant[];
 };
+
+// Phase 15.2(2026-09-08):角標顏色預設選項(黃色底自動配深字在前台處理)
+const BADGE_COLORS: { value: string; label: string }[] = [
+  { value: '', label: '預設(橙棕)' },
+  { value: '#dc2626', label: '紅' },
+  { value: '#ea580c', label: '橘' },
+  { value: '#eab308', label: '黃' },
+  { value: '#16a34a', label: '綠' },
+  { value: '#2563eb', label: '藍' },
+  { value: '#7c3aed', label: '紫' },
+  { value: '#18181b', label: '黑' },
+];
 
 async function getTiersMap(tenantId: string): Promise<Map<string, PriceTier[]>> {
   const { data } = await supabaseAdmin
@@ -70,7 +83,7 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, status,
+      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, badge_color, status,
        product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
     )
     .eq('tenant_id', tenantId)
@@ -288,7 +301,15 @@ details[open] .chev { transform: rotate(90deg); }
             <datalist id="cats"><option value="精油" /><option value="保養品" /><option value="保健" /><option value="配件" /><option value="童裝" /></datalist>
             <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} /></label>
             <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
-            <label style={label}><span style={labelText}>角標(選填,如 HOT / 9折)</span><input name="badge" maxLength={8} style={input} placeholder="HOT" /></label>
+            <label style={label}><span style={labelText}>角標(選填,如 HOT / 新品)</span><input name="badge" maxLength={8} style={input} placeholder="HOT" /></label>
+            <label style={label}>
+              <span style={labelText}>角標顏色</span>
+              <select name="badge_color" defaultValue="" style={input}>
+                {BADGE_COLORS.map((bc) => (
+                  <option key={bc.value || 'default'} value={bc.value}>{bc.label}</option>
+                ))}
+              </select>
+            </label>
             <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
             <label style={{ ...label, gridColumn: '1 / -1' }}>
               <span style={labelText}>描述</span>
@@ -478,6 +499,14 @@ details[open] .chev { transform: rotate(90deg); }
                     <label style={label}>
                       <span style={labelText}>角標(純文字標籤,如 HOT / 新品。⚠️ 要真的打折請用下方「限時優惠」)</span>
                       <input name="badge" defaultValue={p.badge ?? ''} maxLength={8} style={input} placeholder="HOT" />
+                    </label>
+                    <label style={label}>
+                      <span style={labelText}>角標顏色</span>
+                      <select name="badge_color" defaultValue={p.badge_color ?? ''} style={input}>
+                        {BADGE_COLORS.map((bc) => (
+                          <option key={bc.value || 'default'} value={bc.value}>{bc.label}</option>
+                        ))}
+                      </select>
                     </label>
                     <label style={{ ...label, gridColumn: '1 / -1' }}>
                       <span style={labelText}>描述</span>

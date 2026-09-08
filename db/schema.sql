@@ -1109,3 +1109,10 @@ where slug = 'oilswa' and shipping_rules is null;
 -- null = 維持白色
 -- ====================
 alter table tenants add column if not exists header_bg_color text;
+
+
+-- ====================
+-- Phase 15.2(2026-09-08):角標顏色
+-- 角標(badge)原本固定紅/棕色,開放每個商品自選(#RRGGBB;null = 預設)
+-- ====================
+alter table products add column if not exists badge_color text;

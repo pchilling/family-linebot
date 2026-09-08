@@ -43,6 +43,7 @@ export type ShopProduct = {
   media: { type: 'image' | 'video'; url: string }[]; // Phase 9.6
   category: string | null;
   badge: string | null; // 批次 C #9:卡片角標
+  badge_color: string | null; // Phase 15.2:角標顏色(null = 預設橙棕)
   // 2026-09-03:限時優惠接進 LIFF(原本只有公開商城有)
   sale_discount_pct: number | null;
   sale_start_at: string | null;
@@ -123,7 +124,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, badge, sale_discount_pct, sale_start_at, sale_end_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
+      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -178,6 +179,7 @@ export async function loadShopData(
       media: Array.isArray(p.media) ? p.media : [],
       category: p.category,
       badge: p.badge ?? null,
+      badge_color: p.badge_color ?? null,
       sale_discount_pct: p.sale_discount_pct ?? null,
       sale_start_at: p.sale_start_at ?? null,
       sale_end_at: p.sale_end_at ?? null,

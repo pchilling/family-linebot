@@ -9,6 +9,14 @@ function pctToZhe(pct: number): string {
   return `${keep % 10 === 0 ? keep / 10 : keep}折`;
 }
 
+// Phase 15.2:角標文字色 — 亮色底(如黃)配深字,深色底配白字
+function badgeFg(bg: string): string {
+  const r = parseInt(bg.slice(1, 3), 16);
+  const g = parseInt(bg.slice(3, 5), 16);
+  const b = parseInt(bg.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#18181b' : '#ffffff';
+}
+
 type Props = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ f?: string }>;
@@ -212,8 +220,9 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
                         top: 8,
                         right: 8,
                         padding: '4px 10px',
-                        background: '#b45309',
-                        color: '#fff',
+                        // Phase 15.2:自選角標色,亮色底自動配深字
+                        background: p.badge_color ?? '#b45309',
+                        color: badgeFg(p.badge_color ?? '#b45309'),
                         borderRadius: 999,
                         fontSize: 11,
                         fontWeight: 800,

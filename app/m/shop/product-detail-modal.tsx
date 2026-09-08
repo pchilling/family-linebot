@@ -23,6 +23,14 @@ export function pctToZhe(pct: number): string {
   return `${keep % 10 === 0 ? keep / 10 : keep}折`;
 }
 
+// Phase 15.2:角標文字色 — 亮色底(如黃)配深字,深色底配白字
+export function badgeFg(bg: string): string {
+  const r = parseInt(bg.slice(1, 3), 16);
+  const g = parseInt(bg.slice(3, 5), 16);
+  const b = parseInt(bg.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#18181b' : '#ffffff';
+}
+
 function formatCountdown(ms: number): string {
   if (ms <= 0) return '已結束';
   const totalSec = Math.floor(ms / 1000);

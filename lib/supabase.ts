@@ -382,6 +382,7 @@ export type ProductPublic = {
   media: MediaItem[]; // Phase 9.6:列表縮圖優先用 media[0] (image),fallback image_url
   category: string | null;
   badge: string | null; // C#9(2026-09-02):卡片角標
+  badge_color: string | null; // Phase 15.2(2026-09-08):角標顏色
   min_price_twd: number; // 該 product 所有 active variant 的最低價(展示用)
   // Phase 9.9 v2:限時優惠用 % off(每變體比例縮)
   sale_discount_pct: number | null;
@@ -420,7 +421,7 @@ export function applySaleDiscount(basePrice: number, pct: number): number {
 export async function getActiveProducts(tenantId: string): Promise<ProductPublic[]> {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, slug, name, description, image_url, media, category, badge, sale_discount_pct, sale_start_at, sale_end_at, product_variants(price_twd, status)')
+    .select('id, slug, name, description, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, product_variants(price_twd, status)')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -440,6 +441,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
     sale_start_at: string | null;
     sale_end_at: string | null;
     badge: string | null;
+    badge_color: string | null;
     product_variants: { price_twd: number; status: string }[] | null;
   };
   return (data as Row[] | null ?? []).map((p) => {
@@ -454,6 +456,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
       media: p.media ?? [],
       category: p.category,
       badge: p.badge ?? null,
+      badge_color: p.badge_color ?? null,
       min_price_twd: min,
       sale_discount_pct: p.sale_discount_pct ?? null,
       sale_start_at: p.sale_start_at ?? null,
