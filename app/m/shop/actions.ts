@@ -2,6 +2,7 @@
 
 import { getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { lineClient } from '@/lib/line';
+import type { messagingApi } from '@line/bot-sdk';
 
 const LIFF_CHANNEL_ID = process.env.LIFF_CHANNEL_ID!;
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
@@ -436,32 +437,81 @@ async function pushOrderConfirmation(
   const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw';
   const orderUrl = tenant ? `${baseUrl}/${tenant.slug}/order/${orderNo}` : '';
 
-  const lines = [
-    '✓ 您的訂單已建立!',
-    '',
-    `訂單編號:${orderNo}`,
-    `總計:NT$ ${totalTwd.toLocaleString()}`,
+  // 沒有訂單連結(理論上不會發生)→ 退回純文字
+  if (!orderUrl) {
+    await lineClient.pushMessage({
+      to: lineUserId,
+      messages: [{ type: 'text', text: `✓ 您的訂單已建立!\n訂單編號:${orderNo}\n總計:NT$ ${totalTwd.toLocaleString()}` }],
+    });
+    return;
+  }
+
+  // 2026-09-08:改 Flex 卡片 + 「我已匯款」按鈕(直開訂單頁的後五碼表單,不用進客服)
+  const bodyContents: messagingApi.FlexBox['contents'] = [
+    { type: 'text', text: '✓ 訂單已成立', weight: 'bold', size: 'lg', color: '#16a34a' },
+    {
+      type: 'box', layout: 'baseline', margin: 'lg',
+      contents: [
+        { type: 'text', text: '訂單編號', size: 'sm', color: '#71717a', flex: 3 },
+        { type: 'text', text: orderNo, size: 'sm', weight: 'bold', color: '#18181b', flex: 5, align: 'end' },
+      ],
+    },
+    {
+      type: 'box', layout: 'baseline', margin: 'sm',
+      contents: [
+        { type: 'text', text: '應付總額', size: 'sm', color: '#71717a', flex: 3 },
+        { type: 'text', text: `NT$ ${totalTwd.toLocaleString()}`, size: 'md', weight: 'bold', color: '#b45309', flex: 5, align: 'end' },
+      ],
+    },
   ];
 
   if (tenant?.payment_info) {
-    lines.push('');
-    lines.push('—— 下一步:匯款 ——');
-    lines.push(tenant.payment_info);
-    lines.push('');
-    lines.push('匯款後請開下方「訂單詳情」連結,直接填寫帳號後 5 碼。');
+    bodyContents.push({ type: 'separator', margin: 'lg', color: '#e4e4e7' });
+    bodyContents.push({ type: 'text', text: '💰 匯款資訊', weight: 'bold', size: 'sm', margin: 'lg', color: '#92400e' });
+    bodyContents.push({
+      type: 'text',
+      text: tenant.payment_info,
+      size: 'xs',
+      color: '#57534e',
+      wrap: true,
+      margin: 'sm',
+    });
+    bodyContents.push({
+      type: 'text',
+      text: '匯款完成後,按下方按鈕填寫帳號後 5 碼即可,不用另外聯絡客服。',
+      size: 'xs',
+      color: '#71717a',
+      wrap: true,
+      margin: 'md',
+    });
   } else {
-    lines.push('');
-    lines.push('客服會盡快聯繫您確認付款。');
+    bodyContents.push({
+      type: 'text', text: '客服會盡快聯繫您確認付款。', size: 'xs', color: '#71717a', wrap: true, margin: 'lg',
+    });
   }
 
-  if (orderUrl) {
-    lines.push('');
-    lines.push('訂單詳情:');
-    lines.push(orderUrl);
-  }
+  const flex: messagingApi.FlexMessage = {
+    type: 'flex',
+    altText: `✓ 訂單 ${orderNo} 已成立 · NT$ ${totalTwd.toLocaleString()}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      body: { type: 'box', layout: 'vertical', spacing: 'none', contents: bodyContents },
+      footer: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [
+          {
+            type: 'button', style: 'primary', color: '#16a34a', height: 'sm',
+            action: { type: 'uri', label: '✏️ 我已匯款・填後 5 碼', uri: orderUrl },
+          },
+          {
+            type: 'button', style: 'secondary', height: 'sm',
+            action: { type: 'uri', label: '🧾 查看訂單明細', uri: orderUrl },
+          },
+        ],
+      },
+    },
+  };
 
-  await lineClient.pushMessage({
-    to: lineUserId,
-    messages: [{ type: 'text', text: lines.join('\n') }],
-  });
+  await lineClient.pushMessage({ to: lineUserId, messages: [flex] });
 }
