@@ -428,48 +428,34 @@ export async function deleteProduct(formData: FormData) {
 }
 
 /**
- * C#8(2026-09-02):分類顯示順序上移 / 下移。
- * tenants.category_order(jsonb 字串陣列)存完整順序;
- * 實際順序 = 有設定的照設定 + 沒設定的照筆劃(跟前台一致),搬移後存回完整清單。
+ * C#8 分類顯示順序(2026-09-08 改版):
+ * 原本每按一下 ↑↓ 都 redirect 重算整個商品大頁 → 慢到像沒反應。
+ * 改成 client 樂觀排序(畫面立即動),這裡只負責把「完整順序陣列」存起來。
  */
-export async function moveCategoryOrder(formData: FormData) {
-  const tenantId = tIdFromForm(formData);
-  const category = String(formData.get('category') || '').trim();
-  const direction = String(formData.get('direction') || '').trim();
-  if (!category || (direction !== 'up' && direction !== 'down')) return;
-
-  const [{ data: tRow }, { data: prods }] = await Promise.all([
-    supabaseAdmin.from('tenants').select('category_order').eq('id', tenantId).maybeSingle(),
-    supabaseAdmin.from('products').select('category').eq('tenant_id', tenantId).not('category', 'is', null),
-  ]);
-  const saved: string[] = Array.isArray((tRow as { category_order?: string[] } | null)?.category_order)
-    ? ((tRow as { category_order: string[] }).category_order)
-    : [];
-  const found = [...new Set(((prods ?? []) as { category: string | null }[]).map((p) => p.category).filter((c): c is string => !!c))];
-  const effective = [
-    ...saved.filter((c) => found.includes(c)),
-    ...found.filter((c) => !saved.includes(c)).sort((a, b) => a.localeCompare(b, 'zh-Hant')),
-  ];
-
-  const idx = effective.indexOf(category);
-  const target = direction === 'up' ? idx - 1 : idx + 1;
-  if (idx < 0 || target < 0 || target >= effective.length) return;
-  [effective[idx], effective[target]] = [effective[target], effective[idx]];
+export async function saveCategoryOrder(
+  tenantId: string,
+  tenantSlug: string,
+  order: string[],
+): Promise<{ ok: boolean }> {
+  if (!Array.isArray(order) || order.some((c) => typeof c !== 'string' || !c.trim())) {
+    return { ok: false };
+  }
+  const clean = order.map((c) => c.trim()).slice(0, 100);
 
   const { error } = await supabaseAdmin
     .from('tenants')
-    .update({ category_order: effective })
+    .update({ category_order: clean })
     .eq('id', tenantId);
-  if (error) console.error('[moveCategoryOrder]', error);
-
-  revalidateProductRoutes(formData);
-  const slug = String(formData.get('tenant_slug') || '').trim();
-  if (slug) {
-    revalidatePath(`/${slug}`);
-    // redirect 強制整頁刷新(2026-09-03 修:只 revalidate 畫面不會即時更新,看起來像沒反應)
-    // ?cats=open 讓排序面板保持展開
-    redirect(`/admin/${slug}/products?cats=open`);
+  if (error) {
+    console.error('[saveCategoryOrder]', error);
+    return { ok: false };
   }
+
+  if (tenantSlug) {
+    revalidatePath(`/admin/${tenantSlug}/products`);
+    revalidatePath(`/${tenantSlug}`);
+  }
+  return { ok: true };
 }
 
 // ====================
