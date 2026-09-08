@@ -75,7 +75,6 @@ export default function MyOrdersPage() {
     return (
       <main style={page}>
         <div style={centered}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
           <p style={{ color: '#dc2626', fontSize: 14 }}>{error}</p>
         </div>
       </main>
@@ -128,7 +127,7 @@ export default function MyOrdersPage() {
             還沒有訂單
           </p>
           <p style={{ margin: 0, fontSize: 12, color: '#71717a', lineHeight: 1.6 }}>
-            到主選單「🛍 商品專區」開始逛
+            到主選單「商品專區」開始逛
           </p>
         </div>
       ) : (

@@ -185,7 +185,7 @@ input:focus { outline: none; border-color: #18181b !important; }
 
       {status === 'err' && (
         <div style={errCard}>
-          <div style={icon}>⚠️</div>
+          <div style={icon}>!</div>
           <p style={msgBold}>{message}</p>
           <p style={hint}>請聯絡現場老師協助處理。</p>
         </div>

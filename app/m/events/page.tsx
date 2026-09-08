@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import { IconCalendar, IconCheck, IconClock } from '@/lib/icons';
 import {
   cancelReservation,
   loadEvents,
@@ -181,8 +182,7 @@ export default function EventsPage() {
     return (
       <main style={page}>
         <div style={centered}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
-          <p style={{ color: c.danger, fontSize: 14 }}>{error}</p>
+          <p style={{ color: c.danger, fontSize: 14, fontWeight: 600 }}>發生錯誤:{error}</p>
         </div>
       </main>
     );
@@ -284,7 +284,9 @@ ${spinKeyframes}
             borderRadius: 12,
           }}
         >
-          <div style={{ fontSize: 40, marginBottom: 10 }}>📅</div>
+          <div style={{ marginBottom: 10, color: '#d4d4d8' }}>
+            <IconCalendar size={44} />
+          </div>
           <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500 }}>近期沒有活動</p>
           <p style={{ margin: 0, fontSize: 12, color: c.textMuted }}>
             老師建立活動後會出現在這裡
@@ -310,23 +312,17 @@ ${spinKeyframes}
                 id={`event-${e.id}`}
                 className="event-card"
                 style={{
+                  // 2026-09-08 改版:對齊訂單頁設計語言 — 白卡細框,不再用左色條
                   background: c.card,
-                  border: isFocused
-                    ? `2px solid ${c.accent}`
-                    : `1px solid ${isMine ? c.successBorder : c.border}`,
-                  borderLeft: isFocused
-                    ? `3px solid ${c.accent}`
-                    : isMine
-                      ? `3px solid ${c.success}`
-                      : `1px solid ${c.border}`,
-                  borderRadius: 10,
+                  border: isFocused ? `2px solid ${c.accent}` : `1px solid ${c.border}`,
+                  borderRadius: 12,
                   overflow: 'hidden',
-                  transition: 'transform 0.15s, border-color 0.2s',
+                  transition: 'border-color 0.2s',
                   scrollMarginTop: 12,
-                  boxShadow: isFocused ? '0 4px 16px rgba(0,0,0,0.10)' : 'none',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                 }}
               >
-                {/* Cover 圖(有設才顯示)— 4:5 直式 */}
+                {/* Cover 圖:列表限高 220px 置中裁切,避免直式海報把版面撐爆 */}
                 {e.image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -334,8 +330,9 @@ ${spinKeyframes}
                     alt={e.name}
                     style={{
                       width: '100%',
-                      aspectRatio: '3 / 4',
+                      height: 220,
                       objectFit: 'cover',
+                      objectPosition: 'center 30%',
                       display: 'block',
                     }}
                   />
@@ -388,10 +385,10 @@ ${spinKeyframes}
                     </div>
                     <div style={{ fontSize: 12, color: c.textMuted, marginBottom: 6 }}>
                       {formatTime(e.scheduled_at)}
-                      {e.region_name && <> · 📍 {e.region_name}</>}
-                      {e.instructor && <> · 👤 {e.instructor}</>}
+                      {e.region_name && <> · {e.region_name}</>}
+                      {e.instructor && <> · {e.instructor}</>}
                       {e.is_paid && (
-                        <> · 💰 <strong style={{ color: c.text }}>NT$ {e.price_twd ?? '-'}</strong></>
+                        <> · <strong style={{ color: '#b45309' }}>NT$ {e.price_twd ?? '-'}</strong></>
                       )}
                     </div>
 
@@ -412,8 +409,8 @@ ${spinKeyframes}
                               <span style={{ color: c.warning }}> · 候補 {e.waitlist_count}</span>
                             )}
                           </span>
-                          <span style={{ color: c.textMuted }}>
-                            {isFull ? '🔴 已滿' : `剩 ${remaining}`}
+                          <span style={{ color: isFull ? c.danger : c.textMuted, fontWeight: isFull ? 700 : 400 }}>
+                            {isFull ? '已滿' : `剩 ${remaining}`}
                           </span>
                         </div>
                         <div style={{ height: 4, background: c.borderSubtle, borderRadius: 2, overflow: 'hidden' }}>
@@ -434,15 +431,19 @@ ${spinKeyframes}
                       <div
                         style={{
                           ...btnBase,
-                          background: '#f4f4f5',
-                          color: c.textSec,
+                          background: c.successBg,
+                          color: c.success,
                           textAlign: 'center',
                           cursor: 'default',
-                          border: `1px dashed ${c.border}`,
-                          fontWeight: 500,
+                          border: `1px solid ${c.successBorder}`,
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
                         }}
                       >
-                        🆓 免費課程 · 無須報名,直接到場
+                        <IconCheck size={14} /> 免費課程 · 無須報名,直接到場
                       </div>
                     ) : (
                       <>
@@ -456,10 +457,14 @@ ${spinKeyframes}
                               background: c.card,
                               color: c.success,
                               border: `1px solid ${c.successBorder}`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 6,
                               ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
                             }}
                           >
-                            {isPending ? '處理中…' : '✓ 已報名 · 點此取消'}
+                            {isPending ? '處理中…' : (<><IconCheck size={14} /> 已報名 · 點此取消</>)}
                           </button>
                         )}
                         {isWaitlist && (
@@ -472,10 +477,14 @@ ${spinKeyframes}
                               background: c.card,
                               color: c.warning,
                               border: `1px solid ${c.warningBg}`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 6,
                               ...(isPending ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
                             }}
                           >
-                            {isPending ? '處理中…' : `⏳ 候補 #${e.my_position} · 點此取消`}
+                            {isPending ? '處理中…' : (<><IconClock size={14} /> 候補 #{e.my_position} · 點此取消</>)}
                           </button>
                         )}
                         {!isMine && (
