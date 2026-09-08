@@ -419,6 +419,42 @@ export async function placeOrder(
 }
 
 /**
+ * 2026-09-08:LIFF 訂單成立畫面直接回報匯款後 5 碼(不用繞去訂單頁)。
+ * 安全:只能改「自己的」「還沒付款的」訂單。
+ */
+export async function reportOrderLast5(
+  idToken: string,
+  orderNo: string,
+  last5: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!/^\d{5}$/.test(last5)) return { ok: false, error: '後 5 碼需為 5 位數字' };
+  const lineUserId = await verifyIdToken(idToken);
+
+  const { data: user } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .maybeSingle();
+  if (!user) return { ok: false, error: '用戶不存在' };
+
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .update({ payment_last5: last5, payment_reported_at: new Date().toISOString() })
+    .eq('tenant_id', TENANT_ID)
+    .eq('order_no', orderNo)
+    .eq('user_id', user.id)
+    .eq('payment_status', 'pending')
+    .select('id');
+  if (error) {
+    console.error('[reportOrderLast5]', error);
+    return { ok: false, error: '回報失敗,請稍後再試' };
+  }
+  if (!data || data.length === 0) return { ok: false, error: '找不到可回報的訂單' };
+  return { ok: true };
+}
+
+/**
  * 訂單建立後 LINE push 一則文字訊息給客戶:
  *   ✓ 訂單編號 + 總計
  *   💰 匯款資訊(從 tenants.payment_info)

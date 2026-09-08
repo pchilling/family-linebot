@@ -7,6 +7,7 @@ import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-d
 import {
   loadShopData,
   placeOrder,
+  reportOrderLast5,
   saveShopProfile,
   type ShopProduct,
   type ShopMember,
@@ -42,6 +43,32 @@ export default function ShopPage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  // 2026-09-08:訂單成立畫面直接回報後 5 碼
+  const [last5, setLast5] = useState('');
+  const [reportState, setReportState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
+  const [reportErr, setReportErr] = useState('');
+
+  async function onReportLast5() {
+    if (!/^\d{5}$/.test(last5)) {
+      setReportErr('請輸入 5 位數字');
+      setReportState('error');
+      return;
+    }
+    setReportState('saving');
+    setReportErr('');
+    try {
+      const r = await reportOrderLast5(idToken, orderNo, last5);
+      if (r.ok) {
+        setReportState('done');
+      } else {
+        setReportErr(r.error ?? '回報失敗');
+        setReportState('error');
+      }
+    } catch (e) {
+      setReportErr(e instanceof Error ? e.message : String(e));
+      setReportState('error');
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -359,8 +386,7 @@ export default function ShopPage() {
               {tenant.payment_info}
             </div>
             <div style={{ marginTop: 12, color: '#92400e', fontSize: 12, lineHeight: 1.5 }}>
-              💡 建議截圖此頁,匯款後告知賣家後 5 碼。<br />
-              訂單編號 <strong>{orderNo}</strong>。
+              💡 匯款完成後,直接在下方填帳號<strong>後 5 碼</strong>;晚點匯也沒關係,LINE 通知裡的按鈕隨時可以填。
             </div>
           </div>
         ) : (
@@ -375,6 +401,81 @@ export default function ShopPage() {
             lineHeight: 1.6,
           }}>
             客服會盡快聯繫您確認付款與出貨。
+          </div>
+        )}
+
+        {/* 2026-09-08:成立畫面直接回報後 5 碼 */}
+        {reportState === 'done' ? (
+          <div style={{ padding: '1.25rem', background: '#f0fdf4', border: '2px solid #86efac', borderRadius: 12 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#15803d' }}>✓ 已回報後 5 碼</div>
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 24, fontWeight: 700, letterSpacing: '0.3em', color: '#166534' }}>
+                {last5}
+              </span>
+              <span style={{ fontSize: 13, color: '#6b7280' }}>等待賣家核帳</span>
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: '1.25rem',
+              background: '#fffbeb',
+              border: '2px solid #f59e0b',
+              borderRadius: 12,
+              boxShadow: '0 2px 10px rgba(245, 158, 11, 0.15)',
+            }}
+          >
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#92400e' }}>✏️ 匯款完成了嗎?</div>
+            <p style={{ margin: '6px 0 12px', fontSize: 13, color: '#78350f', lineHeight: 1.6 }}>
+              填入匯出帳戶的<strong>後 5 碼數字</strong>,賣家核帳後就會把訂單標為已付款。
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <input
+                inputMode="numeric"
+                maxLength={5}
+                value={last5}
+                onChange={(e) => setLast5(e.target.value.replace(/\D/g, ''))}
+                placeholder="•••••"
+                aria-label="匯款帳號後 5 碼"
+                style={{
+                  flex: '1 1 150px',
+                  minWidth: 0,
+                  padding: 14,
+                  border: '2px solid #f59e0b',
+                  borderRadius: 10,
+                  fontSize: 22,
+                  fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+                  letterSpacing: '0.35em',
+                  textAlign: 'center',
+                  background: '#fff',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="button"
+                onClick={onReportLast5}
+                disabled={reportState === 'saving'}
+                style={{
+                  flex: '1 0 auto',
+                  minHeight: 52,
+                  padding: '14px 24px',
+                  background: reportState === 'saving' ? '#a1a1aa' : '#b45309',
+                  color: '#fff',
+                  border: 0,
+                  borderRadius: 10,
+                  fontSize: 16,
+                  fontWeight: 800,
+                  cursor: reportState === 'saving' ? 'wait' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {reportState === 'saving' ? '送出中…' : '送出回報 ✓'}
+              </button>
+            </div>
+            {reportState === 'error' && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#dc2626', fontWeight: 600 }}>⚠️ {reportErr}</div>
+            )}
           </div>
         )}
       </main>
