@@ -64,6 +64,8 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
   const [selectedId, setSelectedId] = useState(firstInStock?.id ?? '');
   const [qty, setQty] = useState(1);
+  // 2026-09-08:輸入框允許暫時清空(原本刪不掉預設的 1,打 200 會變 1200)
+  const [qtyText, setQtyText] = useState('1');
   const [imgIdx, setImgIdx] = useState(0);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -121,9 +123,19 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [product.id]);
 
+  function updateQty(n: number) {
+    const c = Math.max(1, Math.min(maxQty || 1, n));
+    setQty(c);
+    setQtyText(String(c));
+  }
+
   // qty 超過庫存時 clamp
   useEffect(() => {
-    if (qty > maxQty) setQty(maxQty || 1);
+    if (qty > maxQty) {
+      setQty(maxQty || 1);
+      setQtyText(String(maxQty || 1));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qty, maxQty]);
 
   function handleAdd() {
@@ -336,22 +348,34 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              onClick={() => updateQty(qty - 1)}
               disabled={qty <= 1}
               style={qtyBtnStyle}
             >
               −
             </button>
-            {/* 可直接輸入數量(2026-09-02):買大量不用狂點 + */}
+            {/* 可直接輸入數量(2026-09-02):買大量不用狂點 +
+                2026-09-08:允許暫時清空,失焦才補回有效值 */}
             <input
-              type="number"
-              min={1}
-              max={maxQty}
-              value={qty}
+              type="text"
               inputMode="numeric"
+              value={qtyText}
               onChange={(ev) => {
-                const v = parseInt(ev.target.value || '1', 10);
-                if (!isNaN(v)) setQty(Math.max(1, Math.min(maxQty || 1, v)));
+                const digits = ev.target.value.replace(/\D/g, '').slice(0, 5);
+                setQtyText(digits);
+                if (digits !== '') {
+                  const n = parseInt(digits, 10);
+                  if (n >= 1) {
+                    const c = Math.min(maxQty || 1, n);
+                    setQty(c);
+                    if (n > (maxQty || 1)) setQtyText(String(c)); // 超過庫存直接夾回
+                  }
+                }
+              }}
+              onBlur={() => {
+                const n = parseInt(qtyText, 10);
+                if (!qtyText || isNaN(n) || n < 1) updateQty(1);
+                else updateQty(n);
               }}
               style={{
                 width: 64,
@@ -367,7 +391,7 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
             />
             <button
               type="button"
-              onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
+              onClick={() => updateQty(qty + 1)}
               disabled={qty >= maxQty}
               style={qtyBtnStyle}
             >

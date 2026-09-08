@@ -80,6 +80,8 @@ export function VariantSelector({
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
   const [selectedId, setSelectedId] = useState<string>(firstInStock?.id ?? '');
   const [qty, setQty] = useState(1);
+  // 2026-09-08:輸入框允許暫時清空(原本刪不掉預設的 1)
+  const [qtyText, setQtyText] = useState('1');
   const [justAdded, setJustAdded] = useState(false);
   const { addItem } = useCart(tenantSlug);
 
@@ -115,8 +117,13 @@ export function VariantSelector({
   const savedPerUnit = basePrice - effectivePrice;
   const totalPrice = effectivePrice * qty;
 
+  function updateQty(n: number) {
+    const c = Math.max(1, Math.min(maxQty || 1, n));
+    setQty(c);
+    setQtyText(String(c));
+  }
   function adjustQty(delta: number) {
-    setQty((q) => Math.max(1, Math.min(maxQty || 1, q + delta)));
+    updateQty(qty + delta);
   }
 
   function handleAdd() {
@@ -346,7 +353,7 @@ export function VariantSelector({
                         <button
                           key={t.min_qty}
                           type="button"
-                          onClick={() => setQty(Math.min(t.min_qty, maxQty || t.min_qty))}
+                          onClick={() => updateQty(Math.min(t.min_qty, maxQty || t.min_qty))}
                           style={{
                             flexShrink: 0,
                             minWidth: 100,
@@ -427,13 +434,25 @@ export function VariantSelector({
                     −
                   </button>
                   <input
-                    type="number"
-                    min={1}
-                    max={maxQty || 1}
-                    value={qty}
+                    type="text"
+                    inputMode="numeric"
+                    value={qtyText}
                     onChange={(e) => {
-                      const v = parseInt(e.target.value || '1', 10);
-                      if (!isNaN(v)) setQty(Math.max(1, Math.min(maxQty || 1, v)));
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 5);
+                      setQtyText(digits);
+                      if (digits !== '') {
+                        const n = parseInt(digits, 10);
+                        if (n >= 1) {
+                          const c = Math.min(maxQty || 1, n);
+                          setQty(c);
+                          if (n > (maxQty || 1)) setQtyText(String(c)); // 超過庫存直接夾回
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      const n = parseInt(qtyText, 10);
+                      if (!qtyText || isNaN(n) || n < 1) updateQty(1);
+                      else updateQty(n);
                     }}
                     style={{
                       width: 60,
