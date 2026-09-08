@@ -253,26 +253,47 @@ details[open] .chev { transform: rotate(90deg); }
             <p style={{ fontSize: 12, color: c.textMuted, margin: '10px 0 4px' }}>
               商城(LINE 商品專區 + 公開頁)的分類 chip 順序與「全部」的分組順序照這裡排。
             </p>
-            {orderedCats.map((cat, i) => (
-              <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: c.bg, borderRadius: 6 }}>
-                <span style={{ fontSize: 12, color: c.textMuted, fontFamily: 'ui-monospace, monospace', width: 18 }}>{i + 1}</span>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{cat}</span>
-                <form action={moveCategoryOrder} style={{ display: 'inline' }}>
-                  <input type="hidden" name="tenant_id" value={tenant.id} />
-                  <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                  <input type="hidden" name="category" value={cat} />
-                  <input type="hidden" name="direction" value="up" />
-                  <button type="submit" disabled={i === 0} style={{ width: 28, height: 28, padding: 0, background: c.card, border: `1px solid ${c.border}`, borderRadius: 4, cursor: i === 0 ? 'not-allowed' : 'pointer', opacity: i === 0 ? 0.4 : 1, fontFamily: 'inherit' }} title="往上">↑</button>
-                </form>
-                <form action={moveCategoryOrder} style={{ display: 'inline' }}>
-                  <input type="hidden" name="tenant_id" value={tenant.id} />
-                  <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                  <input type="hidden" name="category" value={cat} />
-                  <input type="hidden" name="direction" value="down" />
-                  <button type="submit" disabled={i === orderedCats.length - 1} style={{ width: 28, height: 28, padding: 0, background: c.card, border: `1px solid ${c.border}`, borderRadius: 4, cursor: i === orderedCats.length - 1 ? 'not-allowed' : 'pointer', opacity: i === orderedCats.length - 1 ? 0.4 : 1, fontFamily: 'inherit' }} title="往下">↓</button>
-                </form>
-              </div>
-            ))}
+            {orderedCats.map((cat, i) => {
+              // 2026-09-08:iPad 上 28px 按鈕太小(看不清也點不中),放大到 44px 觸控標準
+              const arrowBtn = (disabled: boolean): React.CSSProperties => ({
+                width: 44,
+                height: 44,
+                padding: 0,
+                background: disabled ? c.bg : c.card,
+                border: `1.5px solid ${disabled ? c.borderSubtle : c.textMuted}`,
+                borderRadius: 8,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.35 : 1,
+                fontFamily: 'inherit',
+                fontSize: 20,
+                fontWeight: 700,
+                color: c.text,
+                touchAction: 'manipulation',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              });
+              return (
+                <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: c.bg, borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: c.textMuted, fontFamily: 'ui-monospace, monospace', width: 18 }}>{i + 1}</span>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{cat}</span>
+                  <form action={moveCategoryOrder} style={{ display: 'inline' }}>
+                    <input type="hidden" name="tenant_id" value={tenant.id} />
+                    <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                    <input type="hidden" name="category" value={cat} />
+                    <input type="hidden" name="direction" value="up" />
+                    <button type="submit" disabled={i === 0} style={arrowBtn(i === 0)} title="往上" aria-label={`${cat} 往上`}>↑</button>
+                  </form>
+                  <form action={moveCategoryOrder} style={{ display: 'inline' }}>
+                    <input type="hidden" name="tenant_id" value={tenant.id} />
+                    <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                    <input type="hidden" name="category" value={cat} />
+                    <input type="hidden" name="direction" value="down" />
+                    <button type="submit" disabled={i === orderedCats.length - 1} style={arrowBtn(i === orderedCats.length - 1)} title="往下" aria-label={`${cat} 往下`}>↓</button>
+                  </form>
+                </div>
+              );
+            })}
           </div>
         </details>
       )}
