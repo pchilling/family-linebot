@@ -16,6 +16,8 @@ export async function createNews(formData: FormData): Promise<void> {
   const body = String(formData.get('body') ?? '').trim();
   const linkUrl = String(formData.get('link_url') ?? '').trim();
   const imageUrl = String(formData.get('image_url') ?? '').trim(); // D#4
+  const imageRatioRaw = String(formData.get('image_ratio') ?? '').trim(); // Phase 15.5
+  const imageRatio = /^\d+:\d+$/.test(imageRatioRaw) ? imageRatioRaw : null;
   const publish = formData.get('publish') === 'on';
   const push = formData.get('push') === 'on'; // D#3:發布後同步推播
 
@@ -32,6 +34,7 @@ export async function createNews(formData: FormData): Promise<void> {
     body: body || null,
     link_url: linkUrl || null,
     image_url: imageUrl || null,
+    image_ratio: imageUrl ? imageRatio : null,
     status: publish ? 'published' : 'draft',
     published_at: publishedAt,
   });
@@ -50,6 +53,7 @@ export async function createNews(formData: FormData): Promise<void> {
         body: body || null,
         link_url: linkUrl || null,
         image_url: imageUrl || null,
+        image_ratio: imageUrl ? imageRatio : null,
         published_at: publishedAt ?? new Date().toISOString(),
       });
     } catch (e) {
@@ -74,13 +78,13 @@ export async function pushNews(formData: FormData): Promise<void> {
 
   const { data } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, link_url, image_url, published_at, status')
+    .select('id, title, body, link_url, image_url, image_ratio, published_at, status')
     .eq('id', id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
   const n = data as {
     id: string; title: string; body: string | null; link_url: string | null;
-    image_url: string | null; published_at: string | null; status: string;
+    image_url: string | null; image_ratio: string | null; published_at: string | null; status: string;
   } | null;
   if (!n) throw new Error('消息不存在');
   if (n.status !== 'published') throw new Error('只有已發佈的消息能推播');
@@ -91,6 +95,7 @@ export async function pushNews(formData: FormData): Promise<void> {
     body: n.body,
     link_url: n.link_url,
     image_url: n.image_url,
+    image_ratio: n.image_ratio,
     published_at: n.published_at ?? new Date().toISOString(),
   });
 
@@ -104,6 +109,8 @@ export async function updateNews(formData: FormData): Promise<void> {
   const body = String(formData.get('body') ?? '').trim();
   const linkUrl = String(formData.get('link_url') ?? '').trim();
   const imageUrl = String(formData.get('image_url') ?? '').trim(); // D#4
+  const imageRatioRaw = String(formData.get('image_ratio') ?? '').trim(); // Phase 15.5
+  const imageRatio = /^\d+:\d+$/.test(imageRatioRaw) ? imageRatioRaw : null;
   const status = String(formData.get('status') ?? 'draft').trim();
 
   if (!slug || !id) throw new Error('缺必要參數');
@@ -132,6 +139,7 @@ export async function updateNews(formData: FormData): Promise<void> {
     body: string | null;
     link_url: string | null;
     image_url: string | null;
+    image_ratio: string | null;
     status: string;
     published_at?: string | null;
   } = {
@@ -139,6 +147,7 @@ export async function updateNews(formData: FormData): Promise<void> {
     body: body || null,
     link_url: linkUrl || null,
     image_url: imageUrl || null,
+    image_ratio: imageUrl ? imageRatio : null,
     status,
   };
 

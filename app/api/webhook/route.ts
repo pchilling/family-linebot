@@ -236,6 +236,7 @@ type NewsRow = {
   body: string | null;
   link_url: string | null;
   image_url: string | null; // D#4:有圖 → 純圖卡
+  image_ratio: string | null; // Phase 15.5:原始比例,卡片不裁圖
   published_at: string;
 };
 
@@ -243,7 +244,7 @@ async function getRecentNews(tenantId: string, limit: number): Promise<NewsRow[]
   const { supabaseAdmin } = await import('@/lib/supabase');
   const { data, error } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, link_url, image_url, published_at')
+    .select('id, title, body, link_url, image_url, image_ratio, published_at')
     .eq('tenant_id', tenantId)
     .eq('status', 'published')
     .order('published_at', { ascending: false, nullsFirst: false })

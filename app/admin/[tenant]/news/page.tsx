@@ -10,6 +10,7 @@ type NewsRow = {
   body: string | null;
   link_url: string | null;
   image_url: string | null;
+  image_ratio: string | null;
   status: string;
   published_at: string | null;
   created_at: string;
@@ -19,7 +20,7 @@ type NewsRow = {
 async function getAllNews(tenantId: string): Promise<NewsRow[]> {
   const { data } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, link_url, image_url, status, published_at, created_at, updated_at')
+    .select('id, title, body, link_url, image_url, image_ratio, status, published_at, created_at, updated_at')
     .eq('tenant_id', tenantId)
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
@@ -267,8 +268,8 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
               />
             </label>
             <div style={label}>
-              🖼 圖片(選填;有圖 → 整張圖卡)
-              <NewsImageField tenantSlug={slug} defaultUrl={n.image_url} />
+              🖼 圖片(選填;有圖 → 整張圖卡,照原始比例顯示)
+              <NewsImageField tenantSlug={slug} defaultUrl={n.image_url} defaultRatio={n.image_ratio} />
             </div>
             <label style={label}>
               狀態

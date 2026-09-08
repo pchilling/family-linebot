@@ -437,13 +437,16 @@ export type NewsForFlex = {
   body: string | null;
   link_url: string | null;
   image_url: string | null; // D#4(2026-09-02):有圖 → 純圖卡,點圖開 link_url
+  image_ratio: string | null; // Phase 15.5:上傳時偵測的原始比例「W:H」,null = 3:4
   published_at: string;
 };
 
 /**
  * D#4:純圖公告 bubble — 整張卡就是那張圖(海報感),有 link_url 點圖直接開。
+ * Phase 15.5:照上傳時偵測的原始比例顯示,不再裁圖(LINE 限高 ≤ 寬 3 倍,上傳端已 clamp)。
  */
 function buildImageNewsBubble(n: NewsForFlex): messagingApi.FlexBubble {
+  const ratio = n.image_ratio && /^\d+:\d+$/.test(n.image_ratio) ? n.image_ratio : '3:4';
   return {
     type: 'bubble' as const,
     size: 'mega' as const,
@@ -456,7 +459,7 @@ function buildImageNewsBubble(n: NewsForFlex): messagingApi.FlexBubble {
           type: 'image' as const,
           url: n.image_url!,
           size: 'full' as const,
-          aspectRatio: '3:4' as const,
+          aspectRatio: ratio,
           aspectMode: 'cover' as const,
           ...(n.link_url
             ? { action: { type: 'uri' as const, label: '開啟', uri: n.link_url.trim() } }
@@ -502,7 +505,9 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
     }
 
     if (n.body && n.body.trim().length > 0) {
-      // 不截行數,字數防呆 2000(LINE Flex JSON 上限 50KB)
+      // 字數防呆 2000(LINE Flex JSON 上限 50KB)
+      // Phase 15.5:內文最多 10 行 — 輪播卡片高度取決於最高的那張,
+      // 一則超長文會把整排撐爆,其他短卡就一堆留白;全文請放 link_url
       const text = n.body.length > 2000 ? n.body.slice(0, 2000) + '…' : n.body;
       bodyContents.push({
         type: 'separator' as const,
@@ -516,6 +521,7 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
         color: '#374151',
         wrap: true,
         margin: 'md',
+        maxLines: 10,
       });
     }
 

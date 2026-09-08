@@ -1119,6 +1119,14 @@ alter table products add column if not exists badge_color text;
 
 
 -- ====================
+-- Phase 15.5(2026-09-08):消息圖片比例
+-- 原本圖卡寫死 3:4 會裁圖;上傳時偵測原始比例存起來,卡片照原比例不裁
+-- (LINE 限制:高最多為寬的 3 倍)
+-- ====================
+alter table news add column if not exists image_ratio text;
+
+
+-- ====================
 -- Phase 15.4(2026-09-08):發票欄位
 -- 客人結帳可選填統一編號(8 碼)+ 發票抬頭,存訂單。
 -- 訂單頁 / 後台 / 出貨單 / 匯出都顯示。
