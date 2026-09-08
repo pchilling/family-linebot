@@ -527,11 +527,17 @@ export async function updateProductSale(formData: FormData) {
   const sale_start_at = startStr ? toIsoTaipei(startStr) : null;
   const sale_end_at = endStr ? toIsoTaipei(endStr) : null;
 
-  await supabaseAdmin
+  // 2026-09-08:錯誤不再靜默(原本失敗也照跳「已儲存」,用戶以為存好了)
+  const { error } = await supabaseAdmin
     .from('products')
     .update({ sale_discount_pct, sale_start_at, sale_end_at })
     .eq('id', id);
   revalidateProductRoutes(formData);
+  if (error) {
+    console.error('[updateProductSale]', error);
+    if (slug) redirect(`/admin/${slug}/products?err=sale#product-${id}`);
+    return;
+  }
   if (slug) {
     redirect(`/admin/${slug}/products?saved=${id}#product-${id}`);
   }

@@ -175,6 +175,7 @@ export default async function ProductsPage({
   params: Promise<{ tenant: string }>;
   searchParams: Promise<{
     saved?: string;
+    err?: string;
     cats?: string;
     q?: string;
     pg?: string;
@@ -314,6 +315,23 @@ details[open] .chev { transform: rotate(90deg); }
           }}
         >
           ✓ 已儲存{savedIsVariant ? ' (變體)' : ''}
+        </div>
+      )}
+      {sp.err === 'sale' && (
+        <div
+          style={{
+            padding: '10px 16px',
+            background: c.dangerBg,
+            border: `1px solid ${c.dangerBorder}`,
+            color: c.danger,
+            fontSize: 14,
+            fontWeight: 500,
+            borderRadius: 6,
+            marginBottom: 16,
+            animation: 'fadein 0.25s ease',
+          }}
+        >
+          ⚠️ 限時優惠儲存失敗,請截圖回報(檢查折扣 % 與起訖時間格式)
         </div>
       )}
 
