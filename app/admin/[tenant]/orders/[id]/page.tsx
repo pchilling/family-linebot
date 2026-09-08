@@ -116,7 +116,7 @@ export default async function OrderDetailPage({
           {sourceLabel(o.source)}
         </span>
         <a
-          href={`/admin/${tenant.slug}/orders/${o.id}/print`}
+          href={`/print/${tenant.slug}/order/${o.id}`}
           target="_blank"
           rel="noopener"
           style={{ marginLeft: 'auto', padding: '6px 14px', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}

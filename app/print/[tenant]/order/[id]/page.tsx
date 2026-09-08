@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
@@ -5,8 +6,20 @@ import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
  * 訂單 A4 列印頁(2026-09-02,批次 B #18)。
  * 2026-09-08 改版:品牌化設計 — 攤位 logo + 店名 + 主題色點綴、
  * 輕量表格、簽收欄、感謝語、聯絡資訊。黑白列印也清晰。
- * 開頁自動跳列印;@media print 藏 admin sidebar,@page 設 A4。
+ * 2026-09-08 v2:搬出 /admin 版型(原本後台手機版 CSS 會把表格拆直排、
+ * ☰ 鈕也被印出來)。獨立路徑 /print/*,middleware 一樣要求登入。
  */
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tenant: string; id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const { data } = await supabaseAdmin.from('orders').select('order_no').eq('id', id).maybeSingle();
+  const orderNo = (data as { order_no?: string } | null)?.order_no;
+  return { title: orderNo ? `出貨單 ${orderNo}` : '出貨單' };
+}
 
 type OrderItem = {
   id: string;
@@ -101,8 +114,7 @@ export default async function OrderPrintPage({
           __html: `
 @page { size: A4; margin: 12mm; }
 @media print {
-  .admin-sidebar, .no-print { display: none !important; }
-  .admin-content { margin: 0 !important; padding: 0 !important; }
+  .no-print { display: none !important; }
   body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 .slip-table { width: 100%; border-collapse: collapse; }

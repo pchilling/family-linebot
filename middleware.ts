@@ -36,7 +36,8 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  if (path.startsWith('/admin') && path !== '/admin/login' && !user) {
+  // /print/* 是出貨單列印頁(含客戶個資),跟 /admin 一樣要登入(2026-09-08)
+  if ((path.startsWith('/admin') || path.startsWith('/print')) && path !== '/admin/login' && !user) {
     const url = request.nextUrl.clone();
     url.pathname = '/admin/login';
     return NextResponse.redirect(url);
@@ -52,5 +53,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/print/:path*'],
 };
