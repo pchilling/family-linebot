@@ -255,14 +255,34 @@ export default async function ProductsPage({
     const pinned = products.find((p) => p.id === pinnedId);
     if (pinned) pageProducts = [pinned, ...pageProducts];
   }
-  const pageHref = (n: number) => {
+  const buildHref = (cats: string[], flags: string[], pg?: number) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
-    for (const cat of selCats) params.append('cat', cat);
-    for (const fl of selFlags) params.append('flag', fl);
-    params.set('pg', String(n));
-    return `/admin/${tenant.slug}/products?${params.toString()}`;
+    for (const cat of cats) params.append('cat', cat);
+    for (const fl of flags) params.append('flag', fl);
+    if (pg && pg > 1) params.set('pg', String(pg));
+    const s = params.toString();
+    return `/admin/${tenant.slug}/products${s ? `?${s}` : ''}`;
   };
+  const pageHref = (n: number) => buildHref(selCats, selFlags, n);
+  // 點 chip 直接套用(2026-09-08 v3):toggle 該值後導頁,不用按套用
+  const toggleCatHref = (cat: string) =>
+    buildHref(selCats.includes(cat) ? selCats.filter((x) => x !== cat) : [...selCats, cat], selFlags);
+  const toggleFlagHref = (fl: string) =>
+    buildHref(selCats, selFlags.includes(fl) ? selFlags.filter((x) => x !== fl) : [...selFlags, fl]);
+  const chipStyle = (on: boolean): React.CSSProperties => ({
+    display: 'inline-block',
+    padding: '7px 14px',
+    border: `1px solid ${on ? c.accent : c.border}`,
+    borderRadius: 999,
+    fontSize: 12,
+    color: on ? '#fff' : c.textSec,
+    background: on ? c.accent : c.card,
+    fontWeight: on ? 600 : 400,
+    textDecoration: 'none',
+    userSelect: 'none',
+    touchAction: 'manipulation',
+  });
 
   return (
     <main style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto', color: c.text }}>
@@ -275,15 +295,6 @@ details summary::-webkit-details-marker { display: none; }
 details[open] .chev { transform: rotate(90deg); }
 .chev { display: inline-block; transition: transform 150ms ease; }
 @keyframes fadein { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-/* 2026-09-08:篩選 chip(checkbox 藏起來,選中變黑底白字) */
-.fchip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.fchip span {
-  display: inline-block; padding: 7px 14px; border: 1px solid ${c.border}; border-radius: 999px;
-  font-size: 12px; color: ${c.textSec}; background: ${c.card}; cursor: pointer; user-select: none;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.fchip input:checked + span { background: ${c.accent}; color: #fff; border-color: ${c.accent}; font-weight: 600; }
-.fchip input:focus-visible + span { outline: 2px solid ${c.accent}; outline-offset: 2px; }
           `,
         }}
       />
@@ -392,11 +403,9 @@ details[open] .chev { transform: rotate(90deg); }
         </div>
       </details>
 
-      {/* 搜尋 + 篩選 + 分頁列(2026-09-08 v2:分類複選 chip + 特性篩選) */}
+      {/* 搜尋 + 篩選 + 分頁列(2026-09-08 v3:chip 點了直接套用) */}
       {products.length > 0 && (
-        <form
-          method="GET"
-          action={`/admin/${tenant.slug}/products`}
+        <div
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -408,7 +417,18 @@ details[open] .chev { transform: rotate(90deg); }
             borderRadius: 8,
           }}
         >
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <form
+            method="GET"
+            action={`/admin/${tenant.slug}/products`}
+            style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+          >
+            {/* 搜尋時保留已點選的 chip */}
+            {selCats.map((cat) => (
+              <input key={cat} type="hidden" name="cat" value={cat} />
+            ))}
+            {selFlags.map((fl) => (
+              <input key={fl} type="hidden" name="flag" value={fl} />
+            ))}
             <input
               type="search"
               name="q"
@@ -417,11 +437,11 @@ details[open] .chev { transform: rotate(90deg); }
               style={{ ...input, width: 'auto', flex: '1 1 200px', maxWidth: 320 }}
             />
             <button type="submit" style={{ padding: '8px 16px', background: c.accent, color: '#fff', border: 0, borderRadius: 5, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              套用篩選
+              搜尋
             </button>
             {hasFilter && (
               <a href={`/admin/${tenant.slug}/products`} style={{ padding: '8px 12px', fontSize: 13, color: c.textSec, textDecoration: 'none', border: `1px solid ${c.border}`, borderRadius: 5, background: c.card }}>
-                清除
+                清除全部
               </a>
             )}
             <span style={{ marginLeft: 'auto', fontSize: 12, color: c.textMuted, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -429,37 +449,26 @@ details[open] .chev { transform: rotate(90deg); }
               {page > 1 && <a href={pageHref(page - 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>‹ 上一頁</a>}
               {page < totalPages && <a href={pageHref(page + 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>下一頁 ›</a>}
             </span>
-          </div>
+          </form>
 
           {orderedCats.length > 0 && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, marginRight: 2 }}>分類</span>
               {orderedCats.map((cat) => (
-                <label key={cat} className="fchip">
-                  <input type="checkbox" name="cat" value={cat} defaultChecked={selCats.includes(cat)} />
-                  <span>{cat}</span>
-                </label>
+                <a key={cat} href={toggleCatHref(cat)} style={chipStyle(selCats.includes(cat))}>
+                  {cat}
+                </a>
               ))}
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, marginRight: 2 }}>特性</span>
-            <label className="fchip">
-              <input type="checkbox" name="flag" value="badge" defaultChecked={selFlags.includes('badge')} />
-              <span>🏷 有角標</span>
-            </label>
-            <label className="fchip">
-              <input type="checkbox" name="flag" value="sale" defaultChecked={selFlags.includes('sale')} />
-              <span>🔥 特價中</span>
-            </label>
-            <label className="fchip">
-              <input type="checkbox" name="flag" value="out" defaultChecked={selFlags.includes('out')} />
-              <span>⛔ 缺貨</span>
-            </label>
-            <span style={{ fontSize: 11, color: c.textMuted, marginLeft: 4 }}>勾好按「套用篩選」</span>
+            <a href={toggleFlagHref('badge')} style={chipStyle(selFlags.includes('badge'))}>🏷 有角標</a>
+            <a href={toggleFlagHref('sale')} style={chipStyle(selFlags.includes('sale'))}>🔥 特價中</a>
+            <a href={toggleFlagHref('out')} style={chipStyle(selFlags.includes('out'))}>⛔ 缺貨</a>
           </div>
-        </form>
+        </div>
       )}
 
       {products.length === 0 && (
