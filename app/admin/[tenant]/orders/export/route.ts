@@ -87,6 +87,7 @@ export async function GET(
     delivered: '已送達', cancelled: '已取消', refunded: '已退款',
   };
   const payMap: Record<string, string> = { pending: '未付', paid: '已付', failed: '失敗', refunded: '已退' };
+  const methodMap: Record<string, string> = { bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay' };
 
   const fmtTw = (iso: string | null) =>
     iso
@@ -117,7 +118,7 @@ export async function GET(
         fmtTw(r.created_at),
         esc(statusMap[r.status] ?? r.status),
         esc(payMap[r.payment_status] ?? r.payment_status),
-        esc(r.payment_method ?? ''),
+        esc(r.payment_method ? methodMap[r.payment_method] ?? r.payment_method : ''),
         esc(r.payment_last5 ?? ''),
         r.total_twd,
         r.shipping_fee_twd ?? 0,

@@ -69,6 +69,10 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
 function sourceLabel(s: string): string {
   return ({ web: '網站', liff: 'LIFF', manual: '手動', line_chat: 'LINE 對話' }[s]) ?? s;
 }
+// 2026-09-08:付款方式代碼 → 中文(原本直接顯示 'bank' 讓人看不懂)
+function payMethodLabel(s: string): string {
+  return ({ bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay' }[s]) ?? s;
+}
 function sourceColor(s: string): string {
   return ({ web: '#7c3aed', liff: '#06c755', manual: '#9ca3af', line_chat: '#f59e0b' }[s]) ?? '#666';
 }
@@ -299,7 +303,7 @@ export default async function OrderDetailPage({
             </h2>
             <div style={{ fontSize: 13, color: '#15803d', lineHeight: 1.6 }}>
               收款時間 <strong>{formatTw(o.paid_at)}</strong>
-              {o.payment_method && <> · 方式 {o.payment_method}</>}
+              {o.payment_method && <> · 方式 {payMethodLabel(o.payment_method)}</>}
             </div>
           </>
         )}
