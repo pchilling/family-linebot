@@ -125,6 +125,13 @@ export default function ShopPage() {
     window.scrollTo({ top: 0 });
   }, [detailId, showCheckout, status]);
 
+  // 2026-09-11:內容欄有 maxWidth,底色只塗在欄上的話,iPad 等寬螢幕左右會露出
+  // body 的白邊(載入畫面就看得到)。把攤位底色直接塗到 body。
+  useEffect(() => {
+    document.body.style.margin = '0';
+    document.body.style.background = tenant.shop_bg_color ?? '#fafafa';
+  }, [tenant.shop_bg_color]);
+
   async function onSubmitProfile(formData: FormData) {
     setSavingProfile(true);
     setError('');

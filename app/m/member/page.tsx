@@ -37,6 +37,12 @@ export default function MemberPage() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
+  // 2026-09-11:內容欄有 maxWidth,iPad 等寬螢幕左右會露出 body 白邊 — 底色塗到 body
+  useEffect(() => {
+    document.body.style.margin = '0';
+    document.body.style.background = c.bg;
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
