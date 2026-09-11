@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BannerHero } from './banner-hero';
-import { getActiveProducts, getTenantPublic, isSaleActive, applySaleDiscount } from '@/lib/supabase';
+import { getActiveProducts, getTenantPublic, isSaleActive, applySaleDiscount, supabaseAdmin } from '@/lib/supabase';
 import { IconFlame } from '@/lib/icons';
 
 // % off → 台灣「折」講法(10% off → 9折;15% off → 85折)
@@ -34,6 +34,19 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
   if (!tenant) notFound();
 
   const allProducts = await getActiveProducts(tenant.id);
+
+  // 2026-09-11(回饋 #9):卡片顯示分階總價(如 100 / 450)— 撈整攤分階,每商品取最低門檻那條
+  const { data: tierRows } = await supabaseAdmin
+    .from('product_price_tiers')
+    .select('product_id, min_qty, price_twd')
+    .eq('tenant_id', tenant.id)
+    .order('min_qty', { ascending: true });
+  const firstTierByProduct = new Map<string, { min_qty: number; price_twd: number }>();
+  for (const t of (tierRows as { product_id: string; min_qty: number; price_twd: number }[] | null) ?? []) {
+    if (!firstTierByProduct.has(t.product_id)) {
+      firstTierByProduct.set(t.product_id, { min_qty: t.min_qty, price_twd: t.price_twd });
+    }
+  }
 
   // chip filter:全部 / 最新 / 各 category
   // C#8(2026-09-02):tenant.category_order 有列的照設定順序,沒列的照筆劃排後面
@@ -350,6 +363,15 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
                         }}
                       >
                         NT$ {p.min_price_twd.toLocaleString()}
+                        {(() => {
+                          const t = firstTierByProduct.get(p.id);
+                          return t ? (
+                            <span style={{ color: '#b45309' }}>
+                              {' / '}
+                              {(t.min_qty * t.price_twd).toLocaleString()}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                     )
                   )}
