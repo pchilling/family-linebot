@@ -5,7 +5,7 @@ import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
 import { CopyButton } from '../../[slug]/order/[order_no]/copy-button';
 import { TwAddressFields } from '@/lib/tw-districts';
-import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconPencil, IconReceipt } from '@/lib/icons';
+import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconPencil } from '@/lib/icons';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   loadShopData,
@@ -107,7 +107,9 @@ export default function ShopPage() {
   }, []);
 
   // 2026-09-11(回饋 #7):切畫面(商品詳情 / 結帳 / 完成)一律從頁頂開始看
+  // v2:送出中不要跳頁頂 — 會把「處理中」按鈕捲出視野,看起來像當掉
   useEffect(() => {
+    if (status === 'submitting') return;
     window.scrollTo({ top: 0 });
   }, [detailId, showCheckout, status]);
 
@@ -563,6 +565,7 @@ export default function ShopPage() {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes shop-spin { to { transform: rotate(360deg); } }
           `,
         }}
       />
@@ -1241,40 +1244,16 @@ export default function ShopPage() {
                 inputStyle={{ fontSize: 15 }}
               />
             </div>
-            {/* 2026-09-11(回饋 #5):訂單備註,出貨單 / 後台都看得到 */}
+            {/* 2026-09-11 v2:統編專用欄位移除 — 需要統編直接寫在備註 */}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>備註(選填)</span>
               <textarea
                 name="note"
                 rows={2}
                 style={{ ...shopInput, fontFamily: 'inherit', resize: 'vertical' }}
-                placeholder="例:到貨時段、包裝需求…"
+                placeholder="如需統編發票或有其他需求,請填寫在這裡"
               />
             </label>
-
-            {/* Phase 15.4(2026-09-08):統編發票(選填,展開才填) */}
-            <details style={{ border: '1px solid #e4e4e7', borderRadius: 10, padding: '10px 14px' }}>
-              <summary style={{ fontSize: 13, fontWeight: 500, color: '#52525b', cursor: 'pointer' }}>
-                <IconReceipt size={14} style={{ marginRight: 6 }} />需要統編發票?(選填)
-              </summary>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>統一編號(8 碼)</span>
-                  <input
-                    name="invoice_tax_id"
-                    inputMode="numeric"
-                    pattern="[0-9]{8}"
-                    maxLength={8}
-                    style={shopInput}
-                    placeholder="12345678"
-                  />
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>發票抬頭</span>
-                  <input name="invoice_title" style={shopInput} placeholder="公司 / 行號名稱" />
-                </label>
-              </div>
-            </details>
 
             <button
               type="submit"
@@ -1293,9 +1272,25 @@ export default function ShopPage() {
                 boxShadow: status === 'submitting' ? 'none' : '0 2px 8px rgba(0,0,0,0.12)',
               }}
             >
-              {status === 'submitting'
-                ? '送出中…'
-                : `確認送出 · NT$ ${grandTotal.toLocaleString()}`}
+              {status === 'submitting' ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 14,
+                      height: 14,
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.35)',
+                      borderTopColor: '#fff',
+                      animation: 'shop-spin 0.7s linear infinite',
+                      display: 'inline-block',
+                    }}
+                  />
+                  處理中,訂單建立中…
+                </span>
+              ) : (
+                `確認送出 · NT$ ${grandTotal.toLocaleString()}`
+              )}
             </button>
           </form>
 

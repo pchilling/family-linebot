@@ -3,7 +3,6 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
-import { IconReceipt } from '@/lib/icons';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { createOrder, getShippingOptions, type ShippingOption } from './actions';
 
@@ -266,38 +265,15 @@ export default function CheckoutPage({ params }: Props) {
           <label htmlFor="note" style={labelStyle}>
             備註(選填)
           </label>
+          {/* 2026-09-11 v2:統編專用欄位移除 — 需要統編直接寫在備註 */}
           <textarea
             id="note"
             name="note"
             rows={3}
             style={{ ...inputStyle, resize: 'vertical' }}
+            placeholder="如需統編發票或有其他需求,請填寫在這裡"
           />
         </div>
-
-        {/* Phase 15.4(2026-09-08):統編發票(選填,展開才填) */}
-        <details style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem 1rem' }}>
-          <summary style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
-            <IconReceipt size={14} style={{ marginRight: 6 }} />需要統編發票?(選填)
-          </summary>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
-            <div>
-              <label htmlFor="invoiceTaxId" style={labelStyle}>統一編號(8 碼)</label>
-              <input
-                id="invoiceTaxId"
-                name="invoice_tax_id"
-                inputMode="numeric"
-                pattern="[0-9]{8}"
-                maxLength={8}
-                style={inputStyle}
-                placeholder="12345678"
-              />
-            </div>
-            <div>
-              <label htmlFor="invoiceTitle" style={labelStyle}>發票抬頭</label>
-              <input id="invoiceTitle" name="invoice_title" style={inputStyle} placeholder="公司 / 行號名稱" />
-            </div>
-          </div>
-        </details>
 
         {error && (
           <div
@@ -329,8 +305,27 @@ export default function CheckoutPage({ params }: Props) {
             marginTop: '0.5rem',
           }}
         >
-          {submitting ? '送出中...' : '送出訂單'}
+          {submitting ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span
+                aria-hidden
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  border: '2px solid rgba(255,255,255,0.35)',
+                  borderTopColor: '#fff',
+                  animation: 'co-spin 0.7s linear infinite',
+                  display: 'inline-block',
+                }}
+              />
+              處理中,訂單建立中…
+            </span>
+          ) : (
+            '送出訂單'
+          )}
         </button>
+        <style dangerouslySetInnerHTML={{ __html: '@keyframes co-spin { to { transform: rotate(360deg); } }' }} />
         <p
           style={{
             margin: 0,
