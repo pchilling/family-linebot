@@ -137,8 +137,13 @@ const label: React.CSSProperties = { fontSize: 12, color: c.textSec };
 const labelText: React.CSSProperties = { display: 'block', marginBottom: 4 };
 // 2026-09-11:iPad 窄版 datetime/number 輸入框有最小寬度,固定欄數 grid 會互相疊框;表單列改 flex-wrap,欄位用這個
 const wrapField: React.CSSProperties = { ...label, flex: '1 1 150px', minWidth: 0 };
+// datetime-local 在 iPad Safari 內建最小寬度約 200px,基準給大一點:不夠寬就整欄換行,不再硬擠
+const wrapFieldWide: React.CSSProperties = { ...label, flex: '1 1 210px', minWidth: 0 };
 const input: React.CSSProperties = {
   width: '100%',
+  // iPad Safari 的 datetime/number 控件預設不肯縮到比內容窄,壓上 minWidth 0 讓它跟著欄位收
+  minWidth: 0,
+  maxWidth: '100%',
   padding: '8px 10px',
   fontSize: 13,
   border: `1px solid ${c.border}`,
@@ -741,7 +746,7 @@ details[open] .chev { transform: rotate(90deg); }
                         placeholder="例 20"
                       />
                     </label>
-                    <label style={wrapField}>
+                    <label style={wrapFieldWide}>
                       <span style={labelText}>開始</span>
                       <input
                         name="sale_start_at"
@@ -752,7 +757,7 @@ details[open] .chev { transform: rotate(90deg); }
                         style={input}
                       />
                     </label>
-                    <label style={wrapField}>
+                    <label style={wrapFieldWide}>
                       <span style={labelText}>結束</span>
                       <input
                         name="sale_end_at"
