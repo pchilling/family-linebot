@@ -11,6 +11,7 @@ type NewsRow = {
   link_url: string | null;
   image_url: string | null;
   image_ratio: string | null;
+  links: { label: string; url: string }[] | null; // Phase 16(#11)
   status: string;
   published_at: string | null;
   created_at: string;
@@ -20,7 +21,7 @@ type NewsRow = {
 async function getAllNews(tenantId: string): Promise<NewsRow[]> {
   const { data } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, link_url, image_url, image_ratio, status, published_at, created_at, updated_at')
+    .select('id, title, body, link_url, image_url, image_ratio, links, status, published_at, created_at, updated_at')
     .eq('tenant_id', tenantId)
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
@@ -146,6 +147,16 @@ export default async function NewsPage({
               placeholder="https://youtu.be/... 或 https://shop.com/..."
             />
           </label>
+          {/* Phase 16(#11):多顆商品按鈕 */}
+          <div style={label}>
+            🛍 商品按鈕(選填,最多 3 顆;卡片下方出現按鈕,各自導到不同商品/優惠連結)
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <input name={`link${i}_label`} maxLength={20} style={{ ...input, flex: '0 0 140px' }} placeholder={`按鈕 ${i} 文字`} />
+                <input name={`link${i}_url`} type="url" style={{ ...input, flex: 1 }} placeholder="https://stall.neop.tw/oilswa/p/..." />
+              </div>
+            ))}
+          </div>
           <div style={label}>
             🖼 圖片(選填;有圖 → 整張圖卡,像海報)
             <NewsImageField tenantSlug={tenant.slug} />
@@ -268,6 +279,28 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
                 placeholder="https://..."
               />
             </label>
+            {/* Phase 16(#11):多顆商品按鈕 */}
+            <div style={label}>
+              🛍 商品按鈕(選填,最多 3 顆)
+              {[1, 2, 3].map((i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <input
+                    name={`link${i}_label`}
+                    maxLength={20}
+                    defaultValue={n.links?.[i - 1]?.label ?? ''}
+                    style={{ ...input, flex: '0 0 140px' }}
+                    placeholder={`按鈕 ${i} 文字`}
+                  />
+                  <input
+                    name={`link${i}_url`}
+                    type="url"
+                    defaultValue={n.links?.[i - 1]?.url ?? ''}
+                    style={{ ...input, flex: 1 }}
+                    placeholder="https://..."
+                  />
+                </div>
+              ))}
+            </div>
             <div style={label}>
               🖼 圖片(選填;有圖 → 整張圖卡,照原始比例顯示)
               <NewsImageField tenantSlug={slug} defaultUrl={n.image_url} defaultRatio={n.image_ratio} />

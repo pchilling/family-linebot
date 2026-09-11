@@ -1,6 +1,6 @@
 'use server';
 
-import { getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { buildGiftItems, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { lineClient } from '@/lib/line';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -79,6 +79,8 @@ export type ShopTenant = {
   shop_bg_color: string | null; // 批次 C #7:商城底色
   category_order: string[]; // 批次 C #8:分類顯示順序
   shipping_options: ShippingOption[]; // 空陣列 = 不收運費
+  // Phase 16(#12):滿額贈(product_name 已解析好給前端直接顯示)
+  gift_rules: { threshold_twd: number; qty: number; product_name: string }[];
 };
 
 export type ShopData = {
@@ -143,7 +145,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, banners, payment_info, contact_info, shop_bg_color, category_order, shipping_rules')
+      .select('name, logo_url, og_image_url, banners, payment_info, contact_info, shop_bg_color, category_order, shipping_rules, gift_rules')
       .eq('id', TENANT_ID)
       .maybeSingle(),
     // 2026-09-11(回饋 #9):一次撈整攤的分階定價(量小,免 per-product 查)
@@ -180,6 +182,11 @@ export async function loadShopData(
     tiersByProduct.set(t.product_id, arr);
   }
 
+  // Phase 16(#12):滿額贈規則 → 解析贈品名稱給前端顯示(贈品已下架就不顯示)
+  const productNameById = new Map(
+    (((productsRes.data ?? []) as { id: string; name: string }[])).map((p) => [p.id, p.name]),
+  );
+
   if (productsRes.error) {
     console.error('[loadShopData products]', productsRes.error);
     throw new Error('讀取商品失敗');
@@ -196,6 +203,7 @@ export async function loadShopData(
     shop_bg_color: string | null;
     category_order: string[] | null;
     shipping_rules: { options?: ShippingOption[] } | null;
+    gift_rules: { rules?: { threshold_twd: number; product_id: string; qty: number }[] } | null;
   } | null;
   const t = (tenantRes.data as TenantRow) ?? null;
   // Phase 9.8 多 banner + fallback og_image_url(舊單張)
@@ -238,6 +246,14 @@ export async function loadShopData(
       shop_bg_color: t?.shop_bg_color ?? null,
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],
       shipping_options: Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : [],
+      gift_rules: (t?.gift_rules?.rules ?? [])
+        .filter((r) => r && r.threshold_twd > 0 && productNameById.has(r.product_id))
+        .map((r) => ({
+          threshold_twd: r.threshold_twd,
+          qty: Math.max(1, r.qty || 1),
+          product_name: productNameById.get(r.product_id)!,
+        }))
+        .sort((a, b) => a.threshold_twd - b.threshold_twd),
     },
     lastShipping,
   };
@@ -426,17 +442,22 @@ export async function placeOrder(
 
   // Phase 11:insert order_items 帶 variant_id,trigger 自動扣 variant.stock
   // 2026-09-03:price_at_purchase 用折後價(sale / tier)
-  const itemsToInsert = cart.map((c) => {
-    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id)!;
-    return {
-      tenant_id: TENANT_ID,
-      order_id: order.id,
-      product_id: v.product_id,
-      variant_id: c.variant_id,
-      qty: c.qty,
-      price_at_purchase: effectivePrice(v, c.qty),
-    };
-  });
+  // Phase 16(#12):滿額贈 — 折後小計達標的規則各加一行 0 元贈品
+  const giftItems = await buildGiftItems(TENANT_ID, pricedSubtotal);
+  const itemsToInsert = [
+    ...cart.map((c) => {
+      const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id)!;
+      return {
+        tenant_id: TENANT_ID,
+        order_id: order.id,
+        product_id: v.product_id,
+        variant_id: c.variant_id,
+        qty: c.qty,
+        price_at_purchase: effectivePrice(v, c.qty),
+      };
+    }),
+    ...giftItems.map((g) => ({ tenant_id: TENANT_ID, order_id: order.id, ...g })),
+  ];
   const { error: itemsErr } = await supabaseAdmin
     .from('order_items')
     .insert(itemsToInsert);

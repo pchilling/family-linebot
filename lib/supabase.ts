@@ -612,3 +612,58 @@ export async function effectivePriceForProduct(
   const tiers = await getProductTiers(productId);
   return pickPriceFromTiers(tiers, qty, basePrice);
 }
+
+// ====================
+// Phase 16(2026-09-11 回饋 #12):滿額贈
+// tenants.gift_rules = { rules: [{ threshold_twd, product_id, qty }] }
+// 折後商品小計「每達標一條」都送;贈品 = 攤位現有商品的 0 元明細行(扣庫存、印出貨單)
+// ====================
+
+export type GiftRule = { threshold_twd: number; product_id: string; qty: number };
+
+export async function getGiftRules(tenantId: string): Promise<GiftRule[]> {
+  const { data } = await supabaseAdmin
+    .from('tenants')
+    .select('gift_rules')
+    .eq('id', tenantId)
+    .maybeSingle();
+  const rules = (data as { gift_rules?: { rules?: GiftRule[] } | null } | null)?.gift_rules?.rules;
+  return Array.isArray(rules)
+    ? rules.filter((r) => r && r.threshold_twd > 0 && !!r.product_id)
+    : [];
+}
+
+/**
+ * 結帳用:達門檻的每條規則回一列可直接塞 order_items 的 0 元贈品
+ * (取贈品商品第一個 active 規格;沒有可用規格就跳過並 log,不擋下單)。
+ */
+export async function buildGiftItems(
+  tenantId: string,
+  subtotal: number,
+): Promise<{ product_id: string; variant_id: string; qty: number; price_at_purchase: 0 }[]> {
+  const met = (await getGiftRules(tenantId)).filter((r) => subtotal >= r.threshold_twd);
+  if (met.length === 0) return [];
+  const { data: variants } = await supabaseAdmin
+    .from('product_variants')
+    .select('id, product_id')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'active')
+    .in('product_id', met.map((r) => r.product_id));
+  const rows: { product_id: string; variant_id: string; qty: number; price_at_purchase: 0 }[] = [];
+  for (const r of met) {
+    const v = (variants as { id: string; product_id: string }[] | null)?.find(
+      (x) => x.product_id === r.product_id,
+    );
+    if (!v) {
+      console.warn('[buildGiftItems] 贈品商品沒有可用規格,跳過', r.product_id);
+      continue;
+    }
+    rows.push({
+      product_id: r.product_id,
+      variant_id: v.id,
+      qty: Math.max(1, Math.floor(r.qty || 1)),
+      price_at_purchase: 0,
+    });
+  }
+  return rows;
+}

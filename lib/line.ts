@@ -441,8 +441,26 @@ export type NewsForFlex = {
   link_url: string | null;
   image_url: string | null; // D#4(2026-09-02):有圖 → 純圖卡,點圖開 link_url
   image_ratio: string | null; // Phase 15.5:上傳時偵測的原始比例「W:H」,null = 3:4
+  // Phase 16(2026-09-11 回饋 #11):多顆按鈕,各導到不同商品/優惠連結(最多 3 顆)
+  links: { label: string; url: string }[] | null;
   published_at: string;
 };
+
+/** 卡片 footer 的按鈕列(#11 多連結;圖卡與文字卡共用) */
+function buildNewsFooter(links: { label: string; url: string }[]): messagingApi.FlexBox {
+  return {
+    type: 'box' as const,
+    layout: 'vertical' as const,
+    spacing: 'sm' as const,
+    contents: links.slice(0, 3).map((l) => ({
+      type: 'button' as const,
+      style: 'primary' as const,
+      color: '#18181b',
+      height: 'sm' as const,
+      action: { type: 'uri' as const, label: l.label.slice(0, 20), uri: l.url.trim() },
+    })),
+  };
+}
 
 /**
  * D#4:純圖公告 bubble — 整張卡就是那張圖(海報感),有 link_url 點圖直接開。
@@ -450,6 +468,7 @@ export type NewsForFlex = {
  */
 function buildImageNewsBubble(n: NewsForFlex): messagingApi.FlexBubble {
   const ratio = n.image_ratio && /^\d+:\d+$/.test(n.image_ratio) ? n.image_ratio : '3:4';
+  const links = (n.links ?? []).filter((l) => l.label && l.url);
   return {
     type: 'bubble' as const,
     size: 'mega' as const,
@@ -470,6 +489,8 @@ function buildImageNewsBubble(n: NewsForFlex): messagingApi.FlexBubble {
         },
       ],
     },
+    // #11:圖下方掛按鈕列(有按鈕的卡較高;輪播等高,混發時矮卡下方會補白 — 單推最乾淨)
+    ...(links.length > 0 ? { footer: buildNewsFooter(links) } : {}),
   };
 }
 
@@ -540,26 +561,15 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
       },
     };
 
-    // 如果有 link_url,加 footer button
-    if (n.link_url && n.link_url.trim().length > 0) {
-      bubble.footer = {
-        type: 'box' as const,
-        layout: 'vertical' as const,
-        spacing: 'sm' as const,
-        contents: [
-          {
-            type: 'button' as const,
-            style: 'primary' as const,
-            color: '#18181b',
-            height: 'sm' as const,
-            action: {
-              type: 'uri' as const,
-              label: '🔗 開啟連結',
-              uri: n.link_url.trim(),
-            },
-          },
-        ],
-      };
+    // footer 按鈕:#11 多連結優先;沒有才退回單一 link_url
+    const links = (n.links ?? []).filter((l) => l.label && l.url);
+    const footerLinks = links.length > 0
+      ? links
+      : n.link_url && n.link_url.trim().length > 0
+        ? [{ label: '🔗 開啟連結', url: n.link_url.trim() }]
+        : [];
+    if (footerLinks.length > 0) {
+      bubble.footer = buildNewsFooter(footerLinks);
     }
 
     return bubble;
@@ -597,6 +607,9 @@ export async function broadcastNewsItem(n: NewsForFlex): Promise<void> {
     if (n.link_url) {
       lines.push('');
       lines.push(n.link_url.trim());
+    }
+    for (const l of n.links ?? []) {
+      lines.push(`${l.label}:${l.url}`);
     }
     message = { type: 'text', text: lines.join('\n') };
   }

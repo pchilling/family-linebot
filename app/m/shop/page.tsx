@@ -39,6 +39,7 @@ export default function ShopPage() {
     shop_bg_color: null,
     category_order: [],
     shipping_options: [],
+    gift_rules: [],
   });
   const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
   // 2026-09-11(回饋 #10):上一筆訂單的收件資訊,結帳預填
@@ -640,6 +641,29 @@ export default function ShopPage() {
 
       {!showCheckout && !detailId && (
         <>
+          {/* Phase 16(#12):滿額贈提示條 */}
+          {tenant.gift_rules.length > 0 && (
+            <div
+              style={{
+                marginBottom: 12,
+                padding: '10px 14px',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: 10,
+                fontSize: 12.5,
+                color: '#92400e',
+                lineHeight: 1.7,
+              }}
+            >
+              {tenant.gift_rules.map((g) => (
+                <div key={`${g.threshold_twd}-${g.product_name}`}>
+                  滿 NT$ {g.threshold_twd.toLocaleString()} 送 <strong>{g.product_name}</strong>
+                  {g.qty > 1 ? ` ×${g.qty}` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Chip filter row(橫滑) */}
           {products.length > 0 && categories.length > 0 && (
             <div
@@ -1090,6 +1114,25 @@ export default function ShopPage() {
                   </div>
                 </>
               )}
+              {/* Phase 16(#12):滿額贈進度 — 達標綠字,未達標灰字提示還差多少 */}
+              {tenant.gift_rules.map((g) => {
+                const met = cartTotal >= g.threshold_twd;
+                return (
+                  <div
+                    key={`gift-${g.threshold_twd}-${g.product_name}`}
+                    style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, color: met ? '#16a34a' : '#a1a1aa' }}
+                  >
+                    <span>
+                      {met ? '滿額贈:' : `滿 NT$ ${g.threshold_twd.toLocaleString()} 送 `}
+                      {g.product_name}
+                      {g.qty > 1 ? ` ×${g.qty}` : ''}
+                    </span>
+                    <span style={{ flexShrink: 0, fontWeight: met ? 700 : 400 }}>
+                      {met ? '已達成' : `還差 NT$ ${(g.threshold_twd - cartTotal).toLocaleString()}`}
+                    </span>
+                  </div>
+                );
+              })}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 14, color: '#71717a' }}>總計</span>
                 <span style={{

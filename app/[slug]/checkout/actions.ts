@@ -1,6 +1,6 @@
 'use server';
 
-import { getTenantBySlug, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { buildGiftItems, getTenantBySlug, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 
 type CartItemInput = {
   variantId: string;
@@ -213,10 +213,19 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     return { ok: false, error: '建立訂單失敗' };
   }
 
-  const itemsToInsert = pricedItems.map((it) => ({
-    ...it,
-    order_id: (orderRow as { id: string }).id,
-  }));
+  // Phase 16(#12):滿額贈 — 折後小計達標的規則各加一行 0 元贈品
+  const giftItems = await buildGiftItems(tenant.id, subtotal);
+  const itemsToInsert = [
+    ...pricedItems.map((it) => ({
+      ...it,
+      order_id: (orderRow as { id: string }).id,
+    })),
+    ...giftItems.map((g) => ({
+      tenant_id: tenant.id,
+      order_id: (orderRow as { id: string }).id,
+      ...g,
+    })),
+  ];
 
   const { error: iErr } = await supabaseAdmin.from('order_items').insert(itemsToInsert);
 

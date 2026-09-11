@@ -75,6 +75,74 @@ export async function updateTenantSettings(
 }
 
 // ========================
+// Phase 16(2026-09-11 回饋 #12):滿額贈規則
+// tenants.gift_rules = { rules: [{ threshold_twd, product_id, qty }] }
+// ========================
+
+type GiftRuleRow = { threshold_twd: number; product_id: string; qty: number };
+
+async function readGiftRules(tenantId: string): Promise<GiftRuleRow[]> {
+  const { data } = await supabaseAdmin
+    .from('tenants')
+    .select('gift_rules')
+    .eq('id', tenantId)
+    .maybeSingle();
+  const rules = (data as { gift_rules?: { rules?: GiftRuleRow[] } | null } | null)?.gift_rules?.rules;
+  return Array.isArray(rules) ? rules : [];
+}
+
+export async function addGiftRule(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const threshold = parseInt(String(formData.get('threshold_twd') ?? ''), 10);
+  const productId = String(formData.get('product_id') ?? '').trim();
+  const qty = Math.max(1, parseInt(String(formData.get('qty') ?? '1'), 10) || 1);
+
+  if (!slug) throw new Error('無攤位資訊');
+  if (!Number.isFinite(threshold) || threshold <= 0) throw new Error('門檻金額需為正整數');
+  if (!productId) throw new Error('請選贈品商品');
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const rules = await readGiftRules(tenant.id);
+  rules.push({ threshold_twd: threshold, product_id: productId, qty });
+  rules.sort((a, b) => a.threshold_twd - b.threshold_twd);
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ gift_rules: { rules } })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[addGiftRule]', error);
+    throw new Error('儲存失敗:' + error.message);
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+}
+
+export async function deleteGiftRule(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const idx = parseInt(String(formData.get('idx') ?? ''), 10);
+  if (!slug || !Number.isFinite(idx)) throw new Error('缺必要參數');
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const rules = await readGiftRules(tenant.id);
+  if (idx < 0 || idx >= rules.length) throw new Error('規則不存在');
+  rules.splice(idx, 1);
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ gift_rules: rules.length > 0 ? { rules } : null })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[deleteGiftRule]', error);
+    throw new Error('刪除失敗:' + error.message);
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+}
+
+// ========================
 // Logo upload(2026-05-21,Phase 7.1)
 // 用 Supabase Storage bucket "tenant-assets" 存,public bucket。
 // 客端 react-image-crop 已 crop 成 256×256 jpeg blob,server 只需要 upload + 寫 logo_url。

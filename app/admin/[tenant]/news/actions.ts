@@ -10,6 +10,20 @@ async function tenantIdBySlug(slug: string): Promise<string | null> {
   return t?.id ?? null;
 }
 
+/**
+ * Phase 16(#11):讀表單的 link1~3_label/url → 按鈕陣列。
+ * label 上限 20 字(LINE button label 顯示限制),url 必須 http(s)。
+ */
+function parseNewsLinks(formData: FormData): { label: string; url: string }[] {
+  const links: { label: string; url: string }[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const label = String(formData.get(`link${i}_label`) ?? '').trim().slice(0, 20);
+    const url = String(formData.get(`link${i}_url`) ?? '').trim();
+    if (label && /^https?:\/\//.test(url)) links.push({ label, url });
+  }
+  return links;
+}
+
 export async function createNews(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const title = String(formData.get('title') ?? '').trim();
@@ -20,6 +34,7 @@ export async function createNews(formData: FormData): Promise<void> {
   const imageRatio = /^\d+:\d+$/.test(imageRatioRaw) ? imageRatioRaw : null;
   const publish = formData.get('publish') === 'on';
   const push = formData.get('push') === 'on'; // D#3:發布後同步推播
+  const links = parseNewsLinks(formData); // Phase 16(#11)
 
   if (!slug) throw new Error('無攤位資訊');
   if (!title) throw new Error('標題必填');
@@ -35,6 +50,7 @@ export async function createNews(formData: FormData): Promise<void> {
     link_url: linkUrl || null,
     image_url: imageUrl || null,
     image_ratio: imageUrl ? imageRatio : null,
+    links: links.length > 0 ? links : null,
     status: publish ? 'published' : 'draft',
     published_at: publishedAt,
   });
@@ -54,6 +70,7 @@ export async function createNews(formData: FormData): Promise<void> {
         link_url: linkUrl || null,
         image_url: imageUrl || null,
         image_ratio: imageUrl ? imageRatio : null,
+        links: links.length > 0 ? links : null,
         published_at: publishedAt ?? new Date().toISOString(),
       });
     } catch (e) {
@@ -78,13 +95,15 @@ export async function pushNews(formData: FormData): Promise<void> {
 
   const { data } = await supabaseAdmin
     .from('news')
-    .select('id, title, body, link_url, image_url, image_ratio, published_at, status')
+    .select('id, title, body, link_url, image_url, image_ratio, links, published_at, status')
     .eq('id', id)
     .eq('tenant_id', tenantId)
     .maybeSingle();
   const n = data as {
     id: string; title: string; body: string | null; link_url: string | null;
-    image_url: string | null; image_ratio: string | null; published_at: string | null; status: string;
+    image_url: string | null; image_ratio: string | null;
+    links: { label: string; url: string }[] | null;
+    published_at: string | null; status: string;
   } | null;
   if (!n) throw new Error('消息不存在');
   if (n.status !== 'published') throw new Error('只有已發佈的消息能推播');
@@ -96,6 +115,7 @@ export async function pushNews(formData: FormData): Promise<void> {
     link_url: n.link_url,
     image_url: n.image_url,
     image_ratio: n.image_ratio,
+    links: n.links,
     published_at: n.published_at ?? new Date().toISOString(),
   });
 
@@ -111,6 +131,7 @@ export async function updateNews(formData: FormData): Promise<void> {
   const imageUrl = String(formData.get('image_url') ?? '').trim(); // D#4
   const imageRatioRaw = String(formData.get('image_ratio') ?? '').trim(); // Phase 15.5
   const imageRatio = /^\d+:\d+$/.test(imageRatioRaw) ? imageRatioRaw : null;
+  const links = parseNewsLinks(formData); // Phase 16(#11)
   const status = String(formData.get('status') ?? 'draft').trim();
 
   if (!slug || !id) throw new Error('缺必要參數');
@@ -140,6 +161,7 @@ export async function updateNews(formData: FormData): Promise<void> {
     link_url: string | null;
     image_url: string | null;
     image_ratio: string | null;
+    links: { label: string; url: string }[] | null;
     status: string;
     published_at?: string | null;
   } = {
@@ -148,6 +170,7 @@ export async function updateNews(formData: FormData): Promise<void> {
     link_url: linkUrl || null,
     image_url: imageUrl || null,
     image_ratio: imageUrl ? imageRatio : null,
+    links: links.length > 0 ? links : null,
     status,
   };
 
