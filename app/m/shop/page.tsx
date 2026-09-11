@@ -96,6 +96,18 @@ export default function ShopPage() {
         setMember(data.member);
         setTenant(data.tenant);
         setLastShip(data.lastShipping);
+        // 2026-09-11:關鍵圖片(banner / logo / 首屏商品圖)預載完才進頁,
+        // 不再一張張蹦出來;最多等 3 秒,網路慢也不卡死
+        const preloadUrls: string[] = [];
+        if (data.tenant.logo_url) preloadUrls.push(data.tenant.logo_url);
+        for (const b of data.tenant.banners) {
+          if (b.type === 'image') preloadUrls.push(b.url);
+        }
+        for (const prod of data.products.slice(0, 6)) {
+          const img = (prod.media ?? []).find((m) => m.type === 'image')?.url ?? prod.image_url;
+          if (img) preloadUrls.push(img);
+        }
+        await preloadImages(preloadUrls, 3000);
         // Profile gate:沒填 full_name / phone 不能逛(同 /m/checkin pattern)
         const hasProfile = !!(data.member?.full_name && data.member?.phone);
         setStatus(hasProfile ? 'shop' : 'need-profile');
@@ -278,7 +290,71 @@ export default function ShopPage() {
     }
   }
 
-  if (status === 'loading') return <Centered>載入中…</Centered>;
+  // 2026-09-11:載入畫面改霧面玻璃 + 動畫(原本一行「載入中…」太陽春)
+  if (status === 'loading') {
+    return (
+      <main
+        style={{
+          ...page,
+          position: 'relative',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+        }}
+      >
+        <style dangerouslySetInnerHTML={{ __html: loadingKeyframes }} />
+        {/* 背景暖色光暈(霧的來源) */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute', width: 280, height: 280, borderRadius: '50%',
+            background: '#f0e2d0', filter: 'blur(70px)', top: '14%', left: -60,
+            animation: 'shopload-blob 4.5s ease-in-out infinite alternate',
+          }}
+        />
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute', width: 320, height: 320, borderRadius: '50%',
+            background: '#e3ede3', filter: 'blur(80px)', bottom: '10%', right: -80,
+            animation: 'shopload-blob 5.5s ease-in-out infinite alternate-reverse',
+          }}
+        />
+        {/* 霧面玻璃卡 */}
+        <div
+          style={{
+            position: 'relative',
+            padding: '38px 46px',
+            borderRadius: 22,
+            background: 'rgba(255,255,255,0.55)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255,255,255,0.75)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 42, height: 42, borderRadius: '50%',
+              border: '3px solid #e7d9c7', borderTopColor: '#8a6d4f',
+              animation: 'shopload-spin 0.8s linear infinite', display: 'inline-block',
+            }}
+          />
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#57534e', animation: 'shopload-pulse 1.6s ease-in-out infinite' }}>
+            商品專區載入中
+          </div>
+          <div style={{ fontSize: 12, color: '#a8a29e' }}>正在準備商品與圖片…</div>
+        </div>
+      </main>
+    );
+  }
   if (status === 'error') return <Centered>錯誤:{error}</Centered>;
 
   // Profile gate:沒填會員資料的學員看不到商品,先填 mini-form
@@ -1379,6 +1455,33 @@ function CartQtyInput({
       }}
     />
   );
+}
+
+const loadingKeyframes = `
+@keyframes shopload-spin { to { transform: rotate(360deg); } }
+@keyframes shopload-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes shopload-blob { from { transform: translate(0, 0) scale(1); } to { transform: translate(34px, -24px) scale(1.18); } }
+`;
+
+/**
+ * 預載一批圖片,全載完或超過 timeoutMs 就放行(壞圖 / 慢網路不卡死)。
+ * 進場畫面用:圖都好了才顯示頁面,不再逐張蹦出。
+ */
+function preloadImages(urls: string[], timeoutMs: number): Promise<void> {
+  if (urls.length === 0) return Promise.resolve();
+  const jobs = urls.map(
+    (u) =>
+      new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        img.src = u;
+      }),
+  );
+  return Promise.race([
+    Promise.all(jobs).then(() => undefined),
+    new Promise<void>((resolve) => window.setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
