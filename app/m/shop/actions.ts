@@ -51,6 +51,8 @@ export type ShopProduct = {
   sale_end_at: string | null;
   stock: number;
   variants: ShopVariant[]; // Phase 11:variant-aware
+  // 2026-09-11(回饋 #9):分階定價帶進 LIFF,卡片顯示「NT$ 單價 / 分階總價」
+  tiers: { min_qty: number; price_twd: number }[]; // min_qty asc
 };
 
 export type ShopMember = {
@@ -73,6 +75,7 @@ export type ShopTenant = {
   logo_url: string | null;
   banners: { type: 'image' | 'video'; url: string }[]; // Phase 9.8 多媒體 carousel
   payment_info: string | null;
+  contact_info: string | null; // 2026-09-11(回饋 #13):商城底部顯示聯絡資訊
   shop_bg_color: string | null; // 批次 C #7:商城底色
   category_order: string[]; // 批次 C #8:分類顯示順序
   shipping_options: ShippingOption[]; // 空陣列 = 不收運費
@@ -82,6 +85,8 @@ export type ShopData = {
   products: ShopProduct[];
   member: ShopMember | null;
   tenant: ShopTenant;
+  // 2026-09-11(回饋 #10):這個客人上一筆訂單的收件資訊,結帳預填(不動會員資料)
+  lastShipping: { recipient: string | null; phone: string | null; address: string | null } | null;
 };
 
 /**
@@ -122,7 +127,7 @@ export async function loadShopData(
   const lineUserId = await verifyIdToken(idToken);
   await ensureUser(lineUserId, displayName, pictureUrl);
 
-  const [productsRes, memberRes, tenantRes] = await Promise.all([
+  const [productsRes, memberRes, tenantRes, tiersRes] = await Promise.all([
     supabaseAdmin
       .from('products')
       .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
@@ -132,16 +137,48 @@ export async function loadShopData(
       .order('name', { ascending: true }),
     supabaseAdmin
       .from('users')
-      .select('full_name, phone, address')
+      .select('id, full_name, phone, address')
       .eq('tenant_id', TENANT_ID)
       .eq('line_user_id', lineUserId)
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, banners, payment_info, shop_bg_color, category_order, shipping_rules')
+      .select('name, logo_url, og_image_url, banners, payment_info, contact_info, shop_bg_color, category_order, shipping_rules')
       .eq('id', TENANT_ID)
       .maybeSingle(),
+    // 2026-09-11(回饋 #9):一次撈整攤的分階定價(量小,免 per-product 查)
+    supabaseAdmin
+      .from('product_price_tiers')
+      .select('product_id, min_qty, price_twd')
+      .eq('tenant_id', TENANT_ID)
+      .order('min_qty', { ascending: true }),
   ]);
+
+  // 2026-09-11(回饋 #10):抓這個客人最近一筆有地址的訂單,結帳預填
+  const memberId = (memberRes.data as { id?: string } | null)?.id ?? null;
+  let lastShipping: ShopData['lastShipping'] = null;
+  if (memberId) {
+    const { data: lastOrder } = await supabaseAdmin
+      .from('orders')
+      .select('shipping_recipient, shipping_phone, shipping_address')
+      .eq('tenant_id', TENANT_ID)
+      .eq('user_id', memberId)
+      .not('shipping_address', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastOrder) {
+      const lo = lastOrder as { shipping_recipient: string | null; shipping_phone: string | null; shipping_address: string | null };
+      lastShipping = { recipient: lo.shipping_recipient, phone: lo.shipping_phone, address: lo.shipping_address };
+    }
+  }
+
+  const tiersByProduct = new Map<string, { min_qty: number; price_twd: number }[]>();
+  for (const t of (tiersRes.data as { product_id: string; min_qty: number; price_twd: number }[] | null) ?? []) {
+    const arr = tiersByProduct.get(t.product_id) ?? [];
+    arr.push({ min_qty: t.min_qty, price_twd: t.price_twd });
+    tiersByProduct.set(t.product_id, arr);
+  }
 
   if (productsRes.error) {
     console.error('[loadShopData products]', productsRes.error);
@@ -155,6 +192,7 @@ export async function loadShopData(
     og_image_url: string | null;
     banners: MediaItem[] | null;
     payment_info: string | null;
+    contact_info: string | null;
     shop_bg_color: string | null;
     category_order: string[] | null;
     shipping_rules: { options?: ShippingOption[] } | null;
@@ -188,6 +226,7 @@ export async function loadShopData(
       variants: (p.product_variants ?? [])
         .filter((v) => v.status === 'active')
         .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, image_url: v.image_url ?? null })),
+      tiers: tiersByProduct.get(p.id) ?? [],
     })),
     member: (memberRes.data as ShopMember | null) ?? null,
     tenant: {
@@ -195,10 +234,12 @@ export async function loadShopData(
       logo_url: t?.logo_url ?? null,
       banners: tenantBanners,
       payment_info: t?.payment_info ?? null,
+      contact_info: t?.contact_info ?? null,
       shop_bg_color: t?.shop_bg_color ?? null,
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],
       shipping_options: Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : [],
     },
+    lastShipping,
   };
 }
 
@@ -266,6 +307,8 @@ export async function placeOrder(
   // Phase 15.4:統編發票(選填)
   const invoiceTaxId = String(formData.get('invoice_tax_id') || '').trim();
   const invoiceTitle = String(formData.get('invoice_title') || '').trim();
+  // 2026-09-11(回饋 #5):客人備註,會顯示在出貨單 / 後台 / CSV
+  const note = String(formData.get('note') || '').trim();
 
   if (cart.length === 0) throw new Error('購物車是空的');
   if (!recipient || !phone || !address) throw new Error('收件人 / 電話 / 地址 必填');
@@ -372,6 +415,7 @@ export async function placeOrder(
       shipping_fee_twd: shippingFee,
       invoice_tax_id: invoiceTaxId || null,
       invoice_title: invoiceTitle || null,
+      note: note || null,
     })
     .select('id, order_no, total_twd')
     .single();

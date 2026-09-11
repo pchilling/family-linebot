@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useCart } from '../cart-state';
 
 type Props = {
@@ -161,16 +161,8 @@ export default function CartPage({ params }: Props) {
                   >
                     −
                   </button>
-                  <span
-                    style={{
-                      minWidth: 32,
-                      textAlign: 'center',
-                      fontSize: '0.9375rem',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {item.qty}
-                  </span>
+                  {/* 2026-09-11(回饋 #2):數量可直接打字改 */}
+                  <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
                   <button
                     type="button"
                     onClick={() => updateQty(item.variantId, item.qty + 1)}
@@ -245,5 +237,46 @@ export default function CartPage({ params }: Props) {
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * 購物車數量輸入框(2026-09-11 回饋 #2):可直接打字改;
+ * 打字過程允許清空,離開欄位時空值/0 恢復原數量(整列刪除交給 − 按鈕)。
+ */
+function QtyInput({ qty, onCommit }: { qty: number; onCommit: (n: number) => void }) {
+  const [text, setText] = useState<string | null>(null); // null = 顯示外部 qty
+
+  return (
+    <input
+      inputMode="numeric"
+      aria-label="數量"
+      value={text ?? String(qty)}
+      onFocus={() => setText(String(qty))}
+      onChange={(e) => {
+        const t = e.target.value.replace(/\D/g, '');
+        setText(t);
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n) && n > 0) onCommit(n);
+      }}
+      onBlur={() => {
+        const n = parseInt(text ?? '', 10);
+        if (Number.isFinite(n) && n > 0) onCommit(n);
+        setText(null);
+      }}
+      style={{
+        width: 44,
+        height: 32,
+        textAlign: 'center',
+        fontSize: '0.9375rem',
+        fontWeight: 500,
+        border: 'none',
+        borderLeft: '1px solid #e5e7eb',
+        borderRight: '1px solid #e5e7eb',
+        fontFamily: 'inherit',
+        boxSizing: 'border-box',
+        background: '#fff',
+      }}
+    />
   );
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getTenantPublic } from '@/lib/supabase';
+import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { CartLink } from './cart-state';
 
 type Props = {
@@ -25,6 +25,14 @@ export default async function TenantLayout({ children, params }: Props) {
   const { slug } = await params;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
+
+  // 2026-09-11(回饋 #13):footer 顯示攤位對外聯絡資訊(getTenantPublic 沒帶,另撈)
+  const { data: extraRow } = await supabaseAdmin
+    .from('tenants')
+    .select('contact_info')
+    .eq('slug', slug)
+    .maybeSingle();
+  const contactInfo = (extraRow as { contact_info: string | null } | null)?.contact_info ?? null;
 
   const brandColor = tenant.brand_color ?? '#1f2937';
 
@@ -124,6 +132,20 @@ export default async function TenantLayout({ children, params }: Props) {
           marginTop: '4rem',
         }}
       >
+        {/* 2026-09-11(回饋 #13):對外聯絡資訊 */}
+        {contactInfo && (
+          <div
+            style={{
+              marginBottom: '1rem',
+              color: '#6b7280',
+              fontSize: '0.8125rem',
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.7,
+            }}
+          >
+            {contactInfo}
+          </div>
+        )}
         {/* 法規連結(2026-09-08:查訂單併入此列,不再獨立一行 — 留給弄丟連結的網頁訪客) */}
         <div
           style={{

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 import { loadProfile, saveProfile, type MemberProfile } from './actions';
+import { TwAddressFields } from '@/lib/tw-districts';
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID!;
 
@@ -194,13 +195,8 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
           </Field>
 
           <Field label="地址">
-            <input
-              name="address"
-              defaultValue={profile?.address ?? ''}
-              placeholder="出貨 / 通訊地址"
-              className="input"
-              style={input}
-            />
+            {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
+            <TwAddressFields key={profile?.address ?? ''} initial={profile?.address ?? ''} />
           </Field>
 
           <Field label="生日">

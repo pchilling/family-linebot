@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { IconReceipt } from '@/lib/icons';
+import { TwAddressFields } from '@/lib/tw-districts';
 import { createOrder, getShippingOptions, type ShippingOption } from './actions';
 
 type Props = {
@@ -249,10 +250,11 @@ export default function CheckoutPage({ params }: Props) {
           <input id="phone" name="phone" type="tel" required style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="address" style={labelStyle}>
+          <label style={labelStyle}>
             寄送地址 <span style={{ color: '#ef4444' }}>*</span>
           </label>
-          <input id="address" name="address" type="text" required style={inputStyle} />
+          {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
+          <TwAddressFields required inputStyle={inputStyle} />
         </div>
         <div>
           <label htmlFor="guestEmail" style={labelStyle}>

@@ -112,9 +112,13 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   }, [selectedId]);
 
   const price = selected?.price_twd ?? 0;
+  // 2026-09-11(回饋 #9):分階單價 — 本次數量達門檻就套分階價(與後端 placeOrder 同邏輯;sale 生效時分階暫停)
+  const tierUnit = !onSale && product.tiers.length > 0
+    ? product.tiers.reduce((u, t) => (qty >= t.min_qty ? t.price_twd : u), price)
+    : price;
   const effPrice = onSale
     ? Math.round((price * (100 - product.sale_discount_pct!)) / 100)
-    : price;
+    : tierUnit;
   const total = effPrice * qty;
   const originalTotal = price * qty;
 
@@ -291,6 +295,30 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
           <span style={{ fontSize: 12, color: '#991b1b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <IconClock size={12} /> 剩餘 {formatCountdown(new Date(product.sale_end_at!).getTime() - nowMs)}
           </span>
+        </div>
+      )}
+      {/* 2026-09-11(回饋 #9):分階定價表(特價生效時分階暫停,不顯示) */}
+      {!onSale && product.tiers.length > 0 && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 14px',
+            background: '#fffbeb',
+            border: '1px solid #fde68a',
+            borderRadius: 10,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>量購優惠</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {product.tiers.map((t) => (
+              <div key={t.min_qty} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#78350f' }}>
+                <span>滿 {t.min_qty} 件</span>
+                <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700 }}>
+                  NT$ {t.price_twd.toLocaleString()} /件(共 NT$ {(t.min_qty * t.price_twd).toLocaleString()})
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {product.description && (

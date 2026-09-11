@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
+import { CopyButton } from '../../[slug]/order/[order_no]/copy-button';
+import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconPencil, IconReceipt } from '@/lib/icons';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
@@ -33,11 +35,14 @@ export default function ShopPage() {
     logo_url: null,
     banners: [],
     payment_info: null,
+    contact_info: null,
     shop_bg_color: null,
     category_order: [],
     shipping_options: [],
   });
   const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
+  // 2026-09-11(回饋 #10):上一筆訂單的收件資訊,結帳預填
+  const [lastShip, setLastShip] = useState<{ recipient: string | null; phone: string | null; address: string | null } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [filter, setFilter] = useState<string>(''); // '' = 全部 / 'latest' / category name
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -89,6 +94,7 @@ export default function ShopPage() {
         setProducts(data.products);
         setMember(data.member);
         setTenant(data.tenant);
+        setLastShip(data.lastShipping);
         // Profile gate:沒填 full_name / phone 不能逛(同 /m/checkin pattern)
         const hasProfile = !!(data.member?.full_name && data.member?.phone);
         setStatus(hasProfile ? 'shop' : 'need-profile');
@@ -98,6 +104,11 @@ export default function ShopPage() {
       }
     })();
   }, []);
+
+  // 2026-09-11(回饋 #7):切畫面(商品詳情 / 結帳 / 完成)一律從頁頂開始看
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [detailId, showCheckout, status]);
 
   async function onSubmitProfile(formData: FormData) {
     setSavingProfile(true);
@@ -175,13 +186,35 @@ export default function ShopPage() {
     return m;
   }, [products]);
 
+  // 2026-09-11(回饋 #9):購物車顯示也套分階價(與後端 placeOrder 同邏輯 —
+  // sale 生效 variantMap 已是折後價、分階暫停;否則以「同商品整單數量」找分階單價)
+  const cartQtyByProduct = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of cart) {
+      const v = variantMap.get(c.variant_id);
+      if (v) m.set(v.product_id, (m.get(v.product_id) ?? 0) + c.qty);
+    }
+    return m;
+  }, [cart, variantMap]);
+
+  function unitPriceOf(variantId: string): number {
+    const v = variantMap.get(variantId);
+    if (!v) return 0;
+    const p = productMap.get(v.product_id);
+    if (!p || p.tiers.length === 0 || saleActiveOf(p, Date.now())) return v.price_twd;
+    const totalQty = cartQtyByProduct.get(v.product_id) ?? 0;
+    let unit = v.price_twd;
+    for (const t of p.tiers) {
+      if (totalQty >= t.min_qty) unit = t.price_twd;
+    }
+    return unit;
+  }
+
   const cartTotal = useMemo(
     () =>
-      cart.reduce((sum, c) => {
-        const v = variantMap.get(c.variant_id);
-        return sum + (v?.price_twd ?? 0) * c.qty;
-      }, 0),
-    [cart, variantMap],
+      cart.reduce((sum, c) => sum + unitPriceOf(c.variant_id) * c.qty, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cart, variantMap, productMap, cartQtyByProduct],
   );
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
@@ -214,6 +247,15 @@ export default function ShopPage() {
         .map((c) =>
           c.variant_id === variantId ? { ...c, qty: c.qty + delta } : c,
         )
+        .filter((c) => c.qty > 0),
+    );
+  }
+
+  // 2026-09-11(回饋 #2):購物車數量可直接打字改
+  function setQtyExact(variantId: string, qty: number) {
+    setCart((prev) =>
+      prev
+        .map((c) => (c.variant_id === variantId ? { ...c, qty } : c))
         .filter((c) => c.qty > 0),
     );
   }
@@ -386,6 +428,15 @@ export default function ShopPage() {
             }}>
               {tenant.payment_info}
             </div>
+            {/* 2026-09-11(回饋 #14):一鍵複製帳號 */}
+            {(() => {
+              const acct = extractBankAccount(tenant.payment_info);
+              return acct ? (
+                <div style={{ marginTop: 10 }}>
+                  <CopyButton big text={acct} label={`複製帳號 ${acct}`} />
+                </div>
+              ) : null;
+            })()}
             <div style={{ marginTop: 12, color: '#92400e', fontSize: 12, lineHeight: 1.5 }}>
               匯款完成後,直接在下方填帳號<strong>後 5 碼</strong>;晚點匯也沒關係,LINE 通知裡的按鈕隨時可以填。
             </div>
@@ -816,6 +867,13 @@ export default function ShopPage() {
                               }}
                             >
                               NT$ {minPrice.toLocaleString()}
+                              {/* 2026-09-11(回饋 #9):有分階價 → 併排顯示分階總價(如 100 / 450) */}
+                              {p.tiers.length > 0 && (
+                                <span style={{ color: '#b45309' }}>
+                                  {' / '}
+                                  {(p.tiers[0].min_qty * p.tiers[0].price_twd).toLocaleString()}
+                                </span>
+                              )}
                             </div>
                           )}
                           {allOut && (
@@ -828,6 +886,28 @@ export default function ShopPage() {
                 </article>
               ))}
             </section>
+          )}
+
+          {/* 2026-09-11(回饋 #13):商城底部顯示攤位聯絡資訊 */}
+          {tenant.contact_info && (
+            <footer
+              style={{
+                marginTop: 24,
+                padding: '14px 16px',
+                background: '#fff',
+                border: '1px solid #e4e4e7',
+                borderRadius: 10,
+                fontSize: 12.5,
+                color: '#52525b',
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.7,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#a1a1aa', letterSpacing: '0.08em', marginBottom: 6 }}>
+                聯絡我們
+              </div>
+              {tenant.contact_info}
+            </footer>
           )}
         </>
       )}
@@ -929,7 +1009,8 @@ export default function ShopPage() {
                 const v = variantMap.get(c.variant_id);
                 const p = productMap.get(c.product_id);
                 if (!v || !p) return null;
-                const subtotal = v.price_twd * c.qty;
+                const unit = unitPriceOf(c.variant_id);
+                const subtotal = unit * c.qty;
                 const showVariantName = p.variants.length > 1;
                 return (
                   <li
@@ -972,7 +1053,10 @@ export default function ShopPage() {
                         </div>
                       )}
                       <div style={{ fontSize: 12, color: '#71717a', fontFamily: 'ui-monospace, monospace' }}>
-                        NT$ {v.price_twd.toLocaleString()} × {c.qty}
+                        NT$ {unit.toLocaleString()} × {c.qty}
+                        {unit < v.price_twd && (
+                          <span style={{ color: '#16a34a', fontFamily: 'inherit', marginLeft: 4 }}>量購價</span>
+                        )}
                       </div>
                       <div style={{ fontSize: 13, color: '#18181b', fontWeight: 600, fontFamily: 'ui-monospace, monospace', marginTop: 2 }}>
                         NT$ {subtotal.toLocaleString()}
@@ -980,7 +1064,11 @@ export default function ShopPage() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <button type="button" onClick={() => changeQty(c.variant_id, -1)} style={qtyBtnNew}>−</button>
-                      <span style={{ minWidth: 22, textAlign: 'center', fontSize: 14, fontWeight: 500 }}>{c.qty}</span>
+                      <CartQtyInput
+                        qty={c.qty}
+                        max={v.stock > 0 ? v.stock : 9999}
+                        onCommit={(n) => setQtyExact(c.variant_id, n)}
+                      />
                       <button type="button" onClick={() => changeQty(c.variant_id, 1)} style={qtyBtnNew}>+</button>
                     </div>
                   </li>
@@ -1079,11 +1167,12 @@ export default function ShopPage() {
 
             <div style={cardTitle}>收件資訊</div>
 
+            {/* 2026-09-11(回饋 #10):預填上一筆訂單的收件資訊(沒有才 fallback 會員資料),可自由改掉 */}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>收件人姓名 *</span>
               <input
                 name="recipient"
-                defaultValue={member?.full_name ?? ''}
+                defaultValue={lastShip?.recipient ?? member?.full_name ?? ''}
                 required
                 style={shopInput}
                 placeholder="收件人姓名"
@@ -1094,20 +1183,29 @@ export default function ShopPage() {
               <input
                 name="phone"
                 type="tel"
-                defaultValue={member?.phone ?? ''}
+                defaultValue={lastShip?.phone ?? member?.phone ?? ''}
                 required
                 style={shopInput}
                 placeholder="0900-000-000"
               />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>地址 *</span>
-              <input
-                name="address"
-                defaultValue={member?.address ?? ''}
+              <TwAddressFields
                 required
-                style={shopInput}
-                placeholder="出貨 / 通訊地址"
+                initial={lastShip?.address ?? member?.address ?? ''}
+                inputStyle={{ fontSize: 15 }}
+              />
+            </div>
+            {/* 2026-09-11(回饋 #5):訂單備註,出貨單 / 後台都看得到 */}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>備註(選填)</span>
+              <textarea
+                name="note"
+                rows={2}
+                style={{ ...shopInput, fontFamily: 'inherit', resize: 'vertical' }}
+                placeholder="例:到貨時段、包裝需求…"
               />
             </label>
 
@@ -1177,6 +1275,71 @@ export default function ShopPage() {
         );
       })()}
     </main>
+  );
+}
+
+/**
+ * 從自由文字的匯款資訊抓銀行帳號(2026-09-11 一鍵複製用):
+ * 「帳號:xxx」格式優先;沒有就取最長的連續數字(≥6 碼,避開銀行代碼)。
+ * (與 /[slug]/order 頁的同名 helper 同邏輯;server / client 各留一份)
+ */
+function extractBankAccount(text: string | null): string | null {
+  if (!text) return null;
+  const labeled = text.match(/帳號[^0-9]{0,4}([0-9][0-9\- ]{4,})/);
+  if (labeled) return labeled[1].replace(/[^0-9]/g, '');
+  let best = '';
+  for (const run of text.match(/[0-9]{6,}/g) ?? []) {
+    if (run.length > best.length) best = run;
+  }
+  return best || null;
+}
+
+/**
+ * 購物車數量輸入框(2026-09-11 回饋 #2):
+ * 可直接打字改數量;打字過程允許清空,離開欄位時空值/0 恢復原數量
+ * (刪掉整列交給 − 按鈕,避免誤刪)。
+ */
+function CartQtyInput({
+  qty,
+  max,
+  onCommit,
+}: {
+  qty: number;
+  max: number;
+  onCommit: (n: number) => void;
+}) {
+  const [text, setText] = useState<string | null>(null); // null = 顯示外部 qty
+
+  return (
+    <input
+      inputMode="numeric"
+      aria-label="數量"
+      value={text ?? String(qty)}
+      onFocus={() => setText(String(qty))}
+      onChange={(e) => {
+        const t = e.target.value.replace(/\D/g, '');
+        setText(t);
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n) && n > 0) onCommit(Math.min(n, max));
+      }}
+      onBlur={() => {
+        const n = parseInt(text ?? '', 10);
+        if (Number.isFinite(n) && n > 0) onCommit(Math.min(n, max));
+        setText(null);
+      }}
+      style={{
+        width: 48,
+        textAlign: 'center',
+        fontSize: 14,
+        fontWeight: 600,
+        padding: '6px 0',
+        border: '1px solid #e4e4e7',
+        borderRadius: 8,
+        fontFamily: 'inherit',
+        boxSizing: 'border-box',
+        background: '#fff',
+      }}
+    />
   );
 }
 
