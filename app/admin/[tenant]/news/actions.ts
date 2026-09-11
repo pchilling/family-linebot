@@ -13,9 +13,9 @@ async function tenantIdBySlug(slug: string): Promise<string | null> {
 type NewsLinks = { label: string; url: string }[] | { mode: 'zones'; urls: string[] };
 
 /**
- * Phase 16(#11):讀表單的連結設定。
- * 海報熱區(zone1~4_url)優先 — 有填就存 { mode:'zones', urls },整張圖由上到下等分可點;
- * 否則收 link1~3 的按鈕陣列(label 上限 20 字,url 必須 http(s))。都沒填回 null。
+ * Phase 16 v3(2026-09-12):按鈕功能收掉,只收海報熱區(zone1~4_url)。
+ * 有填就存 { mode:'zones', urls },圖依填寫數量由上到下等分可點;沒填回 null。
+ * (NewsLinks 仍保留按鈕陣列型別 — 舊資料在 LINE 端照常顯示)
  */
 function parseNewsLinks(formData: FormData): NewsLinks | null {
   const zones: string[] = [];
@@ -23,15 +23,7 @@ function parseNewsLinks(formData: FormData): NewsLinks | null {
     const u = String(formData.get(`zone${i}_url`) ?? '').trim();
     if (/^https?:\/\//.test(u)) zones.push(u);
   }
-  if (zones.length > 0) return { mode: 'zones', urls: zones };
-
-  const links: { label: string; url: string }[] = [];
-  for (let i = 1; i <= 3; i++) {
-    const label = String(formData.get(`link${i}_label`) ?? '').trim().slice(0, 20);
-    const url = String(formData.get(`link${i}_url`) ?? '').trim();
-    if (label && /^https?:\/\//.test(url)) links.push({ label, url });
-  }
-  return links.length > 0 ? links : null;
+  return zones.length > 0 ? { mode: 'zones', urls: zones } : null;
 }
 
 export async function createNews(formData: FormData): Promise<void> {

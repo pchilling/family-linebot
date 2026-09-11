@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
 import { createNews, deleteNews, pushNews, updateNews } from './actions';
 import { NewsImageField } from './image-field';
+import { ZoneFields } from './zone-fields';
 import { SubmitButton } from '../../_components/submit-button';
 
 type NewsRow = {
@@ -148,28 +149,10 @@ export default async function NewsPage({
               placeholder="https://youtu.be/... 或 https://shop.com/..."
             />
           </label>
-          {/* Phase 16(#11):多顆商品按鈕 */}
+          {/* Phase 16 v3(2026-09-12):按鈕功能收掉,只留海報熱區(即時分區示意圖) */}
           <div style={label}>
-            🛍 商品按鈕(選填,最多 3 顆;卡片下方出現按鈕,各自導到不同商品/優惠連結)
-            {[1, 2, 3].map((i) => (
-              <div key={i} style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                <input name={`link${i}_label`} maxLength={20} style={{ ...input, flex: '0 0 140px' }} placeholder={`按鈕 ${i} 文字`} />
-                <input name={`link${i}_url`} type="url" style={{ ...input, flex: 1 }} placeholder="https://stall.neop.tw/oilswa/p/..." />
-              </div>
-            ))}
-          </div>
-          {/* Phase 16 v2:海報熱區 — 整張圖等分可點,不出現按鈕 */}
-          <div style={label}>
-            🎯 海報熱區(選填,進階):把圖<strong>由上到下等分</strong>,點該區直接開該連結 — 卡片是乾淨海報、沒有按鈕。
-            填了熱區就忽略上面的按鈕。海報設計時把商品由上到下排好。
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                <span style={{ flex: '0 0 96px', fontSize: 12, color: '#71717a' }}>
-                  熱區 {i}{i === 1 ? '(最上)' : i === 4 ? '(最下)' : ''}
-                </span>
-                <input name={`zone${i}_url`} type="url" style={{ ...input, flex: 1 }} placeholder="https://stall.neop.tw/oilswa/p/..." />
-              </div>
-            ))}
+            🎯 海報熱區(選填):海報上不同商品各給一條連結,客人<strong>點圖上那一區就直接開那條連結</strong>,卡片是乾淨海報。
+            <ZoneFields />
           </div>
           <div style={label}>
             🖼 圖片(選填;有圖 → 整張圖卡,像海報)
@@ -240,8 +223,7 @@ export default async function NewsPage({
 }
 
 function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
-  // Phase 16 v2:links 可能是按鈕陣列或熱區物件,拆開給表單預填
-  const btnLinks = Array.isArray(n.links) ? n.links : [];
+  // Phase 16 v3:links 只剩熱區物件(舊資料的按鈕陣列仍會在 LINE 端正常顯示,但後台不再編輯)
   const zoneUrls = !Array.isArray(n.links) && n.links?.mode === 'zones' ? n.links.urls : [];
   return (
     <article key={n.id} style={{ ...section, ...(savedId === n.id ? { borderColor: '#16a34a', boxShadow: '0 0 0 2px #bbf7d0' } : {}) }}>
@@ -296,45 +278,10 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
                 placeholder="https://..."
               />
             </label>
-            {/* Phase 16(#11):多顆商品按鈕 */}
+            {/* Phase 16 v3(2026-09-12):按鈕功能收掉,只留海報熱區 */}
             <div style={label}>
-              🛍 商品按鈕(選填,最多 3 顆)
-              {[1, 2, 3].map((i) => (
-                <div key={i} style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  <input
-                    name={`link${i}_label`}
-                    maxLength={20}
-                    defaultValue={btnLinks[i - 1]?.label ?? ''}
-                    style={{ ...input, flex: '0 0 140px' }}
-                    placeholder={`按鈕 ${i} 文字`}
-                  />
-                  <input
-                    name={`link${i}_url`}
-                    type="url"
-                    defaultValue={btnLinks[i - 1]?.url ?? ''}
-                    style={{ ...input, flex: 1 }}
-                    placeholder="https://..."
-                  />
-                </div>
-              ))}
-            </div>
-            {/* Phase 16 v2:海報熱區 */}
-            <div style={label}>
-              🎯 海報熱區(選填;圖由上到下等分可點,填了就忽略按鈕)
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                  <span style={{ flex: '0 0 96px', fontSize: 12, color: '#71717a' }}>
-                    熱區 {i}{i === 1 ? '(最上)' : i === 4 ? '(最下)' : ''}
-                  </span>
-                  <input
-                    name={`zone${i}_url`}
-                    type="url"
-                    defaultValue={zoneUrls[i - 1] ?? ''}
-                    style={{ ...input, flex: 1 }}
-                    placeholder="https://..."
-                  />
-                </div>
-              ))}
+              🎯 海報熱區(選填):點圖上那一區直接開那條連結
+              <ZoneFields defaults={zoneUrls} />
             </div>
             <div style={label}>
               🖼 圖片(選填;有圖 → 整張圖卡,照原始比例顯示)
