@@ -118,6 +118,9 @@ export function CartLink({ tenantSlug }: { tenantSlug: string }) {
       href={`/${tenantSlug}/checkout`}
       aria-label={`購物車,${totalQty} 件`}
       style={{
+        // 2026-09-12:數量改「疊在右上角」的徽章(App 圖示紅點那種),
+        // 不再塞按鈕內把按鈕撐寬 — 按鈕尺寸永遠固定
+        position: 'relative',
         display: 'inline-flex',
         alignItems: 'center',
         gap: '0.375rem',
@@ -152,18 +155,23 @@ export function CartLink({ tenantSlug }: { tenantSlug: string }) {
       {totalQty > 0 && (
         <span
           style={{
+            position: 'absolute',
+            top: -6,
+            right: -6,
             background: '#ef4444',
             color: '#fff',
+            border: '2px solid #fff',
             borderRadius: 999,
-            minWidth: 20,
-            height: 20,
+            minWidth: 18,
+            height: 18,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '0.6875rem',
-            fontWeight: 600,
-            padding: '0 0.4rem',
+            fontSize: '0.625rem',
+            fontWeight: 700,
+            padding: '0 4px',
             lineHeight: 1,
+            boxSizing: 'content-box',
           }}
         >
           {totalQty}
