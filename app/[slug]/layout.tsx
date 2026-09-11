@@ -45,6 +45,15 @@ export default async function TenantLayout({ children, params }: Props) {
         color: '#111827',
       }}
     >
+      {/* 2026-09-11(reactbits 改版):hero 文字進場動畫 keyframes */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+@keyframes hero-char { from { opacity: 0; transform: translateY(8px); filter: blur(6px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+@keyframes hero-fade { from { opacity: 0; filter: blur(4px); } to { opacity: 1; filter: blur(0); } }
+          `,
+        }}
+      />
       <header
         style={{
           padding: '1rem 1.5rem',
@@ -101,7 +110,20 @@ export default async function TenantLayout({ children, params }: Props) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                {tenant.name}
+                {/* 2026-09-11(reactbits Split Text 改版):店名逐字浮現(只在整頁載入時播一次) */}
+                {tenant.name.split('').map((ch, i) => (
+                  <span
+                    key={`${ch}-${i}`}
+                    style={{
+                      display: 'inline-block',
+                      whiteSpace: 'pre',
+                      animation: 'hero-char 0.45s ease both',
+                      animationDelay: `${i * 45}ms`,
+                    }}
+                  >
+                    {ch}
+                  </span>
+                ))}
               </h1>
             </a>
             <CartLink tenantSlug={slug} />
@@ -113,6 +135,7 @@ export default async function TenantLayout({ children, params }: Props) {
                 color: '#6b7280',
                 fontSize: '0.875rem',
                 lineHeight: 1.4,
+                animation: 'hero-fade 0.6s ease 0.35s both',
               }}
             >
               {tenant.description}

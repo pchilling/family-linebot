@@ -53,6 +53,13 @@ function extractBankAccount(text: string | null): string | null {
   return best || null;
 }
 
+// 2026-09-11(reactbits Stepper 改版)進度條動畫
+const stepKeyframes = `
+@keyframes step-pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes step-fill { from { width: 0; } to { width: 100%; } }
+@keyframes step-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); transform: scale(1); } 50% { box-shadow: 0 0 0 5px rgba(0,0,0,0.07); transform: scale(1.08); } }
+`;
+
 async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail | null> {
   const { data, error } = await supabaseAdmin
     .from('orders')
@@ -209,16 +216,29 @@ export default async function OrderPage({ params }: Props) {
           <CopyButton text={order.order_no} />
         </div>
 
-        {/* 進度條(取消/退款不顯示):已完成 = 實心,下一步 = 空心高亮引導 */}
+        {/* 進度條(取消/退款不顯示):已完成 = 實心,下一步 = 空心高亮引導
+            2026-09-11(reactbits Stepper 改版):完成節點逐顆彈入、連接線依序補滿、下一步輕微脈動 */}
         {!isCancelled && (
           <div style={{ display: 'flex', alignItems: 'center', maxWidth: 380, margin: '1rem auto 0' }}>
+            <style dangerouslySetInnerHTML={{ __html: stepKeyframes }} />
             {steps.map((s, i) => {
               const done = i <= stage;
               const isNext = i === stage + 1;
               return (
                 <div key={s} style={{ display: 'flex', alignItems: 'center', flex: i === 0 ? '0 0 auto' : 1 }}>
                   {i > 0 && (
-                    <div style={{ flex: 1, height: 2, background: done ? banner.color : '#e5e7eb', margin: '0 3px', marginBottom: 16 }} />
+                    <div style={{ flex: 1, height: 2, background: '#e5e7eb', margin: '0 3px', marginBottom: 16, overflow: 'hidden' }}>
+                      {done && (
+                        <div
+                          style={{
+                            height: '100%',
+                            background: banner.color,
+                            animation: 'step-fill 0.3s ease-out both',
+                            animationDelay: `${i * 130}ms`,
+                          }}
+                        />
+                      )}
+                    </div>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <div
@@ -228,6 +248,11 @@ export default async function OrderPage({ params }: Props) {
                         border: `2px solid ${done || isNext ? banner.color : '#d1d5db'}`,
                         color: '#fff',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        ...(done
+                          ? { animation: 'step-pop 0.35s cubic-bezier(0.5, 1.6, 0.4, 1) both', animationDelay: `${i * 130 + 80}ms` }
+                          : isNext
+                            ? { animation: 'step-pulse 1.8s ease-in-out 0.9s infinite' }
+                            : {}),
                       }}
                     >
                       {done && <IconCheck size={12} color="#fff" />}

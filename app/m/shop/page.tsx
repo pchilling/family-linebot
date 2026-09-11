@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
 import { CopyButton } from '../../[slug]/order/[order_no]/copy-button';
@@ -475,6 +475,7 @@ export default function ShopPage() {
   if (status === 'done') {
     return (
       <main style={page}>
+        <style dangerouslySetInnerHTML={{ __html: doneKeyframes }} />
         <div style={{
           padding: '1.75rem 1.25rem',
           background: '#f0fdf4',
@@ -483,7 +484,32 @@ export default function ShopPage() {
           marginBottom: 16,
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>✓</div>
+          {/* 2026-09-11(reactbits 改版):打勾畫線動畫 + 線條噴發 */}
+          <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden style={{ display: 'block', margin: '0 auto 10px' }}>
+            {[...Array(8)].map((_, i) => (
+              <g key={i} transform={`rotate(${i * 45} 36 36)`}>
+                <line
+                  x1="36" y1="2" x2="36" y2="9"
+                  stroke="#86efac" strokeWidth="3" strokeLinecap="round"
+                  style={{ opacity: 0, animation: `shopdone-spark 0.6s ease-out ${0.85 + i * 0.03}s` }}
+                />
+              </g>
+            ))}
+            <circle
+              cx="36" cy="36" r="26" fill="none"
+              stroke="#16a34a" strokeWidth="4" strokeLinecap="round"
+              style={{
+                strokeDasharray: 164, strokeDashoffset: 164,
+                animation: 'shopdone-circle 0.55s ease-out 0.1s forwards',
+                transform: 'rotate(-90deg)', transformOrigin: '36px 36px',
+              }}
+            />
+            <path
+              d="M25 37.5 L33 45 L48 29" fill="none"
+              stroke="#16a34a" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ strokeDasharray: 34, strokeDashoffset: 34, animation: 'shopdone-check 0.3s ease-out 0.6s forwards' }}
+            />
+          </svg>
           <h1 style={{ fontSize: 20, margin: 0, color: '#166534', fontWeight: 700 }}>訂單已建立</h1>
           <p style={{ marginTop: 10, marginBottom: 0, fontSize: 14, color: '#15803d' }}>
             訂單編號 <strong style={{ fontFamily: 'ui-monospace, monospace' }}>{orderNo}</strong>
@@ -828,6 +854,8 @@ export default function ShopPage() {
             </div>
           ) : (
             <section
+              // 2026-09-11(reactbits 改版):key 換 filter → 切分類重新觸發逐張進場動畫
+              key={filter || 'all'}
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, 1fr)',
@@ -835,7 +863,7 @@ export default function ShopPage() {
                 paddingBottom: cart.length > 0 ? 80 : 0,
               }}
             >
-              {visibleProducts.map((p) => (
+              {visibleProducts.map((p, cardIdx) => (
                 <article
                   key={p.id}
                   className="shop-card"
@@ -849,6 +877,9 @@ export default function ShopPage() {
                     flexDirection: 'column',
                     cursor: 'pointer',
                     position: 'relative',
+                    // 逐張錯落淡入(前 12 張錯開,之後同步 — 捲下去的不用等)
+                    animation: 'shop-fadein 0.4s ease both',
+                    animationDelay: `${Math.min(cardIdx, 11) * 45}ms`,
                   }}
                 >
                   {/* C#9 角標 + 2026-09-03 限時優惠自動折扣標(疊直排,特價在上) */}
@@ -1075,7 +1106,7 @@ export default function ShopPage() {
               </svg>
               購物車 {cartCount} 件
             </span>
-            <span>NT$ {cartTotal.toLocaleString()} →</span>
+            <span>NT$ <CountUp value={cartTotal} /> →</span>
           </button>
         </div>
       )}
@@ -1190,7 +1221,7 @@ export default function ShopPage() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#52525b' }}>
                     <span>商品小計</span>
-                    <span style={{ fontFamily: 'ui-monospace, monospace' }}>NT$ {cartTotal.toLocaleString()}</span>
+                    <span style={{ fontFamily: 'ui-monospace, monospace' }}>NT$ <CountUp value={cartTotal} /></span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#52525b' }}>
                     <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
@@ -1228,7 +1259,7 @@ export default function ShopPage() {
                   fontFamily: 'ui-monospace, monospace',
                   letterSpacing: '-0.01em',
                 }}>
-                  NT$ {grandTotal.toLocaleString()}
+                  NT$ <CountUp value={grandTotal} />
                 </span>
               </div>
             </div>
@@ -1462,6 +1493,41 @@ function CartQtyInput({
       }}
     />
   );
+}
+
+const doneKeyframes = `
+@keyframes shopdone-circle { to { stroke-dashoffset: 0; } }
+@keyframes shopdone-check { to { stroke-dashoffset: 0; } }
+@keyframes shopdone-spark { 0% { opacity: 0; } 40% { opacity: 1; } 100% { opacity: 0; } }
+`;
+
+/**
+ * 金額滾動動畫(reactbits Count Up 的輕量版):
+ * value 變動時從舊值補間到新值(350ms ease-out),不硬跳。
+ */
+function CountUp({ value }: { value: number }) {
+  const [shown, setShown] = useState(value);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = value;
+    if (from === to) return;
+    prevRef.current = to;
+    const start = performance.now();
+    const dur = 350;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setShown(Math.round(from + (to - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return <>{shown.toLocaleString()}</>;
 }
 
 const loadingKeyframes = `
