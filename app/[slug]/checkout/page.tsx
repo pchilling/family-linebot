@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
+import { IconChevronLeft } from '@/lib/icons';
 import { createOrder, getShippingOptions, type ShippingOption } from './actions';
 
 type Props = {
@@ -103,17 +104,28 @@ export default function CheckoutPage({ params }: Props) {
 
   return (
     <div>
+      {/* 2026-09-12:改成跟商品詳情/結帳同款的膠囊返回鍵 */}
       <a
         href={`/${slug}`}
         style={{
-          display: 'inline-block',
-          marginBottom: '1.5rem',
-          color: '#6b7280',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '9px 16px 9px 12px',
+          minHeight: 40,
+          boxSizing: 'border-box',
+          background: '#fff',
+          border: '1px solid #e4e4e7',
+          borderRadius: 999,
+          fontSize: 14,
+          fontWeight: 600,
+          color: '#374151',
           textDecoration: 'none',
-          fontSize: '0.875rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
         }}
       >
-        ← 繼續購物
+        <IconChevronLeft size={16} /> 返回
       </a>
 
       <h2 style={{ margin: '0 0 1.5rem', fontSize: '1.375rem' }}>
@@ -146,9 +158,10 @@ export default function CheckoutPage({ params }: Props) {
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.productName}</div>
+              {/* 2026-09-12:商品名不截斷(可換行),品項(規格)一律顯示 */}
+              <div style={{ lineHeight: 1.4 }}>{item.productName}</div>
               {item.variantName && item.variantName !== 'default' && (
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{item.variantName}</div>
+                <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 1 }}>{item.variantName}</div>
               )}
             </div>
             <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
