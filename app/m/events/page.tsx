@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
 import { IconCalendar, IconCheck, IconChevronLeft, IconClock } from '@/lib/icons';
+import { ConfirmDialog } from '../../_components/confirm-dialog';
+import { FlashToast } from '../../_components/toast';
 import {
   cancelReservation,
   loadEvents,
@@ -81,6 +83,8 @@ export default function EventsPage() {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
+  // 2026-09-11:取消報名的自製確認框(取代 window.confirm)
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   // 2026-09-08 v2:單場活動改開專屬詳情頁(同商品專區 list ↔ detail);深連結 ?event= 直接落在詳情
   const [detailId, setDetailId] = useState<string | null>(null);
 
@@ -148,8 +152,12 @@ export default function EventsPage() {
     }
   }
 
-  async function handleCancel(classId: string) {
-    if (!confirm('確定取消報名?')) return;
+  // 2026-09-11:window.confirm 換自製確認框 — 按「取消報名」先開框,確定才真的取消
+  function handleCancel(classId: string) {
+    setCancelTarget(classId);
+  }
+
+  async function doCancel(classId: string) {
     setPendingId(classId);
     setFlash(null);
     try {
@@ -338,22 +346,22 @@ export default function EventsPage() {
           </button>
         </div>
 
+        {/* 2026-09-11:改頂部滑入通知(shadcn Sonner 風格) */}
         {flash && (
-          <div
-            style={{
-              padding: '10px 14px',
-              background: flash.type === 'ok' ? c.successBg : c.dangerBg,
-              border: `1px solid ${flash.type === 'ok' ? c.successBorder : c.dangerBorder}`,
-              color: flash.type === 'ok' ? c.success : c.danger,
-              borderRadius: 8,
-              marginBottom: 14,
-              fontSize: 14,
-              fontWeight: 500,
-              animation: 'flashfade 0.25s ease',
+          <FlashToast key={`${flash.type}-${flash.msg}`} message={flash.msg} tone={flash.type === 'ok' ? 'success' : 'error'} />
+        )}
+        {cancelTarget && (
+          <ConfirmDialog
+            text="確定取消報名?"
+            danger
+            confirmLabel="取消報名"
+            onCancel={() => setCancelTarget(null)}
+            onConfirm={() => {
+              const id = cancelTarget;
+              setCancelTarget(null);
+              doCancel(id);
             }}
-          >
-            {flash.msg}
-          </div>
+          />
         )}
 
         <article
@@ -499,22 +507,22 @@ ${spinKeyframes}
         </div>
       </header>
 
+      {/* 2026-09-11:改頂部滑入通知(shadcn Sonner 風格) */}
       {flash && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: flash.type === 'ok' ? c.successBg : c.dangerBg,
-            border: `1px solid ${flash.type === 'ok' ? c.successBorder : c.dangerBorder}`,
-            color: flash.type === 'ok' ? c.success : c.danger,
-            borderRadius: 8,
-            marginBottom: 14,
-            fontSize: 14,
-            fontWeight: 500,
-            animation: 'flashfade 0.25s ease',
+        <FlashToast key={`${flash.type}-${flash.msg}`} message={flash.msg} tone={flash.type === 'ok' ? 'success' : 'error'} />
+      )}
+      {cancelTarget && (
+        <ConfirmDialog
+          text="確定取消報名?"
+          danger
+          confirmLabel="取消報名"
+          onCancel={() => setCancelTarget(null)}
+          onConfirm={() => {
+            const id = cancelTarget;
+            setCancelTarget(null);
+            doCancel(id);
           }}
-        >
-          {flash.msg}
-        </div>
+        />
       )}
 
       {/* Section title */}

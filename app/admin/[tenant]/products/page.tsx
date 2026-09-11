@@ -17,6 +17,7 @@ import { ProductImageUploader } from './image-uploader';
 import { ShareButton } from './share-button';
 import { ShareFocusEditor } from './share-focus-editor';
 import { SubmitButton } from '../../_components/submit-button';
+import { FlashToast } from '../../../_components/toast';
 import { MediaManager } from './media-manager';
 
 type Variant = {
@@ -323,23 +324,8 @@ details[open] .chev { transform: rotate(90deg); }
         }}
       />
 
-      {savedId && (
-        <div
-          style={{
-            padding: '10px 16px',
-            background: c.successBg,
-            border: `1px solid ${c.successBorder}`,
-            color: c.success,
-            fontSize: 14,
-            fontWeight: 500,
-            borderRadius: 6,
-            marginBottom: 16,
-            animation: 'fadein 0.25s ease',
-          }}
-        >
-          ✓ 已儲存{savedIsVariant ? ' (變體)' : ''}
-        </div>
-      )}
+      {/* 2026-09-11:儲存回饋改頂部滑入通知(shadcn Sonner 風格) */}
+      {savedId && <FlashToast message={`已儲存${savedIsVariant ? '(變體)' : ''}`} />}
       {sp.err === 'sale' && (
         <div
           style={{

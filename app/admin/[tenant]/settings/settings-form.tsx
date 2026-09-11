@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { updateTenantSettings, type SettingsState } from './actions';
+import { FlashToast } from '../../../_components/toast';
 
 /**
  * 攤位設定主表單。
@@ -190,28 +191,8 @@ export function SettingsForm({ tenantSlug, defaults }: Props) {
         </span>
       </label>
 
-      {state.status === 'success' && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: '#dcfce7',
-            border: '1px solid #bbf7d0',
-            borderRadius: 6,
-            color: '#15803d',
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
-          ✓ 已儲存{' '}
-          <span style={{ fontWeight: 400, color: '#16a34a', fontSize: 12 }}>
-            {new Date(state.ts).toLocaleTimeString('zh-TW', {
-              timeZone: 'Asia/Taipei',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </span>
-        </div>
-      )}
+      {/* 2026-09-11:儲存回饋改頂部滑入通知(key=ts 讓每次儲存重播) */}
+      {state.status === 'success' && <FlashToast key={state.ts} message="已儲存攤位設定" />}
 
       {state.status === 'error' && (
         <div

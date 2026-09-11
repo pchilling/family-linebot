@@ -1,7 +1,9 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { colors, fontSize, fontWeight, radius, space } from '@/lib/admin-theme';
+import { ConfirmDialog } from '../../_components/confirm-dialog';
 
 type Variant = 'primary' | 'danger' | 'secondary';
 
@@ -39,6 +41,9 @@ export function SubmitButton({
   confirmText?: string;
 }) {
   const { pending } = useFormStatus();
+  // 2026-09-11:window.confirm 換自製對話框(shadcn Alert Dialog 風格)
+  const [confirming, setConfirming] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const palette: Record<Variant, { bg: string; fg: string; pendingBg: string; border?: string }> = {
     primary: { bg: colors.neopGreen, fg: '#fff', pendingBg: '#9ca3af' },
@@ -56,11 +61,16 @@ export function SubmitButton({
   const fs = size === 'sm' ? fontSize.sm : fontSize.md;
 
   return (
+    <>
     <button
       type="submit"
       disabled={pending}
       onClick={(e) => {
-        if (confirmText && !window.confirm(confirmText)) e.preventDefault();
+        if (confirmText) {
+          e.preventDefault();
+          formRef.current = e.currentTarget.form;
+          setConfirming(true);
+        }
       }}
       className="neop-cta"
       style={{
@@ -98,5 +108,17 @@ export function SubmitButton({
       {pending ? pendingText ?? '處理中…' : children}
       <style>{`@keyframes neop-spin { to { transform: rotate(360deg); } }`}</style>
     </button>
+    {confirming && confirmText && (
+      <ConfirmDialog
+        text={confirmText}
+        danger={variant === 'danger'}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          formRef.current?.requestSubmit();
+        }}
+      />
+    )}
+    </>
   );
 }

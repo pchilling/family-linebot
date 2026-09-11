@@ -4,6 +4,7 @@ import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
 import { reportPaymentLast5 } from './actions';
 import { IconBank, IconCheck, IconCheckCircle, IconClock, IconPackage, IconPencil, IconUndo, IconX } from '@/lib/icons';
+import { OtpInput } from '@/lib/otp-input';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
@@ -351,15 +352,8 @@ export default async function OrderPage({ params }: Props) {
             <form action={reportPaymentLast5} style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <input type="hidden" name="tenant_slug" value={slug} />
               <input type="hidden" name="order_no" value={order.order_no} />
-              <input
-                name="last5"
-                inputMode="numeric"
-                pattern="[0-9]{5}"
-                maxLength={5}
-                required
-                placeholder="•••••"
-                style={{ flex: '1 1 150px', minWidth: 0, padding: '0.7rem', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: '1.125rem', fontFamily: 'ui-monospace, monospace', letterSpacing: '0.3em', textAlign: 'center', boxSizing: 'border-box' }}
-              />
+              {/* 2026-09-11:改 5 格 OTP 輸入 */}
+              <OtpInput name="last5" required boxSize={38} />
               <button type="submit" style={{ flex: '0 0 auto', padding: '0.7rem 1.5rem', background: '#111827', color: '#fff', border: 0, borderRadius: 10, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
                 更新
               </button>
@@ -393,28 +387,8 @@ export default async function OrderPage({ params }: Props) {
           <form action={reportPaymentLast5} style={{ display: 'flex', gap: 10, marginTop: '1rem', flexWrap: 'wrap' }}>
             <input type="hidden" name="tenant_slug" value={slug} />
             <input type="hidden" name="order_no" value={order.order_no} />
-            <input
-              name="last5"
-              inputMode="numeric"
-              pattern="[0-9]{5}"
-              maxLength={5}
-              required
-              placeholder="•••••"
-              aria-label="匯款帳號後 5 碼"
-              style={{
-                flex: '1 1 150px',
-                minWidth: 0,
-                padding: '0.75rem',
-                border: '1.5px solid #d1d5db',
-                borderRadius: 10,
-                fontSize: '1.25rem',
-                fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                letterSpacing: '0.35em',
-                textAlign: 'center',
-                background: '#fff',
-                boxSizing: 'border-box',
-              }}
-            />
+            {/* 2026-09-11:改 5 格 OTP 輸入(shadcn Input OTP 風格) */}
+            <OtpInput name="last5" required />
             <button
               type="submit"
               style={{

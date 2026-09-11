@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { updateOrder, markOrderPaid, markOrderShipped } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
+import { FlashToast } from '../../../../_components/toast';
 
 type OrderItem = {
   id: string;
@@ -221,22 +222,9 @@ export default async function OrderDetailPage({
         )}
       </section>
 
-      {/* 對帳 banner(剛確認後顯示) */}
+      {/* 2026-09-11:對帳回饋改頂部滑入通知(shadcn Sonner 風格) */}
       {(justPaid || justShipped || justEdit) && (
-        <div
-          style={{
-            padding: '10px 16px',
-            background: '#dcfce7',
-            border: '1px solid #bbf7d0',
-            color: '#15803d',
-            fontSize: 14,
-            fontWeight: 500,
-            borderRadius: 6,
-            marginBottom: 16,
-          }}
-        >
-          ✓ {justPaid ? '已標已付款' : justShipped ? '已標已出貨' : '已儲存訂單資料'}
-        </div>
+        <FlashToast message={justPaid ? '已標已付款' : justShipped ? '已標已出貨' : '已儲存訂單資料'} />
       )}
 
       {/* 對帳 quick actions(2026-05-22 加,未付/已付/已出貨 三狀態顯示) */}

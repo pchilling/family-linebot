@@ -5,6 +5,7 @@ import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
 import { CopyButton } from '../../[slug]/order/[order_no]/copy-button';
 import { TwAddressFields } from '@/lib/tw-districts';
+import { OtpInput } from '@/lib/otp-input';
 import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconPencil } from '@/lib/icons';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
@@ -602,27 +603,8 @@ export default function ShopPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
-              <input
-                inputMode="numeric"
-                maxLength={5}
-                value={last5}
-                onChange={(e) => setLast5(e.target.value.replace(/\D/g, ''))}
-                placeholder="•••••"
-                aria-label="匯款帳號後 5 碼"
-                style={{
-                  flex: '1 1 150px',
-                  minWidth: 0,
-                  padding: 12,
-                  border: '1.5px solid #d1d5db',
-                  borderRadius: 10,
-                  fontSize: 20,
-                  fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                  letterSpacing: '0.35em',
-                  textAlign: 'center',
-                  background: '#fff',
-                  boxSizing: 'border-box',
-                }}
-              />
+              {/* 2026-09-11:改 5 格 OTP 輸入(shadcn Input OTP 風格) */}
+              <OtpInput value={last5} onChange={setLast5} />
               <button
                 type="button"
                 onClick={onReportLast5}
