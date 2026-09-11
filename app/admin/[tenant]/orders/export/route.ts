@@ -26,7 +26,7 @@ export async function GET(
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'order_no, status, payment_status, payment_method, payment_last5, total_twd, shipping_method, shipping_fee_twd, invoice_tax_id, invoice_title, source, shipping_recipient, shipping_phone, shipping_address, tracking_no, note, created_at, paid_at, shipped_at, order_items(qty, price_at_purchase, products(name), product_variants(variant_name))',
+      'order_no, status, payment_status, payment_method, payment_last5, total_twd, shipping_method, shipping_fee_twd, invoice_tax_id, invoice_title, source, shipping_recipient, shipping_phone, shipping_address, note, created_at, paid_at, shipped_at, order_items(qty, price_at_purchase, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenant.id);
 
@@ -73,7 +73,6 @@ export async function GET(
     shipping_recipient: string | null;
     shipping_phone: string | null;
     shipping_address: string | null;
-    tracking_no: string | null;
     note: string | null;
     created_at: string;
     paid_at: string | null;
@@ -100,7 +99,7 @@ export async function GET(
 
   const header = [
     '訂單編號', '建立日期', '狀態', '付款狀態', '付款方式', '匯款後五碼',
-    '商品小計', '運費', '合計', '統一編號', '發票抬頭', '來源', '收件人', '電話', '地址', '追蹤單號',
+    '商品小計', '運費', '合計', '統一編號', '發票抬頭', '來源', '收件人', '電話', '地址',
     '品項明細', '付款時間', '出貨時間', '備註',
   ];
   const lines = [header.join(',')];
@@ -129,7 +128,6 @@ export async function GET(
         esc(r.shipping_recipient ?? ''),
         esc(r.shipping_phone ?? ''),
         esc(r.shipping_address ?? ''),
-        esc(r.tracking_no ?? ''),
         esc(items),
         fmtTw(r.paid_at),
         fmtTw(r.shipped_at),

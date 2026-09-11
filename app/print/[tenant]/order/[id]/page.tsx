@@ -43,7 +43,6 @@ type OrderDetail = {
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
-  tracking_no: string | null;
   note: string | null;
   created_at: string;
   order_items: OrderItem[];
@@ -99,7 +98,7 @@ export default async function OrderPrintPage({
     .select(
       `id, order_no, status, payment_status, payment_method, total_twd, shipping_fee_twd, shipping_method,
        invoice_tax_id, invoice_title,
-       shipping_recipient, shipping_phone, shipping_address, tracking_no, note, created_at,
+       shipping_recipient, shipping_phone, shipping_address, note, created_at,
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
     )
     .eq('tenant_id', tenant.id)
@@ -192,12 +191,6 @@ export default async function OrderPrintPage({
             <span>{o.payment_status === 'paid' ? '已收款' : '待付款'}</span>
             <span style={{ color: '#9ca3af' }}>配送</span>
             <span>{shipLabel ?? '—'}</span>
-            {o.tracking_no && (
-              <>
-                <span style={{ color: '#9ca3af' }}>追蹤單號</span>
-                <span className="num">{o.tracking_no}</span>
-              </>
-            )}
             {o.invoice_tax_id && (
               <>
                 <span style={{ color: '#9ca3af' }}>統一編號</span>
@@ -279,14 +272,12 @@ export default async function OrderPrintPage({
         </section>
       )}
 
-      {/* ── 簽收欄 ── */}
-      <section style={{ display: 'flex', gap: 32, marginBottom: 40, marginTop: 8 }}>
-        {['揀貨', '出貨', '簽收'].map((t) => (
-          <div key={t} style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ borderBottom: '1px solid #d1d5db', height: 44 }} />
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#9ca3af', marginTop: 6, fontWeight: 700 }}>{t}</div>
-          </div>
-        ))}
+      {/* ── 簽名欄(2026-09-11:只留出貨一格)── */}
+      <section style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 40, marginTop: 8 }}>
+        <div style={{ width: 260, textAlign: 'center' }}>
+          <div style={{ borderBottom: '1px solid #d1d5db', height: 44 }} />
+          <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#9ca3af', marginTop: 6, fontWeight: 700 }}>出貨簽名</div>
+        </div>
       </section>
 
       {/* ── 頁尾 ── */}

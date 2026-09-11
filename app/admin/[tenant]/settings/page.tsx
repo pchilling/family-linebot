@@ -92,7 +92,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
           公開頁 Banner(多圖 / 影片 / YouTube 輪播)
         </h3>
         <p style={{ fontSize: 11, color: '#71717a', margin: '0 0 10px', lineHeight: 1.5 }}>
-          建議尺寸 <strong>1200 × 630</strong>(寬:高 ≈ 1.9:1)。影片同比例。
+          建議尺寸 <strong>1200 × 900</strong>(寬:高 4:3)。影片同比例。
           首格 = 公開頁 hero 開頭。↑↓ 排序、上傳圖 / 影片、貼 YouTube URL。
         </p>
         <BannerManager

@@ -32,18 +32,32 @@ type OrderDetail = {
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
-  tracking_no: string | null;
   note: string | null;
   guest_email: string | null;
   created_at: string;
   items: OrderItemRow[];
 };
 
+/**
+ * 從自由文字的匯款資訊抓銀行帳號(2026-09-11 一鍵複製用):
+ * 「帳號:xxx」格式優先;沒有就取最長的連續數字(≥6 碼,避開銀行代碼)。
+ */
+function extractBankAccount(text: string | null): string | null {
+  if (!text) return null;
+  const labeled = text.match(/帳號[^0-9]{0,4}([0-9][0-9\- ]{4,})/);
+  if (labeled) return labeled[1].replace(/[^0-9]/g, '');
+  let best = '';
+  for (const run of text.match(/[0-9]{6,}/g) ?? []) {
+    if (run.length > best.length) best = run;
+  }
+  return best || null;
+}
+
 async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail | null> {
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, tracking_no, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
+      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -85,7 +99,6 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     shipping_recipient: row.shipping_recipient,
     shipping_phone: row.shipping_phone,
     shipping_address: row.shipping_address,
-    tracking_no: row.tracking_no ?? null,
     note: row.note,
     guest_email: row.guest_email,
     created_at: row.created_at,
@@ -134,6 +147,7 @@ export default async function OrderPage({ params }: Props) {
   } | null;
   const contactInfo = (tenantExtra as ExtraRow)?.contact_info ?? null;
   const paymentInfo = (tenantExtra as ExtraRow)?.payment_info ?? null;
+  const bankAccount = extractBankAccount(paymentInfo);
   const shipLabel =
     ((tenantExtra as ExtraRow)?.shipping_rules?.options ?? []).find(
       (o) => o.key === order.shipping_method,
@@ -258,6 +272,11 @@ export default async function OrderPage({ params }: Props) {
           >
             {paymentInfo}
           </div>
+          {bankAccount && (
+            <div style={{ marginTop: '0.625rem' }}>
+              <CopyButton big text={bankAccount} label={`複製帳號 ${bankAccount}`} />
+            </div>
+          )}
           <div style={{ marginTop: '0.75rem', color: '#92400e', fontSize: '0.8125rem', lineHeight: 1.5 }}>
             匯款完成後,直接在下方填寫帳號<strong>後 5 碼</strong>,不用另外聯絡客服。
           </div>
@@ -537,12 +556,6 @@ export default async function OrderPage({ params }: Props) {
           <dd style={{ margin: 0 }}>{STATUS_LABEL[order.status] ?? order.status}</dd>
           <dt style={{ color: '#9ca3af' }}>付款</dt>
           <dd style={{ margin: 0 }}>{PAYMENT_LABEL[order.payment_status] ?? order.payment_status}</dd>
-          {order.tracking_no && (
-            <>
-              <dt style={{ color: '#9ca3af' }}>追蹤單號</dt>
-              <dd style={{ margin: 0, fontFamily: 'ui-monospace, monospace' }}>{order.tracking_no}</dd>
-            </>
-          )}
           <dt style={{ color: '#9ca3af' }}>下單時間</dt>
           <dd style={{ margin: 0 }}>{createdAt}</dd>
         </dl>

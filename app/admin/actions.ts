@@ -754,13 +754,10 @@ export async function markOrderPaid(formData: FormData) {
 export async function markOrderShipped(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
-  const tracking = String(formData.get('tracking_no') || '').trim() || null;
-
   await supabaseAdmin
     .from('orders')
     .update({
       status: 'shipped',
-      tracking_no: tracking,
     })
     .eq('id', id);
 
@@ -794,7 +791,6 @@ export async function updateOrder(formData: FormData) {
   const shipping_recipient = strOrNull(formData.get('shipping_recipient'));
   const shipping_phone = strOrNull(formData.get('shipping_phone'));
   const shipping_address = strOrNull(formData.get('shipping_address'));
-  const tracking_no = strOrNull(formData.get('tracking_no'));
   const note = strOrNull(formData.get('note'));
 
   await supabaseAdmin
@@ -806,7 +802,6 @@ export async function updateOrder(formData: FormData) {
       shipping_recipient,
       shipping_phone,
       shipping_address,
-      tracking_no,
       note,
     })
     .eq('id', id);

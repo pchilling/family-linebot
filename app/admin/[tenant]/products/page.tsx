@@ -135,6 +135,8 @@ const sectionTitle: React.CSSProperties = {
 
 const label: React.CSSProperties = { fontSize: 12, color: c.textSec };
 const labelText: React.CSSProperties = { display: 'block', marginBottom: 4 };
+// 2026-09-11:iPad 窄版 datetime/number 輸入框有最小寬度,固定欄數 grid 會互相疊框;表單列改 flex-wrap,欄位用這個
+const wrapField: React.CSSProperties = { ...label, flex: '1 1 150px', minWidth: 0 };
 const input: React.CSSProperties = {
   width: '100%',
   padding: '8px 10px',
@@ -723,11 +725,11 @@ details[open] .chev { transform: rotate(90deg); }
                   </p>
                   <form
                     action={updateProductSale}
-                    style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) auto', gap: 8, alignItems: 'end' }}
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}
                   >
                     <input type="hidden" name="product_id" value={p.id} />
                     <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                    <label style={label}>
+                    <label style={wrapField}>
                       <span style={labelText}>折扣 % off</span>
                       <input
                         name="sale_discount_pct"
@@ -739,7 +741,7 @@ details[open] .chev { transform: rotate(90deg); }
                         placeholder="例 20"
                       />
                     </label>
-                    <label style={label}>
+                    <label style={wrapField}>
                       <span style={labelText}>開始</span>
                       <input
                         name="sale_start_at"
@@ -750,7 +752,7 @@ details[open] .chev { transform: rotate(90deg); }
                         style={input}
                       />
                     </label>
-                    <label style={label}>
+                    <label style={wrapField}>
                       <span style={labelText}>結束</span>
                       <input
                         name="sale_end_at"
@@ -775,20 +777,20 @@ details[open] .chev { transform: rotate(90deg); }
                       <form
                         key={t.id}
                         action={updatePriceTier}
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}
+                        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}
                       >
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="tenant_id" value={tenant.id} />
                         <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <label style={label}>
+                        <label style={wrapField}>
                           <span style={labelText}>滿 N 個以上</span>
                           <input name="min_qty" type="number" min="2" defaultValue={t.min_qty} required style={input} />
                         </label>
-                        <label style={label}>
+                        <label style={wrapField}>
                           <span style={labelText}>單價</span>
                           <input name="price_twd" type="number" min="0" defaultValue={t.price_twd} required style={input} />
                         </label>
-                        <div style={{ fontSize: 11, color: c.textMuted }}>
+                        <div style={{ fontSize: 11, color: c.textMuted, flex: '1 1 110px', alignSelf: 'center' }}>
                           {t.min_qty}+ → NT$ {t.price_twd.toLocaleString()}
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
@@ -822,16 +824,16 @@ details[open] .chev { transform: rotate(90deg); }
                     </summary>
                     <form
                       action={createPriceTier}
-                      style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end', marginTop: 10 }}
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end', marginTop: 10 }}
                     >
                       <input type="hidden" name="product_id" value={p.id} />
                       <input type="hidden" name="tenant_id" value={tenant.id} />
                       <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                      <label style={label}>
+                      <label style={wrapField}>
                         <span style={labelText}>滿 N 個以上 *</span>
                         <input name="min_qty" type="number" min="2" required style={input} placeholder="10" />
                       </label>
-                      <label style={label}>
+                      <label style={wrapField}>
                         <span style={labelText}>該分階單價 *</span>
                         <input name="price_twd" type="number" min="0" required style={input} placeholder="450" />
                       </label>

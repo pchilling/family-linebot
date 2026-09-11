@@ -76,7 +76,7 @@ export function BannerHero({
             style={{
               flexShrink: 0,
               width: '100%',
-              aspectRatio: '1200 / 630',
+              aspectRatio: '4 / 3', // 2026-09-11:原 1200/630,依攤主需求改 4:3
               scrollSnapAlign: 'start',
               display: 'flex',
               alignItems: 'center',

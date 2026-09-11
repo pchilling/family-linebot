@@ -4,9 +4,11 @@ import { useState } from 'react';
 
 type Props = {
   text: string;
+  label?: string; // 按鈕文字,預設「複製」
+  big?: boolean; // 2026-09-11:匯款帳號用整排大按鈕
 };
 
-export function CopyButton({ text }: Props) {
+export function CopyButton({ text, label, big }: Props) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -30,11 +32,23 @@ export function CopyButton({ text }: Props) {
     }
   }
 
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      style={{
+  const style: React.CSSProperties = big
+    ? {
+        display: 'block',
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '0.7rem 1rem',
+        background: copied ? '#10b981' : '#111827',
+        color: '#fff',
+        border: 0,
+        borderRadius: 8,
+        fontSize: '0.9375rem',
+        fontWeight: 700,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        transition: 'background 0.15s',
+      }
+    : {
         marginLeft: 8,
         padding: '3px 9px',
         background: copied ? '#10b981' : '#ffffff',
@@ -45,10 +59,13 @@ export function CopyButton({ text }: Props) {
         fontWeight: 500,
         cursor: 'pointer',
         verticalAlign: 'baseline',
+        fontFamily: 'inherit',
         transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-      }}
-    >
-      {copied ? '✓ 已複製' : '📋 複製'}
+      };
+
+  return (
+    <button type="button" onClick={handleCopy} style={style}>
+      {copied ? '✓ 已複製' : (label ?? '複製')}
     </button>
   );
 }

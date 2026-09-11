@@ -30,7 +30,6 @@ type OrderDetail = {
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
-  tracking_no: string | null;
   note: string | null;
   guest_email: string | null;
   guest_phone: string | null;
@@ -55,7 +54,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
       `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
        invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
-       shipping_recipient, shipping_phone, shipping_address, tracking_no, note,
+       shipping_recipient, shipping_phone, shipping_address, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
        users(line_user_id, display_name, full_name, phone),
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
@@ -308,22 +307,18 @@ export default async function OrderDetailPage({
           </>
         )}
 
-        {/* 已付款 → 顯示「標已出貨」按鈕 */}
+        {/* 已付款 → 顯示「標已出貨」按鈕(2026-09-11:追蹤單號功能移除,改一鍵標出貨) */}
         {isPaid && !isShipped && (
-          <form action={markOrderShipped} style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0', display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <form action={markOrderShipped} style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0' }}>
             <input type="hidden" name="id" value={o.id} />
             <input type="hidden" name="tenant_slug" value={tenant.slug} />
-            <label style={{ ...label, flex: '1 1 200px' }}>
-              <span style={labelText}>📦 標已出貨(選填追蹤單號)</span>
-              <input name="tracking_no" defaultValue={o.tracking_no ?? ''} style={input} placeholder="例:7-11 取貨號 / 黑貓單號" />
-            </label>
-            <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已出貨」?">📦 標已出貨</SubmitButton>
+            <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已出貨」?">標已出貨</SubmitButton>
           </form>
         )}
 
         {isShipped && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0', fontSize: 13, color: '#0a7038' }}>
-            📦 已出貨 {formatTw(o.shipped_at)} {o.tracking_no && <>· 追蹤單號 <code style={{ padding: '2px 6px', background: '#fff', borderRadius: 3 }}>{o.tracking_no}</code></>}
+            已出貨 {formatTw(o.shipped_at)}
           </div>
         )}
       </section>
@@ -363,10 +358,6 @@ export default async function OrderDetailPage({
                 <option value="cash">現金</option>
                 <option value="line_pay">LINE Pay</option>
               </datalist>
-            </label>
-            <label style={label}>
-              <span style={labelText}>追蹤單號</span>
-              <input name="tracking_no" defaultValue={o.tracking_no ?? ''} style={input} />
             </label>
           </div>
 
