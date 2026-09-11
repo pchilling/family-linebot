@@ -10,18 +10,28 @@ async function tenantIdBySlug(slug: string): Promise<string | null> {
   return t?.id ?? null;
 }
 
+type NewsLinks = { label: string; url: string }[] | { mode: 'zones'; urls: string[] };
+
 /**
- * Phase 16(#11):讀表單的 link1~3_label/url → 按鈕陣列。
- * label 上限 20 字(LINE button label 顯示限制),url 必須 http(s)。
+ * Phase 16(#11):讀表單的連結設定。
+ * 海報熱區(zone1~4_url)優先 — 有填就存 { mode:'zones', urls },整張圖由上到下等分可點;
+ * 否則收 link1~3 的按鈕陣列(label 上限 20 字,url 必須 http(s))。都沒填回 null。
  */
-function parseNewsLinks(formData: FormData): { label: string; url: string }[] {
+function parseNewsLinks(formData: FormData): NewsLinks | null {
+  const zones: string[] = [];
+  for (let i = 1; i <= 4; i++) {
+    const u = String(formData.get(`zone${i}_url`) ?? '').trim();
+    if (/^https?:\/\//.test(u)) zones.push(u);
+  }
+  if (zones.length > 0) return { mode: 'zones', urls: zones };
+
   const links: { label: string; url: string }[] = [];
   for (let i = 1; i <= 3; i++) {
     const label = String(formData.get(`link${i}_label`) ?? '').trim().slice(0, 20);
     const url = String(formData.get(`link${i}_url`) ?? '').trim();
     if (label && /^https?:\/\//.test(url)) links.push({ label, url });
   }
-  return links;
+  return links.length > 0 ? links : null;
 }
 
 export async function createNews(formData: FormData): Promise<void> {
@@ -50,7 +60,7 @@ export async function createNews(formData: FormData): Promise<void> {
     link_url: linkUrl || null,
     image_url: imageUrl || null,
     image_ratio: imageUrl ? imageRatio : null,
-    links: links.length > 0 ? links : null,
+    links,
     status: publish ? 'published' : 'draft',
     published_at: publishedAt,
   });
@@ -70,7 +80,7 @@ export async function createNews(formData: FormData): Promise<void> {
         link_url: linkUrl || null,
         image_url: imageUrl || null,
         image_ratio: imageUrl ? imageRatio : null,
-        links: links.length > 0 ? links : null,
+        links,
         published_at: publishedAt ?? new Date().toISOString(),
       });
     } catch (e) {
@@ -102,7 +112,7 @@ export async function pushNews(formData: FormData): Promise<void> {
   const n = data as {
     id: string; title: string; body: string | null; link_url: string | null;
     image_url: string | null; image_ratio: string | null;
-    links: { label: string; url: string }[] | null;
+    links: NewsLinks | null;
     published_at: string | null; status: string;
   } | null;
   if (!n) throw new Error('消息不存在');
@@ -161,7 +171,7 @@ export async function updateNews(formData: FormData): Promise<void> {
     link_url: string | null;
     image_url: string | null;
     image_ratio: string | null;
-    links: { label: string; url: string }[] | null;
+    links: NewsLinks | null;
     status: string;
     published_at?: string | null;
   } = {
@@ -170,7 +180,7 @@ export async function updateNews(formData: FormData): Promise<void> {
     link_url: linkUrl || null,
     image_url: imageUrl || null,
     image_ratio: imageUrl ? imageRatio : null,
-    links: links.length > 0 ? links : null,
+    links,
     status,
   };
 

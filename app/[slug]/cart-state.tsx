@@ -114,7 +114,8 @@ export function CartLink({ tenantSlug }: { tenantSlug: string }) {
   const { totalQty } = useCart(tenantSlug);
   return (
     <a
-      href={`/${tenantSlug}/cart`}
+      // 2026-09-11:購物車與結帳併成一頁,header 購物袋直接進 /checkout
+      href={`/${tenantSlug}/checkout`}
       aria-label={`購物車,${totalQty} 件`}
       style={{
         display: 'inline-flex',

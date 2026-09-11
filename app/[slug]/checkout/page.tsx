@@ -13,7 +13,8 @@ type Props = {
 export default function CheckoutPage({ params }: Props) {
   const { slug } = use(params);
   const router = useRouter();
-  const { items, totalQty, totalTwd, clear } = useCart(slug);
+  // 2026-09-11:購物車與結帳併成一頁 — 明細可直接改數量/刪除
+  const { items, totalQty, totalTwd, updateQty, removeItem, clear } = useCart(slug);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +104,7 @@ export default function CheckoutPage({ params }: Props) {
   return (
     <div>
       <a
-        href={`/${slug}/cart`}
+        href={`/${slug}`}
         style={{
           display: 'inline-block',
           marginBottom: '1.5rem',
@@ -112,10 +113,12 @@ export default function CheckoutPage({ params }: Props) {
           fontSize: '0.875rem',
         }}
       >
-        ← 回購物車
+        ← 繼續購物
       </a>
 
-      <h2 style={{ margin: '0 0 1.5rem', fontSize: '1.375rem' }}>結帳</h2>
+      <h2 style={{ margin: '0 0 1.5rem', fontSize: '1.375rem' }}>
+        購物車 <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: '1rem' }}>({totalQty} 件)</span>
+      </h2>
 
       <div
         style={{
@@ -127,24 +130,43 @@ export default function CheckoutPage({ params }: Props) {
         }}
       >
         <div style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.75rem', color: '#374151' }}>
-          訂單摘要({totalQty} 件)
+          商品明細
         </div>
         {items.map((item) => (
           <div
             key={item.variantId}
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '0.625rem',
               fontSize: '0.875rem',
-              padding: '0.375rem 0',
+              padding: '0.5rem 0',
+              borderBottom: '1px solid #f3f4f6',
               color: '#374151',
             }}
           >
-            <span style={{ flex: 1, paddingRight: '0.5rem' }}>
-              {item.productName}
-              <span style={{ color: '#9ca3af' }}> · {item.variantName} × {item.qty}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.productName}</div>
+              {item.variantName && item.variantName !== 'default' && (
+                <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{item.variantName}</div>
+              )}
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
+              <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)} style={qtyBtn}>−</button>
+              <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
+              <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)} style={qtyBtn}>+</button>
+            </div>
+            <span style={{ width: 76, textAlign: 'right', fontWeight: 600, flexShrink: 0 }}>
+              NT$ {(item.priceTwd * item.qty).toLocaleString()}
             </span>
-            <span>NT$ {(item.priceTwd * item.qty).toLocaleString()}</span>
+            <button
+              type="button"
+              onClick={() => removeItem(item.variantId)}
+              aria-label={`移除 ${item.productName}`}
+              style={{ width: 26, height: 26, border: 0, background: 'none', color: '#c4c4cc', fontSize: 16, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}
+            >
+              ×
+            </button>
           </div>
         ))}
         <div
@@ -255,12 +277,7 @@ export default function CheckoutPage({ params }: Props) {
           {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
           <TwAddressFields required inputStyle={inputStyle} />
         </div>
-        <div>
-          <label htmlFor="guestEmail" style={labelStyle}>
-            Email(選填,用來收訂單確認)
-          </label>
-          <input id="guestEmail" name="guestEmail" type="email" style={inputStyle} />
-        </div>
+        {/* 2026-09-11:Email 欄位移除(訪客查單用電話即可,訂單通知走 LINE) */}
         <div>
           <label htmlFor="note" style={labelStyle}>
             備註(選填)
@@ -322,7 +339,7 @@ export default function CheckoutPage({ params }: Props) {
               處理中,訂單建立中…
             </span>
           ) : (
-            '送出訂單'
+            `送出訂單 · NT$ ${grandTotal.toLocaleString()}`
           )}
         </button>
         <style dangerouslySetInnerHTML={{ __html: '@keyframes co-spin { to { transform: rotate(360deg); } }' }} />
@@ -338,5 +355,56 @@ export default function CheckoutPage({ params }: Props) {
         </p>
       </form>
     </div>
+  );
+}
+
+const qtyBtn: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  background: '#fff',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: '1rem',
+  fontFamily: 'inherit',
+};
+
+/**
+ * 購物車數量輸入框(2026-09-11 併頁時從 /cart 移入):可直接打字改;
+ * 打字過程允許清空,離開欄位時空值/0 恢復原數量(整列刪除用 × 按鈕)。
+ */
+function QtyInput({ qty, onCommit }: { qty: number; onCommit: (n: number) => void }) {
+  const [text, setText] = useState<string | null>(null); // null = 顯示外部 qty
+
+  return (
+    <input
+      inputMode="numeric"
+      aria-label="數量"
+      value={text ?? String(qty)}
+      onFocus={() => setText(String(qty))}
+      onChange={(e) => {
+        const t = e.target.value.replace(/\D/g, '');
+        setText(t);
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n) && n > 0) onCommit(n);
+      }}
+      onBlur={() => {
+        const n = parseInt(text ?? '', 10);
+        if (Number.isFinite(n) && n > 0) onCommit(n);
+        setText(null);
+      }}
+      style={{
+        width: 40,
+        height: 30,
+        textAlign: 'center',
+        fontSize: '0.875rem',
+        fontWeight: 500,
+        border: 'none',
+        borderLeft: '1px solid #e5e7eb',
+        borderRight: '1px solid #e5e7eb',
+        fontFamily: 'inherit',
+        boxSizing: 'border-box',
+        background: '#fff',
+      }}
+    />
   );
 }

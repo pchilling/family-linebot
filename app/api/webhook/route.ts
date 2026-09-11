@@ -237,7 +237,8 @@ type NewsRow = {
   link_url: string | null;
   image_url: string | null; // D#4:有圖 → 純圖卡
   image_ratio: string | null; // Phase 15.5:原始比例,卡片不裁圖
-  links: { label: string; url: string }[] | null; // Phase 16(#11):多按鈕
+  // Phase 16(#11):按鈕陣列 或 海報熱區 { mode:'zones', urls }
+  links: { label: string; url: string }[] | { mode: 'zones'; urls: string[] } | null;
   published_at: string;
 };
 
