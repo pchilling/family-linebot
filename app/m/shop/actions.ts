@@ -510,6 +510,19 @@ export async function reportOrderLast5(
     return { ok: false, error: '回報失敗,請稍後再試' };
   }
   if (!data || data.length === 0) return { ok: false, error: '找不到可回報的訂單' };
+
+  // 2026-09-12:回報成功 LINE 推確認訊息 — 聊天室裡有最新狀態,舊訂單卡不再誤導
+  try {
+    await lineClient.pushMessage({
+      to: lineUserId,
+      messages: [{
+        type: 'text',
+        text: `✓ 已收到您回報的帳號後 5 碼(${last5})\n訂單 ${orderNo} 等待賣家核帳中。`,
+      }],
+    });
+  } catch (e) {
+    console.warn('[reportOrderLast5 push]', e);
+  }
   return { ok: true };
 }
 
@@ -579,7 +592,7 @@ async function pushOrderConfirmation(
     });
     bodyContents.push({
       type: 'text',
-      text: '匯款完成後,按下方按鈕填寫帳號後 5 碼即可,不用另外聯絡客服。',
+      text: '匯款完成後,點下方「查看訂單」進訂單頁填帳號後 5 碼即可,不用另外聯絡客服。',
       size: 'xs',
       color: '#71717a',
       wrap: true,
@@ -601,14 +614,12 @@ async function pushOrderConfirmation(
       footer: {
         type: 'box', layout: 'vertical', spacing: 'sm',
         contents: [
+          // 2026-09-12:兩顆按鈕併成一顆「查看訂單」— 這張卡發出後不會更新,
+          // 按鈕標籤必須永遠不過時(回報過的人再看到「填後5碼」按鈕會困惑);
+          // 回報完成另有 push 確認訊息補最新狀態
           {
             type: 'button', style: 'primary', color: '#16a34a', height: 'sm',
-            // #report 錨點:開頁直接落在後五碼表單(2026-09-08)
-            action: { type: 'uri', label: '✏️ 我已匯款・填後 5 碼', uri: `${orderUrl}#report` },
-          },
-          {
-            type: 'button', style: 'secondary', height: 'sm',
-            action: { type: 'uri', label: '🧾 查看訂單明細', uri: orderUrl },
+            action: { type: 'uri', label: '🧾 查看訂單', uri: orderUrl },
           },
         ],
       },
