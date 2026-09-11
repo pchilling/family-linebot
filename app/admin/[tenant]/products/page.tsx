@@ -135,10 +135,16 @@ const sectionTitle: React.CSSProperties = {
 
 const label: React.CSSProperties = { fontSize: 12, color: c.textSec };
 const labelText: React.CSSProperties = { display: 'block', marginBottom: 4 };
-// 2026-09-11:iPad 窄版 datetime/number 輸入框有最小寬度,固定欄數 grid 會互相疊框;表單列改 flex-wrap,欄位用這個
-const wrapField: React.CSSProperties = { ...label, flex: '1 1 150px', minWidth: 0 };
-// datetime-local 在 iPad Safari 內建最小寬度約 200px,基準給大一點:不夠寬就整欄換行,不再硬擠
-const wrapFieldWide: React.CSSProperties = { ...label, flex: '1 1 210px', minWidth: 0 };
+// 2026-09-11 v3:iPad(768~1023px)不吃 admin 手機版 CSS 又比桌機窄,固定欄數會讓
+// datetime 輸入框(內建最小寬 ~208px)疊到隔壁。改 auto-fit grid:欄寬保證 ≥ minmax
+// 下限,放不下自動折行 — 欄數由「容器寬度」決定,任何螢幕都不會疊。
+// (767px 以下 admin 手機 CSS 會再把 grid 壓成單欄,同樣安全)
+const gridAutoFit = (minPx: number): React.CSSProperties => ({
+  display: 'grid',
+  gridTemplateColumns: `repeat(auto-fit, minmax(${minPx}px, 1fr))`,
+  gap: 8,
+  alignItems: 'end',
+});
 const input: React.CSSProperties = {
   width: '100%',
   // iPad Safari 的 datetime/number 控件預設不肯縮到比內容窄,壓上 minWidth 0 讓它跟著欄位收
@@ -730,11 +736,11 @@ details[open] .chev { transform: rotate(90deg); }
                   </p>
                   <form
                     action={updateProductSale}
-                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}
+                    style={gridAutoFit(210)}
                   >
                     <input type="hidden" name="product_id" value={p.id} />
                     <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                    <label style={wrapField}>
+                    <label style={label}>
                       <span style={labelText}>折扣 % off</span>
                       <input
                         name="sale_discount_pct"
@@ -746,7 +752,7 @@ details[open] .chev { transform: rotate(90deg); }
                         placeholder="例 20"
                       />
                     </label>
-                    <label style={wrapFieldWide}>
+                    <label style={label}>
                       <span style={labelText}>開始</span>
                       <input
                         name="sale_start_at"
@@ -757,7 +763,7 @@ details[open] .chev { transform: rotate(90deg); }
                         style={input}
                       />
                     </label>
-                    <label style={wrapFieldWide}>
+                    <label style={label}>
                       <span style={labelText}>結束</span>
                       <input
                         name="sale_end_at"
@@ -782,20 +788,20 @@ details[open] .chev { transform: rotate(90deg); }
                       <form
                         key={t.id}
                         action={updatePriceTier}
-                        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}
+                        style={gridAutoFit(140)}
                       >
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="tenant_id" value={tenant.id} />
                         <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <label style={wrapField}>
+                        <label style={label}>
                           <span style={labelText}>滿 N 個以上</span>
                           <input name="min_qty" type="number" min="2" defaultValue={t.min_qty} required style={input} />
                         </label>
-                        <label style={wrapField}>
+                        <label style={label}>
                           <span style={labelText}>單價</span>
                           <input name="price_twd" type="number" min="0" defaultValue={t.price_twd} required style={input} />
                         </label>
-                        <div style={{ fontSize: 11, color: c.textMuted, flex: '1 1 110px', alignSelf: 'center' }}>
+                        <div style={{ fontSize: 11, color: c.textMuted, alignSelf: 'center' }}>
                           {t.min_qty}+ → NT$ {t.price_twd.toLocaleString()}
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
@@ -829,16 +835,16 @@ details[open] .chev { transform: rotate(90deg); }
                     </summary>
                     <form
                       action={createPriceTier}
-                      style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end', marginTop: 10 }}
+                      style={{ ...gridAutoFit(140), marginTop: 10 }}
                     >
                       <input type="hidden" name="product_id" value={p.id} />
                       <input type="hidden" name="tenant_id" value={tenant.id} />
                       <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                      <label style={wrapField}>
+                      <label style={label}>
                         <span style={labelText}>滿 N 個以上 *</span>
                         <input name="min_qty" type="number" min="2" required style={input} placeholder="10" />
                       </label>
-                      <label style={wrapField}>
+                      <label style={label}>
                         <span style={labelText}>該分階單價 *</span>
                         <input name="price_twd" type="number" min="0" required style={input} placeholder="450" />
                       </label>
