@@ -214,11 +214,12 @@ export default async function OrdersListPage({
           <option value="manual">手動</option>
           <option value="line_chat">LINE 對話</option>
         </select>
+        {/* 2026-09-11:iPadOS Safari 空值 date 輸入框會塌陷,給明確高度 + 關原生外觀 */}
         <input
           name="from"
           type="date"
           defaultValue={filters.from ?? ''}
-          style={filterInput}
+          style={{ ...filterInput, height: 34, WebkitAppearance: 'none', appearance: 'none' }}
           aria-label="起始日期"
         />
         <span style={{ color: '#a1a1aa', fontSize: 13 }}>~</span>
@@ -226,7 +227,7 @@ export default async function OrdersListPage({
           name="to"
           type="date"
           defaultValue={filters.to ?? ''}
-          style={filterInput}
+          style={{ ...filterInput, height: 34, WebkitAppearance: 'none', appearance: 'none' }}
           aria-label="結束日期"
         />
         <button

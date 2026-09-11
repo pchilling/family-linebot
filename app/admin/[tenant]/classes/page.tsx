@@ -132,6 +132,14 @@ const input: React.CSSProperties = {
   fontFamily: 'inherit',
   background: c.card,
 };
+// 2026-09-11:iPadOS Safari 空值 datetime-local 會塌成一條線(不畫佔位字),給明確高度撐住
+const dtInput: React.CSSProperties = {
+  ...input,
+  height: 36,
+  WebkitAppearance: 'none',
+  appearance: 'none',
+  display: 'block',
+};
 const btnPrimary: React.CSSProperties = {
   padding: '10px 18px',
   background: c.accent,
@@ -266,7 +274,7 @@ details[open] .chev { transform: rotate(90deg); }
               </select>
             </label>
             <label style={label}><span style={labelText}>活動名稱 *</span><input name="name" required style={input} placeholder="例:芳療基礎工作坊" /></label>
-            <label style={label}><span style={labelText}>時間 *</span><input name="scheduled_at" type="datetime-local" required style={input} /></label>
+            <label style={label}><span style={labelText}>時間 *</span><input name="scheduled_at" type="datetime-local" required style={dtInput} /></label>
             <label style={label}><span style={labelText}>講師</span><input name="instructor" style={input} placeholder="王老師" /></label>
             <label style={label}><span style={labelText}>時長(分)</span><input name="duration_min" type="number" defaultValue={90} style={input} /></label>
             <label style={label}><span style={labelText}>價格(收費才填)</span><input name="price_twd" type="number" style={input} placeholder="例:500" /></label>
@@ -511,7 +519,7 @@ function ClassCard({
             </select>
           </label>
           <label style={label}><span style={labelText}>名稱</span><input name="name" defaultValue={cls.name} style={input} /></label>
-          <label style={label}><span style={labelText}>時間</span><input name="scheduled_at" type="datetime-local" defaultValue={toLocalInput(cls.scheduled_at)} style={input} /></label>
+          <label style={label}><span style={labelText}>時間</span><input name="scheduled_at" type="datetime-local" defaultValue={toLocalInput(cls.scheduled_at)} style={dtInput} /></label>
           <label style={label}><span style={labelText}>講師</span><input name="instructor" defaultValue={cls.instructor ?? ''} style={input} /></label>
           <label style={label}><span style={labelText}>價格</span><input name="price_twd" type="number" defaultValue={cls.price_twd ?? ''} style={input} /></label>
           <label style={label}><span style={labelText}>人數限制(空 = 無限制)</span><input name="capacity" type="number" min="0" defaultValue={cls.capacity ?? ''} style={input} placeholder="例:12" /></label>

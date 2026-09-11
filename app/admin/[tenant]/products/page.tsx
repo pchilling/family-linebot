@@ -159,6 +159,16 @@ const input: React.CSSProperties = {
   background: c.card,
   color: c.text,
 };
+// 2026-09-11 v4(真兇):iPadOS Safari 對「空值」的 datetime-local 不畫任何內容,
+// 輸入框會塌成一條底線、看起來跟隔壁疊在一起(桌機有「年/月/日 --:--」佔位字撐高所以沒事)。
+// 給明確高度 + 關原生外觀,空值也維持完整的框。
+const dtInput: React.CSSProperties = {
+  ...input,
+  height: 36,
+  WebkitAppearance: 'none',
+  appearance: 'none',
+  display: 'block',
+};
 const btnPrimary: React.CSSProperties = {
   padding: '10px 18px',
   background: c.accent,
@@ -760,7 +770,7 @@ details[open] .chev { transform: rotate(90deg); }
                         defaultValue={
                           p.sale_start_at ? toLocalInput(p.sale_start_at) : ''
                         }
-                        style={input}
+                        style={dtInput}
                       />
                     </label>
                     <label style={label}>
@@ -769,7 +779,7 @@ details[open] .chev { transform: rotate(90deg); }
                         name="sale_end_at"
                         type="datetime-local"
                         defaultValue={p.sale_end_at ? toLocalInput(p.sale_end_at) : ''}
-                        style={input}
+                        style={dtInput}
                       />
                     </label>
                     <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
