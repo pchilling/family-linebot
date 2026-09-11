@@ -1150,3 +1150,19 @@ update tenants set shipping_rules = '{
   ]
 }'::jsonb
 where slug = 'oilswa';
+
+
+-- ====================
+-- Phase 16(2026-09-11):最新消息多按鈕連結 + 滿額贈設定
+-- 回饋清單 #11 #12;兩個都是加欄位,可重複執行。
+-- ====================
+
+-- #11:一則消息可掛多顆按鈕,各自導到不同商品/優惠連結
+-- 格式:[{ "label": "2ml 滴瓶", "url": "https://..." }] 最多 3 顆(LINE Flex footer 上限考量)
+alter table news add column if not exists links jsonb;
+
+-- #12:滿額贈規則(攤主在後台「設定」自行維護)
+-- 格式:{ "rules": [ { "threshold_twd": 2000, "product_id": "<uuid>", "qty": 1 } ] }
+-- 結帳時「商品小計(折後)」達門檻的每一條規則都送;
+-- 贈品必須是攤位現有商品(建議建一個 0 元庫存商品),下單自動加 0 元明細行 → 扣庫存、印出貨單
+alter table tenants add column if not exists gift_rules jsonb;
