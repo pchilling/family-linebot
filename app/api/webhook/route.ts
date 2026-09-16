@@ -161,8 +161,8 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
     replyText = [
       '收到您的訊息 🙂',
       '',
-      '如需真人協助,請先按下方「📝 我要詢問」,',
-      '再傳送您的問題,客服上線就會回覆您。',
+      '常見問題可以點下方按鈕直接看答案;',
+      '如需真人協助,請先按「我要詢問」再傳送您的問題,客服上線就會回覆您。',
     ].join('\n');
   }
 

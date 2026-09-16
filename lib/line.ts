@@ -109,12 +109,12 @@ function getPostbackReply(data: string): string {
         '💬 專屬客服',
         '',
         '常見問題可以點下方按鈕直接看答案:',
-        '🚚 預購到貨時間 / ☎️ 聯繫方式',
-        '📦 退換貨政策 / 🛡 保固政策',
+        '預購到貨時間 / 聯繫方式',
+        '退換貨政策 / 保固政策',
         '',
         '— 真人客服時間 —',
         '週一至週五 11:00 – 18:00',
-        '按「📝 我要詢問」後留言,客服上線就會回覆 🙂',
+        '按「我要詢問」後留言,客服上線就會回覆。',
       ].join('\n');
 
     // 2026-09-16:QA 專屬入口(之後 Rich Menu 的 QA 格設 postback action=qa)
@@ -123,12 +123,12 @@ function getPostbackReply(data: string): string {
         '❓ 常見問題',
         '',
         '點下方按鈕看答案:',
-        '🚚 預購商品多久會到',
-        '☎️ 如何聯繫客服',
-        '📦 退換貨政策',
-        '🛡 保固政策',
+        '・預購商品多久會到',
+        '・如何聯繫客服',
+        '・退換貨政策',
+        '・保固政策',
         '',
-        '找不到答案?按「📝 我要詢問」由真人為您服務。',
+        '找不到答案?按「我要詢問」由真人為您服務。',
       ].join('\n');
 
     case 'faq_preorder':
@@ -137,7 +137,7 @@ function getPostbackReply(data: string): string {
         '',
         '預購商品會在收集團購訂單後統一訂購,下單後約需等待 2~4 週。',
         '',
-        '若有急用,請斟酌後再下單;如有訂單進度相關疑問,歡迎按下方「📝 我要詢問」洽詢客服。',
+        '若有急用,請斟酌後再下單;如有訂單進度相關疑問,歡迎按下方「我要詢問」洽詢客服。',
       ].join('\n');
 
     case 'faq_contact':
@@ -149,7 +149,7 @@ function getPostbackReply(data: string): string {
         '信箱:power3in116479936@gmail.com',
         '',
         '服務時間:週一至週五 11:00~18:00',
-        '非服務時間也可以按「📝 我要詢問」留言,客服上線就會回覆 🙂',
+        '非服務時間也可以按「我要詢問」留言,客服上線就會回覆。',
       ].join('\n');
 
     case 'faq_return':
@@ -188,7 +188,7 @@ function getPostbackReply(data: string): string {
         '• 自行拆解或經非原廠維修',
         '• 正常耗損的零件或消耗品',
         '',
-        '請妥善保留購買憑證,作為申請保固的依據。需要協助請按下方「📝 我要詢問」。',
+        '請妥善保留購買憑證,作為申請保固的依據。需要協助請按下方「我要詢問」。',
       ].join('\n');
 
     case 'start_support':
@@ -220,11 +220,12 @@ function getPostbackReply(data: string): string {
  */
 export function getContactQuickReplyItems(): messagingApi.QuickReplyItem[] {
   // 2026-09-16:QA 併進客服入口 — 四題常見問題 chip + 我要詢問(真人)+ 取消
+  // (v2:chip 文字去 emoji,每則訊息也最多留一顆 — Peter 嫌太多)
   const faq: { label: string; action: string; display: string }[] = [
-    { label: '🚚 預購多久到?', action: 'faq_preorder', display: '預購商品多久會到?' },
-    { label: '☎️ 聯繫客服', action: 'faq_contact', display: '如何聯繫客服?' },
-    { label: '📦 退換貨政策', action: 'faq_return', display: '退換貨政策' },
-    { label: '🛡 保固政策', action: 'faq_warranty', display: '保固政策' },
+    { label: '預購多久到?', action: 'faq_preorder', display: '預購商品多久會到?' },
+    { label: '聯繫客服', action: 'faq_contact', display: '如何聯繫客服?' },
+    { label: '退換貨政策', action: 'faq_return', display: '退換貨政策' },
+    { label: '保固政策', action: 'faq_warranty', display: '保固政策' },
   ];
   return [
     ...faq.map((f): messagingApi.QuickReplyItem => ({
@@ -240,7 +241,7 @@ export function getContactQuickReplyItems(): messagingApi.QuickReplyItem[] {
       type: 'action',
       action: {
         type: 'postback',
-        label: '📝 我要詢問',
+        label: '我要詢問(真人)',
         data: 'action=start_support',
         displayText: '我要詢問',
       },
