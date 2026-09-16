@@ -167,9 +167,13 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
   }
 
   const canReply = replyText && 'replyToken' in event && event.replyToken;
-  // 客服 postback 和自動引導帶 Quick Reply chips(我要詢問 / 取消),其他都純文字
+  // 客服 / QA / 各 FAQ 回答與自動引導都帶 Quick Reply chips(四題 FAQ + 我要詢問 + 取消),
+  // 答完一題按鈕再浮出來,可連續問或轉真人
   const quickReply: messagingApi.QuickReply | undefined =
-    postbackAction === 'contact' || isGuideReply
+    postbackAction === 'contact' ||
+    postbackAction === 'qa' ||
+    (postbackAction ?? '').startsWith('faq_') ||
+    isGuideReply
       ? { items: getContactQuickReplyItems() }
       : undefined;
 
