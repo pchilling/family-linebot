@@ -1166,3 +1166,11 @@ alter table news add column if not exists links jsonb;
 -- 結帳時「商品小計(折後)」達門檻的每一條規則都送;
 -- 贈品必須是攤位現有商品(建議建一個 0 元庫存商品),下單自動加 0 元明細行 → 扣庫存、印出貨單
 alter table tenants add column if not exists gift_rules jsonb;
+
+
+-- ====================
+-- Phase 16.1(2026-09-17):Rich Menu 換新版(五區塊 1527x1030,Q&A 併入專屬客服格)
+-- (已由 Claude 直接 update 線上資料,此處留存等效 SQL)
+-- ====================
+update tenants set rich_menu_id = 'richmenu-2517606b1e5199dc9f7598103252dfcb'
+where slug = 'oilswa';

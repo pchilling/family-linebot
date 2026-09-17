@@ -41,18 +41,19 @@ async function main() {
   const blobClient = new MessagingApiBlobClient({ channelAccessToken: token });
 
   // ====================
-  // Layout:上 3 + 下 2(OILS WA 品牌版設計,2026-08-06)
-  // 圖片頂部有 logo 橫幅,卡片整體下移:
-  //   上下排分界 y=1043(卡片間隙中線,非圖片一半)
-  //   上排三格分界 x=858 / 1642,下排兩格分界 x=1254
-  // logo 橫幅併入上排點擊區(點到照樣觸發該欄按鈕)
+  // Layout:上 3 + 下 2(OILS_WA_五區塊合併_1527x1030,2026-09-17)
+  // 圖片頂部有 logo 橫幅,併入上排點擊區(點到照樣觸發該欄按鈕):
+  //   上下排分界 y=640(卡片間隙中線)
+  //   上排三格分界 x=525 / 1000,下排兩格分界 x=765
+  // 下排右格是「Q&A 專屬客服」合併卡 → action=contact
+  // (開場文同時給 QA 按鈕與真人客服說明)
   // ====================
-  const TOP_X1 = 858;
-  const TOP_X2 = 1642;
-  const BOT_X = 1254;
-  const ROW_Y = 1043;
-  const W = 2500;
-  const FULL_H = 1686;
+  const TOP_X1 = 525;
+  const TOP_X2 = 1000;
+  const BOT_X = 765;
+  const ROW_Y = 640;
+  const W = 1527;
+  const FULL_H = 1030;
 
   const richMenu = {
     size: { width: W, height: FULL_H },
@@ -62,30 +63,28 @@ async function main() {
     areas: [
       // 上排
       {
+        // 卡面文字「三合一行動能量體系課程」= 本月課程列表
         bounds: { x: 0, y: 0, width: TOP_X1, height: ROW_Y },
         action: { type: 'postback' as const, data: 'action=monthly-classes', displayText: '📅 本月課程' },
       },
       {
-        // 第 2 格:📰 最新消息 placeholder。簽到改走 keyword「簽到」+ QR 掃 LIFF
         bounds: { x: TOP_X1, y: 0, width: TOP_X2 - TOP_X1, height: ROW_Y },
         action: { type: 'postback' as const, data: 'action=news', displayText: '📰 最新消息' },
       },
       {
         // 商品專區:LIFF /m/shop(profile gating + LINE userId binding)
-        // 公開頁 /oilswa 給 IG / 分享 link 用,LIFF /m/shop 給 LINE 用戶用
-        // (2026-05-22 改回 LIFF,因為 LINE 用戶要 profile gating + 結帳自動帶 user_id)
         bounds: { x: TOP_X2, y: 0, width: W - TOP_X2, height: ROW_Y },
         action: { type: 'uri' as const, uri: 'https://liff.line.me/2010125926-aPB1bQtE', label: '🛍 商品專區' },
       },
       // 下排
       {
         bounds: { x: 0, y: ROW_Y, width: BOT_X, height: FULL_H - ROW_Y },
-        // 會員中心走 LIFF webview(URI 開 LIFF 短連結)
         action: { type: 'uri' as const, uri: 'https://liff.line.me/2010125926-mRl3l3lO', label: '👤 會員中心' },
       },
       {
+        // Q&A 專屬客服合併卡:contact 開場 = QA chips + 真人客服說明
         bounds: { x: BOT_X, y: ROW_Y, width: W - BOT_X, height: FULL_H - ROW_Y },
-        action: { type: 'postback' as const, data: 'action=contact', displayText: '💬 專屬客服' },
+        action: { type: 'postback' as const, data: 'action=contact', displayText: 'Q&A 專屬客服' },
       },
     ],
   };
