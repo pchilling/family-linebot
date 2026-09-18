@@ -171,7 +171,13 @@ export default function ShopPage() {
   const visibleProducts = useMemo(() => {
     const nowMs = Date.now();
     const isCat = !!filter && categories.includes(filter);
-    if (filter === 'latest') return products; // server 已 created_at desc
+    if (filter === 'latest') {
+      // 2026-09-18:真的照上架時間新→舊排(原本誤以為 server 回傳就是時間序,
+      // 實際查詢是分類序,「最新」跟「全部」長一樣)
+      return [...products].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+    }
     if (filter === 'sale') {
       // 2026-09-03:「特價中」chip — 只列限時優惠生效中的商品
       return products.filter((p) => saleActiveOf(p, nowMs));
