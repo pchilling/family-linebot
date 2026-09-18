@@ -44,6 +44,7 @@ type OrderDetail = {
   shipping_phone: string | null;
   shipping_address: string | null;
   note: string | null;
+  payment_last5: string | null; // 2026-09-18:客人回報的匯款帳號後五碼,出貨單對帳用
   created_at: string;
   order_items: OrderItem[];
 };
@@ -98,7 +99,7 @@ export default async function OrderPrintPage({
     .select(
       `id, order_no, status, payment_status, payment_method, total_twd, shipping_fee_twd, shipping_method,
        invoice_tax_id, invoice_title,
-       shipping_recipient, shipping_phone, shipping_address, note, created_at,
+       shipping_recipient, shipping_phone, shipping_address, note, payment_last5, created_at,
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
     )
     .eq('tenant_id', tenant.id)
@@ -189,6 +190,12 @@ export default async function OrderPrintPage({
             <span>{statusMap[o.status] ?? o.status}</span>
             <span style={{ color: '#9ca3af' }}>付款</span>
             <span>{o.payment_status === 'paid' ? '已收款' : '待付款'}</span>
+            {o.payment_last5 && (
+              <>
+                <span style={{ color: '#9ca3af' }}>後五碼</span>
+                <span className="num">{o.payment_last5}</span>
+              </>
+            )}
             <span style={{ color: '#9ca3af' }}>配送</span>
             <span>{shipLabel ?? '—'}</span>
             {o.invoice_tax_id && (
