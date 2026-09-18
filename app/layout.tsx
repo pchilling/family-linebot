@@ -44,6 +44,8 @@ export default function RootLayout({
     <html lang="zh-TW" className={`${displaySans.variable} ${displayMono.variable}`}>
       <body
         style={{
+          // 2026-09-18:瀏覽器 body 預設 8px 邊距會在頁面四周露出白框(內層底色蓋不到),全站歸零
+          margin: 0,
           fontFamily:
             'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif',
         }}
