@@ -351,6 +351,26 @@ details[open] .chev { transform: rotate(90deg); }
         </p>
       </header>
 
+      {/* Phase 16.2(2026-09-18):商品拖曳排序頁入口 */}
+      <div style={{ marginBottom: 16 }}>
+        <a
+          href={`/admin/${tenant.slug}/products/sort`}
+          style={{
+            display: 'inline-block',
+            padding: '8px 16px',
+            background: c.card,
+            border: `1px solid ${c.border}`,
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            color: c.text,
+            textDecoration: 'none',
+          }}
+        >
+          ↕ 商品排序(拖曳調整商城順序)
+        </a>
+      </div>
+
       {/* C#8(2026-09-02):分類顯示順序 — 商城前台的分類 chip 和「全部」分組照這裡排 */}
       {orderedCats.length > 1 && (
         <details

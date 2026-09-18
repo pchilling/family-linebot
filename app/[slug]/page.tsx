@@ -2,7 +2,18 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BannerHero } from './banner-hero';
 import { getActiveProducts, getTenantPublic, isSaleActive, applySaleDiscount, supabaseAdmin } from '@/lib/supabase';
-import { IconFlame } from '@/lib/icons';
+import { IconFlame, IconPackage } from '@/lib/icons';
+
+// Phase 16.2(2026-09-18):同分類內照後台拖曳的手動排序(null = 沒排過,排最後再照筆劃)
+function bySortOrder(
+  a: { sort_order: number | null; name: string },
+  b: { sort_order: number | null; name: string },
+): number {
+  return (
+    (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) ||
+    a.name.localeCompare(b.name, 'zh-Hant')
+  );
+}
 
 // % off → 台灣「折」講法(10% off → 9折;15% off → 85折)
 function pctToZhe(pct: number): string {
@@ -68,7 +79,7 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
   } else if (isCategory) {
     products = allProducts
       .filter((p) => p.category === f)
-      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+      .sort(bySortOrder);
   } else {
     // 全部 預設(2026-09-03):特價優先 → 有角標次之 → 其餘照分類設定順序分組
     products.sort((a, b) => {
@@ -78,7 +89,7 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
       const ia = a.category ? categories.indexOf(a.category) : categories.length;
       const ib = b.category ? categories.indexOf(b.category) : categories.length;
       if (ia !== ib) return ia - ib;
-      return a.name.localeCompare(b.name, 'zh-Hant');
+      return bySortOrder(a, b);
     });
   }
 
@@ -155,7 +166,7 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
             borderRadius: 12,
           }}
         >
-          <div style={{ fontSize: 40, marginBottom: 16 }}>📦</div>
+          <div style={{ marginBottom: 16, color: '#d4d4d8' }}><IconPackage size={44} /></div>
           <p style={{ fontSize: '1.125rem', margin: 0, fontWeight: 500, color: '#18181b' }}>
             攤位準備中
           </p>

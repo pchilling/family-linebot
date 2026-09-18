@@ -176,10 +176,14 @@ export default function ShopPage() {
       // 2026-09-03:「特價中」chip — 只列限時優惠生效中的商品
       return products.filter((p) => saleActiveOf(p, nowMs));
     }
+    // Phase 16.2(2026-09-18):同分類內照後台拖曳的手動排序(null 排最後再照筆劃)
+    const bySortOrder = (a: ShopProduct, b: ShopProduct) =>
+      (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) ||
+      a.name.localeCompare(b.name, 'zh-Hant');
     if (isCat) {
       return products
         .filter((p) => p.category === filter)
-        .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+        .sort(bySortOrder);
     }
     return [...products].sort((a, b) => {
       // 2026-09-03:「全部」特價優先 → 有角標次之 → 其餘照分類設定順序分組
@@ -189,7 +193,7 @@ export default function ShopPage() {
       const ia = a.category ? categories.indexOf(a.category) : categories.length;
       const ib = b.category ? categories.indexOf(b.category) : categories.length;
       if (ia !== ib) return ia - ib;
-      return a.name.localeCompare(b.name, 'zh-Hant');
+      return bySortOrder(a, b);
     });
   }, [products, filter, categories]);
   // Phase 11:variantId → variant info(含 product 反查)

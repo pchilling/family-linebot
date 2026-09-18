@@ -500,6 +500,39 @@ export async function saveCategoryOrder(
 }
 
 // ====================
+// Phase 16.2(2026-09-18):商品手動排序 — 拖曳排序頁寫入
+// orderedIds = 某分類內由前到後的商品 id,依序寫 sort_order 0..n
+// ====================
+export async function saveProductOrder(
+  tenantSlug: string,
+  orderedIds: string[],
+): Promise<{ ok: boolean }> {
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) return { ok: false };
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return { ok: false };
+  const ids = orderedIds.filter((id) => typeof id === 'string' && id).slice(0, 200);
+
+  const results = await Promise.all(
+    ids.map((id, i) =>
+      supabaseAdmin
+        .from('products')
+        .update({ sort_order: i })
+        .eq('id', id)
+        .eq('tenant_id', tenant.id),
+    ),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed) {
+    console.error('[saveProductOrder]', failed.error);
+    return { ok: false };
+  }
+
+  revalidatePath(`/${tenantSlug}`);
+  revalidatePath(`/admin/${tenantSlug}/products`);
+  return { ok: true };
+}
+
+// ====================
 // Phase 9.5(2026-06-02):商品分階定價 CRUD
 // ====================
 

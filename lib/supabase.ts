@@ -388,6 +388,8 @@ export type ProductPublic = {
   sale_discount_pct: number | null;
   sale_start_at: string | null;
   sale_end_at: string | null;
+  // Phase 16.2(2026-09-18):手動排序值(拖曳頁寫入;null = 沒排過,排最後)
+  sort_order: number | null;
 };
 
 /**
@@ -421,7 +423,7 @@ export function applySaleDiscount(basePrice: number, pct: number): number {
 export async function getActiveProducts(tenantId: string): Promise<ProductPublic[]> {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, slug, name, description, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, product_variants(price_twd, status)')
+    .select('id, slug, name, description, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, product_variants(price_twd, status)')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -442,6 +444,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
     sale_end_at: string | null;
     badge: string | null;
     badge_color: string | null;
+    sort_order: number | null;
     product_variants: { price_twd: number; status: string }[] | null;
   };
   return (data as Row[] | null ?? []).map((p) => {
@@ -461,6 +464,7 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
       sale_discount_pct: p.sale_discount_pct ?? null,
       sale_start_at: p.sale_start_at ?? null,
       sale_end_at: p.sale_end_at ?? null,
+      sort_order: p.sort_order ?? null,
     };
   });
 }

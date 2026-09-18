@@ -53,6 +53,8 @@ export type ShopProduct = {
   variants: ShopVariant[]; // Phase 11:variant-aware
   // 2026-09-11(回饋 #9):分階定價帶進 LIFF,卡片顯示「NT$ 單價 / 分階總價」
   tiers: { min_qty: number; price_twd: number }[]; // min_qty asc
+  // Phase 16.2(2026-09-18):手動排序值(null = 沒排過,排最後)
+  sort_order: number | null;
 };
 
 export type ShopMember = {
@@ -132,7 +134,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes, tiersRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
+      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -235,6 +237,7 @@ export async function loadShopData(
         .filter((v) => v.status === 'active')
         .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, image_url: v.image_url ?? null })),
       tiers: tiersByProduct.get(p.id) ?? [],
+      sort_order: p.sort_order ?? null,
     })),
     member: (memberRes.data as ShopMember | null) ?? null,
     tenant: {
