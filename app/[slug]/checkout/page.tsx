@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { IconChevronLeft } from '@/lib/icons';
-import { createOrder, getShippingOptions, type ShippingOption } from './actions';
+import { createOrder, getCartPricingInfo, getShippingOptions, type CartPricingInfo, type ShippingOption } from './actions';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -15,7 +15,7 @@ export default function CheckoutPage({ params }: Props) {
   const { slug } = use(params);
   const router = useRouter();
   // 2026-09-11:購物車與結帳併成一頁 — 明細可直接改數量/刪除
-  const { items, totalQty, totalTwd, updateQty, removeItem, clear } = useCart(slug);
+  const { items, totalQty, updateQty, removeItem, clear } = useCart(slug);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,13 +27,39 @@ export default function CheckoutPage({ params }: Props) {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
   }, [slug]);
 
+  // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
+  // 原本這頁照加入當下的原價顯示,後端實收卻有套分階 → 畫面 540 實收 500 對不上
+  const [pricing, setPricing] = useState<CartPricingInfo>({});
+  const productIdsKey = [...new Set(items.map((i) => i.productId))].sort().join(',');
+  useEffect(() => {
+    const ids = productIdsKey ? productIdsKey.split(',') : [];
+    if (ids.length === 0) return;
+    getCartPricingInfo(slug, ids).then(setPricing).catch(() => {});
+  }, [slug, productIdsKey]);
+
+  function unitPriceOf(item: (typeof items)[number]): number {
+    const info = pricing[item.productId];
+    if (!info || info.sale_active || info.tiers.length === 0) return item.priceTwd;
+    const totalProductQty = items
+      .filter((i) => i.productId === item.productId)
+      .reduce((s, i) => s + i.qty, 0);
+    let unit = item.priceTwd;
+    for (const t of info.tiers) {
+      if (totalProductQty >= t.min_qty) unit = t.price_twd;
+    }
+    return unit;
+  }
+
+  // 折後商品小計(運費免運門檻、總計都用這個,跟後端實收一致)
+  const subtotal = items.reduce((s, i) => s + unitPriceOf(i) * i.qty, 0);
+
   const shipOption = shipOptions.find((o) => o.key === shipKey) ?? null;
   const shipFee = shipOption
-    ? shipOption.free_over && totalTwd >= shipOption.free_over
+    ? shipOption.free_over && subtotal >= shipOption.free_over
       ? 0
       : shipOption.fee
     : 0;
-  const grandTotal = totalTwd + shipFee;
+  const grandTotal = subtotal + shipFee;
 
   // 已成立 → 顯 loading 直到 router.push 真的跳完(避免閃空車畫面 / 空表單)
   if (redirecting) {
@@ -163,6 +189,11 @@ export default function CheckoutPage({ params }: Props) {
               {item.variantName && item.variantName !== 'default' && (
                 <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 1 }}>{item.variantName}</div>
               )}
+              {unitPriceOf(item) < item.priceTwd && (
+                <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: 1 }}>
+                  量購價 NT$ {unitPriceOf(item).toLocaleString()} /件
+                </div>
+              )}
             </div>
             <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
               <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)} style={qtyBtn}>−</button>
@@ -170,7 +201,7 @@ export default function CheckoutPage({ params }: Props) {
               <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)} style={qtyBtn}>+</button>
             </div>
             <span style={{ width: 76, textAlign: 'right', fontWeight: 600, flexShrink: 0 }}>
-              NT$ {(item.priceTwd * item.qty).toLocaleString()}
+              NT$ {(unitPriceOf(item) * item.qty).toLocaleString()}
             </span>
             <button
               type="button"
@@ -194,7 +225,7 @@ export default function CheckoutPage({ params }: Props) {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#374151' }}>
             <span>商品小計</span>
-            <span>NT$ {totalTwd.toLocaleString()}</span>
+            <span>NT$ {subtotal.toLocaleString()}</span>
           </div>
           {shipOptions.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#374151' }}>
@@ -220,7 +251,7 @@ export default function CheckoutPage({ params }: Props) {
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {shipOptions.map((opt) => {
-                const isFree = !!opt.free_over && totalTwd >= opt.free_over;
+                const isFree = !!opt.free_over && subtotal >= opt.free_over;
                 const isActive = shipKey === opt.key;
                 return (
                   <label
@@ -256,7 +287,7 @@ export default function CheckoutPage({ params }: Props) {
                         <span style={{ display: 'block', fontSize: '0.75rem', color: isFree ? '#15803d' : '#6b7280', marginTop: 3 }}>
                           {isFree
                             ? `已滿 NT$ ${opt.free_over.toLocaleString()},免運`
-                            : `滿 NT$ ${opt.free_over.toLocaleString()} 免運(還差 NT$ ${(opt.free_over - totalTwd).toLocaleString()})`}
+                            : `滿 NT$ ${opt.free_over.toLocaleString()} 免運(還差 NT$ ${(opt.free_over - subtotal).toLocaleString()})`}
                         </span>
                       ) : null}
                       {opt.note && (

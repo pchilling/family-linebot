@@ -1,6 +1,49 @@
 'use server';
 
-import { buildGiftItems, getTenantBySlug, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { buildGiftItems, getTenantBySlug, getProductTiers, isSaleActive, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+
+// 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
+// (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
+export type CartPricingInfo = Record<
+  string,
+  { tiers: { min_qty: number; price_twd: number }[]; sale_active: boolean }
+>;
+
+export async function getCartPricingInfo(
+  tenantSlug: string,
+  productIds: string[],
+): Promise<CartPricingInfo> {
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant || productIds.length === 0) return {};
+  const ids = [...new Set(productIds)].slice(0, 50);
+
+  const [{ data: prows }, { data: trows }] = await Promise.all([
+    supabaseAdmin
+      .from('products')
+      .select('id, sale_discount_pct, sale_start_at, sale_end_at')
+      .eq('tenant_id', tenant.id)
+      .in('id', ids),
+    supabaseAdmin
+      .from('product_price_tiers')
+      .select('product_id, min_qty, price_twd')
+      .eq('tenant_id', tenant.id)
+      .in('product_id', ids)
+      .order('min_qty', { ascending: true }),
+  ]);
+
+  const now = new Date();
+  const out: CartPricingInfo = {};
+  for (const p of (prows as { id: string; sale_discount_pct: number | null; sale_start_at: string | null; sale_end_at: string | null }[] | null) ?? []) {
+    out[p.id] = { tiers: [], sale_active: isSaleActive(p, now) };
+  }
+  for (const t of (trows as { product_id: string; min_qty: number; price_twd: number }[] | null) ?? []) {
+    (out[t.product_id] ??= { tiers: [], sale_active: false }).tiers.push({
+      min_qty: t.min_qty,
+      price_twd: t.price_twd,
+    });
+  }
+  return out;
+}
 
 type CartItemInput = {
   variantId: string;
