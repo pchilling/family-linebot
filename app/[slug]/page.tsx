@@ -72,7 +72,10 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
 
   let products = [...allProducts];
   if (f === 'latest') {
-    // server query 已經 created_at desc,保留
+    // 2026-09-18:角標寫「新品」的優先置頂,其餘照上架時間新→舊
+    // (query 已 created_at desc;sort 是穩定排序,各組內時間序保留)
+    const isNewBadge = (p: { badge: string | null }) => !!p.badge && p.badge.includes('新品');
+    products.sort((a, b) => (isNewBadge(a) ? 0 : 1) - (isNewBadge(b) ? 0 : 1));
   } else if (f === 'sale') {
     // 2026-09-03:「特價中」chip — 只列限時優惠生效中的商品
     products = allProducts.filter((p) => isSaleActive(p, now));

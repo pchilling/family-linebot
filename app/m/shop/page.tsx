@@ -172,11 +172,14 @@ export default function ShopPage() {
     const nowMs = Date.now();
     const isCat = !!filter && categories.includes(filter);
     if (filter === 'latest') {
-      // 2026-09-18:真的照上架時間新→舊排(原本誤以為 server 回傳就是時間序,
-      // 實際查詢是分類序,「最新」跟「全部」長一樣)
-      return [...products].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
+      // 2026-09-18:角標寫「新品」的優先置頂,其餘照上架時間新→舊
+      const isNewBadge = (p: ShopProduct) => !!p.badge && p.badge.includes('新品');
+      return [...products].sort((a, b) => {
+        const na = isNewBadge(a) ? 0 : 1;
+        const nb = isNewBadge(b) ? 0 : 1;
+        if (na !== nb) return na - nb;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
     }
     if (filter === 'sale') {
       // 2026-09-03:「特價中」chip — 只列限時優惠生效中的商品
