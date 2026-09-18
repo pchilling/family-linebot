@@ -1174,3 +1174,11 @@ alter table tenants add column if not exists gift_rules jsonb;
 -- ====================
 update tenants set rich_menu_id = 'richmenu-2517606b1e5199dc9f7598103252dfcb'
 where slug = 'oilswa';
+
+
+-- ====================
+-- Phase 16.2(2026-09-18):商品手動排序
+-- 後台「商品排序」拖曳頁寫入;商城同分類內照 sort_order asc 排,
+-- null(沒排過)排最後、再照名稱筆劃。可重複執行。
+-- ====================
+alter table products add column if not exists sort_order int;
