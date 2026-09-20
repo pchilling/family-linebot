@@ -155,15 +155,36 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
 
   // 自動引導(2026-09-02):非關鍵字純文字留言、又不在客服模式 → 回引導 + 客服按鈕
   // (原本這種留言 bot 完全沉默,用戶以為有人會看到,實際沒人被通知)
+  // 2026-09-20 節流:同一位客人 12 小時內只引導一次 — 不然店家在 OA Manager
+  // 人工對話時,客人每回一句 bot 就插嘴一次「收到您的訊息」很干擾
   let isGuideReply = false;
   if (event.type === 'message' && event.message.type === 'text' && !isSupport && !replyText) {
-    isGuideReply = true;
-    replyText = [
-      '收到您的訊息 🙂',
-      '',
-      '常見問題可以點下方按鈕直接看答案;',
-      '如需真人協助,請先按「我要詢問」再傳送您的問題,客服上線就會回覆您。',
-    ].join('\n');
+    let guidedRecently = false;
+    if (userId) {
+      const { data: lastGuide } = await supabaseAdmin
+        .from('messages')
+        .select('created_at')
+        .eq('tenant_id', tenantId)
+        .eq('user_id', userId)
+        .eq('direction', 'outbound')
+        .like('content->>text', '收到您的訊息%')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const at = (lastGuide as { created_at?: string } | null)?.created_at;
+      if (at && Date.now() - new Date(at).getTime() < 12 * 60 * 60 * 1000) {
+        guidedRecently = true;
+      }
+    }
+    if (!guidedRecently) {
+      isGuideReply = true;
+      replyText = [
+        '收到您的訊息 🙂',
+        '',
+        '常見問題可以點下方按鈕直接看答案;',
+        '如需真人協助,請先按「我要詢問」再傳送您的問題,客服上線就會回覆您。',
+      ].join('\n');
+    }
   }
 
   const canReply = replyText && 'replyToken' in event && event.replyToken;
