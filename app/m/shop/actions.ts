@@ -341,6 +341,27 @@ export async function placeOrder(
     .maybeSingle();
   if (userErr || !user) throw new Error('用戶不存在,請先加好友');
 
+  // 2026-09-21 防重複下單:同客人 2 分鐘內送出「內容完全相同」的單(手機網路慢
+  // 造成的雙擊/重送),直接回第一筆的單號,不再建新單、不重複扣庫存
+  const cartSig = cart.map((c) => `${c.variant_id}x${c.qty}`).sort().join(',');
+  const { data: recentDup } = await supabaseAdmin
+    .from('orders')
+    .select('order_no, order_items(variant_id, qty)')
+    .eq('tenant_id', TENANT_ID)
+    .eq('user_id', user.id)
+    .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (recentDup) {
+    const dup = recentDup as { order_no: string; order_items: { variant_id: string | null; qty: number }[] | null };
+    const dupSig = (dup.order_items ?? []).map((i) => `${i.variant_id}x${i.qty}`).sort().join(',');
+    if (dupSig === cartSig) {
+      console.warn('[placeOrder] 2 分鐘內重複下單,回既有單號', dup.order_no);
+      return { order_no: dup.order_no };
+    }
+  }
+
   // Phase 11(Stage C):server 拉 variant 真實價格 + 庫存(不信 client)
   const variantIds = cart.map((c) => c.variant_id).filter(Boolean);
   if (variantIds.length === 0 || variantIds.length !== cart.length) {
@@ -426,6 +447,7 @@ export async function placeOrder(
       tenant_id: TENANT_ID,
       user_id: user.id,
       order_no: '',
+      source: 'liff', // 2026-09-21:原本沒寫入,LIFF 單在後台一直顯示「手動」
       shipping_recipient: recipient,
       shipping_phone: phone,
       shipping_address: address,

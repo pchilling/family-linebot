@@ -224,6 +224,27 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     shippingKey = opt.key;
   }
 
+  // 2026-09-21 防重複下單:同電話 2 分鐘內送出「內容完全相同」的單,
+  // 直接回第一筆的單號(雙擊 / 網路重送不再建新單、不重複扣庫存)
+  const cartSig = cartItems.map((c) => `${c.variantId}x${c.qty}`).sort().join(',');
+  const { data: recentDup } = await supabaseAdmin
+    .from('orders')
+    .select('order_no, order_items(variant_id, qty)')
+    .eq('tenant_id', tenant.id)
+    .eq('shipping_phone', phone)
+    .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (recentDup) {
+    const dup = recentDup as { order_no: string; order_items: { variant_id: string | null; qty: number }[] | null };
+    const dupSig = (dup.order_items ?? []).map((i) => `${i.variant_id}x${i.qty}`).sort().join(',');
+    if (dupSig === cartSig) {
+      console.warn('[createOrder] 2 分鐘內重複下單,回既有單號', dup.order_no);
+      return { ok: true, orderNo: dup.order_no };
+    }
+  }
+
   // 建 order(order_no / total_twd 由 trigger 處理;total_twd = 商品小計,運費另存)
   const { data: orderRow, error: oErr } = await supabaseAdmin
     .from('orders')
