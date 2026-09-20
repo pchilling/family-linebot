@@ -1182,3 +1182,19 @@ where slug = 'oilswa';
 -- null(沒排過)排最後、再照名稱筆劃。可重複執行。
 -- ====================
 alter table products add column if not exists sort_order int;
+
+
+-- ====================
+-- Phase 16.3(2026-09-21):清除上線前測試訂單(一次性資料操作)
+-- 只留第一筆真實訂單 OW-202609-0028,其餘 29 筆測試單刪除。
+-- 關鍵:order_items 有 AFTER DELETE 退庫存 trigger,直接刪會把測試單
+-- 庫存全部加回、灌爆現有庫存 — 所以交易內先停用該 trigger 再刪。
+-- 刪除前已完整備份(orders + order_items + 庫存快照)。
+-- ====================
+begin;
+alter table order_items disable trigger order_items_stock_reverse;
+delete from orders
+  where tenant_id = '8106161d-ad82-4bad-ba61-da1aac65bb2c'
+    and order_no <> 'OW-202609-0028';
+alter table order_items enable trigger order_items_stock_reverse;
+commit;
