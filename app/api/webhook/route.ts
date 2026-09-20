@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WebhookEvent } from '@line/bot-sdk';
-import { buildMonthlyClassesFlex, buildNewsFlex, describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, lineClient, verifySignature } from '@/lib/line';
+import { buildMonthlyClassesFlex, buildNewsFlex, describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, isSupportBusinessHours, lineClient, OFF_HOURS_NOTE, verifySignature } from '@/lib/line';
 import { getClassesForCurrentMonth, getTenantByBotUserId, logMessage, supabaseAdmin, upsertUser } from '@/lib/supabase';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -182,7 +182,9 @@ async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void>
         '收到您的訊息 🙂',
         '',
         '常見問題可以點下方按鈕直接看答案;',
-        '如需真人協助,請先按「我要詢問」再傳送您的問題,客服上線就會回覆您。',
+        '如需真人協助,請先按「我要詢問」再傳送您的問題。',
+        // 2026-09-20:非營業時間明講沒人在線,客人才不會空等
+        ...(isSupportBusinessHours() ? [] : ['', OFF_HOURS_NOTE]),
       ].join('\n');
     }
   }

@@ -77,6 +77,19 @@ function getKeywordReply(text: string): string | null {
 }
 
 /**
+ * 客服營業時間判斷(2026-09-20):週一至週五 11:00–18:00,台灣時間。
+ * 非營業時間的引導 / 客服訊息會加註,客人才知道現在沒人在線。
+ */
+export function isSupportBusinessHours(now: Date = new Date()): boolean {
+  const tw = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  const day = tw.getDay(); // 0 = 週日
+  const hour = tw.getHours();
+  return day >= 1 && day <= 5 && hour >= 11 && hour < 18;
+}
+
+export const OFF_HOURS_NOTE = '現在是非客服時間(週一至週五 11:00–18:00),您的留言已保留,客服上班後會盡快回覆您。';
+
+/**
  * Rich Menu postback 對應的回覆文字。
  * 對齊提案 v5 的 5 格(本月課程 / 最新消息 / 商品專區=URI / 進階教室 / 專屬客服)。
  * v1 placeholder,小編後台 / DB / flex message 之後升級。
@@ -114,7 +127,9 @@ function getPostbackReply(data: string): string {
         '',
         '— 真人客服時間 —',
         '週一至週五 11:00 – 18:00',
-        '按「我要詢問」後留言,客服上線就會回覆。',
+        isSupportBusinessHours()
+          ? '按「我要詢問」後留言,客服上線就會回覆。'
+          : '現在是非客服時間,按「我要詢問」留言,我們上班後會盡快回覆您。',
       ].join('\n');
 
     // 2026-09-16:QA 專屬入口(之後 Rich Menu 的 QA 格設 postback action=qa)
@@ -197,7 +212,9 @@ function getPostbackReply(data: string): string {
         '',
         '請描述您的問題,我們收到後會盡快回覆。',
         '',
-        '(接下來 30 分鐘內您打的訊息會被標記為客服請求,客服上線就會看到)',
+        isSupportBusinessHours()
+          ? '(接下來 30 分鐘內您打的訊息會被標記為客服請求,客服上線就會看到)'
+          : OFF_HOURS_NOTE,
       ].join('\n');
 
     case 'cancel_support':
