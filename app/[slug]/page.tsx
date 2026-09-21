@@ -85,10 +85,26 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
       .sort(bySortOrder);
   } else {
     // 全部 預設(2026-09-03):特價優先 → 有角標次之 → 其餘照分類設定順序分組
+    // 2026-09-21:同文字的角標聚成一群;角標群的先後 = 群內最小 sort_order
+    // (想讓哪一群整組排前面,到「商品排序」把該群任一商品拖前面即可)
+    const badgeRank = new Map<string, number>();
+    for (const p of allProducts) {
+      if (!p.badge) continue;
+      const r = p.sort_order ?? Number.MAX_SAFE_INTEGER;
+      const cur = badgeRank.get(p.badge);
+      if (cur === undefined || r < cur) badgeRank.set(p.badge, r);
+    }
     products.sort((a, b) => {
       const pa = isSaleActive(a, now) ? 0 : a.badge ? 1 : 2;
       const pb = isSaleActive(b, now) ? 0 : b.badge ? 1 : 2;
       if (pa !== pb) return pa - pb;
+      if (pa === 1) {
+        const ga = badgeRank.get(a.badge!) ?? Number.MAX_SAFE_INTEGER;
+        const gb = badgeRank.get(b.badge!) ?? Number.MAX_SAFE_INTEGER;
+        if (ga !== gb) return ga - gb;
+        if (a.badge !== b.badge) return a.badge!.localeCompare(b.badge!, 'zh-Hant');
+        return bySortOrder(a, b);
+      }
       const ia = a.category ? categories.indexOf(a.category) : categories.length;
       const ib = b.category ? categories.indexOf(b.category) : categories.length;
       if (ia !== ib) return ia - ib;
