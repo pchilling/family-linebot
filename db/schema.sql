@@ -1198,3 +1198,11 @@ delete from orders
     and order_no <> 'OW-202609-0028';
 alter table order_items enable trigger order_items_stock_reverse;
 commit;
+
+
+-- ====================
+-- Phase 16.4(2026-09-21):變體「組合品」標記 — 組合規格與分階定價共存
+-- is_bundle = true 的變體:數量不計入分階門檻、價格不被分階改寫,
+-- 永遠以自己的標價計(如 3本組 $570)。單品規格照常走分階。
+-- ====================
+alter table product_variants add column if not exists is_bundle boolean not null default false;
