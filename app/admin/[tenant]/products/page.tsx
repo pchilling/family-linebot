@@ -907,7 +907,7 @@ details[open] .chev { transform: rotate(90deg); }
                             {/* Phase 16.4:組合規格(如 3本組)勾這個 — 固定價、不參與分階 */}
                             <label style={{ ...label, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b45309' }}>
                               <input type="checkbox" name="is_bundle" defaultChecked={v.is_bundle} />
-                              組合品(固定價,數量與價格都不參與分階 — 3本組/買三送一組這種勾我)
+                              組合品(固定價,數量與價格都不參與分階)
                             </label>
                           </form>
 
