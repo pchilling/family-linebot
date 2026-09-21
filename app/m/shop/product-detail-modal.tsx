@@ -113,7 +113,8 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
 
   const price = selected?.price_twd ?? 0;
   // 2026-09-11(回饋 #9):分階單價 — 本次數量達門檻就套分階價(與後端 placeOrder 同邏輯;sale 生效時分階暫停)
-  const tierUnit = !onSale && product.tiers.length > 0
+  // Phase 16.4:組合規格(3本組這種)固定價,不參與分階
+  const tierUnit = !onSale && product.tiers.length > 0 && !selected?.is_bundle
     ? product.tiers.reduce((u, t) => (qty >= t.min_qty ? t.price_twd : u), price)
     : price;
   const effPrice = onSale
@@ -308,7 +309,12 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
             borderRadius: 10,
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>量購優惠</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
+            量購優惠
+            {product.variants.some((v) => v.is_bundle) && (
+              <span style={{ fontWeight: 400, fontSize: 11, marginLeft: 6 }}>(組合規格為固定價,不再折)</span>
+            )}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {product.tiers.map((t) => (
               <div key={t.min_qty} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#78350f' }}>

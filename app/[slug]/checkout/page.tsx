@@ -40,8 +40,10 @@ export default function CheckoutPage({ params }: Props) {
   function unitPriceOf(item: (typeof items)[number]): number {
     const info = pricing[item.productId];
     if (!info || info.sale_active || info.tiers.length === 0) return item.priceTwd;
+    // Phase 16.4:組合品固定價,數量也不計入分階門檻
+    if (info.bundle_variant_ids.includes(item.variantId)) return item.priceTwd;
     const totalProductQty = items
-      .filter((i) => i.productId === item.productId)
+      .filter((i) => i.productId === item.productId && !info.bundle_variant_ids.includes(i.variantId))
       .reduce((s, i) => s + i.qty, 0);
     let unit = item.priceTwd;
     for (const t of info.tiers) {

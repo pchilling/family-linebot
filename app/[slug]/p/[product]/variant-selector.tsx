@@ -13,6 +13,7 @@ type Variant = {
   price_twd: number;
   stock: number;
   image_url: string | null;
+  is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
   status: string;
 };
 
@@ -113,7 +114,12 @@ export function VariantSelector({
   const saleUnitPrice = saleActive
     ? Math.round((basePrice * (100 - sale!.discountPct)) / 100)
     : basePrice;
-  const effectivePrice = saleActive ? saleUnitPrice : pickTierPrice(tiers, qty, basePrice);
+  // Phase 16.4:組合規格(3本組這種)固定價,不參與分階
+  const effectivePrice = saleActive
+    ? saleUnitPrice
+    : selected?.is_bundle
+      ? basePrice
+      : pickTierPrice(tiers, qty, basePrice);
   const savedPerUnit = basePrice - effectivePrice;
   const totalPrice = effectivePrice * qty;
 
@@ -311,7 +317,7 @@ export function VariantSelector({
               )}
 
               {/* Tier pills 可點(量大優惠)— sale 生效時暫停 */}
-              {!saleActive && tiers.length > 0 && (
+              {!saleActive && tiers.length > 0 && !selected?.is_bundle && (
                 <div style={{ marginBottom: '1rem' }}>
                   <div
                     style={{

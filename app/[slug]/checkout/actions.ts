@@ -6,7 +6,12 @@ import { buildGiftItems, getTenantBySlug, getProductTiers, isSaleActive, pickPri
 // (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
 export type CartPricingInfo = Record<
   string,
-  { tiers: { min_qty: number; price_twd: number }[]; sale_active: boolean }
+  {
+    tiers: { min_qty: number; price_twd: number }[];
+    sale_active: boolean;
+    // Phase 16.4:組合品變體 id(固定價、不參與分階,購物車顯示同步跳過)
+    bundle_variant_ids: string[];
+  }
 >;
 
 export async function getCartPricingInfo(
@@ -17,7 +22,7 @@ export async function getCartPricingInfo(
   if (!tenant || productIds.length === 0) return {};
   const ids = [...new Set(productIds)].slice(0, 50);
 
-  const [{ data: prows }, { data: trows }] = await Promise.all([
+  const [{ data: prows }, { data: trows }, { data: brows }] = await Promise.all([
     supabaseAdmin
       .from('products')
       .select('id, sale_discount_pct, sale_start_at, sale_end_at')
@@ -29,18 +34,28 @@ export async function getCartPricingInfo(
       .eq('tenant_id', tenant.id)
       .in('product_id', ids)
       .order('min_qty', { ascending: true }),
+    supabaseAdmin
+      .from('product_variants')
+      .select('id, product_id')
+      .eq('tenant_id', tenant.id)
+      .eq('is_bundle', true)
+      .in('product_id', ids),
   ]);
 
   const now = new Date();
   const out: CartPricingInfo = {};
+  const blank = () => ({ tiers: [], sale_active: false, bundle_variant_ids: [] as string[] });
   for (const p of (prows as { id: string; sale_discount_pct: number | null; sale_start_at: string | null; sale_end_at: string | null }[] | null) ?? []) {
-    out[p.id] = { tiers: [], sale_active: isSaleActive(p, now) };
+    out[p.id] = { ...blank(), sale_active: isSaleActive(p, now) };
   }
   for (const t of (trows as { product_id: string; min_qty: number; price_twd: number }[] | null) ?? []) {
-    (out[t.product_id] ??= { tiers: [], sale_active: false }).tiers.push({
+    (out[t.product_id] ??= blank()).tiers.push({
       min_qty: t.min_qty,
       price_twd: t.price_twd,
     });
+  }
+  for (const b of (brows as { id: string; product_id: string }[] | null) ?? []) {
+    (out[b.product_id] ??= blank()).bundle_variant_ids.push(b.id);
   }
   return out;
 }
@@ -116,7 +131,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const variantIds = cartItems.map((i) => i.variantId);
   const { data: variants, error: vErr } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, tenant_id, price_twd, status, stock')
+    .select('id, product_id, tenant_id, price_twd, status, stock, is_bundle')
     .in('id', variantIds)
     .eq('tenant_id', tenant.id);
 
@@ -132,6 +147,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     price_twd: number;
     status: string;
     stock: number;
+    is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
   };
   const variantMap = new Map<string, DbVariant>(
     (variants ?? []).map((v) => [(v as DbVariant).id, v as DbVariant]),
@@ -151,6 +167,8 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   for (const item of cartItems) {
     const v = variantMap.get(item.variantId);
     if (!v) continue;
+    // Phase 16.4:組合品數量不計入分階門檻
+    if (v.is_bundle) continue;
     qtyByProduct.set(v.product_id, (qtyByProduct.get(v.product_id) ?? 0) + item.qty);
   }
 
@@ -198,6 +216,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     if (saleActive) {
       // 用 % off 比例縮 variant 自身價,跨變體比例自動正確
       effective = Math.round((v.price_twd * (100 - sale!.pct!)) / 100);
+    } else if (v.is_bundle) {
+      // Phase 16.4:組合品固定價,不被分階改寫
+      effective = v.price_twd;
     } else {
       const totalProductQty = qtyByProduct.get(v.product_id) ?? item.qty;
       const tiers = tierByProduct.get(v.product_id) ?? [];

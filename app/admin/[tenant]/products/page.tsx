@@ -28,6 +28,7 @@ type Variant = {
   cost_twd: number | null;
   stock: number;
   image_url: string | null;
+  is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
   status: string;
 };
 
@@ -85,7 +86,7 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
     .from('products')
     .select(
       `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, badge_color, status,
-       product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, status)`,
+       product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, is_bundle, status)`,
     )
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
@@ -903,6 +904,11 @@ details[open] .chev { transform: rotate(90deg); }
                               </select>
                             </label>
                             <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
+                            {/* Phase 16.4:組合規格(如 3本組)勾這個 — 固定價、不參與分階 */}
+                            <label style={{ ...label, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b45309' }}>
+                              <input type="checkbox" name="is_bundle" defaultChecked={v.is_bundle} />
+                              組合品(固定價,數量與價格都不參與分階 — 3本組/買三送一組這種勾我)
+                            </label>
                           </form>
 
                           <details style={{ marginTop: 10 }}>
@@ -954,6 +960,10 @@ details[open] .chev { transform: rotate(90deg); }
                       <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
                       <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
                       <SubmitButton size="sm" pendingText="新增中…">新增</SubmitButton>
+                      <label style={{ ...label, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b45309' }}>
+                        <input type="checkbox" name="is_bundle" />
+                        組合品(固定價,數量與價格都不參與分階)
+                      </label>
                     </form>
                   </details>
                 </section>

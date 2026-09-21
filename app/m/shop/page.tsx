@@ -224,14 +224,14 @@ export default function ShopPage() {
   // 2026-09-03:price_twd 存「折後價」(sale 生效時打折),購物車/結帳顯示與計算全走這裡
   const variantMap = useMemo(() => {
     const nowMs = Date.now();
-    const m = new Map<string, { variant_name: string; price_twd: number; stock: number; product_id: string; product_name: string }>();
+    const m = new Map<string, { variant_name: string; price_twd: number; stock: number; product_id: string; product_name: string; is_bundle: boolean }>();
     for (const p of products) {
       const onSale = saleActiveOf(p, nowMs);
       for (const v of p.variants) {
         const eff = onSale
           ? Math.round((v.price_twd * (100 - p.sale_discount_pct!)) / 100)
           : v.price_twd;
-        m.set(v.id, { variant_name: v.variant_name, price_twd: eff, stock: v.stock, product_id: p.id, product_name: p.name });
+        m.set(v.id, { variant_name: v.variant_name, price_twd: eff, stock: v.stock, product_id: p.id, product_name: p.name, is_bundle: v.is_bundle });
       }
     }
     return m;
@@ -243,7 +243,8 @@ export default function ShopPage() {
     const m = new Map<string, number>();
     for (const c of cart) {
       const v = variantMap.get(c.variant_id);
-      if (v) m.set(v.product_id, (m.get(v.product_id) ?? 0) + c.qty);
+      // Phase 16.4:組合品數量不計入分階門檻
+      if (v && !v.is_bundle) m.set(v.product_id, (m.get(v.product_id) ?? 0) + c.qty);
     }
     return m;
   }, [cart, variantMap]);
@@ -251,6 +252,7 @@ export default function ShopPage() {
   function unitPriceOf(variantId: string): number {
     const v = variantMap.get(variantId);
     if (!v) return 0;
+    if (v.is_bundle) return v.price_twd; // Phase 16.4:組合品固定價
     const p = productMap.get(v.product_id);
     if (!p || p.tiers.length === 0 || saleActiveOf(p, Date.now())) return v.price_twd;
     const totalQty = cartQtyByProduct.get(v.product_id) ?? 0;

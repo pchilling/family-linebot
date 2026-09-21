@@ -33,6 +33,7 @@ export type ShopVariant = {
   price_twd: number;
   stock: number;
   image_url: string | null; // 批次 C #5:選規格切圖
+  is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
 };
 
 export type ShopProduct = {
@@ -136,7 +137,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes, tiersRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, created_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, status)')
+      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, created_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, is_bundle, status)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -218,10 +219,10 @@ export async function loadShopData(
       : [];
 
   type ProductRow = ShopProduct & {
-    product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; image_url: string | null; status: string }[] | null;
+    product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; image_url: string | null; is_bundle: boolean | null; status: string }[] | null;
   };
   return {
-    products: ((productsRes.data ?? []) as ProductRow[]).map((p) => ({
+    products: ((productsRes.data ?? []) as unknown as ProductRow[]).map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description,
@@ -237,7 +238,7 @@ export async function loadShopData(
       stock: p.stock,
       variants: (p.product_variants ?? [])
         .filter((v) => v.status === 'active')
-        .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, image_url: v.image_url ?? null })),
+        .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, image_url: v.image_url ?? null, is_bundle: v.is_bundle ?? false })),
       tiers: tiersByProduct.get(p.id) ?? [],
       sort_order: p.sort_order ?? null,
       created_at: p.created_at,
@@ -369,12 +370,12 @@ export async function placeOrder(
   }
   const { data: variants, error: variantsErr } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, price_twd, status, stock')
+    .select('id, product_id, price_twd, status, stock, is_bundle')
     .in('id', variantIds)
     .eq('tenant_id', TENANT_ID);
   if (variantsErr || !variants) throw new Error('讀取變體失敗');
   if (variants.length !== variantIds.length) throw new Error('部分變體不存在');
-  type VRow = { id: string; product_id: string; price_twd: number; status: string; stock: number };
+  type VRow = { id: string; product_id: string; price_twd: number; status: string; stock: number; is_bundle: boolean };
   for (const v of variants as VRow[]) {
     if (v.status !== 'active') throw new Error('部分變體已下架');
     const cartItem = cart.find((c) => c.variant_id === v.id);
@@ -388,7 +389,8 @@ export async function placeOrder(
   const qtyByProduct = new Map<string, number>();
   for (const c of cart) {
     const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
-    if (v) qtyByProduct.set(v.product_id, (qtyByProduct.get(v.product_id) ?? 0) + c.qty);
+    // Phase 16.4:組合品數量不計入分階門檻
+    if (v && !v.is_bundle) qtyByProduct.set(v.product_id, (qtyByProduct.get(v.product_id) ?? 0) + c.qty);
   }
   const productIds = Array.from(qtyByProduct.keys());
   const { data: saleRows } = await supabaseAdmin
@@ -413,6 +415,8 @@ export async function placeOrder(
       !!sale && sale.pct !== null && sale.pct > 0 && sale.start && sale.end &&
       now >= new Date(sale.start) && now < new Date(sale.end);
     if (saleActive) return Math.round((v.price_twd * (100 - sale!.pct!)) / 100);
+    // Phase 16.4:組合品固定價,不被分階改寫
+    if (v.is_bundle) return v.price_twd;
     const totalQty = qtyByProduct.get(v.product_id) ?? qty;
     return pickPriceFromTiers(tierByProduct.get(v.product_id) ?? [], totalQty, v.price_twd);
   };

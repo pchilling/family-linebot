@@ -481,6 +481,7 @@ export type VariantPublic = {
   price_twd: number;
   stock: number;
   image_url: string | null;
+  is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
   status: string;
 };
 
@@ -508,7 +509,7 @@ export async function getProductBySlug(
   slugOrId: string,
 ): Promise<ProductDetail | null> {
   const cols =
-    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, status)';
+    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, is_bundle, status)';
   // 先試 slug
   let { data } = await supabaseAdmin
     .from('products')

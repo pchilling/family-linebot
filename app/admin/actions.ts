@@ -391,6 +391,8 @@ export async function createVariant(formData: FormData) {
   const stock = numOrNull(formData.get('stock')) ?? 0;
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const scan_id = String(formData.get('scan_id') || '').trim() || null;
+  // Phase 16.4:組合品(如 3本組)— 固定價,不參與分階
+  const is_bundle = formData.get('is_bundle') === 'on';
 
   await supabaseAdmin.from('product_variants').insert({
     tenant_id: tenantId,
@@ -402,6 +404,7 @@ export async function createVariant(formData: FormData) {
     stock,
     image_url,
     scan_id,
+    is_bundle,
     status: 'active',
   });
   revalidateProductRoutes(formData);
@@ -416,10 +419,11 @@ export async function updateVariant(formData: FormData) {
   const stock = numOrNull(formData.get('stock')) ?? 0;
   const status = String(formData.get('status') || 'active');
   const slug = String(formData.get('tenant_slug') || '').trim();
+  const is_bundle = formData.get('is_bundle') === 'on'; // Phase 16.4
 
   await supabaseAdmin
     .from('product_variants')
-    .update({ sku, variant_name, price_twd, cost_twd, stock, status })
+    .update({ sku, variant_name, price_twd, cost_twd, stock, status, is_bundle })
     .eq('id', id);
   revalidateProductRoutes(formData);
 
