@@ -158,7 +158,7 @@
 
 ### Supabase
 - Project URL: `https://tkodwzgrbhhdalcjepad.supabase.co`
-- Region: Tokyo (ap-northeast-1)
+- Region: Mumbai (ap-south-1)（2026-09-27 查證：db 主機位址在 AWS ap-south-1 區段；Vercel 函式也要放 bom1，不要改回 hnd1）
 - Tenants:
   - oilswa: `8106161d-ad82-4bad-ba61-da1aac65bb2c`(Enterprise,三合一愛油哇)
   - cyndi: `8c032fc3-880a-4e96-9dc4-73684511f192`(Pro,童裝代購)
