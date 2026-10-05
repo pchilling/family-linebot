@@ -4,8 +4,8 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
-import { IconChevronLeft } from '@/lib/icons';
-import { createOrder, getCartPricingInfo, getShippingOptions, type CartPricingInfo, type ShippingOption } from './actions';
+import { IconChevronLeft, IconGift } from '@/lib/icons';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, type CartPricingInfo, type GiftRulePublic, type ShippingOption } from './actions';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -23,8 +23,11 @@ export default function CheckoutPage({ params }: Props) {
   // D#13:攤位運費規則(空陣列 = 不收運費,不顯示配送選項)
   const [shipOptions, setShipOptions] = useState<ShippingOption[]>([]);
   const [shipKey, setShipKey] = useState('');
+  // 2026-10-06:滿額贈進度橫幅(蝦皮式)
+  const [giftRules, setGiftRules] = useState<GiftRulePublic[]>([]);
   useEffect(() => {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
+    getGiftRulesPublic(slug).then(setGiftRules).catch(() => {});
   }, [slug]);
 
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
@@ -159,6 +162,42 @@ export default function CheckoutPage({ params }: Props) {
       <h2 style={{ margin: '0 0 1.5rem', fontSize: '1.375rem' }}>
         購物車 <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: '1rem' }}>({totalQty} 件)</span>
       </h2>
+
+      {/* 2026-10-06:滿額贈進度橫幅 — 沒達標顯示還差多少,達標變綠 */}
+      {giftRules.length > 0 && (() => {
+        const met = giftRules.filter((g) => subtotal >= g.threshold_twd);
+        const next = giftRules.find((g) => subtotal < g.threshold_twd);
+        return (
+          <div
+            style={{
+              marginBottom: '0.875rem',
+              padding: '0.75rem 0.875rem',
+              background: met.length > 0 ? '#f0fdf4' : '#fff7ed',
+              border: `1px solid ${met.length > 0 ? '#bbf7d0' : '#fed7aa'}`,
+              borderRadius: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            {met.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', fontWeight: 700, color: '#15803d' }}>
+                <IconGift size={16} />
+                <span>已獲得免費贈品:{met.map((g) => `${g.product_name}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('、')}</span>
+              </div>
+            )}
+            {next && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', fontWeight: met.length > 0 ? 500 : 700, color: '#9a3412' }}>
+                {met.length === 0 && <IconGift size={16} />}
+                <span>
+                  再消費 NT$ {(next.threshold_twd - subtotal).toLocaleString()} 即可獲得免費贈品({next.product_name}
+                  {next.qty > 1 ? ` ×${next.qty}` : ''})
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div
         style={{

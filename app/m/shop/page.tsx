@@ -6,7 +6,7 @@ import { BannerHero } from '../../[slug]/banner-hero';
 import { CopyButton } from '../../[slug]/order/[order_no]/copy-button';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { OtpInput } from '@/lib/otp-input';
-import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconPencil } from '@/lib/icons';
+import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconGift, IconPencil } from '@/lib/icons';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   loadShopData,
@@ -1154,6 +1154,44 @@ export default function ShopPage() {
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>確認訂單</h2>
           </div>
 
+          {/* 2026-10-06:滿額贈進度橫幅(蝦皮式)— 沒達標顯示還差多少,達標變綠 */}
+          {tenant.gift_rules.length > 0 && (() => {
+            const met = tenant.gift_rules.filter((g) => cartTotal >= g.threshold_twd);
+            const next = tenant.gift_rules.find((g) => cartTotal < g.threshold_twd);
+            return (
+              <div
+                style={{
+                  marginBottom: 12,
+                  padding: '12px 14px',
+                  background: met.length > 0 ? '#f0fdf4' : '#fff7ed',
+                  border: `1px solid ${met.length > 0 ? '#bbf7d0' : '#fed7aa'}`,
+                  borderRadius: 10,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                }}
+              >
+                {met.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: '#15803d' }}>
+                    <IconGift size={16} />
+                    <span>
+                      已獲得免費贈品:{met.map((g) => `${g.product_name}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('、')}
+                    </span>
+                  </div>
+                )}
+                {next && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: met.length > 0 ? 500 : 700, color: '#9a3412' }}>
+                    {met.length === 0 && <IconGift size={16} />}
+                    <span>
+                      再消費 NT$ {(next.threshold_twd - cartTotal).toLocaleString()} 即可獲得免費贈品({next.product_name}
+                      {next.qty > 1 ? ` ×${next.qty}` : ''})
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* 購物車明細 */}
           <div style={cardStyle}>
             <div style={cardTitle}>商品明細</div>
@@ -1243,25 +1281,7 @@ export default function ShopPage() {
                   </div>
                 </>
               )}
-              {/* Phase 16(#12):滿額贈進度 — 達標綠字,未達標灰字提示還差多少 */}
-              {tenant.gift_rules.map((g) => {
-                const met = cartTotal >= g.threshold_twd;
-                return (
-                  <div
-                    key={`gift-${g.threshold_twd}-${g.product_name}`}
-                    style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, color: met ? '#16a34a' : '#a1a1aa' }}
-                  >
-                    <span>
-                      {met ? '滿額贈:' : `滿 NT$ ${g.threshold_twd.toLocaleString()} 送 `}
-                      {g.product_name}
-                      {g.qty > 1 ? ` ×${g.qty}` : ''}
-                    </span>
-                    <span style={{ flexShrink: 0, fontWeight: met ? 700 : 400 }}>
-                      {met ? '已達成' : `還差 NT$ ${(g.threshold_twd - cartTotal).toLocaleString()}`}
-                    </span>
-                  </div>
-                );
-              })}
+              {/* 滿額贈進度移到明細卡上方的橫幅(2026-10-06),這裡不再重複列 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 14, color: '#71717a' }}>總計</span>
                 <span style={{

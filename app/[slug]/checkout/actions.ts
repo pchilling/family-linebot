@@ -78,6 +78,42 @@ export type ShippingOption = {
   note?: string;
 };
 
+// 2026-10-06:滿額贈進度橫幅用 — 回有效規則(贈品名已解析,已下架贈品不列)
+export type GiftRulePublic = { threshold_twd: number; qty: number; product_name: string };
+
+export async function getGiftRulesPublic(tenantSlug: string): Promise<GiftRulePublic[]> {
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return [];
+  const { data } = await supabaseAdmin
+    .from('tenants')
+    .select('gift_rules')
+    .eq('id', tenant.id)
+    .maybeSingle();
+  const rules =
+    (data as { gift_rules?: { rules?: { threshold_twd: number; product_id: string; qty: number }[] } | null } | null)
+      ?.gift_rules?.rules ?? [];
+  const valid = rules.filter((r) => r && r.threshold_twd > 0 && !!r.product_id);
+  if (valid.length === 0) return [];
+
+  const { data: prods } = await supabaseAdmin
+    .from('products')
+    .select('id, name, status')
+    .in('id', valid.map((r) => r.product_id));
+  const nameById = new Map(
+    (((prods ?? []) as { id: string; name: string; status: string }[]))
+      .filter((p) => p.status === 'active')
+      .map((p) => [p.id, p.name]),
+  );
+  return valid
+    .filter((r) => nameById.has(r.product_id))
+    .map((r) => ({
+      threshold_twd: r.threshold_twd,
+      qty: Math.max(1, r.qty || 1),
+      product_name: nameById.get(r.product_id)!,
+    }))
+    .sort((a, b) => a.threshold_twd - b.threshold_twd);
+}
+
 export async function getShippingOptions(tenantSlug: string): Promise<ShippingOption[]> {
   const { data } = await supabaseAdmin
     .from('tenants')
