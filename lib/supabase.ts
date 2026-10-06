@@ -257,20 +257,21 @@ export type ClassRow = {
 };
 
 /**
- * 取本月開課的所有 class(以台灣時區為準)
+ * 取「今天 → 下個月底」開課的所有 class(以台灣時區為準)。
+ * 2026-10-06:原本硬切在本月底 — 9 月底看不到 10 月初的課(明明同一週),
+ * 改成涵蓋下個月整月,跨月課表不再斷頭。
  * Join regions 拿地點 name,排除 cancelled,依 scheduled_at 排序
  */
 export async function getClassesForCurrentMonth(tenantId: string): Promise<ClassRow[]> {
   const now = new Date();
-  // Asia/Taipei 月初 / 月末 — Vercel server runs UTC,計算用 UTC offset
+  // Asia/Taipei 月界 — Vercel server runs UTC,計算用 UTC offset
   const twOffsetMs = 8 * 60 * 60 * 1000;
   const twNow = new Date(now.getTime() + twOffsetMs);
-  const monthStart = new Date(Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth(), 1) - twOffsetMs).toISOString();
-  const monthEnd = new Date(Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth() + 1, 1) - twOffsetMs).toISOString();
+  // +2 = 下個月的月底(= 下下月 1 號 00:00 台灣時間)
+  const monthEnd = new Date(Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth() + 2, 1) - twOffsetMs).toISOString();
 
   // 只列未來 + 今天(scheduled_at >= now),過去場次過濾掉
-  const nowIso = now.toISOString();
-  const effectiveStart = nowIso > monthStart ? nowIso : monthStart;
+  const effectiveStart = now.toISOString();
 
   const { data, error } = await supabaseAdmin
     .from('classes')

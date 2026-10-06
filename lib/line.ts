@@ -101,7 +101,7 @@ function getPostbackReply(data: string): string {
   switch (action) {
     case 'monthly-classes':
       return [
-        '📅 本月課程',
+        '📅 近期課程',
         '',
         '台北 / 台中 / 高雄 / 台南 四區課表建置中,',
         '小編後台上線後會在這裡更新本月 16 場次。',
@@ -282,9 +282,9 @@ export function getContactQuickReplyItems(): messagingApi.QuickReplyItem[] {
 export function formatMonthlyClassesText(classes: ClassRow[]): string {
   if (classes.length === 0) {
     return [
-      '📅 本月課程',
+      '📅 近期課程',
       '',
-      '本月尚未公告課程,請留言詢問或關注最新消息。',
+      '近期尚未公告課程,請留言詢問或關注最新消息。',
     ].join('\n');
   }
 
@@ -296,7 +296,8 @@ export function formatMonthlyClassesText(classes: ClassRow[]): string {
   }
 
   const regions = ['台北', '台中', '高雄', '台南'];
-  const lines: string[] = ['📅 本月課程'];
+  // 2026-10-06:範圍涵蓋到下個月底,標題改「近期課程」名實相符
+  const lines: string[] = ['📅 近期課程'];
 
   for (const region of regions) {
     const rows = byRegion[region];
@@ -522,7 +523,7 @@ export function buildMonthlyClassesFlex(
   return {
     type: 'flex',
     // altText 用實際顯示張數(carousel 只放前 10),超過時不虛報總數
-    altText: `本月課程 ${Math.min(classes.length, 10)} 場`,
+    altText: `近期課程 ${Math.min(classes.length, 10)} 場`,
     contents: {
       type: 'carousel',
       contents: bubbles,
