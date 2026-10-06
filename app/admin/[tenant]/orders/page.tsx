@@ -13,6 +13,7 @@ type OrderRow = {
   source: string;
   shipping_recipient: string | null;
   shipping_phone: string | null;
+  shipping_method: string | null; // 2026-10-06:自取訂單快速鍵顯示「標已備貨」
   shipping_fee_twd: number | null;
   payment_reported_at: string | null;
   payment_last5: string | null;
@@ -34,7 +35,7 @@ async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_fee_twd, payment_reported_at, payment_last5, created_at, users(display_name, full_name)',
+      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_method, shipping_fee_twd, payment_reported_at, payment_last5, created_at, users(display_name, full_name)',
     )
     .eq('tenant_id', tenantId);
 
@@ -428,13 +429,15 @@ function QuickAction({
   }
 
   if (order.status === 'paid') {
+    // 2026-10-06:自取訂單沒有「出貨」,按鈕改「已備貨」(DB 狀態仍是 shipped,只換文案)
+    const isPickup = order.shipping_method === 'pickup';
     return (
       <form action={markOrderShipped} style={{ display: 'flex', gap: 4 }}>
         <input type="hidden" name="id" value={order.id} />
         <input type="hidden" name="tenant_slug" value={tenantSlug} />
         <input type="hidden" name="return_to" value="list" />
-        <ConfirmButton bg="#0070f3" confirmText={`確定把訂單 ${order.order_no} 標記為「已出貨」?`}>
-          📦 已出貨
+        <ConfirmButton bg="#0070f3" confirmText={`確定把訂單 ${order.order_no} 標記為「${isPickup ? '已備貨(待自取)' : '已出貨'}」?`}>
+          📦 {isPickup ? '已備貨' : '已出貨'}
         </ConfirmButton>
         {linkBtn}
       </form>

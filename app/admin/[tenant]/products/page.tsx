@@ -439,7 +439,7 @@ details[open] .chev { transform: rotate(90deg); }
                 ))}
               </select>
             </label>
-            <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
+            <label style={label}><span style={labelText}>初始庫存(建立後請到變體區管理)</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
             <label style={{ ...label, gridColumn: '1 / -1' }}>
               <span style={labelText}>描述</span>
               <textarea name="description" rows={2} style={{ ...input, fontFamily: 'inherit' }} />
@@ -689,7 +689,8 @@ details[open] .chev { transform: rotate(90deg); }
                     <label style={label}><span style={labelText}>分類</span><input name="category" defaultValue={p.category ?? ''} style={input} /></label>
                     <label style={label}><span style={labelText}>售價</span><input name="price_twd" type="number" defaultValue={p.price_twd} style={input} /></label>
                     <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={p.cost_twd ?? ''} style={input} /></label>
-                    <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={p.stock} style={input} /></label>
+                    {/* 2026-10-06:商品層庫存改唯讀加總 — 真實庫存一律看/改「變體」的庫存欄 */}
+                    <label style={label}><span style={labelText}>庫存(各變體加總,到變體區修改)</span><input value={p.product_variants.filter((v) => v.status === 'active').reduce((s, v) => s + v.stock, 0)} readOnly style={{ ...input, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }} /></label>
                     <label style={label}>
                       <span style={labelText}>狀態</span>
                       <select name="status" defaultValue={p.status} style={input}>

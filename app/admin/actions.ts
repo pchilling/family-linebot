@@ -445,7 +445,8 @@ export async function updateProduct(formData: FormData) {
   const description = String(formData.get('description') || '').trim() || null;
   const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
   const cost_twd = numOrNull(formData.get('cost_twd'));
-  const stock = numOrNull(formData.get('stock')) ?? 0;
+  // 2026-10-06:不再寫 products.stock — 真實庫存一律在變體(products.stock 是
+  // 無變體時代的舊欄位,後台同時顯示兩個庫存一直造成「庫存有誤」的混淆)
   const image_url = String(formData.get('image_url') || '').trim() || null;
   const category = String(formData.get('category') || '').trim() || null;
   const badge = String(formData.get('badge') || '').trim() || null;
@@ -456,7 +457,7 @@ export async function updateProduct(formData: FormData) {
 
   await supabaseAdmin
     .from('products')
-    .update({ sku, name, description, price_twd, cost_twd, stock, image_url, category, badge, badge_color, status })
+    .update({ sku, name, description, price_twd, cost_twd, image_url, category, badge, badge_color, status })
     .eq('id', id);
   revalidateProductRoutes(formData);
 

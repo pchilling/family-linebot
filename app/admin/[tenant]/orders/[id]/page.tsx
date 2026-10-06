@@ -110,6 +110,8 @@ export default async function OrderDetailPage({
   const justEdit = sp.saved === 'edit';
   const isPaid = o.payment_status === 'paid';
   const isShipped = o.status === 'shipped' || o.status === 'delivered';
+  // 2026-10-06:自取訂單的「出貨」其實是「備貨」,相關文案依配送方式切換
+  const isPickup = o.shipping_method === 'pickup';
 
   return (
     <main style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
@@ -224,7 +226,7 @@ export default async function OrderDetailPage({
 
       {/* 2026-09-11:對帳回饋改頂部滑入通知(shadcn Sonner 風格) */}
       {(justPaid || justShipped || justEdit) && (
-        <FlashToast message={justPaid ? '已標已付款' : justShipped ? '已標已出貨' : '已儲存訂單資料'} />
+        <FlashToast message={justPaid ? '已標已付款' : justShipped ? (isPickup ? '已標已備貨' : '已標已出貨') : '已儲存訂單資料'} />
       )}
 
       {/* 對帳 quick actions(2026-05-22 加,未付/已付/已出貨 三狀態顯示) */}
@@ -300,13 +302,18 @@ export default async function OrderDetailPage({
           <form action={markOrderShipped} style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0' }}>
             <input type="hidden" name="id" value={o.id} />
             <input type="hidden" name="tenant_slug" value={tenant.slug} />
-            <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已出貨」?">標已出貨</SubmitButton>
+            <SubmitButton
+              pendingText="標記中…"
+              confirmText={isPickup ? '確定標記這筆自取訂單為「已備貨」?(客人訂單頁會顯示可取貨)' : '確定標記這筆訂單為「已出貨」?'}
+            >
+              {isPickup ? '標已備貨(待自取)' : '標已出貨'}
+            </SubmitButton>
           </form>
         )}
 
         {isShipped && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0', fontSize: 13, color: '#0a7038' }}>
-            已出貨 {formatTw(o.shipped_at)}
+            {isPickup ? '已備貨(等待取貨)' : '已出貨'} {formatTw(o.shipped_at)}
           </div>
         )}
       </section>
@@ -323,8 +330,8 @@ export default async function OrderDetailPage({
               <select name="status" defaultValue={o.status} style={input}>
                 <option value="open">待付款</option>
                 <option value="paid">已付款</option>
-                <option value="shipped">已出貨</option>
-                <option value="delivered">已送達</option>
+                <option value="shipped">{isPickup ? '已備貨(自取)' : '已出貨'}</option>
+                <option value="delivered">{isPickup ? '已取貨' : '已送達'}</option>
                 <option value="cancelled">已取消(自動退庫存)</option>
                 <option value="refunded">已退款(自動退庫存)</option>
               </select>

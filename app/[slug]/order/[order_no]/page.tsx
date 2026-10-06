@@ -174,6 +174,8 @@ export default async function OrderPage({ params }: Props) {
   // 2026-09-08:狀態感知頁首 — 回頭查單第一眼就看到目前進度(原本永遠顯示「訂單已成立」)
   // v2:「回報五碼」明確納入流程步驟,客人才知道要做這件事
   const isCancelled = order.status === 'cancelled' || order.status === 'refunded';
+  // 2026-10-06:自取訂單沒有「出貨/送達」,文案改「備貨/取貨」(DB 狀態共用 shipped/delivered)
+  const isPickup = order.shipping_method === 'pickup';
   const stage =
     order.status === 'delivered' ? 4
     : order.status === 'shipped' ? 3
@@ -193,9 +195,11 @@ export default async function OrderPage({ params }: Props) {
         : stage === 2
           ? { icon: <IconCheckCircle size={18} />, title: '已收款,商品準備中', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' }
           : stage === 3
-            ? { icon: <IconPackage size={18} />, title: '已出貨', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8' }
-            : { icon: <IconCheckCircle size={18} />, title: '已送達,感謝您的訂購', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' };
-  const steps = ['下單', '回報五碼', '已收款', '出貨', '送達'];
+            ? { icon: <IconPackage size={18} />, title: isPickup ? '已備貨,歡迎取貨' : '已出貨', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8' }
+            : { icon: <IconCheckCircle size={18} />, title: isPickup ? '已取貨,感謝您的訂購' : '已送達,感謝您的訂購', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' };
+  const steps = isPickup
+    ? ['下單', '回報五碼', '已收款', '備貨', '取貨']
+    : ['下單', '回報五碼', '已收款', '出貨', '送達'];
 
   return (
     <div>
@@ -552,7 +556,13 @@ export default async function OrderPage({ params }: Props) {
         </h3>
         <dl style={{ display: 'grid', gridTemplateColumns: '5rem 1fr', gap: '0.5rem 1rem', margin: 0, fontSize: '0.875rem' }}>
           <dt style={{ color: '#9ca3af' }}>訂單</dt>
-          <dd style={{ margin: 0 }}>{STATUS_LABEL[order.status] ?? order.status}</dd>
+          <dd style={{ margin: 0 }}>
+            {isPickup && order.status === 'shipped'
+              ? '已備貨(待取貨)'
+              : isPickup && order.status === 'delivered'
+                ? '已取貨'
+                : STATUS_LABEL[order.status] ?? order.status}
+          </dd>
           <dt style={{ color: '#9ca3af' }}>付款</dt>
           <dd style={{ margin: 0 }}>{PAYMENT_LABEL[order.payment_status] ?? order.payment_status}</dd>
           <dt style={{ color: '#9ca3af' }}>下單時間</dt>
