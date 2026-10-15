@@ -61,6 +61,24 @@ function buildHeaders(cfg: LinePayConfig, uri: string, body: string): Record<str
   };
 }
 
+/**
+ * ⚠️ 2026-10-16 關鍵修正:LINE Pay 的 transactionId 是 19 位數字,
+ * 直接 JSON.parse 會超過 JS 的安全整數上限(16 位)而被四捨五入
+ * (例:...734123 變成 ...734000),之後拿這個錯誤序號去 confirm 一定失敗,
+ * 客人付了款卻收不到。解析前先把它改成字串,完整位數才留得住。
+ */
+function parseLinePayJson(text: string): LinePayResponse | null {
+  try {
+    const safe = text.replace(
+      /"(transactionId|refundTransactionId)"\s*:\s*(\d+)/g,
+      '"$1":"$2"',
+    );
+    return JSON.parse(safe) as LinePayResponse;
+  } catch {
+    return null;
+  }
+}
+
 type LinePayResponse = {
   returnCode?: string;
   returnMessage?: string;
@@ -83,12 +101,9 @@ async function postToLinePay(
     signal: AbortSignal.timeout(20000),
   });
   const text = await res.text();
-  try {
-    return JSON.parse(text) as LinePayResponse;
-  } catch {
-    console.error('[linepay] 回應不是 JSON', res.status, text.slice(0, 300));
-    return null;
-  }
+  const json = parseLinePayJson(text);
+  if (!json) console.error('[linepay] 回應不是 JSON', res.status, text.slice(0, 300));
+  return json;
 }
 
 /** GET 的簽章:HMAC(secret, secret + uri + queryString + nonce);沒有 query 就傳空字串 */
@@ -113,12 +128,9 @@ async function getFromLinePay(
     signal: AbortSignal.timeout(20000),
   });
   const text = await res.text();
-  try {
-    return JSON.parse(text) as LinePayResponse;
-  } catch {
-    console.error('[linepay] GET 回應不是 JSON', res.status, text.slice(0, 300));
-    return null;
-  }
+  const json = parseLinePayJson(text);
+  if (!json) console.error('[linepay] GET 回應不是 JSON', res.status, text.slice(0, 300));
+  return json;
 }
 
 /**
