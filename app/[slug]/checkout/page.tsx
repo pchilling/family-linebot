@@ -171,7 +171,9 @@ function OptionCard({
         value={value}
         checked={checked}
         onChange={onSelect}
-        required
+        // 2026-10-16:刻意不加 required — 原生必填會在表單送出前就擋下,
+        // 自訂提示反而跑不到,且提示氣泡常落在畫面外 = 看起來沒反應。
+        // 改由 handleSubmit 自己檢查並捲到該區塊顯示紅字。
       />
       <span className="opt-icon" style={{ background: `${accent}1a`, color: accent }}>
         {icon}

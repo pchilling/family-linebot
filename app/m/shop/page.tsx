@@ -1367,7 +1367,8 @@ export default function ShopPage() {
                           type="radio"
                           name="shipping_method"
                           value={opt.key}
-                          required
+                          // 2026-10-16:刻意不加 required — 原生必填會在表單送出前就擋下,
+                          // 我們自己的提示反而沒機會跑,LIFF 又不顯示原生氣泡 = 看起來沒反應
                           checked={isActive}
                           onChange={() => setShipKey(opt.key)}
                           style={{ marginTop: 3 }}
