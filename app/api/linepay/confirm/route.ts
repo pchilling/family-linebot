@@ -61,6 +61,11 @@ export async function GET(req: NextRequest) {
   if (order.payment_status === 'paid') {
     return NextResponse.redirect(orderUrl('?linepay=done'));
   }
+  // 已取消的單不收款(例如逾期自動取消後客人才按付款)— 沒呼叫 confirm 就不會扣到錢
+  if (order.status === 'cancelled' || order.status === 'refunded') {
+    console.warn('[linepay confirm] 訂單已取消,不收款', orderNo);
+    return NextResponse.redirect(orderUrl('?linepay=cancelled_order'));
+  }
   if (order.linepay_transaction_id !== transactionId) {
     console.error('[linepay confirm] 交易序號對不上', orderNo, transactionId);
     return NextResponse.redirect(orderUrl('?linepay=failed'));

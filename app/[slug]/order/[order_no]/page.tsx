@@ -289,6 +289,24 @@ export default async function OrderPage({ params, searchParams }: Props) {
         )}
       </div>
 
+      {/* 逾期自動取消後客人才按付款 → 告知沒有收費(訂單已取消,上方付款卡不會顯示) */}
+      {linePayState === 'cancelled_order' && (
+        <div
+          style={{
+            padding: '0.875rem 1.125rem',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            color: '#991b1b',
+            fontSize: '0.875rem',
+            lineHeight: 1.6,
+            marginBottom: '1.5rem',
+          }}
+        >
+          這筆訂單已經取消,<strong>沒有向您收取任何費用</strong>。需要的話請重新下單,謝謝。
+        </div>
+      )}
+
       {/* 2026-10-15:LINE Pay 訂單未付款 → 付款按鈕(不顯示匯款資訊、不用回報後 5 碼) */}
       {isLinePayOrder && order.payment_status !== 'paid' && !isCancelled && (
         <section
