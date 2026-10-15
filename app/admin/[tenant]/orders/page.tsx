@@ -17,6 +17,7 @@ type OrderRow = {
   shipping_fee_twd: number | null;
   payment_reported_at: string | null;
   payment_last5: string | null;
+  payment_method: string | null; // 2026-10-16:標示 LINE Pay 未完成付款的單
   created_at: string;
   users: { display_name: string | null; full_name: string | null } | null;
 };
@@ -35,7 +36,7 @@ async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_method, shipping_fee_twd, payment_reported_at, payment_last5, created_at, users(display_name, full_name)',
+      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_method, shipping_fee_twd, payment_reported_at, payment_last5, payment_method, created_at, users(display_name, full_name)',
     )
     .eq('tenant_id', tenantId);
 
@@ -363,6 +364,15 @@ export default async function OrdersListPage({
                     <div style={{ marginTop: 3 }}>
                       <span style={{ display: 'inline-block', padding: '1px 7px', background: '#fef3c7', color: '#92400e', borderRadius: 3, fontSize: 11, fontWeight: 700 }}>
                         💬 回報 {o.payment_last5}
+                      </span>
+                    </div>
+                  )}
+                  {/* 2026-10-16:客人選了 LINE Pay 但沒付完 — 不是等你核帳的單,
+                      隔天排程會自動取消並退庫存,標出來免得被當成待辦 */}
+                  {o.payment_status === 'pending' && o.payment_method === 'line_pay' && (
+                    <div style={{ marginTop: 3 }}>
+                      <span style={{ display: 'inline-block', padding: '1px 7px', background: '#f4f4f5', color: '#71717a', borderRadius: 3, fontSize: 11, fontWeight: 600 }}>
+                        LINE Pay 未完成
                       </span>
                     </div>
                   )}
