@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { refundLinePayPayment } from '@/lib/linepay';
+import { lineClient } from '@/lib/line';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
 
@@ -809,6 +811,103 @@ export async function markOrderShipped(formData: FormData) {
     }
     redirect(`/admin/${slug}/orders/${id}?saved=shipped`);
   }
+}
+
+// ====================
+// LINE Pay 退款(2026-10-15)— 半自動:要在退款卡填金額 + 二次確認才會送出
+// 全額退 → 順便把訂單標已退款(trigger 自動退庫存);部分退 → 只退錢,狀態不動。
+// ⚠️ 退款不可逆,先退錢成功才改訂單。
+// ====================
+export async function refundLinePayOrder(formData: FormData) {
+  const id = String(formData.get('id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const amountRaw = Number(formData.get('refund_amount'));
+
+  const back = (saved: string) => {
+    if (!slug) return;
+    revalidatePath(`/admin/${slug}/orders/${id}`);
+    revalidatePath(`/admin/${slug}/orders`);
+    redirect(`/admin/${slug}/orders/${id}?saved=${saved}`);
+  };
+
+  const { data } = await supabaseAdmin
+    .from('orders')
+    .select(
+      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, linepay_transaction_id, linepay_refunded_twd, users(line_user_id)',
+    )
+    .eq('id', id)
+    .maybeSingle();
+  const order = (data ?? null) as unknown as {
+    id: string;
+    order_no: string;
+    total_twd: number;
+    shipping_fee_twd: number | null;
+    payment_status: string;
+    payment_method: string | null;
+    linepay_transaction_id: string | null;
+    linepay_refunded_twd: number | null;
+    users: { line_user_id: string | null } | null;
+  } | null;
+
+  if (!order || order.payment_method !== 'line_pay' || !order.linepay_transaction_id) {
+    console.error('[refundLinePayOrder] 不是可退款的 LINE Pay 訂單', id);
+    return back('refund_failed');
+  }
+
+  const grandTotal = order.total_twd + (order.shipping_fee_twd ?? 0);
+  const already = order.linepay_refunded_twd ?? 0;
+  const remaining = grandTotal - already;
+  if (remaining <= 0) {
+    console.error('[refundLinePayOrder] 已無可退金額', order.order_no);
+    return back('refund_failed');
+  }
+
+  const amount =
+    Number.isFinite(amountRaw) && amountRaw > 0 ? Math.floor(amountRaw) : remaining;
+  if (amount > remaining) {
+    console.error('[refundLinePayOrder] 退款金額超過可退金額', order.order_no, amount, remaining);
+    return back('refund_over');
+  }
+
+  const result = await refundLinePayPayment(order.linepay_transaction_id, amount);
+  if (!result.ok) return back('refund_failed');
+
+  const refundedTotal = already + amount;
+  const isFullRefund = refundedTotal >= grandTotal;
+  const payload: Record<string, unknown> = { linepay_refunded_twd: refundedTotal };
+  if (isFullRefund) {
+    // status 改 refunded 會觸發 handle_order_cancel 自動退庫存
+    payload.status = 'refunded';
+    payload.payment_status = 'refunded';
+  }
+  const { error: updErr } = await supabaseAdmin.from('orders').update(payload).eq('id', id);
+  if (updErr) {
+    // 錢已經退了,這裡失敗要人工補標,務必留 log
+    console.error('[refundLinePayOrder] 已退款但更新訂單失敗', order.order_no, amount, updErr);
+  }
+
+  const lineUserId = order.users?.line_user_id;
+  if (lineUserId) {
+    try {
+      await lineClient.pushMessage({
+        to: lineUserId,
+        messages: [
+          {
+            type: 'text',
+            text:
+              `✓ 退款已完成\n` +
+              `訂單編號:${order.order_no}\n` +
+              `退款金額:NT$ ${amount.toLocaleString()}\n\n` +
+              `款項會退回您原本付款的 LINE Pay 帳戶,實際入帳時間依發卡銀行或支付方式而定。`,
+          },
+        ],
+      });
+    } catch (e) {
+      console.warn('[refundLinePayOrder] push 失敗', e);
+    }
+  }
+
+  return back('refunded');
 }
 
 // ====================

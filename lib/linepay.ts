@@ -189,3 +189,38 @@ export async function confirmLinePayPayment(
   }
   return { ok: true };
 }
+
+export type LinePayRefundResult = { ok: true } | { ok: false; error: string; code: string };
+
+/**
+ * 退款(2026-10-15)。refundAmount 不帶 = 全額退;帶了 = 部分退。
+ * ⚠️ 退款不可逆。LINE Pay 自己會擋超額退款與過期交易(一般是原交易 60 天內)。
+ */
+export async function refundLinePayPayment(
+  transactionId: string,
+  refundAmount?: number,
+): Promise<LinePayRefundResult> {
+  const cfg = getConfig();
+  if (!cfg) return { ok: false, error: 'LINE Pay 尚未設定', code: 'no_config' };
+
+  const payload =
+    refundAmount && refundAmount > 0 ? { refundAmount: Math.floor(refundAmount) } : {};
+
+  let json: LinePayResponse | null;
+  try {
+    json = await postToLinePay(cfg, `/v3/payments/${transactionId}/refund`, payload);
+  } catch (e) {
+    console.error('[linepay refund] 連線失敗', e);
+    return { ok: false, error: '無法連線 LINE Pay', code: 'network' };
+  }
+
+  if (json?.returnCode !== '0000') {
+    console.error('[linepay refund] 失敗', transactionId, json?.returnCode, json?.returnMessage);
+    return {
+      ok: false,
+      error: json?.returnMessage ?? '退款失敗',
+      code: json?.returnCode ?? 'unknown',
+    };
+  }
+  return { ok: true };
+}

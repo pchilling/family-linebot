@@ -103,6 +103,29 @@ export function IconBank({ size = 16, color = 'currentColor', style }: IconProps
   );
 }
 
+// 2026-10-15:行動支付(LINE Pay 等電子錢包)
+export function IconWallet({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2" />
+      <rect x="3" y="7" width="18" height="12" rx="2" />
+      <path d="M16 12.5h3" />
+    </svg>
+  );
+}
+
+// 2026-10-15:配送(宅配 / 貨運)
+export function IconTruck({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M3 6h10v9H3z" />
+      <path d="M13 9h4l3 3v3h-7z" />
+      <circle cx="7" cy="17.5" r="1.8" />
+      <circle cx="16.5" cy="17.5" r="1.8" />
+    </svg>
+  );
+}
+
 export function IconFlame({ size = 16, color = 'currentColor', style }: IconProps) {
   return (
     <svg {...svgProps(size, color, style)}>

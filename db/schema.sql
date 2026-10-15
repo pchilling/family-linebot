@@ -1224,3 +1224,8 @@ alter table orders add column if not exists linepay_transaction_id text;
 update tenants
 set features = coalesce(features, '{}'::jsonb) || '{"line_pay": true}'::jsonb
 where slug = 'oilswa';
+
+-- Phase 17.1(2026-10-15):LINE Pay 退款(後台半自動,填金額 + 二次確認)
+-- 已退金額累計:支援分次部分退款;退到跟實收相同時訂單自動標 refunded
+-- (handle_order_cancel trigger 會自動退庫存)。
+alter table orders add column if not exists linepay_refunded_twd int not null default 0;

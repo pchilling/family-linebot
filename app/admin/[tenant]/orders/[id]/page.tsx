@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
-import { updateOrder, markOrderPaid, markOrderShipped } from '../../../actions';
+import { updateOrder, markOrderPaid, markOrderShipped, refundLinePayOrder } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
 
@@ -22,6 +22,8 @@ type OrderDetail = {
   payment_method: string | null;
   payment_last5: string | null;
   payment_reported_at: string | null; // D#14:客人自助回報時間
+  linepay_transaction_id: string | null; // Phase 17:LINE Pay 交易序號(退款要用)
+  linepay_refunded_twd: number | null; // Phase 17:已退款金額(部分退款累計)
   invoice_tax_id: string | null; // Phase 15.4:統編發票
   invoice_title: string | null;
   total_twd: number;
@@ -53,6 +55,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
     .select(
       // payment_last5 / payment_reported_at / shipping_*:Phase 14-15 SQL(2026-09-02)已加
       `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
+       linepay_transaction_id, linepay_refunded_twd,
        invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, note,
@@ -108,6 +111,12 @@ export default async function OrderDetailPage({
   const justPaid = sp.saved === 'paid';
   const justShipped = sp.saved === 'shipped';
   const justEdit = sp.saved === 'edit';
+  // Phase 17:LINE Pay 退款結果
+  const refundMsg =
+    sp.saved === 'refunded' ? '退款已送出,客人會收到 LINE 通知'
+    : sp.saved === 'refund_over' ? '退款失敗:金額超過可退金額'
+    : sp.saved === 'refund_failed' ? '退款失敗,款項未退出 — 請看 Vercel log 或到 LINE Pay 商家中心確認'
+    : null;
   const isPaid = o.payment_status === 'paid';
   const isShipped = o.status === 'shipped' || o.status === 'delivered';
   // 2026-10-06:自取訂單的「出貨」其實是「備貨」,相關文案依配送方式切換
@@ -225,8 +234,8 @@ export default async function OrderDetailPage({
       </section>
 
       {/* 2026-09-11:對帳回饋改頂部滑入通知(shadcn Sonner 風格) */}
-      {(justPaid || justShipped || justEdit) && (
-        <FlashToast message={justPaid ? '已標已付款' : justShipped ? (isPickup ? '已標已備貨' : '已標已出貨') : '已儲存訂單資料'} />
+      {(justPaid || justShipped || justEdit || refundMsg) && (
+        <FlashToast message={refundMsg ?? (justPaid ? '已標已付款' : justShipped ? (isPickup ? '已標已備貨' : '已標已出貨') : '已儲存訂單資料')} />
       )}
 
       {/* 對帳 quick actions(2026-05-22 加,未付/已付/已出貨 三狀態顯示) */}
@@ -317,6 +326,56 @@ export default async function OrderDetailPage({
           </div>
         )}
       </section>
+
+      {/* Phase 17(2026-10-15):LINE Pay 退款 — 半自動,要填金額 + 二次確認。
+          全額退會順便標訂單已退款並自動退庫存;部分退只退錢,狀態不動。 */}
+      {o.payment_method === 'line_pay' && o.linepay_transaction_id && (() => {
+        const grandTotal = o.total_twd + (o.shipping_fee_twd ?? 0);
+        const alreadyRefunded = o.linepay_refunded_twd ?? 0;
+        const remaining = grandTotal - alreadyRefunded;
+        return (
+          <section style={{ ...section, background: '#fff7ed', borderColor: '#fed7aa' }}>
+            <h2 style={{ ...h2, color: '#9a3412' }}>LINE Pay 退款</h2>
+            <div style={{ fontSize: 13, color: '#7c2d12', lineHeight: 1.7, marginBottom: 12 }}>
+              交易序號 <code style={{ fontFamily: 'ui-monospace, monospace' }}>{o.linepay_transaction_id}</code>
+              <br />
+              實收 NT$ {grandTotal.toLocaleString()}
+              {alreadyRefunded > 0 && <> · 已退 NT$ {alreadyRefunded.toLocaleString()}</>}
+              {' '}· 可退 <strong>NT$ {remaining.toLocaleString()}</strong>
+            </div>
+            {remaining <= 0 ? (
+              <div style={{ fontSize: 13, color: '#9a3412', fontWeight: 600 }}>此筆已全額退款完畢。</div>
+            ) : (
+              <form action={refundLinePayOrder} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <input type="hidden" name="id" value={o.id} />
+                <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                <label style={{ ...label, flex: '0 1 160px' }}>
+                  <span style={labelText}>退款金額(NT$)</span>
+                  <input
+                    name="refund_amount"
+                    type="number"
+                    min="1"
+                    max={remaining}
+                    defaultValue={remaining}
+                    style={input}
+                  />
+                </label>
+                <SubmitButton
+                  variant="danger"
+                  pendingText="退款中…"
+                  confirmText={`確定要退款給客人嗎?退款不可取消,確認後款項會立刻退回客人的 LINE Pay。(訂單 ${o.order_no})`}
+                >
+                  送出退款
+                </SubmitButton>
+              </form>
+            )}
+            <div style={{ fontSize: 12, color: '#9a3412', marginTop: 10, lineHeight: 1.6 }}>
+              預設帶全額。要部分退款(例如只退一項或扣掉運費)就改小金額,可以分次退到額滿。
+              全額退完會自動把訂單標成「已退款」並退回庫存。
+            </div>
+          </section>
+        );
+      })()}
 
       <section style={section}>
         <h2 style={h2}>狀態 / 出貨 / 備註(進階)</h2>

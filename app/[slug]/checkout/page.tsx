@@ -4,12 +4,96 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
-import { IconChevronLeft, IconGift } from '@/lib/icons';
+import { IconBank, IconChevronLeft, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
 import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftRulePublic, type ShippingOption } from './actions';
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
+
+/**
+ * 2026-10-15:配送 / 付款方式的選項卡樣式。
+ * 原本是一排小圓鈕,點擊區小又難看;改成整張卡可點,左邊 icon 磚、右邊自訂圓鈕。
+ * 原生 radio 藏起來但保留(鍵盤 Tab / 表單送出照常運作)。
+ */
+const checkoutCss = `
+@keyframes co-spin { to { transform: rotate(360deg); } }
+.opt-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.opt-card {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.875rem; border: 1.5px solid #e5e7eb; border-radius: 12px;
+  background: #fff; cursor: pointer; position: relative;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.opt-card:hover { border-color: #d1d5db; }
+.opt-card-on { border-color: #111827; box-shadow: 0 0 0 3px rgba(17,24,39,.06); }
+.opt-card:has(.opt-radio:focus-visible) { outline: 2px solid #2563eb; outline-offset: 2px; }
+.opt-radio { position: absolute; opacity: 0; width: 0; height: 0; }
+.opt-icon {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.opt-dot {
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d1d5db;
+  flex-shrink: 0; margin-top: 10px; position: relative; transition: border-color .15s ease;
+}
+.opt-card-on .opt-dot { border-color: #111827; }
+.opt-card-on .opt-dot::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #111827;
+}
+@media (prefers-reduced-motion: reduce) { .opt-card, .opt-dot { transition: none; } }
+`;
+
+function OptionCard({
+  name,
+  value,
+  checked,
+  onSelect,
+  icon,
+  accent,
+  title,
+  desc,
+  trailing,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onSelect: () => void;
+  icon: React.ReactNode;
+  accent: string;
+  title: string;
+  desc?: React.ReactNode;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <label className={checked ? 'opt-card opt-card-on' : 'opt-card'}>
+      <input
+        className="opt-radio"
+        type="radio"
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={onSelect}
+        required
+      />
+      <span className="opt-icon" style={{ background: `${accent}1a`, color: accent }}>
+        {icon}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#111827' }}>{title}</span>
+          {trailing}
+        </span>
+        {desc && (
+          <span style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginTop: 3, lineHeight: 1.55 }}>
+            {desc}
+          </span>
+        )}
+      </span>
+      <span className="opt-dot" aria-hidden />
+    </label>
+  );
+}
 
 export default function CheckoutPage({ params }: Props) {
   const { slug } = use(params);
@@ -301,60 +385,45 @@ export default function CheckoutPage({ params }: Props) {
       </div>
 
       <form action={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <style dangerouslySetInnerHTML={{ __html: checkoutCss }} />
         {/* D#13:配送方式(攤位有設運費規則才顯示) */}
         {shipOptions.length > 0 && (
           <div>
             <span style={labelStyle}>
               配送方式 <span style={{ color: '#ef4444' }}>*</span>
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div className="opt-list">
               {shipOptions.map((opt) => {
                 const isFree = !!opt.free_over && subtotal >= opt.free_over;
-                const isActive = shipKey === opt.key;
+                const isPickupOpt = opt.key === 'pickup';
                 return (
-                  <label
+                  <OptionCard
                     key={opt.key}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '0.625rem',
-                      padding: '0.75rem 0.875rem',
-                      border: `1.5px solid ${isActive ? '#1f2937' : '#e5e7eb'}`,
-                      borderRadius: 8,
-                      background: isActive ? '#f9fafb' : '#fff',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="shipping_method"
-                      value={opt.key}
-                      required
-                      checked={isActive}
-                      onChange={() => setShipKey(opt.key)}
-                      style={{ marginTop: 3 }}
-                    />
-                    <span style={{ flex: 1 }}>
-                      <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontWeight: 600, color: '#1f2937' }}>
-                        <span>{opt.label}</span>
-                        <span style={{ color: isFree || opt.fee === 0 ? '#15803d' : '#1f2937' }}>
-                          {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${opt.fee}`}
-                        </span>
+                    name="shipping_method"
+                    value={opt.key}
+                    checked={shipKey === opt.key}
+                    onSelect={() => setShipKey(opt.key)}
+                    accent={isPickupOpt ? '#b45309' : '#475569'}
+                    icon={isPickupOpt ? <IconPackage size={19} /> : <IconTruck size={19} />}
+                    title={opt.label}
+                    trailing={
+                      <span style={{ fontSize: '0.875rem', fontWeight: 700, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : '#111827' }}>
+                        {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${opt.fee}`}
                       </span>
-                      {opt.free_over ? (
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: isFree ? '#15803d' : '#6b7280', marginTop: 3 }}>
-                          {isFree
-                            ? `已滿 NT$ ${opt.free_over.toLocaleString()},免運`
-                            : `滿 NT$ ${opt.free_over.toLocaleString()} 免運(還差 NT$ ${(opt.free_over - subtotal).toLocaleString()})`}
-                        </span>
-                      ) : null}
-                      {opt.note && (
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#b45309', marginTop: 3, lineHeight: 1.5 }}>
-                          ※ {opt.note}
-                        </span>
-                      )}
-                    </span>
-                  </label>
+                    }
+                    desc={
+                      <>
+                        {opt.free_over ? (
+                          <span style={{ display: 'block', color: isFree ? '#15803d' : '#6b7280' }}>
+                            {isFree
+                              ? `已滿 NT$ ${opt.free_over.toLocaleString()},免運`
+                              : `滿 NT$ ${opt.free_over.toLocaleString()} 免運(還差 NT$ ${(opt.free_over - subtotal).toLocaleString()})`}
+                          </span>
+                        ) : null}
+                        {opt.note && <span style={{ display: 'block', color: '#b45309' }}>※ {opt.note}</span>}
+                      </>
+                    }
+                  />
                 );
               })}
             </div>
@@ -366,45 +435,32 @@ export default function CheckoutPage({ params }: Props) {
             <span style={labelStyle}>
               付款方式 <span style={{ color: '#ef4444' }}>*</span>
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {([
-                { key: 'bank', title: '銀行轉帳', desc: '下單後到訂單頁回報匯款帳號後 5 碼' },
-                { key: 'line_pay', title: 'LINE Pay', desc: '送出後直接前往 LINE Pay 付款,不用回報後 5 碼' },
-              ] as const).map((opt) => {
-                const isActive = payMethod === opt.key;
-                return (
-                  <label
-                    key={opt.key}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '0.625rem',
-                      padding: '0.75rem 0.875rem',
-                      border: `1.5px solid ${isActive ? '#1f2937' : '#e5e7eb'}`,
-                      borderRadius: 8,
-                      background: isActive ? '#f9fafb' : '#fff',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="payment_method"
-                      value={opt.key}
-                      checked={isActive}
-                      onChange={() => setPayMethod(opt.key)}
-                      style={{ marginTop: 3 }}
-                    />
-                    <span style={{ flex: 1 }}>
-                      <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#1f2937' }}>
-                        {opt.title}
-                      </span>
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginTop: 3, lineHeight: 1.5 }}>
-                        {opt.desc}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
+            <div className="opt-list">
+              <OptionCard
+                name="payment_method"
+                value="bank"
+                checked={payMethod === 'bank'}
+                onSelect={() => setPayMethod('bank')}
+                accent="#475569"
+                icon={<IconBank size={19} />}
+                title="銀行轉帳"
+                desc="下單後到訂單頁回報匯款帳號後 5 碼"
+              />
+              <OptionCard
+                name="payment_method"
+                value="line_pay"
+                checked={payMethod === 'line_pay'}
+                onSelect={() => setPayMethod('line_pay')}
+                accent="#06c755"
+                icon={<IconWallet size={19} />}
+                title="LINE Pay"
+                trailing={
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                    立即付款
+                  </span>
+                }
+                desc="送出後直接前往 LINE Pay 付款,不用回報後 5 碼"
+              />
             </div>
           </div>
         )}
@@ -492,7 +548,6 @@ export default function CheckoutPage({ params }: Props) {
             `${linePayOn && payMethod === 'line_pay' ? '前往 LINE Pay 付款' : '送出訂單'} · NT$ ${grandTotal.toLocaleString()}`
           )}
         </button>
-        <style dangerouslySetInnerHTML={{ __html: '@keyframes co-spin { to { transform: rotate(360deg); } }' }} />
         <p
           style={{
             margin: 0,
