@@ -91,6 +91,60 @@ async function postToLinePay(
   }
 }
 
+/** GET 的簽章:HMAC(secret, secret + uri + queryString + nonce);沒有 query 就傳空字串 */
+async function getFromLinePay(
+  cfg: LinePayConfig,
+  uri: string,
+  queryString = '',
+): Promise<LinePayResponse | null> {
+  const nonce = crypto.randomUUID();
+  const signature = crypto
+    .createHmac('sha256', cfg.channelSecret)
+    .update(cfg.channelSecret + uri + queryString + nonce)
+    .digest('base64');
+  const res = await fetch(cfg.host + uri + (queryString ? `?${queryString}` : ''), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-LINE-ChannelId': cfg.channelId,
+      'X-LINE-Authorization-Nonce': nonce,
+      'X-LINE-Authorization': signature,
+    },
+    signal: AbortSignal.timeout(20000),
+  });
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as LinePayResponse;
+  } catch {
+    console.error('[linepay] GET 回應不是 JSON', res.status, text.slice(0, 300));
+    return null;
+  }
+}
+
+/**
+ * 查這筆交易客人到底授權了沒(2026-10-16 自動抓漏用)。
+ * returnCode 0000 = 客人已完成授權、可以 confirm 收款;
+ * 其他多半是「還沒付」或「已處理過」,照原樣回報給呼叫端判斷。
+ */
+export async function checkLinePayPaymentStatus(
+  transactionId: string,
+): Promise<{ authorized: boolean; code: string; message: string }> {
+  const cfg = getConfig();
+  if (!cfg) return { authorized: false, code: 'no_config', message: 'LINE Pay 尚未設定' };
+  let json: LinePayResponse | null;
+  try {
+    json = await getFromLinePay(cfg, `/v3/payments/requests/${transactionId}/check`);
+  } catch (e) {
+    console.error('[linepay check] 連線失敗', e);
+    return { authorized: false, code: 'network', message: '無法連線 LINE Pay' };
+  }
+  return {
+    authorized: json?.returnCode === '0000',
+    code: json?.returnCode ?? 'unknown',
+    message: json?.returnMessage ?? '',
+  };
+}
+
 export type LinePayRequestResult =
   | { ok: true; paymentUrl: string; transactionId: string }
   | { ok: false; error: string };

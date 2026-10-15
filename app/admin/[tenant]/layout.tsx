@@ -461,6 +461,7 @@ export default async function TenantAdminLayout({
             inventoryGated={inventoryGated}
             hasActivities={hasActivities}
             hasNews={hasNews}
+            hasLinePay={hasFeature(tenant, 'line_pay')}
             ordersPending={ordersPending}
             lowStock={lowStock}
           />

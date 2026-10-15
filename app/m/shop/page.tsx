@@ -45,6 +45,7 @@ export default function ShopPage() {
     gift_rules: [],
   });
   const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
+  const [shipError, setShipError] = useState(false); // 2026-10-16:沒選配送方式的提示
   // 2026-10-16:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
   const [linePayOn, setLinePayOn] = useState(false);
   const [payMethod, setPayMethod] = useState<'bank' | 'line_pay'>('bank');
@@ -322,6 +323,14 @@ export default function ShopPage() {
 
   async function onSubmitOrder(formData: FormData) {
     setError('');
+    // 2026-10-16:沒選配送方式時,瀏覽器的必填提示會跑到畫面外(配送區在上面、
+    // 送出鈕在最下面),看起來像「按了沒反應」— 改成自己擋下並捲回該區塊。
+    if (needShipping && !shipKey) {
+      setShipError(true);
+      document.getElementById('ship-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setShipError(false);
     setStatus('submitting');
     try {
       formData.set('idToken', idToken);
@@ -1318,8 +1327,24 @@ export default function ShopPage() {
           <form action={onSubmitOrder} style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* D#13:配送方式(攤位有設運費規則才顯示) */}
             {needShipping && (
-              <div>
+              <div id="ship-section" style={{ scrollMarginTop: 16 }}>
                 <div style={cardTitle}>配送方式 *</div>
+                {shipError && (
+                  <div
+                    style={{
+                      marginBottom: 8,
+                      padding: '9px 12px',
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      borderRadius: 8,
+                      color: '#b91c1c',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    請先選擇配送方式才能送出訂單
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {tenant.shipping_options.map((opt) => {
                     const isFree = !!opt.free_over && cartTotal >= opt.free_over;

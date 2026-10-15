@@ -11,6 +11,7 @@ type Props = {
   inventoryGated: boolean;
   hasActivities: boolean;
   hasNews: boolean;
+  hasLinePay: boolean;
   ordersPending: number;
   lowStock: number;
 };
@@ -40,6 +41,7 @@ export function NavLinks({
   inventoryGated,
   hasActivities,
   hasNews,
+  hasLinePay,
   ordersPending,
   lowStock,
 }: Props) {
@@ -76,6 +78,10 @@ export function NavLinks({
     { key: 'products', label: '商品', href: `/admin/${tenantSlug}/products` },
     { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders`, badge: ordersPending },
     { key: 'customers', label: '客戶', href: `/admin/${tenantSlug}/customers` },
+    // LINE Pay 對帳:只給有開 line_pay 的攤位
+    ...(hasLinePay
+      ? [{ key: 'linepay', label: 'LINE Pay 對帳', href: `/admin/${tenantSlug}/linepay` }]
+      : []),
     {
       key: 'inventory',
       label: '庫存',

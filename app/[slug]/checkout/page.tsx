@@ -204,6 +204,7 @@ export default function CheckoutPage({ params }: Props) {
   // D#13:攤位運費規則(空陣列 = 不收運費,不顯示配送選項)
   const [shipOptions, setShipOptions] = useState<ShippingOption[]>([]);
   const [shipKey, setShipKey] = useState('');
+  const [shipError, setShipError] = useState(false); // 2026-10-16:沒選配送方式的提示
   // 2026-10-06:滿額贈進度橫幅(蝦皮式)
   const [giftRules, setGiftRules] = useState<GiftRulePublic[]>([]);
   // 2026-10-15:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
@@ -287,6 +288,14 @@ export default function CheckoutPage({ params }: Props) {
   }
 
   async function handleSubmit(formData: FormData) {
+    // 2026-10-16:沒選配送方式時瀏覽器的必填提示會跑到畫面外(配送區在上、送出鈕在下),
+    // 看起來像「按了沒反應」— 自己擋下並捲回該區塊
+    if (shipOptions.length > 0 && !shipKey) {
+      setShipError(true);
+      document.getElementById('ship-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setShipError(false);
     setSubmitting(true);
     setError(null);
     formData.append('tenantSlug', slug);
@@ -494,10 +503,26 @@ export default function CheckoutPage({ params }: Props) {
         {/* D#13:配送方式(攤位有設運費規則才顯示)
             2026-10-15:選項本身已經是「面」了,不再包一層卡 — 免得整頁變成一堆同款方框 */}
         {shipOptions.length > 0 && (
-          <div>
+          <div id="ship-section" style={{ scrollMarginTop: 16 }}>
             <h3 className="ck-label">
               配送方式 <span className="ck-req">*</span>
             </h3>
+            {shipError && (
+              <div
+                style={{
+                  marginBottom: '0.5rem',
+                  padding: '0.625rem 0.875rem',
+                  background: '#fdecea',
+                  border: '1px solid #f3c6c2',
+                  borderRadius: 10,
+                  color: '#b3261e',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                }}
+              >
+                請先選擇配送方式才能送出訂單
+              </div>
+            )}
             <div className="opt-list">
               {shipOptions.map((opt) => {
                 const isFree = !!opt.free_over && subtotal >= opt.free_over;
