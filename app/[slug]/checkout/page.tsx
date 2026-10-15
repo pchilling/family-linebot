@@ -42,6 +42,42 @@ const checkoutCss = `
   content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #111827;
 }
 @media (prefers-reduced-motion: reduce) { .opt-card, .opt-dot { transition: none; } }
+
+/* 區塊卡:每個步驟各一張白卡,拉開層次(原本全部平鋪在底色上) */
+.ck-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
+  padding: 1.125rem 1.25rem; margin-bottom: 1rem;
+}
+.ck-card-title {
+  margin: 0 0 0.875rem; font-size: 0.75rem; font-weight: 700;
+  color: #9ca3af; letter-spacing: 0.06em;
+}
+.ck-form { display: flex; flex-direction: column; gap: 1rem; }
+.ck-form .ck-card { margin-bottom: 0; } /* 間距交給 form 的 gap,免得疊加成兩倍 */
+.ck-form input:focus, .ck-form select:focus, .ck-form textarea:focus {
+  outline: none; border-color: #111827; box-shadow: 0 0 0 3px rgba(17,24,39,.07);
+}
+/* 商品列 */
+.ck-row { display: flex; gap: 0.75rem; padding: 0.875rem 0; border-bottom: 1px solid #f3f4f6; }
+.ck-row:last-of-type { border-bottom: 0; }
+.ck-thumb {
+  width: 56px; height: 56px; border-radius: 10px; object-fit: cover;
+  background: #f4f4f5; flex-shrink: 0; border: 1px solid #f0f0f0;
+}
+.ck-qty {
+  display: inline-flex; align-items: center; background: #fff;
+  border: 1.5px solid #e5e7eb; border-radius: 9px; overflow: hidden;
+}
+.ck-qty button {
+  width: 32px; height: 32px; border: 0; background: #fff; color: #374151;
+  font-size: 16px; line-height: 1; cursor: pointer;
+}
+.ck-qty button:hover { background: #f3f4f6; }
+.ck-remove {
+  width: 28px; height: 28px; border: 0; background: none; color: #d4d4d8;
+  font-size: 17px; line-height: 1; border-radius: 7px; cursor: pointer; flex-shrink: 0;
+}
+.ck-remove:hover { background: #fef2f2; color: #ef4444; }
 `;
 
 function OptionCard({
@@ -218,12 +254,14 @@ export default function CheckoutPage({ params }: Props) {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '0.625rem 0.75rem',
-    border: '1px solid #d1d5db',
-    borderRadius: 6,
+    padding: '0.7rem 0.8rem',
+    border: '1.5px solid #e5e7eb',
+    borderRadius: 10,
     fontSize: '0.9375rem',
     fontFamily: 'inherit',
     boxSizing: 'border-box',
+    background: '#fff',
+    color: '#111827',
   };
 
   const labelStyle: React.CSSProperties = {
@@ -235,7 +273,9 @@ export default function CheckoutPage({ params }: Props) {
   };
 
   return (
-    <div>
+    // 2026-10-15:結帳是單欄表單,960 寬會讓欄位拉得又長又空 — 收到 660
+    <div style={{ maxWidth: 660, margin: '0 auto' }}>
+      <style dangerouslySetInnerHTML={{ __html: checkoutCss }} />
       {/* 2026-09-12:改成跟商品詳情/結帳同款的膠囊返回鍵 */}
       <a
         href={`/${slug}`}
@@ -300,59 +340,54 @@ export default function CheckoutPage({ params }: Props) {
         );
       })()}
 
-      <div
-        style={{
-          padding: '1rem 1.25rem',
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 8,
-          marginBottom: '1.5rem',
-        }}
-      >
-        <div style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.75rem', color: '#374151' }}>
-          商品明細
-        </div>
+      <div className="ck-card">
+        <h3 className="ck-card-title">商品明細</h3>
         {items.map((item) => (
-          <div
-            key={item.variantId}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.625rem',
-              fontSize: '0.875rem',
-              padding: '0.5rem 0',
-              borderBottom: '1px solid #f3f4f6',
-              color: '#374151',
-            }}
-          >
+          // 2026-10-15:加商品縮圖,數量與金額移到第二行 — 原本全擠同一行又窄又亂
+          <div key={item.variantId} className="ck-row">
+            {item.imageUrl ? (
+              <img className="ck-thumb" src={item.imageUrl} alt="" />
+            ) : (
+              <span className="ck-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d4d4d8' }}>
+                <IconPackage size={20} />
+              </span>
+            )}
             <div style={{ flex: 1, minWidth: 0 }}>
-              {/* 2026-09-12:商品名不截斷(可換行),品項(規格)一律顯示 */}
-              <div style={{ lineHeight: 1.4 }}>{item.productName}</div>
-              {item.variantName && item.variantName !== 'default' && (
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 1 }}>{item.variantName}</div>
-              )}
-              {unitPriceOf(item) < item.priceTwd && (
-                <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: 1 }}>
-                  量購價 NT$ {unitPriceOf(item).toLocaleString()} /件
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* 2026-09-12:商品名不截斷(可換行),品項(規格)一律顯示 */}
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827', lineHeight: 1.45 }}>
+                    {item.productName}
+                  </div>
+                  {item.variantName && item.variantName !== 'default' && (
+                    <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{item.variantName}</div>
+                  )}
+                  {unitPriceOf(item) < item.priceTwd && (
+                    <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: 2, fontWeight: 600 }}>
+                      量購價 NT$ {unitPriceOf(item).toLocaleString()} /件
+                    </div>
+                  )}
                 </div>
-              )}
+                <button
+                  type="button"
+                  className="ck-remove"
+                  onClick={() => removeItem(item.variantId)}
+                  aria-label={`移除 ${item.productName}`}
+                >
+                  ×
+                </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.625rem' }}>
+                <div className="ck-qty">
+                  <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)}>−</button>
+                  <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
+                  <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)}>+</button>
+                </div>
+                <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>
+                  NT$ {(unitPriceOf(item) * item.qty).toLocaleString()}
+                </span>
+              </div>
             </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
-              <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)} style={qtyBtn}>−</button>
-              <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
-              <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)} style={qtyBtn}>+</button>
-            </div>
-            <span style={{ width: 76, textAlign: 'right', fontWeight: 600, flexShrink: 0 }}>
-              NT$ {(unitPriceOf(item) * item.qty).toLocaleString()}
-            </span>
-            <button
-              type="button"
-              onClick={() => removeItem(item.variantId)}
-              aria-label={`移除 ${item.productName}`}
-              style={{ width: 26, height: 26, border: 0, background: 'none', color: '#c4c4cc', fontSize: 16, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}
-            >
-              ×
-            </button>
           </div>
         ))}
         <div
@@ -377,21 +412,31 @@ export default function CheckoutPage({ params }: Props) {
               </span>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-            <span>合計</span>
-            <span style={{ color: '#b45309' }}>NT$ {grandTotal.toLocaleString()}</span>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginTop: '0.375rem',
+              paddingTop: '0.625rem',
+              borderTop: '1px solid #f3f4f6',
+            }}
+          >
+            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#111827' }}>合計</span>
+            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#b45309', letterSpacing: '-0.01em' }}>
+              NT$ {grandTotal.toLocaleString()}
+            </span>
           </div>
         </div>
       </div>
 
-      <form action={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <style dangerouslySetInnerHTML={{ __html: checkoutCss }} />
+      <form className="ck-form" action={handleSubmit}>
         {/* D#13:配送方式(攤位有設運費規則才顯示) */}
         {shipOptions.length > 0 && (
-          <div>
-            <span style={labelStyle}>
+          <div className="ck-card">
+            <h3 className="ck-card-title">
               配送方式 <span style={{ color: '#ef4444' }}>*</span>
-            </span>
+            </h3>
             <div className="opt-list">
               {shipOptions.map((opt) => {
                 const isFree = !!opt.free_over && subtotal >= opt.free_over;
@@ -431,10 +476,10 @@ export default function CheckoutPage({ params }: Props) {
         )}
         {/* 2026-10-15:付款方式(攤位有開 LINE Pay 才顯示;沒開一律匯款) */}
         {linePayOn && (
-          <div>
-            <span style={labelStyle}>
+          <div className="ck-card">
+            <h3 className="ck-card-title">
               付款方式 <span style={{ color: '#ef4444' }}>*</span>
-            </span>
+            </h3>
             <div className="opt-list">
               <OptionCard
                 name="payment_method"
@@ -464,38 +509,42 @@ export default function CheckoutPage({ params }: Props) {
             </div>
           </div>
         )}
-        <div>
-          <label htmlFor="recipient" style={labelStyle}>
-            收件人姓名 <span style={{ color: '#ef4444' }}>*</span>
-          </label>
-          <input id="recipient" name="recipient" type="text" required style={inputStyle} />
-        </div>
-        <div>
-          <label htmlFor="phone" style={labelStyle}>
-            聯絡電話 <span style={{ color: '#ef4444' }}>*</span>
-          </label>
-          <input id="phone" name="phone" type="tel" required style={inputStyle} />
-        </div>
-        <div>
-          <label style={labelStyle}>
-            寄送地址 <span style={{ color: '#ef4444' }}>*</span>
-          </label>
-          {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
-          <TwAddressFields required inputStyle={inputStyle} />
-        </div>
-        {/* 2026-09-11:Email 欄位移除(訪客查單用電話即可,訂單通知走 LINE) */}
-        <div>
-          <label htmlFor="note" style={labelStyle}>
-            備註(選填)
-          </label>
-          {/* 2026-09-11 v2:統編專用欄位移除 — 需要統編直接寫在備註 */}
-          <textarea
-            id="note"
-            name="note"
-            rows={3}
-            style={{ ...inputStyle, resize: 'vertical' }}
-            placeholder="如需統編發票或有其他需求,請填寫在這裡"
-          />
+        {/* 2026-10-15:收件資訊收進同一張卡,不再一欄一欄散在底色上 */}
+        <div className="ck-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+          <h3 className="ck-card-title" style={{ marginBottom: 0 }}>收件資訊</h3>
+          <div>
+            <label htmlFor="recipient" style={labelStyle}>
+              收件人姓名 <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input id="recipient" name="recipient" type="text" required style={inputStyle} />
+          </div>
+          <div>
+            <label htmlFor="phone" style={labelStyle}>
+              聯絡電話 <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input id="phone" name="phone" type="tel" required style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>
+              寄送地址 <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
+            <TwAddressFields required inputStyle={inputStyle} />
+          </div>
+          {/* 2026-09-11:Email 欄位移除(訪客查單用電話即可,訂單通知走 LINE) */}
+          <div>
+            <label htmlFor="note" style={labelStyle}>
+              備註(選填)
+            </label>
+            {/* 2026-09-11 v2:統編專用欄位移除 — 需要統編直接寫在備註 */}
+            <textarea
+              id="note"
+              name="note"
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical' }}
+              placeholder="如需統編發票或有其他需求,請填寫在這裡"
+            />
+          </div>
         </div>
 
         {error && (
@@ -562,16 +611,6 @@ export default function CheckoutPage({ params }: Props) {
     </div>
   );
 }
-
-const qtyBtn: React.CSSProperties = {
-  width: 30,
-  height: 30,
-  background: '#fff',
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: '1rem',
-  fontFamily: 'inherit',
-};
 
 /**
  * 購物車數量輸入框(2026-09-11 併頁時從 /cart 移入):可直接打字改;
