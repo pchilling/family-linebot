@@ -86,7 +86,9 @@ export type ShopTenant = {
   category_order: string[]; // 批次 C #8:分類顯示順序
   shipping_options: ShippingOption[]; // 空陣列 = 不收運費
   // Phase 16(#12):滿額贈(product_name 已解析好給前端直接顯示)
-  gift_rules: { threshold_twd: number; qty: number; product_name: string }[];
+  // Phase 18(2026-10-16):加 mode / repeat,進度顯示才會跟實際送的一致
+  gift_mode: 'stack' | 'highest';
+  gift_rules: { threshold_twd: number; qty: number; product_name: string; repeat: boolean }[];
 };
 
 export type ShopData = {
@@ -209,7 +211,10 @@ export async function loadShopData(
     shop_bg_color: string | null;
     category_order: string[] | null;
     shipping_rules: { options?: ShippingOption[] } | null;
-    gift_rules: { rules?: { threshold_twd: number; product_id: string; qty: number }[] } | null;
+    gift_rules: {
+      mode?: string;
+      rules?: { threshold_twd: number; product_id: string; qty: number; repeat?: boolean }[];
+    } | null;
   } | null;
   const t = (tenantRes.data as TenantRow) ?? null;
   // Phase 9.8 多 banner + fallback og_image_url(舊單張)
@@ -254,12 +259,14 @@ export async function loadShopData(
       shop_bg_color: t?.shop_bg_color ?? null,
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],
       shipping_options: Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : [],
+      gift_mode: (t?.gift_rules?.mode === 'highest' ? 'highest' : 'stack') as 'stack' | 'highest',
       gift_rules: (t?.gift_rules?.rules ?? [])
         .filter((r) => r && r.threshold_twd > 0 && productNameById.has(r.product_id))
         .map((r) => ({
           threshold_twd: r.threshold_twd,
           qty: Math.max(1, r.qty || 1),
           product_name: productNameById.get(r.product_id)!,
+          repeat: !!r.repeat,
         }))
         .sort((a, b) => a.threshold_twd - b.threshold_twd),
     },

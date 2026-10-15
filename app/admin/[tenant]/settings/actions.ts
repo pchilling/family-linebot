@@ -79,16 +79,49 @@ export async function updateTenantSettings(
 // tenants.gift_rules = { rules: [{ threshold_twd, product_id, qty }] }
 // ========================
 
-type GiftRuleRow = { threshold_twd: number; product_id: string; qty: number };
+// Phase 18(2026-10-16):加 mode(累積/擇高)、repeat(可重複)、fallback(備用贈品)
+type GiftRuleRow = {
+  threshold_twd: number;
+  product_id: string;
+  qty: number;
+  repeat?: boolean;
+  fallback_product_id?: string | null;
+};
 
-async function readGiftRules(tenantId: string): Promise<GiftRuleRow[]> {
+async function readGiftConfig(
+  tenantId: string,
+): Promise<{ mode: 'stack' | 'highest'; rules: GiftRuleRow[] }> {
   const { data } = await supabaseAdmin
     .from('tenants')
     .select('gift_rules')
     .eq('id', tenantId)
     .maybeSingle();
-  const rules = (data as { gift_rules?: { rules?: GiftRuleRow[] } | null } | null)?.gift_rules?.rules;
-  return Array.isArray(rules) ? rules : [];
+  const cfg = (data as { gift_rules?: { mode?: string; rules?: GiftRuleRow[] } | null } | null)
+    ?.gift_rules;
+  return {
+    mode: cfg?.mode === 'highest' ? 'highest' : 'stack',
+    rules: Array.isArray(cfg?.rules) ? cfg.rules : [],
+  };
+}
+
+/** 送法模式切換(累積式 / 擇高式) */
+export async function setGiftMode(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const mode = String(formData.get('mode') ?? '').trim() === 'highest' ? 'highest' : 'stack';
+  if (!slug) throw new Error('無攤位資訊');
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const { rules } = await readGiftConfig(tenant.id);
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ gift_rules: { mode, rules } })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[setGiftMode]', error);
+    throw new Error('儲存失敗:' + error.message);
+  }
+  revalidatePath(`/admin/${slug}/settings`);
 }
 
 export async function addGiftRule(formData: FormData): Promise<void> {
@@ -96,21 +129,30 @@ export async function addGiftRule(formData: FormData): Promise<void> {
   const threshold = parseInt(String(formData.get('threshold_twd') ?? ''), 10);
   const productId = String(formData.get('product_id') ?? '').trim();
   const qty = Math.max(1, parseInt(String(formData.get('qty') ?? '1'), 10) || 1);
+  const repeat = String(formData.get('repeat') ?? '') === 'on';
+  const fallbackId = String(formData.get('fallback_product_id') ?? '').trim();
 
   if (!slug) throw new Error('無攤位資訊');
   if (!Number.isFinite(threshold) || threshold <= 0) throw new Error('門檻金額需為正整數');
   if (!productId) throw new Error('請選贈品商品');
+  if (fallbackId && fallbackId === productId) throw new Error('備用贈品不能跟主贈品相同');
 
   const tenant = await getTenantBySlug(slug);
   if (!tenant) throw new Error('攤位不存在');
 
-  const rules = await readGiftRules(tenant.id);
-  rules.push({ threshold_twd: threshold, product_id: productId, qty });
+  const { mode, rules } = await readGiftConfig(tenant.id);
+  rules.push({
+    threshold_twd: threshold,
+    product_id: productId,
+    qty,
+    repeat,
+    fallback_product_id: fallbackId || null,
+  });
   rules.sort((a, b) => a.threshold_twd - b.threshold_twd);
 
   const { error } = await supabaseAdmin
     .from('tenants')
-    .update({ gift_rules: { rules } })
+    .update({ gift_rules: { mode, rules } })
     .eq('id', tenant.id);
   if (error) {
     console.error('[addGiftRule]', error);
@@ -127,13 +169,14 @@ export async function deleteGiftRule(formData: FormData): Promise<void> {
   const tenant = await getTenantBySlug(slug);
   if (!tenant) throw new Error('攤位不存在');
 
-  const rules = await readGiftRules(tenant.id);
+  const { mode, rules } = await readGiftConfig(tenant.id);
   if (idx < 0 || idx >= rules.length) throw new Error('規則不存在');
   rules.splice(idx, 1);
 
   const { error } = await supabaseAdmin
     .from('tenants')
-    .update({ gift_rules: rules.length > 0 ? { rules } : null })
+    // 刪到一條不剩仍保留 mode,攤主的設定不會因為清空規則被重設
+    .update({ gift_rules: { mode, rules } })
     .eq('id', tenant.id);
   if (error) {
     console.error('[deleteGiftRule]', error);

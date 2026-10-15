@@ -42,6 +42,7 @@ export default function ShopPage() {
     shop_bg_color: null,
     category_order: [],
     shipping_options: [],
+    gift_mode: 'stack',
     gift_rules: [],
   });
   const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
@@ -1182,8 +1183,24 @@ export default function ShopPage() {
 
           {/* 2026-10-06:滿額贈進度橫幅(蝦皮式)— 沒達標顯示還差多少,達標變綠 */}
           {tenant.gift_rules.length > 0 && (() => {
-            const met = tenant.gift_rules.filter((g) => cartTotal >= g.threshold_twd);
-            const next = tenant.gift_rules.find((g) => cartTotal < g.threshold_twd);
+            // Phase 18:擇高式只算最高那條;可重複的規則算倍數、也一直有下一個目標
+            const reached = tenant.gift_rules.filter((g) => cartTotal >= g.threshold_twd);
+            const met =
+              tenant.gift_mode === 'highest' && reached.length > 0
+                ? [reached.reduce((b, g) => (g.threshold_twd > b.threshold_twd ? g : b))]
+                : reached;
+            const targets = tenant.gift_rules
+              .map((g) =>
+                cartTotal < g.threshold_twd
+                  ? { g, at: g.threshold_twd }
+                  : g.repeat
+                    ? { g, at: (Math.floor(cartTotal / g.threshold_twd) + 1) * g.threshold_twd }
+                    : null,
+              )
+              .filter((x): x is { g: (typeof tenant.gift_rules)[number]; at: number } => x !== null)
+              .sort((a, b) => a.at - b.at);
+            const nextTarget = targets[0] ?? null;
+            const next = nextTarget?.g ?? null;
             return (
               <div
                 style={{
@@ -1201,7 +1218,13 @@ export default function ShopPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: '#15803d' }}>
                     <IconGift size={16} />
                     <span>
-                      已獲得免費贈品:{met.map((g) => `${g.product_name}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('、')}
+                      已獲得免費贈品:
+                      {met
+                        .map((g) => {
+                          const total = g.qty * (g.repeat ? Math.max(1, Math.floor(cartTotal / g.threshold_twd)) : 1);
+                          return `${g.product_name}${total > 1 ? ` ×${total}` : ''}`;
+                        })
+                        .join('、')}
                     </span>
                   </div>
                 )}
@@ -1209,7 +1232,7 @@ export default function ShopPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: met.length > 0 ? 500 : 700, color: '#9a3412' }}>
                     {met.length === 0 && <IconGift size={16} />}
                     <span>
-                      再消費 NT$ {(next.threshold_twd - cartTotal).toLocaleString()} 即可獲得免費贈品({next.product_name}
+                      再消費 NT$ {(nextTarget!.at - cartTotal).toLocaleString()} 即可獲得免費贈品({next.product_name}
                       {next.qty > 1 ? ` ×${next.qty}` : ''})
                     </span>
                   </div>

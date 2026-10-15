@@ -621,55 +621,123 @@ export async function effectivePriceForProduct(
 
 // ====================
 // Phase 16(2026-09-11 回饋 #12):滿額贈
-// tenants.gift_rules = { rules: [{ threshold_twd, product_id, qty }] }
-// 折後商品小計「每達標一條」都送;贈品 = 攤位現有商品的 0 元明細行(扣庫存、印出貨單)
+// Phase 18(2026-10-16)擴充:送法模式、可重複、備用贈品、庫存不足就不送
+//
+// tenants.gift_rules = {
+//   mode: 'stack' | 'highest',          // 累積式(每條達標都送)/ 擇高式(只送最高那條)
+//   rules: [{
+//     threshold_twd, product_id, qty,
+//     repeat?: boolean,                 // true = 每滿 N 元送一份(滿 4000 送 2)
+//     fallback_product_id?: string,     // 主贈品庫存不夠時改送這個
+//   }]
+// }
+// 舊資料沒有 mode / repeat / fallback → 一律當「累積、不重複、無備用」,行為同改版前。
+// 贈品 = 攤位現有商品的 0 元明細行(扣庫存、印出貨單)
 // ====================
 
-export type GiftRule = { threshold_twd: number; product_id: string; qty: number };
+export type GiftMode = 'stack' | 'highest';
+export type GiftRule = {
+  threshold_twd: number;
+  product_id: string;
+  qty: number;
+  repeat?: boolean;
+  fallback_product_id?: string | null;
+};
 
-export async function getGiftRules(tenantId: string): Promise<GiftRule[]> {
+export async function getGiftConfig(
+  tenantId: string,
+): Promise<{ mode: GiftMode; rules: GiftRule[] }> {
   const { data } = await supabaseAdmin
     .from('tenants')
     .select('gift_rules')
     .eq('id', tenantId)
     .maybeSingle();
-  const rules = (data as { gift_rules?: { rules?: GiftRule[] } | null } | null)?.gift_rules?.rules;
-  return Array.isArray(rules)
-    ? rules.filter((r) => r && r.threshold_twd > 0 && !!r.product_id)
+  const cfg = (data as { gift_rules?: { mode?: string; rules?: GiftRule[] } | null } | null)
+    ?.gift_rules;
+  const rules = Array.isArray(cfg?.rules)
+    ? cfg.rules.filter((r) => r && r.threshold_twd > 0 && !!r.product_id)
     : [];
+  return { mode: cfg?.mode === 'highest' ? 'highest' : 'stack', rules };
+}
+
+/** 舊介面保留(只要規則陣列的呼叫端還在用) */
+export async function getGiftRules(tenantId: string): Promise<GiftRule[]> {
+  return (await getGiftConfig(tenantId)).rules;
 }
 
 /**
- * 結帳用:達門檻的每條規則回一列可直接塞 order_items 的 0 元贈品
- * (取贈品商品第一個 active 規格;沒有可用規格就跳過並 log,不擋下單)。
+ * 依模式挑出這筆小計該送的規則,並算出各自要送幾份。
+ * - 累積式:每條達標的都算
+ * - 擇高式:只算達標中門檻最高的那條
+ * - repeat:份數 = floor(小計 / 門檻) × 規則數量,否則就是規則數量
+ */
+export function resolveGiftAwards(
+  mode: GiftMode,
+  rules: GiftRule[],
+  subtotal: number,
+): { rule: GiftRule; qty: number }[] {
+  const met = rules.filter((r) => subtotal >= r.threshold_twd);
+  if (met.length === 0) return [];
+  const picked =
+    mode === 'highest'
+      ? [met.reduce((best, r) => (r.threshold_twd > best.threshold_twd ? r : best))]
+      : met;
+  return picked.map((rule) => {
+    const base = Math.max(1, Math.floor(rule.qty || 1));
+    const times = rule.repeat ? Math.floor(subtotal / rule.threshold_twd) : 1;
+    return { rule, qty: base * Math.max(1, times) };
+  });
+}
+
+type GiftLine = { product_id: string; variant_id: string; qty: number; price_at_purchase: 0 };
+
+/**
+ * 結帳用:回可直接塞 order_items 的 0 元贈品明細。
+ * 贈品挑規格的順序:主贈品庫存夠 → 主贈品;不夠 → 備用贈品;都沒有 → 這條不送。
+ * (「數量有限送完為止」的文案由攤主自己寫,程式只負責不要送出沒有的東西)
  */
 export async function buildGiftItems(
   tenantId: string,
   subtotal: number,
-): Promise<{ product_id: string; variant_id: string; qty: number; price_at_purchase: 0 }[]> {
-  const met = (await getGiftRules(tenantId)).filter((r) => subtotal >= r.threshold_twd);
-  if (met.length === 0) return [];
+): Promise<GiftLine[]> {
+  const { mode, rules } = await getGiftConfig(tenantId);
+  const awards = resolveGiftAwards(mode, rules, subtotal);
+  if (awards.length === 0) return [];
+
+  // 主贈品 + 備用贈品的所有可用規格一次撈回來
+  const productIds = [
+    ...new Set(
+      awards.flatMap((a) =>
+        [a.rule.product_id, a.rule.fallback_product_id].filter((x): x is string => !!x),
+      ),
+    ),
+  ];
   const { data: variants } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id')
+    .select('id, product_id, stock')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
-    .in('product_id', met.map((r) => r.product_id));
-  const rows: { product_id: string; variant_id: string; qty: number; price_at_purchase: 0 }[] = [];
-  for (const r of met) {
-    const v = (variants as { id: string; product_id: string }[] | null)?.find(
-      (x) => x.product_id === r.product_id,
-    );
+    .in('product_id', productIds);
+  const all = (variants as { id: string; product_id: string; stock: number }[] | null) ?? [];
+
+  // 同一次結帳可能有多條規則指向同一個贈品,庫存要逐筆扣掉才不會超送
+  const remaining = new Map(all.map((v) => [v.id, v.stock]));
+  const pickVariant = (productId: string, need: number) =>
+    all.find((v) => v.product_id === productId && (remaining.get(v.id) ?? 0) >= need);
+
+  const rows: GiftLine[] = [];
+  for (const { rule, qty } of awards) {
+    let v = pickVariant(rule.product_id, qty);
+    if (!v && rule.fallback_product_id) {
+      v = pickVariant(rule.fallback_product_id, qty);
+      if (v) console.warn('[buildGiftItems] 主贈品庫存不足,改送備用贈品', rule.product_id);
+    }
     if (!v) {
-      console.warn('[buildGiftItems] 贈品商品沒有可用規格,跳過', r.product_id);
+      console.warn('[buildGiftItems] 贈品庫存不足且無備用可送,跳過', rule.product_id);
       continue;
     }
-    rows.push({
-      product_id: r.product_id,
-      variant_id: v.id,
-      qty: Math.max(1, Math.floor(r.qty || 1)),
-      price_at_purchase: 0,
-    });
+    remaining.set(v.id, (remaining.get(v.id) ?? 0) - qty);
+    rows.push({ product_id: v.product_id, variant_id: v.id, qty, price_at_purchase: 0 });
   }
   return rows;
 }

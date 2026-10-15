@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconChevronLeft, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftRulePublic, type ShippingOption } from './actions';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type ShippingOption } from './actions';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -208,13 +208,13 @@ export default function CheckoutPage({ params }: Props) {
   const [shipKey, setShipKey] = useState('');
   const [shipError, setShipError] = useState(false); // 2026-10-16:沒選配送方式的提示
   // 2026-10-06:滿額贈進度橫幅(蝦皮式)
-  const [giftRules, setGiftRules] = useState<GiftRulePublic[]>([]);
+  const [giftCfg, setGiftCfg] = useState<GiftConfigPublic>({ mode: 'stack', rules: [] });
   // 2026-10-15:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
   const [linePayOn, setLinePayOn] = useState(false);
   const [payMethod, setPayMethod] = useState<'bank' | 'line_pay'>('bank');
   useEffect(() => {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
-    getGiftRulesPublic(slug).then(setGiftRules).catch(() => {});
+    getGiftRulesPublic(slug).then(setGiftCfg).catch(() => {});
     isLinePayAvailable(slug).then(setLinePayOn).catch(() => {});
   }, [slug]);
 
@@ -362,11 +362,32 @@ export default function CheckoutPage({ params }: Props) {
 
       {/* 2026-10-15:滿額贈做成量杯刻度 — 這頁唯一放膽的地方。
           精油講分量,進度用刻度表示比圓角進度條更貼這家店。 */}
-      {giftRules.length > 0 && (() => {
-        const met = giftRules.filter((g) => subtotal >= g.threshold_twd);
-        const next = giftRules.find((g) => subtotal < g.threshold_twd);
-        const pct = next ? Math.min(100, Math.round((subtotal / next.threshold_twd) * 100)) : 100;
-        const gap = next ? next.threshold_twd - subtotal : 0;
+      {giftCfg.rules.length > 0 && (() => {
+        // Phase 18:擇高式只算最高那條;可重複的規則會一直有下一個倍數可拿
+        const reached = giftCfg.rules.filter((g) => subtotal >= g.threshold_twd);
+        const met =
+          giftCfg.mode === 'highest' && reached.length > 0
+            ? [reached.reduce((b, g) => (g.threshold_twd > b.threshold_twd ? g : b))]
+            : reached;
+        const earned = met.map((g) => ({
+          ...g,
+          times: g.repeat ? Math.max(1, Math.floor(subtotal / g.threshold_twd)) : 1,
+        }));
+        // 下一個目標:還沒到的最低門檻,或可重複規則的下一個倍數,取最近的
+        const targets = giftCfg.rules
+          .map((g) =>
+            subtotal < g.threshold_twd
+              ? { g, at: g.threshold_twd }
+              : g.repeat
+                ? { g, at: (Math.floor(subtotal / g.threshold_twd) + 1) * g.threshold_twd }
+                : null,
+          )
+          .filter((x): x is { g: (typeof giftCfg.rules)[number]; at: number } => x !== null)
+          .sort((a, b) => a.at - b.at);
+        const nextTarget = targets[0] ?? null;
+        const next = nextTarget?.g ?? null;
+        const pct = nextTarget ? Math.min(100, Math.round((subtotal / nextTarget.at) * 100)) : 100;
+        const gap = nextTarget ? nextTarget.at - subtotal : 0;
         return (
           <div style={{ marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.5rem' }}>
@@ -393,13 +414,20 @@ export default function CheckoutPage({ params }: Props) {
             <div style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: 1.6 }}>
               {next && (
                 <div style={{ color: '#6b6a58' }}>
-                  滿 <span className="num">NT$ {next.threshold_twd.toLocaleString()}</span> 送 {next.product_name}
+                  {next.repeat ? '每滿' : '滿'}{' '}
+                  <span className="num">NT$ {next.threshold_twd.toLocaleString()}</span> 送 {next.product_name}
                   {next.qty > 1 ? ` ×${next.qty}` : ''}
                 </div>
               )}
-              {met.length > 0 && (
+              {earned.length > 0 && (
                 <div style={{ color: '#0b5d3b', fontWeight: 700 }}>
-                  已獲得:{met.map((g) => `${g.product_name}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('、')}
+                  已獲得:
+                  {earned
+                    .map((g) => {
+                      const total = g.qty * g.times;
+                      return `${g.product_name}${total > 1 ? ` ×${total}` : ''}`;
+                    })
+                    .join('、')}
                 </div>
               )}
             </div>

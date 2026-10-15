@@ -5,10 +5,17 @@ import { LogoUploader } from './logo-uploader';
 import { BannerUploader } from './banner-uploader';
 import { BannerManager } from './banner-manager';
 import { SubmitButton } from '../../_components/submit-button';
-import { addGiftRule, deleteGiftRule } from './actions';
+import { addGiftRule, deleteGiftRule, setGiftMode } from './actions';
+import { GiftProductPicker, type PickerProduct } from './gift-product-picker';
 
 type BannerItem = { type: 'image' | 'video'; url: string };
-type GiftRule = { threshold_twd: number; product_id: string; qty: number };
+type GiftRule = {
+  threshold_twd: number;
+  product_id: string;
+  qty: number;
+  repeat?: boolean; // Phase 18:每滿 N 元送一份
+  fallback_product_id?: string | null; // Phase 18:主贈品缺貨時改送
+};
 
 type TenantFull = {
   id: string;
@@ -22,7 +29,7 @@ type TenantFull = {
   banners: BannerItem[] | null;
   contact_info: string | null;
   payment_info: string | null;
-  gift_rules: { rules?: GiftRule[] } | null; // Phase 16(#12)
+  gift_rules: { mode?: string; rules?: GiftRule[] } | null; // Phase 16(#12) / Phase 18
   plan: string;
   slug: string;
   order_prefix: string;
@@ -76,13 +83,31 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
 
   // Phase 16(#12):滿額贈 — 規則列表 + 贈品下拉用的商品清單
   const giftRules: GiftRule[] = Array.isArray(tenant.gift_rules?.rules) ? tenant.gift_rules.rules : [];
+  // Phase 18:送法模式(沒設過一律當累積式,行為同改版前)
+  const giftMode = tenant.gift_rules?.mode === 'highest' ? 'highest' : 'stack';
   const { data: productRows } = await supabaseAdmin
     .from('products')
-    .select('id, name')
+    .select('id, name, category, image_url, product_variants(stock, status)')
     .eq('tenant_id', tenant.id)
     .eq('status', 'active')
     .order('name');
-  const products = ((productRows ?? []) as { id: string; name: string }[]);
+  type ProductRow = {
+    id: string;
+    name: string;
+    category: string | null;
+    image_url: string | null;
+    product_variants: { stock: number; status: string }[] | null;
+  };
+  const products: PickerProduct[] = ((productRows ?? []) as unknown as ProductRow[]).map((p) => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    image_url: p.image_url,
+    // 真實庫存在變體,這裡用 active 變體加總(跟商品頁的顯示一致)
+    stock: (p.product_variants ?? [])
+      .filter((v) => v.status === 'active')
+      .reduce((s, v) => s + v.stock, 0),
+  }));
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? '(已下架商品)';
 
   return (
@@ -110,10 +135,34 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
       <section style={section}>
         <h2 style={h2}>滿額贈</h2>
         <p style={{ fontSize: 12, color: '#71717a', margin: '0 0 14px', lineHeight: 1.6 }}>
-          商品小計(折扣後)<strong>每達成一條門檻就送一次</strong>:訂單自動加一行 0 元贈品,
-          會扣該商品庫存、印在出貨單上。贈品必須是攤位現有商品 —
-          建議專門建一個「贈品」商品並設好庫存。
+          以<strong>商品小計(折扣後)</strong>判斷。送出的贈品會變成訂單裡一行 0 元明細,
+          自動扣庫存、印在出貨單上,所以贈品必須是攤位現有商品。
+          <br />
+          贈品庫存不足時會改送你設定的備用贈品;備用也沒貨就不送(不會擋下單、也不會扣成負庫存)。
         </p>
+
+        {/* Phase 18:多條門檻的送法 */}
+        <form action={setGiftMode} style={{ marginBottom: 16, padding: '12px 14px', background: '#fafafa', border: '1px solid #f4f4f5', borderRadius: 8 }}>
+          <input type="hidden" name="tenant_slug" value={tenant.slug} />
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>多條門檻怎麼送</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { key: 'stack', title: '累積式', desc: '達到的每條門檻都送(滿 4000 → 2000 和 4000 的贈品都拿)' },
+              { key: 'highest', title: '擇高式', desc: '只送達到的最高那條(滿 4000 → 只拿 4000 的贈品)' },
+            ].map((m) => (
+              <label key={m.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                <input type="radio" name="mode" value={m.key} defaultChecked={giftMode === m.key} style={{ marginTop: 3 }} />
+                <span>
+                  <strong>{m.title}</strong>
+                  <span style={{ display: 'block', fontSize: 11.5, color: '#71717a', marginTop: 2 }}>{m.desc}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <SubmitButton size="sm" pendingText="儲存中…">儲存送法</SubmitButton>
+          </div>
+        </form>
 
         {giftRules.length === 0 ? (
           <p style={{ fontSize: 13, color: '#a1a1aa', margin: '0 0 14px' }}>(尚未設定滿額贈)</p>
@@ -134,9 +183,19 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
                 }}
               >
                 <span style={{ flex: 1 }}>
-                  滿 <strong>NT$ {r.threshold_twd.toLocaleString()}</strong> 送{' '}
+                  {r.repeat ? '每滿' : '滿'} <strong>NT$ {r.threshold_twd.toLocaleString()}</strong> 送{' '}
                   <strong>{productName(r.product_id)}</strong>
                   {(r.qty ?? 1) > 1 ? ` ×${r.qty}` : ''}
+                  {r.repeat && (
+                    <span style={{ marginLeft: 6, padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 3, fontSize: 11, fontWeight: 700 }}>
+                      可重複
+                    </span>
+                  )}
+                  {r.fallback_product_id && (
+                    <span style={{ display: 'block', fontSize: 11.5, color: '#92400e', marginTop: 3 }}>
+                      缺貨時改送:{productName(r.fallback_product_id)}
+                    </span>
+                  )}
                 </span>
                 <form action={deleteGiftRule}>
                   <input type="hidden" name="tenant_slug" value={tenant.slug} />
@@ -150,26 +209,47 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
           </div>
         )}
 
-        <form action={addGiftRule} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+        <form action={addGiftRule} style={{ padding: '12px 14px', border: '1px dashed #d4d4d8', borderRadius: 8 }}>
           <input type="hidden" name="tenant_slug" value={tenant.slug} />
-          <label style={{ fontSize: 12, color: '#52525b', flex: '1 1 120px', minWidth: 0 }}>
-            <span style={{ display: 'block', marginBottom: 4 }}>滿額門檻(NT$)*</span>
-            <input name="threshold_twd" type="number" min="1" required placeholder="2000" style={giftInput} />
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>新增一條規則</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, alignItems: 'end' }}>
+            <label style={{ fontSize: 12, color: '#52525b', minWidth: 0 }}>
+              <span style={{ display: 'block', marginBottom: 4 }}>
+                滿額門檻(NT$) <span style={{ color: '#dc2626' }}>*</span>
+              </span>
+              <input name="threshold_twd" type="number" min="1" required placeholder="2000" style={giftInput} />
+            </label>
+            <GiftProductPicker
+              name="product_id"
+              products={products}
+              label="贈品"
+              placeholder="點選擇商品"
+              required
+            />
+            <GiftProductPicker
+              name="fallback_product_id"
+              products={products}
+              label="備用贈品(選填)"
+              placeholder="主贈品缺貨時改送"
+            />
+            <label style={{ fontSize: 12, color: '#52525b', minWidth: 0 }}>
+              <span style={{ display: 'block', marginBottom: 4 }}>每次送幾個</span>
+              <input name="qty" type="number" min="1" defaultValue={1} style={giftInput} />
+            </label>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '12px 0 0', fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" name="repeat" style={{ marginTop: 3 }} />
+            <span>
+              可重複
+              <span style={{ display: 'block', fontSize: 11.5, color: '#71717a', marginTop: 2 }}>
+                勾了就是「每滿這個金額送一份」— 門檻 2000 時,買 4000 送 2 份、6000 送 3 份。
+                不勾就只送一份。
+              </span>
+            </span>
           </label>
-          <label style={{ fontSize: 12, color: '#52525b', flex: '2 1 180px', minWidth: 0 }}>
-            <span style={{ display: 'block', marginBottom: 4 }}>贈品商品 *</span>
-            <select name="product_id" required style={giftInput} defaultValue="">
-              <option value="" disabled>選擇商品</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </label>
-          <label style={{ fontSize: 12, color: '#52525b', flex: '0 1 90px', minWidth: 0 }}>
-            <span style={{ display: 'block', marginBottom: 4 }}>數量</span>
-            <input name="qty" type="number" min="1" defaultValue={1} style={giftInput} />
-          </label>
-          <SubmitButton size="sm" pendingText="新增中…">新增規則</SubmitButton>
+          <div style={{ marginTop: 12 }}>
+            <SubmitButton size="sm" pendingText="新增中…">新增規則</SubmitButton>
+          </div>
         </form>
       </section>
 
