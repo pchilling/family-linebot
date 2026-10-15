@@ -1,6 +1,7 @@
 'use server';
 
 import { buildGiftItems, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -329,6 +330,9 @@ export async function placeOrder(
   const shippingMethod = String(formData.get('shipping_method') || '').trim();
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const note = String(formData.get('note') || '').trim();
+  // 2026-10-16:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
+  const paymentMethod =
+    String(formData.get('payment_method') || '').trim() === 'line_pay' ? 'line_pay' : 'bank';
 
   if (cart.length === 0) throw new Error('購物車是空的');
   if (!recipient || !phone || !address) throw new Error('收件人 / 電話 / 地址 必填');
@@ -451,6 +455,7 @@ export async function placeOrder(
       tenant_id: TENANT_ID,
       user_id: user.id,
       order_no: '',
+      payment_method: paymentMethod,
       source: 'liff', // 2026-09-21:原本沒寫入,LIFF 單在後台一直顯示「手動」
       shipping_recipient: recipient,
       shipping_phone: phone,
@@ -501,7 +506,7 @@ export async function placeOrder(
   //    所以這裡用本地 cart × price snapshot 直接算
   const totalForPush = pricedSubtotal + shippingFee; // 折後小計 + 運費
   try {
-    await pushOrderConfirmation(lineUserId, order.order_no, totalForPush);
+    await pushOrderConfirmation(lineUserId, order.order_no, totalForPush, paymentMethod);
   } catch (e) {
     console.warn('[placeOrder push]', e);
   }
@@ -571,7 +576,10 @@ async function pushOrderConfirmation(
   lineUserId: string,
   orderNo: string,
   totalTwd: number,
+  paymentMethod: string = 'bank',
 ): Promise<void> {
+  // 2026-10-16:LINE Pay 單不要講匯款(客人是線上付款),改提示去完成付款
+  const isLinePay = paymentMethod === 'line_pay';
   // 拉 tenant payment_info + slug(for order URL)
   const { data: t } = await supabaseAdmin
     .from('tenants')
@@ -611,7 +619,25 @@ async function pushOrderConfirmation(
     },
   ];
 
-  if (tenant?.payment_info) {
+  if (isLinePay) {
+    bodyContents.push({ type: 'separator', margin: 'lg', color: '#e4e4e7' });
+    bodyContents.push({
+      type: 'text',
+      text: '付款方式:LINE Pay',
+      weight: 'bold',
+      size: 'sm',
+      margin: 'lg',
+      color: '#06c755',
+    });
+    bodyContents.push({
+      type: 'text',
+      text: '若還沒完成付款,點下方「查看訂單」就能繼續付款。付款完成後訂單會自動更新,不用回報帳號後 5 碼。',
+      size: 'xs',
+      color: '#71717a',
+      wrap: true,
+      margin: 'sm',
+    });
+  } else if (tenant?.payment_info) {
     bodyContents.push({ type: 'separator', margin: 'lg', color: '#e4e4e7' });
     bodyContents.push({ type: 'text', text: '💰 匯款資訊', weight: 'bold', size: 'sm', margin: 'lg', color: '#92400e' });
     bodyContents.push({
@@ -659,4 +685,30 @@ async function pushOrderConfirmation(
   };
 
   await lineClient.pushMessage({ to: lineUserId, messages: [flex] });
+}
+
+// ====================
+// 2026-10-16:LIFF 的 LINE Pay — 共用公開商城那套邏輯,只是這邊沒有 slug,
+// 從 TENANT_ID 反查一次。金額與驗證都在 startLinePay 裡以 DB 為準。
+// ====================
+async function tenantSlug(): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('tenants')
+    .select('slug')
+    .eq('id', TENANT_ID)
+    .maybeSingle();
+  return (data as { slug: string } | null)?.slug ?? null;
+}
+
+/** 這個攤位能不能用 LINE Pay(金鑰已設 + feature flag 開) */
+export async function isLinePayAvailableLiff(): Promise<boolean> {
+  const slug = await tenantSlug();
+  return slug ? isLinePayAvailable(slug) : false;
+}
+
+/** 對既有訂單發動 LINE Pay,回付款頁網址(前端自行跳轉) */
+export async function startLinePayLiff(orderNo: string): Promise<StartLinePayResult> {
+  const slug = await tenantSlug();
+  if (!slug) return { ok: false, error: '攤位設定異常' };
+  return startLinePay(slug, orderNo);
 }
