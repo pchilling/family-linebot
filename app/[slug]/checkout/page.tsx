@@ -17,67 +17,128 @@ type Props = {
  * 原生 radio 藏起來但保留(鍵盤 Tab / 表單送出照常運作)。
  */
 const checkoutCss = `
+/* ── 結帳頁設計系統(2026-10-15 改版)─────────────────────────
+   底色是攤位自訂的奶油黃 #ffffea、品牌色純黑,配色就從這兩個長出來:
+   強調色用植物深綠(草本標籤的經典配色,也避開到處都是的焦糖橘),
+   所有邊線改暖色 — 原本用冷灰 #e5e7eb 壓在黃底上會顯髒,是畫面「醜」的主因。
+   金額一律走等寬 tabular 數字(全站已載入 JetBrains Mono,不另外加字型),
+   上下對齊,呼應店裡賣的「精準分裝」。
+   ───────────────────────────────────────────────────── */
+.ck {
+  --surface: #ffffff;
+  --ink: #000000;
+  --ink-2: #6b6a58;
+  --line: #e7e3c6;
+  --line-soft: #f2eedb;
+  --green: #0b5d3b;
+  --green-wash: #edf3ea;
+  --alert: #b3261e;
+  max-width: 620px;
+  margin: 0 auto;
+}
+.num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.ck-back {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 8px 15px 8px 11px; min-height: 38px; box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  font-size: 14px; font-weight: 600; color: var(--ink); text-decoration: none;
+  margin-bottom: 1.5rem;
+}
+.ck-back:hover { background: var(--line-soft); }
+.ck-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+  margin: 0 0 1.25rem; padding-bottom: 0.75rem; border-bottom: 1.5px solid var(--ink);
+}
+.ck-head h2 { margin: 0; font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+.ck-head > span { font-size: 0.8125rem; color: var(--ink-2); white-space: nowrap; }
+.ck-panel {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: 1rem 1.125rem;
+}
+/* 區塊標題:黑色句子體,不用字距拉開的灰色小標 */
+.ck-label { margin: 0 0 0.625rem; font-size: 0.875rem; font-weight: 700; color: var(--ink); }
+.ck-req { color: var(--alert); font-weight: 400; }
+
+/* ── 滿額贈量杯刻度:這頁唯一放膽的地方 ───────────────── */
+.gauge-track {
+  position: relative; height: 30px; background: var(--surface);
+  border: 1.5px solid var(--ink); border-radius: 3px; overflow: hidden;
+}
+.gauge-fill {
+  position: absolute; top: 0; bottom: 0; left: 0; background: var(--green);
+  transition: width .45s cubic-bezier(.3,.8,.4,1);
+}
+.gauge-ticks { position: absolute; inset: 0; display: flex; pointer-events: none; }
+.gauge-ticks i { flex: 1; border-right: 1px solid rgba(0,0,0,.18); }
+.gauge-ticks i:last-child { border-right: 0; }
+.gauge-cap {
+  position: absolute; top: 0; bottom: 0; right: 0; display: flex; align-items: center;
+  padding: 0 9px; font-size: 0.75rem; font-weight: 700; color: var(--ink);
+}
+@media (prefers-reduced-motion: reduce) { .gauge-fill { transition: none; } }
+
 @keyframes co-spin { to { transform: rotate(360deg); } }
 .opt-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .opt-card {
   display: flex; align-items: flex-start; gap: 0.75rem;
-  padding: 0.875rem; border: 1.5px solid #e5e7eb; border-radius: 12px;
-  background: #fff; cursor: pointer; position: relative;
+  padding: 0.875rem; border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); cursor: pointer; position: relative;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
-.opt-card:hover { border-color: #d1d5db; }
-.opt-card-on { border-color: #111827; box-shadow: 0 0 0 3px rgba(17,24,39,.06); }
-.opt-card:has(.opt-radio:focus-visible) { outline: 2px solid #2563eb; outline-offset: 2px; }
+.opt-card:hover { border-color: #d8d3ae; }
+.opt-card-on { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(11,93,59,.1); }
+.opt-card:has(.opt-radio:focus-visible) { outline: 2px solid var(--green); outline-offset: 2px; }
 .opt-radio { position: absolute; opacity: 0; width: 0; height: 0; }
 .opt-icon {
   width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
 .opt-dot {
-  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d1d5db;
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d8d3ae;
   flex-shrink: 0; margin-top: 10px; position: relative; transition: border-color .15s ease;
 }
-.opt-card-on .opt-dot { border-color: #111827; }
+.opt-card-on .opt-dot { border-color: var(--ink); }
 .opt-card-on .opt-dot::after {
-  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #111827;
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--ink);
 }
 @media (prefers-reduced-motion: reduce) { .opt-card, .opt-dot { transition: none; } }
 
-/* 區塊卡:每個步驟各一張白卡,拉開層次(原本全部平鋪在底色上) */
-.ck-card {
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
-  padding: 1.125rem 1.25rem; margin-bottom: 1rem;
-}
-.ck-card-title {
-  margin: 0 0 0.875rem; font-size: 0.75rem; font-weight: 700;
-  color: #9ca3af; letter-spacing: 0.06em;
-}
-.ck-form { display: flex; flex-direction: column; gap: 1rem; }
-.ck-form .ck-card { margin-bottom: 0; } /* 間距交給 form 的 gap,免得疊加成兩倍 */
+.ck-form { display: flex; flex-direction: column; gap: 1.25rem; }
 .ck-form input:focus, .ck-form select:focus, .ck-form textarea:focus {
-  outline: none; border-color: #111827; box-shadow: 0 0 0 3px rgba(17,24,39,.07);
+  outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(11,93,59,.12);
 }
 /* 商品列 */
-.ck-row { display: flex; gap: 0.75rem; padding: 0.875rem 0; border-bottom: 1px solid #f3f4f6; }
+.ck-row { display: flex; gap: 0.75rem; padding: 0.875rem 0; border-bottom: 1px solid var(--line-soft); }
+.ck-row:first-of-type { padding-top: 0; }
 .ck-row:last-of-type { border-bottom: 0; }
 .ck-thumb {
-  width: 56px; height: 56px; border-radius: 10px; object-fit: cover;
-  background: #f4f4f5; flex-shrink: 0; border: 1px solid #f0f0f0;
+  width: 56px; height: 56px; border-radius: 8px; object-fit: cover;
+  background: var(--line-soft); flex-shrink: 0; border: 1px solid var(--line);
 }
 .ck-qty {
-  display: inline-flex; align-items: center; background: #fff;
-  border: 1.5px solid #e5e7eb; border-radius: 9px; overflow: hidden;
+  display: inline-flex; align-items: center; background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: 8px; overflow: hidden;
 }
 .ck-qty button {
-  width: 32px; height: 32px; border: 0; background: #fff; color: #374151;
+  width: 32px; height: 32px; border: 0; background: transparent; color: var(--ink);
   font-size: 16px; line-height: 1; cursor: pointer;
 }
-.ck-qty button:hover { background: #f3f4f6; }
+.ck-qty button:hover { background: var(--line-soft); }
 .ck-remove {
-  width: 28px; height: 28px; border: 0; background: none; color: #d4d4d8;
+  width: 28px; height: 28px; border: 0; background: none; color: #c9c6ab;
   font-size: 17px; line-height: 1; border-radius: 7px; cursor: pointer; flex-shrink: 0;
 }
-.ck-remove:hover { background: #fef2f2; color: #ef4444; }
+.ck-remove:hover { background: #fdecea; color: var(--alert); }
+/* 送出 */
+.ck-submit {
+  padding: 1rem; background: var(--ink); color: #fff; border: 0; border-radius: 10px;
+  font-size: 1rem; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.ck-submit:disabled { background: #9c9a86; cursor: not-allowed; }
 `;
 
 function OptionCard({
@@ -273,75 +334,70 @@ export default function CheckoutPage({ params }: Props) {
   };
 
   return (
-    // 2026-10-15:結帳是單欄表單,960 寬會讓欄位拉得又長又空 — 收到 660
-    <div style={{ maxWidth: 660, margin: '0 auto' }}>
+    // 2026-10-15:結帳是單欄表單,960 寬會讓欄位拉得又長又空 — 收到 620
+    <div className="ck">
       <style dangerouslySetInnerHTML={{ __html: checkoutCss }} />
       {/* 2026-09-12:改成跟商品詳情/結帳同款的膠囊返回鍵 */}
-      <a
-        href={`/${slug}`}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: '9px 16px 9px 12px',
-          minHeight: 40,
-          boxSizing: 'border-box',
-          background: '#fff',
-          border: '1px solid #e4e4e7',
-          borderRadius: 999,
-          fontSize: 14,
-          fontWeight: 600,
-          color: '#374151',
-          textDecoration: 'none',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-        }}
-      >
+      <a href={`/${slug}`} className="ck-back">
         <IconChevronLeft size={16} /> 返回
       </a>
 
-      <h2 style={{ margin: '0 0 1.5rem', fontSize: '1.375rem' }}>
-        購物車 <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: '1rem' }}>({totalQty} 件)</span>
-      </h2>
+      <div className="ck-head">
+        <h2>購物車</h2>
+        <span>
+          <span className="num">{totalQty}</span> 件商品
+        </span>
+      </div>
 
-      {/* 2026-10-06:滿額贈進度橫幅 — 沒達標顯示還差多少,達標變綠 */}
+      {/* 2026-10-15:滿額贈做成量杯刻度 — 這頁唯一放膽的地方。
+          精油講分量,進度用刻度表示比圓角進度條更貼這家店。 */}
       {giftRules.length > 0 && (() => {
         const met = giftRules.filter((g) => subtotal >= g.threshold_twd);
         const next = giftRules.find((g) => subtotal < g.threshold_twd);
+        const pct = next ? Math.min(100, Math.round((subtotal / next.threshold_twd) * 100)) : 100;
+        const gap = next ? next.threshold_twd - subtotal : 0;
         return (
-          <div
-            style={{
-              marginBottom: '0.875rem',
-              padding: '0.75rem 0.875rem',
-              background: met.length > 0 ? '#f0fdf4' : '#fff7ed',
-              border: `1px solid ${met.length > 0 ? '#bbf7d0' : '#fed7aa'}`,
-              borderRadius: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-            }}
-          >
-            {met.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', fontWeight: 700, color: '#15803d' }}>
-                <IconGift size={16} />
-                <span>已獲得免費贈品:{met.map((g) => `${g.product_name}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('、')}</span>
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', fontWeight: 700, color: '#000' }}>
+                <IconGift size={15} /> 滿額贈
+              </span>
+              <span style={{ fontSize: '0.8125rem', color: next ? '#6b6a58' : '#0b5d3b', fontWeight: next ? 400 : 700 }}>
+                {next ? (
+                  <>
+                    還差 <span className="num" style={{ fontWeight: 700, color: '#000' }}>NT$ {gap.toLocaleString()}</span>
+                  </>
+                ) : (
+                  '已達最高門檻'
+                )}
+              </span>
+            </div>
+            <div className="gauge-track">
+              <div className="gauge-fill" style={{ width: `${pct}%` }} />
+              <div className="gauge-ticks">
+                {Array.from({ length: 10 }, (_, i) => <i key={i} />)}
               </div>
-            )}
-            {next && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', fontWeight: met.length > 0 ? 500 : 700, color: '#9a3412' }}>
-                {met.length === 0 && <IconGift size={16} />}
-                <span>
-                  再消費 NT$ {(next.threshold_twd - subtotal).toLocaleString()} 即可獲得免費贈品({next.product_name}
-                  {next.qty > 1 ? ` ×${next.qty}` : ''})
-                </span>
-              </div>
-            )}
+              <span className="gauge-cap num" style={{ color: pct > 92 ? '#fff' : '#000' }}>{pct}%</span>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: 1.6 }}>
+              {next && (
+                <div style={{ color: '#6b6a58' }}>
+                  滿 <span className="num">NT$ {next.threshold_twd.toLocaleString()}</span> 送 {next.product_name}
+                  {next.qty > 1 ? ` ×${next.qty}` : ''}
+                </div>
+              )}
+              {met.length > 0 && (
+                <div style={{ color: '#0b5d3b', fontWeight: 700 }}>
+                  已獲得:{met.map((g) => `${g.product_name}${g.qty > 1 ? ` ×${g.qty}` : ''}`).join('、')}
+                </div>
+              )}
+            </div>
           </div>
         );
       })()}
 
-      <div className="ck-card">
-        <h3 className="ck-card-title">商品明細</h3>
+      <div className="ck-panel" style={{ marginBottom: '1.25rem' }}>
+        <h3 className="ck-label">商品明細</h3>
         {items.map((item) => (
           // 2026-10-15:加商品縮圖,數量與金額移到第二行 — 原本全擠同一行又窄又亂
           <div key={item.variantId} className="ck-row">
@@ -356,15 +412,15 @@ export default function CheckoutPage({ params }: Props) {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {/* 2026-09-12:商品名不截斷(可換行),品項(規格)一律顯示 */}
-                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#111827', lineHeight: 1.45 }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#000', lineHeight: 1.45 }}>
                     {item.productName}
                   </div>
                   {item.variantName && item.variantName !== 'default' && (
-                    <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{item.variantName}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#6b6a58', marginTop: 2 }}>{item.variantName}</div>
                   )}
                   {unitPriceOf(item) < item.priceTwd && (
-                    <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: 2, fontWeight: 600 }}>
-                      量購價 NT$ {unitPriceOf(item).toLocaleString()} /件
+                    <div style={{ fontSize: '0.75rem', color: '#0b5d3b', marginTop: 2, fontWeight: 600 }}>
+                      量購價 <span className="num">NT$ {unitPriceOf(item).toLocaleString()}</span> /件
                     </div>
                   )}
                 </div>
@@ -383,7 +439,7 @@ export default function CheckoutPage({ params }: Props) {
                   <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
                   <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)}>+</button>
                 </div>
-                <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>
+                <span className="num" style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#000', whiteSpace: 'nowrap' }}>
                   NT$ {(unitPriceOf(item) * item.qty).toLocaleString()}
                 </span>
               </div>
@@ -392,24 +448,28 @@ export default function CheckoutPage({ params }: Props) {
         ))}
         <div
           style={{
-            borderTop: '1px solid #e5e7eb',
-            marginTop: '0.75rem',
-            paddingTop: '0.75rem',
+            borderTop: '1px solid #e7e3c6',
+            marginTop: '0.875rem',
+            paddingTop: '0.875rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.375rem',
+            gap: '0.4375rem',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#374151' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#6b6a58' }}>
             <span>商品小計</span>
-            <span>NT$ {subtotal.toLocaleString()}</span>
+            <span className="num" style={{ color: '#000' }}>NT$ {subtotal.toLocaleString()}</span>
           </div>
           {shipOptions.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#374151' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#6b6a58' }}>
               <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
-              <span style={{ color: shipOption && shipFee === 0 ? '#15803d' : undefined }}>
-                {shipOption ? (shipFee === 0 ? '免運' : `NT$ ${shipFee.toLocaleString()}`) : '請選配送方式'}
-              </span>
+              {shipOption ? (
+                <span className="num" style={{ color: shipFee === 0 ? '#0b5d3b' : '#000' }}>
+                  {shipFee === 0 ? '免運' : `NT$ ${shipFee.toLocaleString()}`}
+                </span>
+              ) : (
+                <span>請選配送方式</span>
+              )}
             </div>
           )}
           <div
@@ -417,13 +477,13 @@ export default function CheckoutPage({ params }: Props) {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'baseline',
-              marginTop: '0.375rem',
-              paddingTop: '0.625rem',
-              borderTop: '1px solid #f3f4f6',
+              marginTop: '0.4375rem',
+              paddingTop: '0.75rem',
+              borderTop: '1.5px solid #000',
             }}
           >
-            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#111827' }}>合計</span>
-            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#b45309', letterSpacing: '-0.01em' }}>
+            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#000' }}>合計</span>
+            <span className="num" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#000' }}>
               NT$ {grandTotal.toLocaleString()}
             </span>
           </div>
@@ -431,11 +491,12 @@ export default function CheckoutPage({ params }: Props) {
       </div>
 
       <form className="ck-form" action={handleSubmit}>
-        {/* D#13:配送方式(攤位有設運費規則才顯示) */}
+        {/* D#13:配送方式(攤位有設運費規則才顯示)
+            2026-10-15:選項本身已經是「面」了,不再包一層卡 — 免得整頁變成一堆同款方框 */}
         {shipOptions.length > 0 && (
-          <div className="ck-card">
-            <h3 className="ck-card-title">
-              配送方式 <span style={{ color: '#ef4444' }}>*</span>
+          <div>
+            <h3 className="ck-label">
+              配送方式 <span className="ck-req">*</span>
             </h3>
             <div className="opt-list">
               {shipOptions.map((opt) => {
@@ -476,9 +537,9 @@ export default function CheckoutPage({ params }: Props) {
         )}
         {/* 2026-10-15:付款方式(攤位有開 LINE Pay 才顯示;沒開一律匯款) */}
         {linePayOn && (
-          <div className="ck-card">
-            <h3 className="ck-card-title">
-              付款方式 <span style={{ color: '#ef4444' }}>*</span>
+          <div>
+            <h3 className="ck-label">
+              付款方式 <span className="ck-req">*</span>
             </h3>
             <div className="opt-list">
               <OptionCard
@@ -510,8 +571,8 @@ export default function CheckoutPage({ params }: Props) {
           </div>
         )}
         {/* 2026-10-15:收件資訊收進同一張卡,不再一欄一欄散在底色上 */}
-        <div className="ck-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-          <h3 className="ck-card-title" style={{ marginBottom: 0 }}>收件資訊</h3>
+        <div className="ck-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+          <h3 className="ck-label" style={{ marginBottom: 0 }}>收件資訊</h3>
           <div>
             <label htmlFor="recipient" style={labelStyle}>
               收件人姓名 <span style={{ color: '#ef4444' }}>*</span>
@@ -551,10 +612,10 @@ export default function CheckoutPage({ params }: Props) {
           <div
             style={{
               padding: '0.75rem 1rem',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: 6,
-              color: '#991b1b',
+              background: '#fdecea',
+              border: '1px solid #f3c6c2',
+              borderRadius: 10,
+              color: '#b3261e',
               fontSize: '0.875rem',
             }}
           >
@@ -562,21 +623,7 @@ export default function CheckoutPage({ params }: Props) {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            padding: '0.875rem',
-            background: submitting ? '#9ca3af' : '#1f2937',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: '1rem',
-            fontWeight: 500,
-            cursor: submitting ? 'not-allowed' : 'pointer',
-            marginTop: '0.5rem',
-          }}
-        >
+        <button type="submit" className="ck-submit" disabled={submitting}>
           {submitting ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <span
