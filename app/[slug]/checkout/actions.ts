@@ -1,6 +1,8 @@
 'use server';
 
-import { buildGiftItems, getTenantBySlug, getProductTiers, isSaleActive, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { redirect } from 'next/navigation';
+import { buildGiftItems, getTenantBySlug, getProductTiers, hasFeature, isSaleActive, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
 
 // 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
 // (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
@@ -133,6 +135,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const note = String(formData.get('note') ?? '').trim();
   const guestEmail = String(formData.get('guestEmail') ?? '').trim();
   const shippingMethod = String(formData.get('shipping_method') ?? '').trim();
+  // 2026-10-15:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
+  const paymentMethod =
+    String(formData.get('payment_method') ?? '').trim() === 'line_pay' ? 'line_pay' : 'bank';
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
 
@@ -309,6 +314,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       tenant_id: tenant.id,
       status: 'open',
       payment_status: 'pending',
+      payment_method: paymentMethod,
       source: 'web',
       shipping_recipient: recipient,
       shipping_phone: phone,
@@ -349,4 +355,90 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   }
 
   return { ok: true, orderNo: (orderRow as { order_no: string }).order_no };
+}
+
+// ====================
+// 2026-10-15:LINE Pay 線上付款
+// 金鑰設好 + 該攤位開 line_pay feature flag 才會出現付款選項。
+// ====================
+
+/** 這個攤位能不能用 LINE Pay(金鑰已設 + feature flag 開) */
+export async function isLinePayAvailable(tenantSlug: string): Promise<boolean> {
+  if (!isLinePayConfigured()) return false;
+  const tenant = await getTenantBySlug(tenantSlug);
+  return hasFeature(tenant, 'line_pay');
+}
+
+export type StartLinePayResult =
+  | { ok: true; paymentUrl: string }
+  | { ok: false; error: string };
+
+/**
+ * 對一張既有訂單發動 LINE Pay 付款,回付款頁網址(前端自行跳轉)。
+ * 金額一律以 DB 的訂單金額為準,不信任前端傳來的數字。
+ */
+export async function startLinePay(
+  tenantSlug: string,
+  orderNo: string,
+): Promise<StartLinePayResult> {
+  if (!(await isLinePayAvailable(tenantSlug))) {
+    return { ok: false, error: '此攤位未開放 LINE Pay' };
+  }
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const { data } = await supabaseAdmin
+    .from('orders')
+    .select('id, order_no, total_twd, shipping_fee_twd, payment_status, status')
+    .eq('tenant_id', tenant.id)
+    .eq('order_no', orderNo)
+    .maybeSingle();
+  const order = data as {
+    id: string;
+    order_no: string;
+    total_twd: number;
+    shipping_fee_twd: number | null;
+    payment_status: string;
+    status: string;
+  } | null;
+
+  if (!order) return { ok: false, error: '找不到訂單' };
+  if (order.payment_status === 'paid') return { ok: false, error: '這筆訂單已付款' };
+  if (order.status === 'cancelled' || order.status === 'refunded') {
+    return { ok: false, error: '這筆訂單已取消' };
+  }
+
+  const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
+  if (amount <= 0) return { ok: false, error: '訂單金額異常,請聯絡客服' };
+
+  const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
+  const result = await requestLinePayPayment({
+    orderNo: order.order_no,
+    amount,
+    productName: `${tenant.name} 訂單 ${order.order_no}`,
+    // LINE Pay 會在 confirmUrl 後面自動帶 transactionId / orderId
+    confirmUrl: `${baseUrl}/api/linepay/confirm?slug=${encodeURIComponent(tenantSlug)}`,
+    cancelUrl: `${baseUrl}/${tenantSlug}/order/${order.order_no}?linepay=cancel`,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  // 存交易序號:導回來時要比對是不是同一筆(也方便之後對帳/退款查詢)
+  const { error: updErr } = await supabaseAdmin
+    .from('orders')
+    .update({ payment_method: 'line_pay', linepay_transaction_id: result.transactionId })
+    .eq('id', order.id);
+  if (updErr) {
+    console.error('[startLinePay] 存交易序號失敗', updErr);
+    return { ok: false, error: '系統忙線,請稍後再試' };
+  }
+
+  return { ok: true, paymentUrl: result.paymentUrl };
+}
+
+/** 訂單頁「用 LINE Pay 付款」按鈕用:發動付款並直接導去付款頁 */
+export async function startLinePayAndRedirect(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const orderNo = String(formData.get('order_no') ?? '').trim();
+  const result = await startLinePay(slug, orderNo);
+  redirect(result.ok ? result.paymentUrl : `/${slug}/order/${orderNo}?linepay=failed`);
 }

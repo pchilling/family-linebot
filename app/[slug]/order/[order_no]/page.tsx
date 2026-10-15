@@ -3,11 +3,14 @@ import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
 import { reportPaymentLast5 } from './actions';
+import { startLinePayAndRedirect } from '../../checkout/actions';
 import { IconBank, IconCheck, IconCheckCircle, IconClock, IconPackage, IconPencil, IconUndo, IconX } from '@/lib/icons';
 import { OtpInput } from '@/lib/otp-input';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
+  // 2026-10-15:LINE Pay 導回帶的狀態(done / cancel / failed)
+  searchParams?: Promise<{ linepay?: string }>;
 };
 
 type OrderItemRow = {
@@ -23,6 +26,7 @@ type OrderDetail = {
   order_no: string;
   status: string;
   payment_status: string;
+  payment_method: string | null;
   total_twd: number;
   shipping_method: string | null;
   shipping_fee_twd: number;
@@ -65,7 +69,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
+      'id, order_no, status, payment_status, payment_method, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -97,6 +101,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     order_no: row.order_no,
     status: row.status,
     payment_status: row.payment_status,
+    payment_method: row.payment_method ?? null,
     total_twd: row.total_twd,
     shipping_method: row.shipping_method ?? null,
     shipping_fee_twd: row.shipping_fee_twd ?? 0,
@@ -135,8 +140,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `訂單 ${order_no}` };
 }
 
-export default async function OrderPage({ params }: Props) {
+export default async function OrderPage({ params, searchParams }: Props) {
   const { slug, order_no } = await params;
+  const linePayState = (searchParams ? await searchParams : undefined)?.linepay ?? null;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
   const order = await getOrder(tenant.id, order_no);
@@ -176,6 +182,8 @@ export default async function OrderPage({ params }: Props) {
   const isCancelled = order.status === 'cancelled' || order.status === 'refunded';
   // 2026-10-06:自取訂單沒有「出貨/送達」,文案改「備貨/取貨」(DB 狀態共用 shipped/delivered)
   const isPickup = order.shipping_method === 'pickup';
+  // 2026-10-15:LINE Pay 訂單不用匯款、也不用回報後 5 碼
+  const isLinePayOrder = order.payment_method === 'line_pay';
   const stage =
     order.status === 'delivered' ? 4
     : order.status === 'shipped' ? 3
@@ -189,7 +197,11 @@ export default async function OrderPage({ params }: Props) {
         bg: '#f4f4f5', border: '#e4e4e7', color: '#52525b',
       }
     : stage === 0
-      ? { icon: <IconClock size={18} />, title: '訂單成立,請匯款後回報後 5 碼', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
+      ? {
+          icon: <IconClock size={18} />,
+          title: isLinePayOrder ? '訂單成立,請完成 LINE Pay 付款' : '訂單成立,請匯款後回報後 5 碼',
+          bg: '#fffbeb', border: '#fde68a', color: '#92400e',
+        }
       : stage === 1
         ? { icon: <IconClock size={18} />, title: '已回報後 5 碼,等待賣家核帳', bg: '#fffbeb', border: '#fde68a', color: '#92400e' }
         : stage === 2
@@ -197,9 +209,13 @@ export default async function OrderPage({ params }: Props) {
           : stage === 3
             ? { icon: <IconPackage size={18} />, title: isPickup ? '已備貨,歡迎取貨' : '已出貨', bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8' }
             : { icon: <IconCheckCircle size={18} />, title: isPickup ? '已取貨,感謝您的訂購' : '已送達,感謝您的訂購', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' };
-  const steps = isPickup
-    ? ['下單', '回報五碼', '已收款', '備貨', '取貨']
-    : ['下單', '回報五碼', '已收款', '出貨', '送達'];
+  const steps = [
+    '下單',
+    isLinePayOrder ? 'LINE Pay' : '回報五碼',
+    '已收款',
+    isPickup ? '備貨' : '出貨',
+    isPickup ? '取貨' : '送達',
+  ];
 
   return (
     <div>
@@ -273,7 +289,72 @@ export default async function OrderPage({ params }: Props) {
         )}
       </div>
 
-      {stage <= 1 && !isCancelled && (paymentInfo ? (
+      {/* 2026-10-15:LINE Pay 訂單未付款 → 付款按鈕(不顯示匯款資訊、不用回報後 5 碼) */}
+      {isLinePayOrder && order.payment_status !== 'paid' && !isCancelled && (
+        <section
+          style={{
+            padding: '1.25rem',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: 12,
+            marginBottom: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '0.75rem' }}>
+            <span style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IconBank size={17} />
+            </span>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>下一步:LINE Pay 付款</div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 1 }}>
+                付款完成後訂單會自動更新,不需回報帳號後 5 碼
+              </div>
+            </div>
+          </div>
+          {(linePayState === 'cancel' || linePayState === 'failed') && (
+            <div
+              style={{
+                padding: '0.625rem 0.875rem',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: 8,
+                color: '#92400e',
+                fontSize: '0.8125rem',
+                lineHeight: 1.6,
+                marginBottom: '0.75rem',
+              }}
+            >
+              {linePayState === 'cancel'
+                ? '您取消了這次付款,訂單仍然保留,可以再付一次。'
+                : '付款沒有完成,款項未被扣除,請再試一次或聯絡我們。'}
+            </div>
+          )}
+          <form action={startLinePayAndRedirect}>
+            <input type="hidden" name="tenant_slug" value={slug} />
+            <input type="hidden" name="order_no" value={order.order_no} />
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                minHeight: 48,
+                padding: '0 1.5rem',
+                background: '#06c755',
+                color: '#fff',
+                border: 0,
+                borderRadius: 10,
+                fontSize: '0.9375rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              用 LINE Pay 付款 · NT$ {grandTotal.toLocaleString()}
+            </button>
+          </form>
+        </section>
+      )}
+
+      {!isLinePayOrder && stage <= 1 && !isCancelled && (paymentInfo ? (
         <section
           style={{
             padding: '1.25rem',
@@ -330,8 +411,9 @@ export default async function OrderPage({ params }: Props) {
         </div>
       ))}
 
-      {/* D#14:匯款後 5 碼自助回報 — 2026-09-08 v3:白底簡潔卡 + icon 磚,不再用大黃塊 */}
-      {isCancelled ? null : order.payment_status === 'paid' ? (
+      {/* D#14:匯款後 5 碼自助回報 — 2026-09-08 v3:白底簡潔卡 + icon 磚,不再用大黃塊
+          (2026-10-15:LINE Pay 未付款的單不顯示,上面已有付款按鈕) */}
+      {isCancelled || (isLinePayOrder && order.payment_status !== 'paid') ? null : order.payment_status === 'paid' ? (
         <section id="report" style={{ scrollMarginTop: 16, padding: '0.875rem 1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.9375rem', color: '#15803d', fontWeight: 600 }}>
           <IconCheckCircle size={18} /> 已收到您的款項,無需再回報。
         </section>

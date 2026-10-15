@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { IconChevronLeft, IconGift } from '@/lib/icons';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, type CartPricingInfo, type GiftRulePublic, type ShippingOption } from './actions';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftRulePublic, type ShippingOption } from './actions';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -25,9 +25,13 @@ export default function CheckoutPage({ params }: Props) {
   const [shipKey, setShipKey] = useState('');
   // 2026-10-06:滿額贈進度橫幅(蝦皮式)
   const [giftRules, setGiftRules] = useState<GiftRulePublic[]>([]);
+  // 2026-10-15:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
+  const [linePayOn, setLinePayOn] = useState(false);
+  const [payMethod, setPayMethod] = useState<'bank' | 'line_pay'>('bank');
   useEffect(() => {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
     getGiftRulesPublic(slug).then(setGiftRules).catch(() => {});
+    isLinePayAvailable(slug).then(setLinePayOn).catch(() => {});
   }, [slug]);
 
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
@@ -70,7 +74,9 @@ export default function CheckoutPage({ params }: Props) {
   if (redirecting) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#374151' }}>
-        <p style={{ fontSize: '1.125rem', margin: 0 }}>訂單已成立,跳轉中...</p>
+        <p style={{ fontSize: '1.125rem', margin: 0 }}>
+          {linePayOn && payMethod === 'line_pay' ? '訂單已成立,正在前往 LINE Pay...' : '訂單已成立,跳轉中...'}
+        </p>
       </div>
     );
   }
@@ -112,6 +118,17 @@ export default function CheckoutPage({ params }: Props) {
     }
     setRedirecting(true); // 馬上切到 loading 畫面,避免接下來 clear() 觸發空車閃屏
     clear();
+    // 2026-10-15:選 LINE Pay → 導去付款頁。
+    // 發動失敗不擋單(訂單已成立),退回訂單頁讓客人重按一次付款。
+    if (linePayOn && payMethod === 'line_pay') {
+      const pay = await startLinePay(slug, result.orderNo);
+      if (pay.ok) {
+        window.location.href = pay.paymentUrl;
+        return;
+      }
+      router.push(`/${slug}/order/${result.orderNo}?linepay=failed`);
+      return;
+    }
     router.push(`/${slug}/order/${result.orderNo}`);
   }
 
@@ -343,6 +360,54 @@ export default function CheckoutPage({ params }: Props) {
             </div>
           </div>
         )}
+        {/* 2026-10-15:付款方式(攤位有開 LINE Pay 才顯示;沒開一律匯款) */}
+        {linePayOn && (
+          <div>
+            <span style={labelStyle}>
+              付款方式 <span style={{ color: '#ef4444' }}>*</span>
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {([
+                { key: 'bank', title: '銀行轉帳', desc: '下單後到訂單頁回報匯款帳號後 5 碼' },
+                { key: 'line_pay', title: 'LINE Pay', desc: '送出後直接前往 LINE Pay 付款,不用回報後 5 碼' },
+              ] as const).map((opt) => {
+                const isActive = payMethod === opt.key;
+                return (
+                  <label
+                    key={opt.key}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.625rem',
+                      padding: '0.75rem 0.875rem',
+                      border: `1.5px solid ${isActive ? '#1f2937' : '#e5e7eb'}`,
+                      borderRadius: 8,
+                      background: isActive ? '#f9fafb' : '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value={opt.key}
+                      checked={isActive}
+                      onChange={() => setPayMethod(opt.key)}
+                      style={{ marginTop: 3 }}
+                    />
+                    <span style={{ flex: 1 }}>
+                      <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#1f2937' }}>
+                        {opt.title}
+                      </span>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginTop: 3, lineHeight: 1.5 }}>
+                        {opt.desc}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div>
           <label htmlFor="recipient" style={labelStyle}>
             收件人姓名 <span style={{ color: '#ef4444' }}>*</span>
@@ -424,7 +489,7 @@ export default function CheckoutPage({ params }: Props) {
               處理中,訂單建立中…
             </span>
           ) : (
-            `送出訂單 · NT$ ${grandTotal.toLocaleString()}`
+            `${linePayOn && payMethod === 'line_pay' ? '前往 LINE Pay 付款' : '送出訂單'} · NT$ ${grandTotal.toLocaleString()}`
           )}
         </button>
         <style dangerouslySetInnerHTML={{ __html: '@keyframes co-spin { to { transform: rotate(360deg); } }' }} />

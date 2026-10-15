@@ -1206,3 +1206,21 @@ commit;
 -- 永遠以自己的標價計(如 3本組 $570)。單品規格照常走分階。
 -- ====================
 alter table product_variants add column if not exists is_bundle boolean not null default false;
+
+
+-- ====================
+-- Phase 17(2026-10-15):LINE Pay 線上付款
+-- 客人在結帳選 LINE Pay → 導去 LINE Pay 付款 → 導回 /api/linepay/confirm
+-- → 確認扣款成功後自動標已付款(不用回報匯款後 5 碼)。
+-- 金鑰放環境變數:LINEPAY_CHANNEL_ID / LINEPAY_CHANNEL_SECRET
+-- (測試站另設 LINEPAY_SANDBOX_* + LINEPAY_ENV=sandbox)
+-- ====================
+
+-- 交易序號:發動付款時存,客人導回時比對是不是同一筆;也方便之後在
+-- LINE Pay 商家中心對帳 / 退款時查得到對應訂單。
+alter table orders add column if not exists linepay_transaction_id text;
+
+-- 愛油哇開放 LINE Pay 付款選項(feature flag,其他攤位不受影響)
+update tenants
+set features = coalesce(features, '{}'::jsonb) || '{"line_pay": true}'::jsonb
+where slug = 'oilswa';
