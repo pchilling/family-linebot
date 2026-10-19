@@ -170,7 +170,7 @@ export function VariantsTable({
           </button>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse' }}>
+          <table className="rtable" style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <th scope="col" style={{ ...th, width: 66 }}>順序</th>
@@ -196,25 +196,25 @@ export function VariantsTable({
                         <button type="button" onClick={() => move(i, 1)} disabled={i === rows.length - 1} aria-label="往下移" style={iconBtn(i === rows.length - 1)}>↓</button>
                       </div>
                     </td>
-                    <td style={cell}>
+                    <td className="rt-title" data-label="規格名稱" style={cell}>
                       <input name="v_name" value={r.name} onChange={(e) => patch(r.key, { name: e.target.value })} required placeholder="例:1台、紅色、15ML" aria-label="規格名稱" style={input} />
                       {r.sku && <div style={{ fontSize: 10.5, color: '#a1a1aa', marginTop: 3, fontFamily: 'var(--font-geist-mono), monospace' }}>{r.sku}</div>}
                       {!r.id && <div style={{ fontSize: 10.5, color: '#16a34a', marginTop: 3 }}>新規格,儲存後產生 SKU</div>}
                     </td>
-                    <td style={cell}><input name="v_price" type="number" min={0} value={r.price} onChange={(e) => patch(r.key, { price: e.target.value })} required aria-label="售價" style={numInput} /></td>
-                    <td style={cell}><input name="v_cost" type="number" min={0} value={r.cost} onChange={(e) => patch(r.key, { cost: e.target.value })} aria-label="成本" placeholder="—" style={numInput} /></td>
-                    <td style={cell}><input name="v_stock" type="number" min={0} value={r.stock} onChange={(e) => patch(r.key, { stock: e.target.value })} aria-label="庫存" style={{ ...numInput, ...(Number(r.stock) <= 0 ? { background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' } : {}) }} /></td>
-                    <td style={cell}>
+                    <td data-label="售價" style={cell}><input name="v_price" type="number" min={0} value={r.price} onChange={(e) => patch(r.key, { price: e.target.value })} required aria-label="售價" style={numInput} /></td>
+                    <td data-label="成本" style={cell}><input name="v_cost" type="number" min={0} value={r.cost} onChange={(e) => patch(r.key, { cost: e.target.value })} aria-label="成本" placeholder="—" style={numInput} /></td>
+                    <td data-label="庫存" style={cell}><input name="v_stock" type="number" min={0} value={r.stock} onChange={(e) => patch(r.key, { stock: e.target.value })} aria-label="庫存" style={{ ...numInput, ...(Number(r.stock) <= 0 ? { background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' } : {}) }} /></td>
+                    <td data-label="狀態" style={cell}>
                       <select name="v_status" value={r.status} onChange={(e) => patch(r.key, { status: e.target.value })} aria-label="狀態" style={input}>
                         <option value="active">上架</option>
                         <option value="inactive">暫停</option>
                         <option value="discontinued">下架</option>
                       </select>
                     </td>
-                    <td style={{ ...cell, textAlign: 'center' }}>
+                    <td data-label="組合品(固定價,不參與分階)" style={{ ...cell, textAlign: 'center' }}>
                       <input type="checkbox" checked={r.bundle} onChange={(e) => patch(r.key, { bundle: e.target.checked })} aria-label="組合品(固定價,不參與分階)" title="組合品:固定價,數量與價格都不參與分階" />
                     </td>
-                    <td style={cell}>
+                    <td data-label="圖片" style={cell}>
                       {r.id ? (
                         <button type="button" onClick={() => setImgOpen(imgOpen === r.key ? null : r.key)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 3, border: '1px solid #e4e4e7', borderRadius: 7, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }} aria-expanded={imgOpen === r.key}>
                           {r.image_url ? (
@@ -266,7 +266,7 @@ export function VariantsTable({
         {trows.length === 0 ? (
           <p style={{ margin: 0, padding: '14px 16px', fontSize: 13, color: '#a1a1aa' }}>尚未設定,所有數量都用規格售價。</p>
         ) : (
-          <table style={{ width: '100%', maxWidth: 560, borderCollapse: 'collapse' }}>
+          <table className="rtable" style={{ width: '100%', maxWidth: 560, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <th scope="col" style={{ ...th, width: 180 }}>買滿(件)</th>
@@ -277,11 +277,11 @@ export function VariantsTable({
             <tbody>
               {trows.map((t) => (
                 <tr key={t.key} style={{ background: t.id ? undefined : '#f0fdf4' }}>
-                  <td style={cell}>
+                  <td data-label="買滿(件)" style={cell}>
                     <input type="hidden" name="t_id" value={t.id ?? ''} />
                     <input name="t_min" type="number" min={2} value={t.min} onChange={(e) => patchTier(t.key, { min: e.target.value })} required placeholder="例:2" aria-label="買滿件數" style={numInput} />
                   </td>
-                  <td style={cell}><input name="t_price" type="number" min={0} value={t.price} onChange={(e) => patchTier(t.key, { price: e.target.value })} required placeholder="例:1700" aria-label="每件單價" style={numInput} /></td>
+                  <td data-label="每件單價" style={cell}><input name="t_price" type="number" min={0} value={t.price} onChange={(e) => patchTier(t.key, { price: e.target.value })} required placeholder="例:1700" aria-label="每件單價" style={numInput} /></td>
                   <td style={cell}>
                     <button type="button" onClick={() => removeTier(t)} aria-label="刪除此階" style={{ width: 26, height: 26, border: 0, borderRadius: 6, background: 'none', color: '#a1a1aa', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
                   </td>

@@ -140,6 +140,16 @@ export default async function ProductEditPage({
 input:focus, textarea:focus, select:focus { outline: none; border-color: #18181b !important; box-shadow: 0 0 0 3px rgba(24,24,27,.08); }
 details summary { list-style: none; cursor: pointer; }
 details summary::-webkit-details-marker { display: none; }
+/* 手機版:layout 的全域 CSS 會把表格拆成卡片、藏表頭;補欄位小標、規格名置頂、拿掉最小寬度 */
+@media (max-width: 767px) {
+  .rtable { min-width: 0 !important; }
+  .rtable tr { display: flex !important; flex-direction: column; gap: 6px; }
+  .rtable td:first-child { font-weight: 400 !important; font-size: 13px !important; }
+  .rtable td.rt-title { order: -1; font-weight: 600 !important; font-size: 15px !important; color: #18181b !important; }
+  .rtable td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: #71717a; margin-bottom: 3px; }
+  .rtable td:last-child { font-size: 13px !important; color: inherit !important; }
+  .rtable td[colspan] { padding-left: 0 !important; }
+}
           `,
         }}
       />
@@ -175,7 +185,7 @@ details summary::-webkit-details-marker { display: none; }
         </div>
       </div>
 
-      <nav aria-label="編輯分頁" style={{ display: 'flex', gap: 22, borderBottom: '1px solid #e4e4e7', marginBottom: 18 }}>
+      <nav aria-label="編輯分頁" style={{ display: 'flex', gap: 18, borderBottom: '1px solid #e4e4e7', marginBottom: 18, overflowX: 'auto', whiteSpace: 'nowrap' }}>
         {TABS.map((t) => {
           const on = t.key === tab;
           return (

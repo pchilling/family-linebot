@@ -195,6 +195,15 @@ details summary::-webkit-details-marker { display: none; }
 details[open] .chev { transform: rotate(90deg); }
 .chev { display: inline-block; transition: transform 150ms ease; }
 .prow:hover { background: #fafafa; }
+/* 手機版:layout 的全域 CSS 會把表格拆成卡片、藏表頭;這裡補欄位小標、名稱置頂、拿掉最小寬度 */
+@media (max-width: 767px) {
+  .rtable { min-width: 0 !important; }
+  .rtable tr { display: flex !important; flex-direction: column; gap: 6px; }
+  .rtable td:first-child { font-weight: 400 !important; font-size: 13px !important; }
+  .rtable td.rt-title { order: -1; font-weight: 600 !important; font-size: 15px !important; color: #18181b !important; }
+  .rtable td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: #71717a; margin-bottom: 3px; }
+  .rtable td:last-child { font-size: 13px !important; color: inherit !important; }
+}
           `,
         }}
       />
@@ -249,7 +258,7 @@ details[open] .chev { transform: rotate(90deg); }
       ) : (
         <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 24 }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
+            <table className="rtable" style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   <th scope="col" style={{ ...th, width: '40%' }}>商品</th>
@@ -272,7 +281,7 @@ details[open] .chev { transform: rotate(90deg); }
                   const editHref = `/admin/${tenant.slug}/products/${p.id}`;
                   return (
                     <tr key={p.id} id={`product-${p.id}`} className="prow">
-                      <td style={td}>
+                      <td className="rt-title" style={td}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           {cover ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -294,11 +303,11 @@ details[open] .chev { transform: rotate(90deg); }
                           </div>
                         </div>
                       </td>
-                      <td style={{ ...td, textAlign: 'right', fontSize: 13.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{priceRange(p)}</td>
-                      <td style={{ ...td, padding: '10px 14px' }}>
+                      <td data-label="售價" style={{ ...td, textAlign: 'right', fontSize: 13.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{priceRange(p)}</td>
+                      <td data-label="庫存" style={{ ...td, padding: '10px 14px' }}>
                         <StockCell tenantSlug={tenant.slug} variants={stockRows} />
                       </td>
-                      <td style={td}>
+                      <td data-label="狀態" style={td}>
                         <ProductStatusToggle tenantSlug={tenant.slug} productId={p.id} initialActive={p.status === 'active'} />
                       </td>
                       <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
