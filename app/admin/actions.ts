@@ -224,8 +224,31 @@ function tenantIdFromForm(formData: FormData): string {
 
 function revalidateProductRoutes(formData: FormData) {
   const slug = String(formData.get('tenant_slug') || '').trim();
-  if (slug) revalidatePath(`/admin/${slug}/products`);
+  if (slug) {
+    revalidatePath(`/admin/${slug}/products`);
+    // 2026-10-20 商品頁改版:編輯頁在 /products/[id],用 layout 一併重新驗證整個子樹
+    revalidatePath(`/admin/${slug}/products`, 'layout');
+  }
   revalidatePath('/admin/products'); // legacy
+}
+
+/**
+ * 2026-10-20 商品頁改版:商品相關動作存完要回哪裡。
+ * 表單帶 return_to=edit(+ tab)→ 回編輯頁該分頁;沒帶 → 沿用舊的列表頁行為。
+ */
+function productRedirect(formData: FormData, slug: string, productId: string, err?: string): never {
+  const returnTo = String(formData.get('return_to') || '').trim();
+  if (returnTo === 'edit') {
+    const tab = String(formData.get('tab') || 'basic').trim();
+    redirect(
+      `/admin/${slug}/products/${productId}?tab=${encodeURIComponent(tab)}&${err ? `err=${err}` : 'saved=1'}`,
+    );
+  }
+  redirect(
+    err
+      ? `/admin/${slug}/products?err=${err}#product-${productId}`
+      : `/admin/${slug}/products?saved=${productId}#product-${productId}`,
+  );
 }
 
 /**
@@ -464,15 +487,161 @@ export async function updateProduct(formData: FormData) {
   revalidateProductRoutes(formData);
 
   // 存後 redirect 帶 saved 參數讓 page 顯示「✓ 已儲存」banner + 滾到該商品
-  if (slug) {
-    redirect(`/admin/${slug}/products?saved=${id}#product-${id}`);
-  }
+  if (slug) productRedirect(formData, slug, id);
 }
 
 export async function deleteProduct(formData: FormData) {
   const id = String(formData.get('id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
   await supabaseAdmin.from('products').delete().eq('id', id);
   revalidateProductRoutes(formData);
+  // 從編輯頁刪的話,商品已經不在了,回列表
+  if (slug && String(formData.get('return_to') || '') === 'edit') {
+    redirect(`/admin/${slug}/products?deleted=1`);
+  }
+}
+
+// ====================
+// 2026-10-20 商品頁改版:列表上直接改庫存 / 上下架、編輯頁一鍵存整組規格
+// ====================
+
+/** 列表上的庫存框:離開欄位就存,回 ok 讓前端顯示「已存」 */
+export async function setVariantStock(
+  tenantSlug: string,
+  variantId: string,
+  stock: number,
+): Promise<{ ok: boolean }> {
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant || !variantId) return { ok: false };
+  const n = Math.max(0, Math.floor(Number(stock)));
+  if (!Number.isFinite(n)) return { ok: false };
+  const { error } = await supabaseAdmin
+    .from('product_variants')
+    .update({ stock: n })
+    .eq('id', variantId)
+    .eq('tenant_id', tenant.id);
+  if (error) {
+    console.error('[setVariantStock]', error);
+    return { ok: false };
+  }
+  revalidatePath(`/admin/${tenantSlug}/products`, 'layout');
+  revalidatePath(`/${tenantSlug}`);
+  return { ok: true };
+}
+
+/** 上架開關:關掉 = 暫停(inactive),保留資料、商城不顯示 */
+export async function setProductStatus(
+  tenantSlug: string,
+  productId: string,
+  active: boolean,
+): Promise<{ ok: boolean }> {
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant || !productId) return { ok: false };
+  const { error } = await supabaseAdmin
+    .from('products')
+    .update({ status: active ? 'active' : 'inactive' })
+    .eq('id', productId)
+    .eq('tenant_id', tenant.id);
+  if (error) {
+    console.error('[setProductStatus]', error);
+    return { ok: false };
+  }
+  revalidatePath(`/admin/${tenantSlug}/products`, 'layout');
+  revalidatePath(`/${tenantSlug}`);
+  return { ok: true };
+}
+
+/**
+ * 編輯頁「規格與庫存」分頁一次存整組:
+ * 規格(含順序、新增、刪除、組合品)+ 分階定價。
+ * 表單欄位是重複名稱的陣列(v_id / v_name / …),同一個 index 是同一列;
+ * v_id 空字串 = 新規格,要產 SKU 再 insert。
+ */
+export async function saveVariantsBulk(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const tenantId = tenantIdFromForm(formData);
+  const productId = String(formData.get('product_id') || '').trim();
+  if (!slug || !productId) throw new Error('缺必要參數');
+
+  const ids = formData.getAll('v_id').map(String);
+  const names = formData.getAll('v_name').map(String);
+  const prices = formData.getAll('v_price').map(String);
+  const costs = formData.getAll('v_cost').map(String);
+  const stocks = formData.getAll('v_stock').map(String);
+  const statuses = formData.getAll('v_status').map(String);
+  const bundles = formData.getAll('v_bundle').map(String);
+  const vDeleted = formData.getAll('v_deleted').map(String).filter(Boolean);
+
+  if (vDeleted.length > 0) {
+    const { error } = await supabaseAdmin
+      .from('product_variants')
+      .delete()
+      .in('id', vDeleted)
+      .eq('tenant_id', tenantId)
+      .eq('product_id', productId);
+    if (error) console.error('[saveVariantsBulk delete]', error);
+  }
+
+  const { data: parent } = await supabaseAdmin
+    .from('products')
+    .select('sku')
+    .eq('id', productId)
+    .maybeSingle();
+  const productSku = (parent as { sku?: string | null } | null)?.sku ?? null;
+
+  for (let i = 0; i < names.length; i++) {
+    const row = {
+      variant_name: names[i].trim() || 'default',
+      price_twd: numOrNull(prices[i]) ?? 0,
+      cost_twd: numOrNull(costs[i]),
+      stock: numOrNull(stocks[i]) ?? 0,
+      status: statuses[i] || 'active',
+      is_bundle: bundles[i] === '1',
+      sort_order: i, // 畫面上的順序就是顯示順序
+    };
+    const id = (ids[i] || '').trim();
+    if (id) {
+      const { error } = await supabaseAdmin
+        .from('product_variants')
+        .update(row)
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+      if (error) console.error('[saveVariantsBulk update]', id, error);
+    } else {
+      if (!productSku) {
+        console.error('[saveVariantsBulk] product missing sku,無法新增規格', productId);
+        continue;
+      }
+      const sku = await nextVariantSku(productId, productSku);
+      const { error } = await supabaseAdmin
+        .from('product_variants')
+        .insert({ tenant_id: tenantId, product_id: productId, sku, ...row });
+      if (error) console.error('[saveVariantsBulk insert]', error);
+    }
+  }
+
+  const tIds = formData.getAll('t_id').map(String);
+  const tMins = formData.getAll('t_min').map(String);
+  const tPrices = formData.getAll('t_price').map(String);
+  const tDeleted = formData.getAll('t_deleted').map(String).filter(Boolean);
+  if (tDeleted.length > 0) {
+    await supabaseAdmin.from('product_price_tiers').delete().in('id', tDeleted).eq('tenant_id', tenantId);
+  }
+  for (let i = 0; i < tMins.length; i++) {
+    const min_qty = Number(tMins[i]);
+    const price_twd = Number(tPrices[i]);
+    if (!(min_qty >= 2) || !(price_twd >= 0)) continue;
+    const id = (tIds[i] || '').trim();
+    if (id) {
+      await supabaseAdmin.from('product_price_tiers').update({ min_qty, price_twd }).eq('id', id).eq('tenant_id', tenantId);
+    } else {
+      await supabaseAdmin.from('product_price_tiers').insert({ tenant_id: tenantId, product_id: productId, min_qty, price_twd });
+    }
+  }
+
+  revalidateProductRoutes(formData);
+  revalidatePath(`/${slug}`);
+  redirect(`/admin/${slug}/products/${productId}?tab=variants&saved=1`);
 }
 
 /**
@@ -650,12 +819,10 @@ export async function updateProductSale(formData: FormData) {
   revalidateProductRoutes(formData);
   if (error) {
     console.error('[updateProductSale]', error);
-    if (slug) redirect(`/admin/${slug}/products?err=sale#product-${id}`);
+    if (slug) productRedirect(formData, slug, id, 'sale');
     return;
   }
-  if (slug) {
-    redirect(`/admin/${slug}/products?saved=${id}#product-${id}`);
-  }
+  if (slug) productRedirect(formData, slug, id);
 }
 
 export async function deletePriceTier(formData: FormData) {
@@ -683,9 +850,7 @@ export async function updateShareFocus(formData: FormData) {
     .update({ share_focus_x: focus })
     .eq('id', id);
   revalidateProductRoutes(formData);
-  if (slug) {
-    redirect(`/admin/${slug}/products?saved=${id}#product-${id}`);
-  }
+  if (slug) productRedirect(formData, slug, id);
 }
 
 // ====================
@@ -711,10 +876,8 @@ async function setProductMedia(productId: string, media: MediaItem[]) {
 /**
  * Media 動作後 redirect 回 products 頁,?saved=<id>#product-<id> 讓 details 保持展開 + 滾到該商品。
  */
-function mediaRedirect(slug: string, productId: string) {
-  if (slug) {
-    redirect(`/admin/${slug}/products?saved=${productId}#product-${productId}`);
-  }
+function mediaRedirect(formData: FormData, slug: string, productId: string) {
+  if (slug) productRedirect(formData, slug, productId);
 }
 
 /**
@@ -727,13 +890,13 @@ export async function addProductMedia(formData: FormData): Promise<void> {
   const url = String(formData.get('url') ?? '').trim();
   if (!url || (type !== 'image' && type !== 'video')) {
     revalidateProductRoutes(formData);
-    mediaRedirect(slug, product_id);
+    mediaRedirect(formData, slug, product_id);
     return;
   }
   const current = await getProductMedia(product_id);
   await setProductMedia(product_id, [...current, { type, url }]);
   revalidateProductRoutes(formData);
-  mediaRedirect(slug, product_id);
+  mediaRedirect(formData, slug, product_id);
 }
 
 export async function removeProductMedia(formData: FormData): Promise<void> {
@@ -742,14 +905,14 @@ export async function removeProductMedia(formData: FormData): Promise<void> {
   const index = Number(formData.get('index'));
   if (!Number.isFinite(index)) {
     revalidateProductRoutes(formData);
-    mediaRedirect(slug, product_id);
+    mediaRedirect(formData, slug, product_id);
     return;
   }
   const current = await getProductMedia(product_id);
   const next = current.filter((_, i) => i !== index);
   await setProductMedia(product_id, next);
   revalidateProductRoutes(formData);
-  mediaRedirect(slug, product_id);
+  mediaRedirect(formData, slug, product_id);
 }
 
 export async function reorderProductMedia(formData: FormData): Promise<void> {
@@ -760,20 +923,20 @@ export async function reorderProductMedia(formData: FormData): Promise<void> {
   const current = await getProductMedia(product_id);
   if (!Number.isFinite(index) || index < 0 || index >= current.length) {
     revalidateProductRoutes(formData);
-    mediaRedirect(slug, product_id);
+    mediaRedirect(formData, slug, product_id);
     return;
   }
   const targetIdx = direction === 'up' ? index - 1 : index + 1;
   if (targetIdx < 0 || targetIdx >= current.length) {
     revalidateProductRoutes(formData);
-    mediaRedirect(slug, product_id);
+    mediaRedirect(formData, slug, product_id);
     return;
   }
   const next = [...current];
   [next[index], next[targetIdx]] = [next[targetIdx], next[index]];
   await setProductMedia(product_id, next);
   revalidateProductRoutes(formData);
-  mediaRedirect(slug, product_id);
+  mediaRedirect(formData, slug, product_id);
 }
 
 // ====================

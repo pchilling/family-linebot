@@ -18,11 +18,14 @@ export function MediaManager({
   tenantSlug,
   media,
   legacyImageUrl,
+  returnTo,
 }: {
   productId: string;
   tenantSlug: string;
   media: MediaItem[];
   legacyImageUrl: string | null;
+  /** 2026-10-20:從商品編輯頁用時帶 'edit',動作存完回編輯頁的圖片分頁而不是列表 */
+  returnTo?: 'edit';
 }) {
   const [uploading, setUploading] = useState<'video' | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -76,6 +79,10 @@ export function MediaManager({
     fd.append('product_id', productId);
     fd.append('type', 'video');
     fd.append('url', ytUrl.trim());
+    if (returnTo) {
+      fd.append('return_to', returnTo);
+      fd.append('tab', 'media');
+    }
     await addProductMedia(fd);
     setYtUrl('');
   }
@@ -187,6 +194,8 @@ export function MediaManager({
                 >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="product_id" value={productId} />
+                  {returnTo && <input type="hidden" name="return_to" value={returnTo} />}
+                  {returnTo && <input type="hidden" name="tab" value="media" />}
                   <input type="hidden" name="index" value={i} />
                   <input type="hidden" name="direction" value="up" />
                   <button
@@ -216,6 +225,8 @@ export function MediaManager({
                 >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="product_id" value={productId} />
+                  {returnTo && <input type="hidden" name="return_to" value={returnTo} />}
+                  {returnTo && <input type="hidden" name="tab" value="media" />}
                   <input type="hidden" name="index" value={i} />
                   <input type="hidden" name="direction" value="down" />
                   <button
@@ -245,6 +256,8 @@ export function MediaManager({
                 >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="product_id" value={productId} />
+                  {returnTo && <input type="hidden" name="return_to" value={returnTo} />}
+                  {returnTo && <input type="hidden" name="tab" value="media" />}
                   <input type="hidden" name="index" value={i} />
                   <button
                     type="submit"

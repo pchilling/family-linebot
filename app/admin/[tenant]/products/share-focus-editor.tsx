@@ -9,6 +9,8 @@ type Props = {
   tenantSlug: string;
   imageUrl: string;
   initialFocus: number;
+  /** 2026-10-20:從商品編輯頁用時帶 'edit',存完回編輯頁的圖片分頁 */
+  returnTo?: 'edit';
 };
 
 /**
@@ -28,6 +30,7 @@ export function ShareFocusEditor({
   tenantSlug,
   imageUrl,
   initialFocus,
+  returnTo,
 }: Props) {
   const [focus, setFocus] = useState(initialFocus);
 
@@ -53,6 +56,8 @@ export function ShareFocusEditor({
     >
       <input type="hidden" name="product_id" value={productId} />
       <input type="hidden" name="tenant_slug" value={tenantSlug} />
+      {returnTo && <input type="hidden" name="return_to" value={returnTo} />}
+      {returnTo && <input type="hidden" name="tab" value="media" />}
 
       <div
         style={{

@@ -1,63 +1,46 @@
+/**
+ * 商品列表(2026-10-20 改版)
+ *
+ * 原本每個商品是一張展開卡,七個區塊、六七顆儲存全塞在裡面,很亂。
+ * 改成「列表歸列表、編輯歸編輯」:這頁只做三件事 —
+ *   找商品(搜尋 / 分類 / 特性篩選)、看狀態、直接改庫存與上下架。
+ * 其他一律點進 /products/[id] 編輯頁。
+ */
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { compareVariantOrder, getTenantBySlug, isSaleActive, supabaseAdmin, type PriceTier } from '@/lib/supabase';
-import {
-  createPriceTier,
-  createProduct,
-  createVariant,
-  deletePriceTier,
-  deleteProduct,
-  deleteVariant,
-  updatePriceTier,
-  updateProduct,
-  updateProductSale,
-  updateVariant,
-} from '../../actions';
+import { compareVariantOrder, getTenantBySlug, isSaleActive, supabaseAdmin } from '@/lib/supabase';
+import { createProduct } from '../../actions';
 import { CategoryOrderManager } from './category-order';
-import { ProductImageUploader } from './image-uploader';
-import { ShareButton } from './share-button';
-import { ShareFocusEditor } from './share-focus-editor';
-import { VariantOrderList } from './variant-order';
+import { StockCell } from './stock-cell';
+import { ProductStatusToggle } from './status-toggle';
 import { SubmitButton } from '../../_components/submit-button';
 import { FlashToast } from '../../../_components/toast';
-import { MediaManager } from './media-manager';
 
 type Variant = {
   id: string;
-  sku: string;
   variant_name: string;
   price_twd: number;
-  cost_twd: number | null;
   stock: number;
-  image_url: string | null;
-  is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
   status: string;
-  sort_order: number | null; // Phase 19:顯示順序
+  sort_order: number | null;
 };
-
 type MediaItem = { type: 'image' | 'video'; url: string };
-
 type Product = {
   id: string;
   sku: string | null;
   name: string;
-  description: string | null;
   price_twd: number;
-  cost_twd: number | null;
-  stock: number;
   image_url: string | null;
-  media: MediaItem[];
+  media: MediaItem[] | null;
   sale_discount_pct: number | null;
   sale_start_at: string | null;
   sale_end_at: string | null;
-  share_focus_x: number | null;
   category: string | null;
   badge: string | null;
-  badge_color: string | null;
   status: string;
   product_variants: Variant[];
 };
 
-// Phase 15.2(2026-09-08):角標顏色預設選項(黃色底自動配深字在前台處理)
 const BADGE_COLORS: { value: string; label: string }[] = [
   { value: '', label: '預設(橙棕)' },
   { value: '#dc2626', label: '紅' },
@@ -69,30 +52,15 @@ const BADGE_COLORS: { value: string; label: string }[] = [
   { value: '#18181b', label: '黑' },
 ];
 
-async function getTiersMap(tenantId: string): Promise<Map<string, PriceTier[]>> {
-  const { data } = await supabaseAdmin
-    .from('product_price_tiers')
-    .select('id, product_id, min_qty, price_twd')
-    .eq('tenant_id', tenantId)
-    .order('min_qty', { ascending: true });
-  const map = new Map<string, PriceTier[]>();
-  for (const t of (data as PriceTier[] | null) ?? []) {
-    if (!map.has(t.product_id)) map.set(t.product_id, []);
-    map.get(t.product_id)!.push(t);
-  }
-  return map;
-}
-
-async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
+async function getProducts(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, description, price_twd, cost_twd, stock, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, badge_color, status,
-       product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, is_bundle, status, sort_order)`,
+      `id, sku, name, price_twd, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, category, badge, status,
+       product_variants(id, variant_name, price_twd, stock, status, sort_order)`,
     )
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
-  // Phase 19:後台的變體順序要跟前台一致,攤主才看得出自己排的結果
   const rows = (data ?? []) as unknown as Product[];
   for (const p of rows) {
     p.product_variants = (p.product_variants ?? []).slice().sort(compareVariantOrder);
@@ -101,104 +69,34 @@ async function getProductsWithVariants(tenantId: string): Promise<Product[]> {
 }
 
 const c = {
-  bg: '#fafafa',
   card: '#ffffff',
   border: '#e4e4e7',
   borderSubtle: '#f4f4f5',
   text: '#18181b',
   textSec: '#52525b',
   textMuted: '#71717a',
-  textDisabled: '#a1a1aa',
   accent: '#18181b',
-  success: '#16a34a',
-  successBg: '#dcfce7',
-  successBorder: '#bbf7d0',
-  danger: '#dc2626',
-  dangerBg: '#fef2f2',
-  dangerBorder: '#fecaca',
-  warning: '#f59e0b',
-};
-
-function statusLabel(s: string): string {
-  return ({ active: '上架', inactive: '暫停', discontinued: '下架' }[s]) ?? s;
-}
-
-// ISO 8601 → 'YYYY-MM-DDTHH:MM' (datetime-local input 用,Asia/Taipei)
-function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  const tw = new Date(d.getTime() + 8 * 3600 * 1000);
-  return `${tw.getUTCFullYear()}-${String(tw.getUTCMonth() + 1).padStart(2, '0')}-${String(tw.getUTCDate()).padStart(2, '0')}T${String(tw.getUTCHours()).padStart(2, '0')}:${String(tw.getUTCMinutes()).padStart(2, '0')}`;
-}
-function statusColor(s: string): string {
-  return ({ active: c.success, inactive: c.warning, discontinued: c.textDisabled }[s]) ?? c.textMuted;
-}
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: c.textMuted,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  marginBottom: 12,
 };
 
 const label: React.CSSProperties = { fontSize: 12, color: c.textSec };
 const labelText: React.CSSProperties = { display: 'block', marginBottom: 4 };
-// 2026-09-11 v3:iPad(768~1023px)不吃 admin 手機版 CSS 又比桌機窄,固定欄數會讓
-// datetime 輸入框(內建最小寬 ~208px)疊到隔壁。改 auto-fit grid:欄寬保證 ≥ minmax
-// 下限,放不下自動折行 — 欄數由「容器寬度」決定,任何螢幕都不會疊。
-// (767px 以下 admin 手機 CSS 會再把 grid 壓成單欄,同樣安全)
-const gridAutoFit = (minPx: number): React.CSSProperties => ({
-  display: 'grid',
-  gridTemplateColumns: `repeat(auto-fit, minmax(${minPx}px, 1fr))`,
-  gap: 8,
-  alignItems: 'end',
-});
 const input: React.CSSProperties = {
-  width: '100%',
-  // iPad Safari 的 datetime/number 控件預設不肯縮到比內容窄,壓上 minWidth 0 讓它跟著欄位收
-  minWidth: 0,
-  maxWidth: '100%',
-  padding: '8px 10px',
-  fontSize: 13,
-  border: `1px solid ${c.border}`,
-  borderRadius: 5,
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-  background: c.card,
-  color: c.text,
+  width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '8px 10px', fontSize: 13,
+  border: `1px solid ${c.border}`, borderRadius: 7, fontFamily: 'inherit', background: c.card, color: c.text,
 };
-// 2026-09-11 v4(真兇):iPadOS Safari 對「空值」的 datetime-local 不畫任何內容,
-// 輸入框會塌成一條底線、看起來跟隔壁疊在一起(桌機有「年/月/日 --:--」佔位字撐高所以沒事)。
-// 給明確高度 + 關原生外觀,空值也維持完整的框。
-const dtInput: React.CSSProperties = {
-  ...input,
-  height: 36,
-  WebkitAppearance: 'none',
-  appearance: 'none',
-  display: 'block',
+const th: React.CSSProperties = {
+  textAlign: 'left', padding: '10px 14px', fontSize: 12, fontWeight: 600, color: c.textMuted,
+  background: '#fafafa', borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap',
 };
-const btnPrimary: React.CSSProperties = {
-  padding: '10px 18px',
-  background: c.accent,
-  color: '#fff',
-  border: 0,
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 6,
-  fontFamily: 'inherit',
-};
-const btnDanger: React.CSSProperties = {
-  padding: '6px 12px',
-  background: c.card,
-  color: c.danger,
-  border: `1px solid ${c.dangerBorder}`,
-  cursor: 'pointer',
-  fontSize: 12,
-  borderRadius: 5,
-  fontFamily: 'inherit',
-};
+const td: React.CSSProperties = { padding: '12px 14px', borderBottom: `1px solid ${c.borderSubtle}`, verticalAlign: 'middle' };
+
+function priceRange(p: Product): string {
+  const prices = p.product_variants.filter((v) => v.status === 'active').map((v) => v.price_twd);
+  if (prices.length === 0) return `NT$ ${p.price_twd.toLocaleString()}`;
+  const lo = Math.min(...prices);
+  const hi = Math.max(...prices);
+  return lo === hi ? `NT$ ${lo.toLocaleString()}` : `NT$ ${lo.toLocaleString()} – ${hi.toLocaleString()}`;
+}
 
 export default async function ProductsPage({
   params,
@@ -207,7 +105,7 @@ export default async function ProductsPage({
   params: Promise<{ tenant: string }>;
   searchParams: Promise<{
     saved?: string;
-    err?: string;
+    deleted?: string;
     cats?: string;
     q?: string;
     pg?: string;
@@ -219,19 +117,16 @@ export default async function ProductsPage({
   const sp = await searchParams;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
-  const products = await getProductsWithVariants(tenant.id);
+  const products = await getProducts(tenant.id);
 
-  // Phase 9.5:撈這個 tenant 全 tier,group by product_id
-  const tiersMap = await getTiersMap(tenant.id);
-
-  // C#8(2026-09-02):分類顯示順序(有設定照設定,沒設定照筆劃,跟商城前台一致)
+  // C#8:分類顯示順序(有設定照設定,沒設定照筆劃,跟商城前台一致)
   const { data: catRow } = await supabaseAdmin
     .from('tenants')
     .select('category_order')
     .eq('id', tenant.id)
     .maybeSingle();
   const savedOrder: string[] = Array.isArray((catRow as { category_order?: string[] } | null)?.category_order)
-    ? ((catRow as { category_order: string[] }).category_order)
+    ? (catRow as { category_order: string[] }).category_order
     : [];
   const foundCats = [...new Set(products.map((p) => p.category).filter((cat): cat is string => !!cat))];
   const orderedCats = [
@@ -239,27 +134,12 @@ export default async function ProductsPage({
     ...foundCats.filter((cat) => !savedOrder.includes(cat)).sort((a, b) => a.localeCompare(b, 'zh-Hant')),
   ];
 
-  const savedId = sp.saved ?? '';
-  const savedIsVariant = savedId.startsWith('variant_');
-  const savedProductId = savedIsVariant ? null : savedId;
-
-  // 剛儲存的目標商品(變體儲存反查所屬商品),固定顯示並展開
-  const savedVariantId = savedIsVariant ? savedId.slice('variant_'.length) : null;
-  const pinnedId =
-    (savedProductId && products.some((p) => p.id === savedProductId) && savedProductId) ||
-    (savedVariantId
-      ? products.find((p) => p.product_variants.some((v) => v.id === savedVariantId))?.id ?? null
-      : null) ||
-    null;
-
-  // 搜尋 + 分頁(2026-09-08):52 個商品整頁重算是所有「儲存」都很慢的元凶,
-  // 一頁只渲染 10 個,儲存後 redirect 回來的頁面小很多
-  // 2026-09-08 v2:加分類複選 chip + 特性篩選(有角標 / 特價中 / 缺貨)
+  // 搜尋 + 分類 + 特性篩選 + 分頁(列表變輕了,一頁改 20 個)
   const q = (sp.q ?? '').trim();
   const selCats = Array.isArray(sp.cat) ? sp.cat : sp.cat ? [sp.cat] : [];
   const selFlags = Array.isArray(sp.flag) ? sp.flag : sp.flag ? [sp.flag] : [];
-  const PER_PAGE = 10;
-  const nowForSale = new Date();
+  const PER_PAGE = 20;
+  const now = new Date();
   let filtered = products;
   if (q) {
     const needle = q.toLowerCase();
@@ -270,24 +150,18 @@ export default async function ProductsPage({
         (p.category ?? '').toLowerCase().includes(needle),
     );
   }
-  if (selCats.length > 0) {
-    filtered = filtered.filter((p) => p.category && selCats.includes(p.category));
-  }
+  if (selCats.length > 0) filtered = filtered.filter((p) => p.category && selCats.includes(p.category));
   if (selFlags.includes('badge')) filtered = filtered.filter((p) => !!p.badge);
-  if (selFlags.includes('sale')) filtered = filtered.filter((p) => isSaleActive(p, nowForSale));
+  if (selFlags.includes('sale')) filtered = filtered.filter((p) => isSaleActive(p, now));
   if (selFlags.includes('out')) {
-    filtered = filtered.filter(
-      (p) => p.product_variants.length > 0 && p.product_variants.every((v) => (v.stock ?? 0) <= 0),
-    );
+    filtered = filtered.filter((p) => p.product_variants.length > 0 && p.product_variants.every((v) => (v.stock ?? 0) <= 0));
   }
+  if (selFlags.includes('off')) filtered = filtered.filter((p) => p.status !== 'active');
   const hasFilter = !!q || selCats.length > 0 || selFlags.length > 0;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const page = Math.min(totalPages, Math.max(1, parseInt(sp.pg ?? '1', 10) || 1));
-  let pageProducts = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-  if (pinnedId && !pageProducts.some((p) => p.id === pinnedId)) {
-    const pinned = products.find((p) => p.id === pinnedId);
-    if (pinned) pageProducts = [pinned, ...pageProducts];
-  }
+  const pageProducts = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
   const buildHref = (cats: string[], flags: string[], pg?: number) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
@@ -298,27 +172,20 @@ export default async function ProductsPage({
     return `/admin/${tenant.slug}/products${s ? `?${s}` : ''}`;
   };
   const pageHref = (n: number) => buildHref(selCats, selFlags, n);
-  // 點 chip 直接套用(2026-09-08 v3):toggle 該值後導頁,不用按套用
   const toggleCatHref = (cat: string) =>
     buildHref(selCats.includes(cat) ? selCats.filter((x) => x !== cat) : [...selCats, cat], selFlags);
   const toggleFlagHref = (fl: string) =>
     buildHref(selCats, selFlags.includes(fl) ? selFlags.filter((x) => x !== fl) : [...selFlags, fl]);
-  const chipStyle = (on: boolean): React.CSSProperties => ({
-    display: 'inline-block',
-    padding: '7px 14px',
-    border: `1px solid ${on ? c.accent : c.border}`,
-    borderRadius: 999,
-    fontSize: 12,
-    color: on ? '#fff' : c.textSec,
-    background: on ? c.accent : c.card,
-    fontWeight: on ? 600 : 400,
-    textDecoration: 'none',
-    userSelect: 'none',
-    touchAction: 'manipulation',
+  const chip = (on: boolean): React.CSSProperties => ({
+    display: 'inline-block', padding: '7px 13px', border: `1px solid ${on ? c.accent : c.border}`, borderRadius: 999,
+    fontSize: 12.5, color: on ? '#fff' : c.textSec, background: on ? c.accent : c.card, fontWeight: on ? 600 : 400,
+    textDecoration: 'none', userSelect: 'none',
   });
 
+  const activeCount = products.filter((p) => p.status === 'active').length;
+
   return (
-    <main style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto', color: c.text }}>
+    <main style={{ padding: '24px 28px 48px', maxWidth: 1100, margin: '0 auto', color: c.text }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -327,128 +194,162 @@ details summary { list-style: none; cursor: pointer; }
 details summary::-webkit-details-marker { display: none; }
 details[open] .chev { transform: rotate(90deg); }
 .chev { display: inline-block; transition: transform 150ms ease; }
-@keyframes fadein { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.prow:hover { background: #fafafa; }
           `,
         }}
       />
+      {sp.saved && <FlashToast message="已儲存" />}
+      {sp.deleted && <FlashToast message="商品已刪除" />}
 
-      {/* 2026-09-11:儲存回饋改頂部滑入通知(shadcn Sonner 風格) */}
-      {savedId && <FlashToast message={`已儲存${savedIsVariant ? '(變體)' : ''}`} />}
-      {sp.err === 'sale' && (
-        <div
-          style={{
-            padding: '10px 16px',
-            background: c.dangerBg,
-            border: `1px solid ${c.dangerBorder}`,
-            color: c.danger,
-            fontSize: 14,
-            fontWeight: 500,
-            borderRadius: 6,
-            marginBottom: 16,
-            animation: 'fadein 0.25s ease',
-          }}
-        >
-          ⚠️ 限時優惠儲存失敗,請截圖回報(檢查折扣 % 與起訖時間格式)
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 700, letterSpacing: '-0.01em' }}>商品</h1>
+          <span style={{ fontSize: 13, color: c.textMuted, fontVariantNumeric: 'tabular-nums' }}>
+            {products.length} 個 · 上架 {activeCount}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a href={`/admin/${tenant.slug}/products/sort`} style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 14px', border: `1px solid ${c.border}`, borderRadius: 8, background: c.card, fontSize: 13, fontWeight: 600, color: c.text, textDecoration: 'none' }}>
+            排序商品
+          </a>
+          <a href="#new-product" style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 16px', border: 0, borderRadius: 8, background: c.accent, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+            + 新增商品
+          </a>
+        </div>
+      </header>
+
+      {/* 搜尋 + 篩選 */}
+      {products.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+          <form method="GET" action={`/admin/${tenant.slug}/products`} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {selCats.map((cat) => <input key={cat} type="hidden" name="cat" value={cat} />)}
+            {selFlags.map((fl) => <input key={fl} type="hidden" name="flag" value={fl} />)}
+            <input type="search" name="q" defaultValue={q} placeholder="搜尋商品名稱、SKU、分類" aria-label="搜尋商品" style={{ ...input, width: 'auto', flex: '1 1 220px', maxWidth: 360 }} />
+            <button type="submit" style={{ padding: '8px 16px', background: c.accent, color: '#fff', border: 0, borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>搜尋</button>
+            {hasFilter && (
+              <a href={`/admin/${tenant.slug}/products`} style={{ padding: '8px 12px', fontSize: 13, color: c.textSec, textDecoration: 'none', border: `1px solid ${c.border}`, borderRadius: 7, background: c.card }}>清除篩選</a>
+            )}
+          </form>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {orderedCats.map((cat) => <a key={cat} href={toggleCatHref(cat)} style={chip(selCats.includes(cat))}>{cat}</a>)}
+            {orderedCats.length > 0 && <span aria-hidden style={{ width: 1, height: 18, background: c.border, margin: '0 4px' }} />}
+            <a href={toggleFlagHref('out')} style={chip(selFlags.includes('out'))}>缺貨</a>
+            <a href={toggleFlagHref('sale')} style={chip(selFlags.includes('sale'))}>特價中</a>
+            <a href={toggleFlagHref('badge')} style={chip(selFlags.includes('badge'))}>有角標</a>
+            <a href={toggleFlagHref('off')} style={chip(selFlags.includes('off'))}>已下架</a>
+          </div>
         </div>
       )}
 
-      <header style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600 }}>{tenant.name} · 商品管理</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: c.textMuted }}>
-          {products.length} 個商品 · {products.reduce((sum, p) => sum + p.product_variants.length, 0)} 個變體
-        </p>
-      </header>
-
-      {/* Phase 16.2(2026-09-18):商品拖曳排序頁入口 */}
-      <div style={{ marginBottom: 16 }}>
-        <a
-          href={`/admin/${tenant.slug}/products/sort`}
-          style={{
-            display: 'inline-block',
-            padding: '8px 16px',
-            background: c.card,
-            border: `1px solid ${c.border}`,
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            color: c.text,
-            textDecoration: 'none',
-          }}
-        >
-          ↕ 商品排序(拖曳調整商城順序)
-        </a>
-      </div>
-
-      {/* C#8(2026-09-02):分類顯示順序 — 商城前台的分類 chip 和「全部」分組照這裡排 */}
-      {orderedCats.length > 1 && (
-        <details
-          open={sp.cats === 'open'}
-          style={{
-            background: c.card,
-            border: `1px solid ${c.border}`,
-            borderRadius: 8,
-            marginBottom: 16,
-            overflow: 'hidden',
-          }}
-        >
-          <summary style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500 }}>
-            <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11 }}>▶</span>
-            ↕ 分類顯示順序
-          </summary>
-          <div style={{ padding: '4px 18px 16px', borderTop: `1px solid ${c.borderSubtle}` }}>
-            {/* 2026-09-08:改樂觀排序 client 元件 — 按了立即換位,背景存檔 */}
-            <CategoryOrderManager tenantId={tenant.id} tenantSlug={tenant.slug} initial={orderedCats} />
+      {/* 列表 */}
+      {products.length === 0 ? (
+        <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>還沒有商品,從下方「新增商品」開始。</p>
+      ) : pageProducts.length === 0 ? (
+        <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>沒有符合條件的商品。</p>
+      ) : (
+        <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 24 }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th scope="col" style={{ ...th, width: '40%' }}>商品</th>
+                  <th scope="col" style={{ ...th, textAlign: 'right' }}>售價</th>
+                  <th scope="col" style={{ ...th, width: '26%' }}>庫存(直接改,離開欄位就存)</th>
+                  <th scope="col" style={th}>狀態</th>
+                  <th scope="col" style={th}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>操作</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageProducts.map((p) => {
+                  const cover = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url;
+                  const active = p.product_variants.filter((v) => v.status === 'active');
+                  const stockRows = (active.length > 0 ? active : p.product_variants).map((v) => ({
+                    id: v.id,
+                    label: v.variant_name === 'default' ? '庫存' : v.variant_name,
+                    stock: v.stock ?? 0,
+                  }));
+                  const onSale = isSaleActive(p, now);
+                  const editHref = `/admin/${tenant.slug}/products/${p.id}`;
+                  return (
+                    <tr key={p.id} id={`product-${p.id}`} className="prow">
+                      <td style={td}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {cover ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={cover} alt="" style={{ width: 44, height: 56, objectFit: 'cover', borderRadius: 6, border: `1px solid ${c.borderSubtle}`, flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: 44, height: 56, borderRadius: 6, background: c.borderSubtle, flexShrink: 0 }} />
+                          )}
+                          <div style={{ minWidth: 0 }}>
+                            <Link href={editHref} style={{ display: 'block', fontSize: 14, fontWeight: 600, color: c.text, textDecoration: 'none', lineHeight: 1.35 }}>
+                              {p.name}
+                            </Link>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 12, color: c.textMuted, marginTop: 3 }}>
+                              <span>{p.category ?? '未分類'}</span>
+                              <span>·</span>
+                              <span>{p.product_variants.length} 規格</span>
+                              {onSale && <span style={{ padding: '1px 6px', borderRadius: 3, background: '#fee2e2', color: '#b91c1c', fontWeight: 600, fontSize: 11 }}>特價 {p.sale_discount_pct}% off</span>}
+                              {p.badge && <span style={{ padding: '1px 6px', borderRadius: 3, background: '#f4f4f5', color: c.textSec, fontSize: 11 }}>{p.badge}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ ...td, textAlign: 'right', fontSize: 13.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{priceRange(p)}</td>
+                      <td style={{ ...td, padding: '10px 14px' }}>
+                        <StockCell tenantSlug={tenant.slug} variants={stockRows} />
+                      </td>
+                      <td style={td}>
+                        <ProductStatusToggle tenantSlug={tenant.slug} productId={p.id} initialActive={p.status === 'active'} />
+                      </td>
+                      <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <Link href={editHref} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '7px 12px', border: `1px solid ${c.border}`, borderRadius: 7, background: c.card, fontSize: 12.5, fontWeight: 600, color: c.text, textDecoration: 'none' }}>
+                          編輯 ›
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </details>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: `1px solid ${c.borderSubtle}`, fontSize: 12.5, color: c.textMuted }}>
+            <span>
+              {hasFilter ? `${filtered.length} 個符合 · ` : ''}第 {page} / {totalPages} 頁
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {page > 1 && <a href={pageHref(page - 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 6, textDecoration: 'none', color: c.text, background: c.card }}>‹ 上一頁</a>}
+              {page < totalPages && <a href={pageHref(page + 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 6, textDecoration: 'none', color: c.text, background: c.card }}>下一頁 ›</a>}
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* 新增商品 折疊 */}
-      <details
-        style={{
-          background: c.card,
-          border: `1px solid ${c.border}`,
-          borderRadius: 8,
-          marginBottom: 24,
-          overflow: 'hidden',
-        }}
-      >
-        <summary
-          style={{
-            padding: '14px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
+      {/* 新增商品 */}
+      <details id="new-product" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
+        <summary style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600 }}>
           <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11 }}>▶</span>
-          + 新增商品
-          <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>
-            建立後可在卡片內上傳圖片
-          </span>
+          新增商品
+          <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>建立後點進去補規格、圖片</span>
         </summary>
         <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${c.borderSubtle}` }}>
-          <form action={createProduct} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
+          <form action={createProduct} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 16 }}>
             <input type="hidden" name="tenant_id" value={tenant.id} />
             <input type="hidden" name="tenant_slug" value={tenant.slug} />
             <label style={label}><span style={labelText}>商品名稱 *</span><input name="name" required style={input} /></label>
             <label style={label}><span style={labelText}>分類</span><input name="category" list="cats" style={input} /></label>
-            <datalist id="cats"><option value="精油" /><option value="保養品" /><option value="保健" /><option value="配件" /><option value="童裝" /></datalist>
-            <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} /></label>
-            <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
-            <label style={label}><span style={labelText}>角標(選填,如 HOT / 新品)</span><input name="badge" maxLength={8} style={input} placeholder="HOT" /></label>
+            <datalist id="cats">{orderedCats.map((cat) => <option key={cat} value={cat} />)}</datalist>
+            <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" min={0} required style={input} /></label>
+            <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" min={0} style={input} /></label>
+            <label style={label}><span style={labelText}>初始庫存</span><input name="stock" type="number" min={0} defaultValue={0} style={input} /></label>
+            <label style={label}><span style={labelText}>角標(選填)</span><input name="badge" maxLength={8} style={input} placeholder="HOT" /></label>
             <label style={label}>
               <span style={labelText}>角標顏色</span>
               <select name="badge_color" defaultValue="" style={input}>
-                {BADGE_COLORS.map((bc) => (
-                  <option key={bc.value || 'default'} value={bc.value}>{bc.label}</option>
-                ))}
+                {BADGE_COLORS.map((bc) => <option key={bc.value || 'default'} value={bc.value}>{bc.label}</option>)}
               </select>
             </label>
-            <label style={label}><span style={labelText}>初始庫存(建立後請到變體區管理)</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
             <label style={{ ...label, gridColumn: '1 / -1' }}>
-              <span style={labelText}>描述</span>
+              <span style={labelText}>商品說明</span>
               <textarea name="description" rows={2} style={{ ...input, fontFamily: 'inherit' }} />
             </label>
             <div style={{ gridColumn: '1 / -1' }}>
@@ -458,544 +359,19 @@ details[open] .chev { transform: rotate(90deg); }
         </div>
       </details>
 
-      {/* 搜尋 + 篩選 + 分頁列(2026-09-08 v3:chip 點了直接套用) */}
-      {products.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-            marginBottom: 14,
-            padding: '12px 14px',
-            background: c.card,
-            border: `1px solid ${c.border}`,
-            borderRadius: 8,
-          }}
-        >
-          <form
-            method="GET"
-            action={`/admin/${tenant.slug}/products`}
-            style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
-          >
-            {/* 搜尋時保留已點選的 chip */}
-            {selCats.map((cat) => (
-              <input key={cat} type="hidden" name="cat" value={cat} />
-            ))}
-            {selFlags.map((fl) => (
-              <input key={fl} type="hidden" name="flag" value={fl} />
-            ))}
-            <input
-              type="search"
-              name="q"
-              defaultValue={q}
-              placeholder="搜商品名 / SKU / 分類"
-              style={{ ...input, width: 'auto', flex: '1 1 200px', maxWidth: 320 }}
-            />
-            <button type="submit" style={{ padding: '8px 16px', background: c.accent, color: '#fff', border: 0, borderRadius: 5, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              搜尋
-            </button>
-            {hasFilter && (
-              <a href={`/admin/${tenant.slug}/products`} style={{ padding: '8px 12px', fontSize: 13, color: c.textSec, textDecoration: 'none', border: `1px solid ${c.border}`, borderRadius: 5, background: c.card }}>
-                清除全部
-              </a>
-            )}
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: c.textMuted, display: 'flex', alignItems: 'center', gap: 8 }}>
-              {hasFilter ? `${filtered.length} 個符合 · ` : ''}第 {page} / {totalPages} 頁
-              {page > 1 && <a href={pageHref(page - 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>‹ 上一頁</a>}
-              {page < totalPages && <a href={pageHref(page + 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 5, textDecoration: 'none', color: c.text, background: c.card }}>下一頁 ›</a>}
-            </span>
-          </form>
-
-          {orderedCats.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, marginRight: 2 }}>分類</span>
-              {orderedCats.map((cat) => (
-                <a key={cat} href={toggleCatHref(cat)} style={chipStyle(selCats.includes(cat))}>
-                  {cat}
-                </a>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, marginRight: 2 }}>特性</span>
-            <a href={toggleFlagHref('badge')} style={chipStyle(selFlags.includes('badge'))}>🏷 有角標</a>
-            <a href={toggleFlagHref('sale')} style={chipStyle(selFlags.includes('sale'))}>🔥 特價中</a>
-            <a href={toggleFlagHref('out')} style={chipStyle(selFlags.includes('out'))}>⛔ 缺貨</a>
+      {/* 分類顯示順序 */}
+      {orderedCats.length > 1 && (
+        <details open={sp.cats === 'open'} style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <summary style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600 }}>
+            <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11 }}>▶</span>
+            分類顯示順序
+            <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>商城前台的分類排法</span>
+          </summary>
+          <div style={{ padding: '4px 18px 16px', borderTop: `1px solid ${c.borderSubtle}` }}>
+            <CategoryOrderManager tenantId={tenant.id} tenantSlug={tenant.slug} initial={orderedCats} />
           </div>
-        </div>
+        </details>
       )}
-
-      {products.length === 0 && (
-        <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>
-          (尚無商品)
-        </p>
-      )}
-      {products.length > 0 && pageProducts.length === 0 && (
-        <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>
-          (沒有符合「{q}」的商品)
-        </p>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {pageProducts.map((p) => {
-          const isExpanded = p.id === pinnedId;
-          const variantCount = p.product_variants.length;
-          const totalStock = p.product_variants.reduce((sum, v) => sum + (v.stock ?? 0), 0);
-
-          return (
-            <details
-              key={p.id}
-              id={`product-${p.id}`}
-              open={isExpanded}
-              style={{
-                background: c.card,
-                border: `1px solid ${c.border}`,
-                borderRadius: 10,
-                overflow: 'hidden',
-              }}
-            >
-              <summary
-                style={{
-                  padding: '14px 18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                }}
-              >
-                <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11, flexShrink: 0 }}>▶</span>
-                {(() => {
-                  // Phase 9.6:縮圖優先 media 第一張 image,fallback image_url
-                  const firstImg = (p.media ?? []).find((m) => m.type === 'image');
-                  return firstImg?.url ?? p.image_url;
-                })() ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={(p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? ''}
-                    alt={p.name}
-                    style={{
-                      width: 56,
-                      height: 70,
-                      objectFit: 'cover',
-                      borderRadius: 5,
-                      border: `1px solid ${c.borderSubtle}`,
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: 56,
-                      height: 70,
-                      background: c.borderSubtle,
-                      borderRadius: 5,
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: c.textDisabled,
-                      fontSize: 10,
-                    }}
-                  >
-                    無圖
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
-                    <span style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</span>
-                    <span
-                      style={{
-                        padding: '1px 6px',
-                        background: statusColor(p.status) + '22',
-                        color: statusColor(p.status),
-                        borderRadius: 3,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {statusLabel(p.status)}
-                    </span>
-                    {p.category && (
-                      <span style={{ fontSize: 11, color: c.textMuted }}>{p.category}</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: c.textMuted }}>
-                    NT$ {p.price_twd.toLocaleString()} · {variantCount} 變體 · 庫存 {totalStock}
-                  </div>
-                </div>
-              </summary>
-
-              <div style={{ borderTop: `1px solid ${c.borderSubtle}` }}>
-                {/* 商品圖 / 影片(Phase 9.6/9.7)*/}
-                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>商品圖 / 影片</div>
-                  <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
-                    首格 = 列表縮圖 + 詳細頁第一張。可 ↑↓ 排序、加 YouTube URL、上傳 50MB 影片。圖會自動裁切 3:4 直式。
-                  </p>
-                  <MediaManager
-                    productId={p.id}
-                    tenantSlug={tenant.slug}
-                    media={p.media ?? []}
-                    legacyImageUrl={p.image_url}
-                  />
-                </section>
-
-                {/* 分享卡 v0(Phase 9,2026-05-26)— 手機 only Web Share API */}
-                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>📤 分享卡(IG Story 1080×1920)</div>
-                  {(p.image_url || (p.media ?? []).some((m) => m.type === 'image')) ? (
-                    <>
-                      <ShareButton productId={p.id} productName={p.name} focusVersion={p.share_focus_x ?? 50} />
-                      <p style={{ fontSize: 11, color: c.textMuted, marginTop: 8, lineHeight: 1.5 }}>
-                        手機點按可跳系統分享(IG / Snapchat / WhatsApp / 訊息)。
-                        <br />
-                        桌機看預覽:
-                        <a
-                          href={`/api/og/product/${p.id}?v=${p.share_focus_x ?? 50}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ marginLeft: 4, color: '#0070f3', textDecoration: 'underline' }}
-                        >
-                          開新分頁
-                        </a>
-                      </p>
-
-                      {/* 橫向焦點 — live preview client component */}
-                      {(() => {
-                        const focusImage =
-                          (p.media ?? []).find((m) => m.type === 'image')?.url ??
-                          p.image_url;
-                        return focusImage ? (
-                          <ShareFocusEditor
-                            productId={p.id}
-                            tenantSlug={tenant.slug}
-                            imageUrl={focusImage}
-                            initialFocus={p.share_focus_x ?? 50}
-                          />
-                        ) : null;
-                      })()}
-                    </>
-                  ) : (
-                    <p style={{ fontSize: 12, color: '#d97706', margin: 0, lineHeight: 1.5 }}>
-                      ⚠️ 先上傳商品圖才能產分享卡(沒圖會變純黑底)
-                    </p>
-                  )}
-                </section>
-
-                {/* 基本資料 */}
-                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>基本資料</div>
-                  <form action={updateProduct} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <input type="hidden" name="id" value={p.id} />
-                    <input type="hidden" name="tenant_id" value={tenant.id} />
-                    <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                    <input type="hidden" name="image_url" value={p.image_url ?? ''} />
-                    <label style={label}><span style={labelText}>商品名稱</span><input name="name" defaultValue={p.name} style={input} /></label>
-                    <label style={label}><span style={labelText}>SKU(系統自動)</span><input name="sku" defaultValue={p.sku ?? ''} readOnly style={{ ...input, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }} /></label>
-                    <label style={label}><span style={labelText}>分類</span><input name="category" defaultValue={p.category ?? ''} style={input} /></label>
-                    <label style={label}><span style={labelText}>售價</span><input name="price_twd" type="number" defaultValue={p.price_twd} style={input} /></label>
-                    <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={p.cost_twd ?? ''} style={input} /></label>
-                    {/* 2026-10-06:商品層庫存改唯讀加總 — 真實庫存一律看/改「變體」的庫存欄 */}
-                    <label style={label}><span style={labelText}>庫存(各變體加總,到變體區修改)</span><input value={p.product_variants.filter((v) => v.status === 'active').reduce((s, v) => s + v.stock, 0)} readOnly style={{ ...input, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }} /></label>
-                    <label style={label}>
-                      <span style={labelText}>狀態</span>
-                      <select name="status" defaultValue={p.status} style={input}>
-                        <option value="active">上架</option>
-                        <option value="inactive">暫停</option>
-                        <option value="discontinued">下架</option>
-                      </select>
-                    </label>
-                    <label style={label}>
-                      <span style={labelText}>角標(純文字標籤,如 HOT / 新品。⚠️ 要真的打折請用下方「限時優惠」)</span>
-                      <input name="badge" defaultValue={p.badge ?? ''} maxLength={8} style={input} placeholder="HOT" />
-                    </label>
-                    <label style={label}>
-                      <span style={labelText}>角標顏色</span>
-                      <select name="badge_color" defaultValue={p.badge_color ?? ''} style={input}>
-                        {BADGE_COLORS.map((bc) => (
-                          <option key={bc.value || 'default'} value={bc.value}>{bc.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label style={{ ...label, gridColumn: '1 / -1' }}>
-                      <span style={labelText}>描述</span>
-                      <textarea name="description" defaultValue={p.description ?? ''} rows={2} style={{ ...input, fontFamily: 'inherit' }} />
-                    </label>
-                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                      <SubmitButton pendingText="儲存中…">儲存基本資料</SubmitButton>
-                    </div>
-                  </form>
-                </section>
-
-                {/* 限時優惠 — Phase 9.9 v2(2026-06-03):用 % off 折扣 */}
-                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>🔥 限時優惠(全變體 % off)</div>
-                  <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
-                    輸入折扣 %(<strong>10 = 9折、20 = 8折、15 = 85折</strong>)。生效時商城卡片自動出現「🔥 9折」標、
-                    LINE 商城與公開商城結帳都按折扣價收。分階暫停。清空 % = 取消優惠。
-                    {p.sale_discount_pct !== null && p.sale_start_at && p.sale_end_at && (() => {
-                      const now = new Date();
-                      const start = new Date(p.sale_start_at);
-                      const end = new Date(p.sale_end_at);
-                      const active = now >= start && now < end;
-                      const future = now < start;
-                      return (
-                        <>
-                          <br />
-                          <span
-                            style={{
-                              color: active ? '#dc2626' : future ? '#0070f3' : '#a1a1aa',
-                              fontWeight: 600,
-                            }}
-                          >
-                            {active
-                              ? `✓ ${p.sale_discount_pct}% off 生效中(到 ${end.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })})`
-                              : future
-                                ? `⏰ ${p.sale_discount_pct}% off 排程中(${start.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })} 起)`
-                                : '⏹ 已過期'}
-                          </span>
-                        </>
-                      );
-                    })()}
-                  </p>
-                  <form
-                    action={updateProductSale}
-                    style={gridAutoFit(210)}
-                  >
-                    <input type="hidden" name="product_id" value={p.id} />
-                    <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                    <label style={label}>
-                      <span style={labelText}>折扣 % off</span>
-                      <input
-                        name="sale_discount_pct"
-                        type="number"
-                        min="1"
-                        max="99"
-                        defaultValue={p.sale_discount_pct ?? ''}
-                        style={input}
-                        placeholder="例 20"
-                      />
-                    </label>
-                    <label style={label}>
-                      <span style={labelText}>開始</span>
-                      <input
-                        name="sale_start_at"
-                        type="datetime-local"
-                        defaultValue={
-                          p.sale_start_at ? toLocalInput(p.sale_start_at) : ''
-                        }
-                        style={dtInput}
-                      />
-                    </label>
-                    <label style={label}>
-                      <span style={labelText}>結束</span>
-                      <input
-                        name="sale_end_at"
-                        type="datetime-local"
-                        defaultValue={p.sale_end_at ? toLocalInput(p.sale_end_at) : ''}
-                        style={dtInput}
-                      />
-                    </label>
-                    <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
-                  </form>
-                </section>
-
-                {/* 分階定價 — Phase 9.5(2026-06-02)*/}
-                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>分階定價(量大優惠)</div>
-                  <p style={{ fontSize: 11, color: c.textMuted, margin: '0 0 10px', lineHeight: 1.5 }}>
-                    買 N 個以上就用該分階單價。沒設 → 用基本售價({p.price_twd.toLocaleString()})。
-                    顧客買 30 個 → 找滿足 min_qty ≤ 30 的最大分階套用。
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {(tiersMap.get(p.id) ?? []).map((t) => (
-                      <form
-                        key={t.id}
-                        action={updatePriceTier}
-                        style={gridAutoFit(140)}
-                      >
-                        <input type="hidden" name="id" value={t.id} />
-                        <input type="hidden" name="tenant_id" value={tenant.id} />
-                        <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <label style={label}>
-                          <span style={labelText}>滿 N 個以上</span>
-                          <input name="min_qty" type="number" min="2" defaultValue={t.min_qty} required style={input} />
-                        </label>
-                        <label style={label}>
-                          <span style={labelText}>單價</span>
-                          <input name="price_twd" type="number" min="0" defaultValue={t.price_twd} required style={input} />
-                        </label>
-                        <div style={{ fontSize: 11, color: c.textMuted, alignSelf: 'center' }}>
-                          {t.min_qty}+ → NT$ {t.price_twd.toLocaleString()}
-                        </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
-                        </div>
-                      </form>
-                    ))}
-                    {(tiersMap.get(p.id) ?? []).map((t) => (
-                      <form key={`del-${t.id}`} action={deletePriceTier} style={{ marginTop: -2 }}>
-                        <input type="hidden" name="id" value={t.id} />
-                        <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <SubmitButton variant="danger" size="sm" pendingText="刪除中…">刪除 {t.min_qty}+ 分階</SubmitButton>
-                      </form>
-                    ))}
-                  </div>
-
-                  {/* 新增分階 */}
-                  <details style={{ marginTop: 12 }}>
-                    <summary
-                      style={{
-                        padding: '6px 10px',
-                        background: '#eef7ff',
-                        color: '#0070f3',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        display: 'inline-block',
-                      }}
-                    >
-                      + 新增分階
-                    </summary>
-                    <form
-                      action={createPriceTier}
-                      style={{ ...gridAutoFit(140), marginTop: 10 }}
-                    >
-                      <input type="hidden" name="product_id" value={p.id} />
-                      <input type="hidden" name="tenant_id" value={tenant.id} />
-                      <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                      <label style={label}>
-                        <span style={labelText}>滿 N 個以上 *</span>
-                        <input name="min_qty" type="number" min="2" required style={input} placeholder="10" />
-                      </label>
-                      <label style={label}>
-                        <span style={labelText}>該分階單價 *</span>
-                        <input name="price_twd" type="number" min="0" required style={input} placeholder="450" />
-                      </label>
-                      <SubmitButton size="sm" pendingText="新增中…">新增分階</SubmitButton>
-                    </form>
-                  </details>
-                </section>
-
-                {/* 變體 */}
-                <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
-                  <div style={sectionTitle}>變體 ({variantCount})</div>
-                  {/* Phase 19 v2(2026-10-20):順序改 client 端即時換位置,存檔在背景跑 —
-                      原本每按一次都要整頁重載(59 商品 + 82 變體),要等好幾秒 */}
-                  <VariantOrderList
-                    tenantSlug={tenant.slug}
-                    productId={p.id}
-                    items={p.product_variants.map((v) => ({ id: v.id, saved: savedId === `variant_${v.id}` }))}
-                  >
-                    {p.product_variants.map((v) => {
-                      return (
-                        <div key={v.id}>
-                          <form action={updateVariant} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
-                            <input type="hidden" name="id" value={v.id} />
-                            <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                            <label style={label}><span style={labelText}>SKU(自動)</span><input name="sku" defaultValue={v.sku} readOnly style={{ ...input, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }} /></label>
-                            <label style={label}><span style={labelText}>變體名</span><input name="variant_name" defaultValue={v.variant_name} required style={input} /></label>
-                            <label style={label}><span style={labelText}>售價</span><input name="price_twd" type="number" defaultValue={v.price_twd} required style={input} /></label>
-                            <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" defaultValue={v.cost_twd ?? ''} style={input} /></label>
-                            <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={v.stock} style={input} /></label>
-                            <label style={label}>
-                              <span style={labelText}>狀態</span>
-                              <select name="status" defaultValue={v.status} style={input}>
-                                <option value="active">上架</option>
-                                <option value="inactive">暫停</option>
-                                <option value="discontinued">下架</option>
-                              </select>
-                            </label>
-                            <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
-                            {/* Phase 16.4:組合規格(如 3本組)勾這個 — 固定價、不參與分階 */}
-                            <label style={{ ...label, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b45309' }}>
-                              <input type="checkbox" name="is_bundle" defaultChecked={v.is_bundle} />
-                              組合品(固定價,數量與價格都不參與分階)
-                            </label>
-                          </form>
-
-                          <details style={{ marginTop: 10 }}>
-                            <summary style={{ fontSize: 11, color: c.textMuted, padding: '4px 0' }}>
-                              <span className="chev" aria-hidden style={{ marginRight: 4 }}>▶</span>
-                              變體圖 / 刪除
-                            </summary>
-                            <div style={{ marginTop: 8, padding: 10, background: c.card, borderRadius: 4 }}>
-                              <ProductImageUploader
-                                entity="variant"
-                                entityId={v.id}
-                                tenantSlug={tenant.slug}
-                                currentImageUrl={v.image_url}
-                                productName={`${p.name} ${v.variant_name}`}
-                              />
-                              <form action={deleteVariant} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${c.border}` }}>
-                                <input type="hidden" name="id" value={v.id} />
-                                <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                                <SubmitButton variant="danger" size="sm" pendingText="刪除中…">刪除這個變體</SubmitButton>
-                              </form>
-                            </div>
-                          </details>
-                        </div>
-                      );
-                    })}
-                  </VariantOrderList>
-
-                  <details style={{ marginTop: 12 }}>
-                    <summary
-                      style={{
-                        padding: '8px 12px',
-                        background: '#eef7ff',
-                        border: '1px dashed #6cf',
-                        borderRadius: 5,
-                        fontSize: 12,
-                        color: '#0070f3',
-                        fontWeight: 500,
-                      }}
-                    >
-                      <span className="chev" aria-hidden style={{ marginRight: 6 }}>▶</span>
-                      + 新增變體
-                    </summary>
-                    <form action={createVariant} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end', marginTop: 10, padding: 12, background: '#eef7ff', borderRadius: 5 }}>
-                      <input type="hidden" name="product_id" value={p.id} />
-                      <input type="hidden" name="tenant_id" value={tenant.id} />
-                      <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                      <label style={label}><span style={labelText}>變體名 *</span><input name="variant_name" required style={input} placeholder="例 粉 L" /></label>
-                      <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" required style={input} defaultValue={p.price_twd} /></label>
-                      <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" style={input} /></label>
-                      <label style={label}><span style={labelText}>庫存</span><input name="stock" type="number" defaultValue={0} style={input} /></label>
-                      <SubmitButton size="sm" pendingText="新增中…">新增</SubmitButton>
-                      <label style={{ ...label, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#b45309' }}>
-                        <input type="checkbox" name="is_bundle" />
-                        組合品(固定價,數量與價格都不參與分階)
-                      </label>
-                    </form>
-                  </details>
-                </section>
-
-                {/* 危險區 */}
-                <section style={{ padding: '14px 18px', background: '#fafafa' }}>
-                  <details>
-                    <summary style={{ fontSize: 11, color: c.danger, fontWeight: 500, padding: '4px 0' }}>
-                      <span className="chev" aria-hidden style={{ marginRight: 4 }}>▶</span>
-                      危險區
-                    </summary>
-                    <div style={{ marginTop: 10, padding: 12, background: c.dangerBg, border: `1px solid ${c.dangerBorder}`, borderRadius: 5 }}>
-                      <p style={{ margin: '0 0 8px', fontSize: 12, color: c.danger }}>
-                        刪除商品會連同它的 {variantCount} 個變體全部刪除。訂單 / 庫存紀錄不受影響但這個商品再也找不到。
-                      </p>
-                      <form action={deleteProduct}>
-                        <input type="hidden" name="id" value={p.id} />
-                        <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                        <SubmitButton variant="danger" size="sm" pendingText="刪除中…">確認刪除整個商品</SubmitButton>
-                      </form>
-                    </div>
-                  </details>
-                </section>
-              </div>
-            </details>
-          );
-        })}
-      </div>
     </main>
   );
 }

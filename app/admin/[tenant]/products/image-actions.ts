@@ -58,7 +58,7 @@ export async function uploadProductImage(formData: FormData): Promise<UploadProd
     return { ok: false, error: '儲存連結失敗' };
   }
 
-  revalidatePath(`/admin/${slug}/products`);
+  revalidatePath(`/admin/${slug}/products`, 'layout'); // 含 /products/[id] 編輯頁
   revalidatePath(`/${slug}`);
   // 公開商品詳情頁也要刷(slug-based,不知道 product slug 就 cover 範圍 revalidate)
   revalidatePath(`/admin/${slug}`);
@@ -172,7 +172,7 @@ export async function uploadVariantImage(formData: FormData): Promise<UploadProd
     return { ok: false, error: '儲存連結失敗' };
   }
 
-  revalidatePath(`/admin/${slug}/products`);
+  revalidatePath(`/admin/${slug}/products`, 'layout'); // 含 /products/[id] 編輯頁
   revalidatePath(`/${slug}`);
   revalidatePath(`/admin/${slug}`);
 
@@ -229,7 +229,7 @@ export async function uploadProductMediaImage(formData: FormData): Promise<Uploa
   const next: MediaItem[] = [...current, { type: 'image', url: publicUrl }];
   await supabaseAdmin.from('products').update({ media: next }).eq('id', productId);
 
-  revalidatePath(`/admin/${slug}/products`);
+  revalidatePath(`/admin/${slug}/products`, 'layout'); // 含 /products/[id] 編輯頁
   revalidatePath(`/${slug}`);
 
   return { ok: true, url: publicUrl };
@@ -277,7 +277,7 @@ export async function uploadProductMediaVideo(formData: FormData): Promise<Uploa
   const next: MediaItem[] = [...current, { type: 'video', url: publicUrl }];
   await supabaseAdmin.from('products').update({ media: next }).eq('id', productId);
 
-  revalidatePath(`/admin/${slug}/products`);
+  revalidatePath(`/admin/${slug}/products`, 'layout'); // 含 /products/[id] 編輯頁
   revalidatePath(`/${slug}`);
 
   return { ok: true, url: publicUrl };
