@@ -544,65 +544,38 @@ export async function saveProductOrder(
 // 同商品的 active 變體依現況重排後交換相鄰兩個,再把整組寫回 0..n。
 // 整組重寫是為了把舊資料的 null 一次補成實際數字,之後排序才穩定。
 // ====================
-export async function moveVariant(formData: FormData): Promise<void> {
-  const id = String(formData.get('id') ?? '').trim();
-  const slug = String(formData.get('tenant_slug') ?? '').trim();
-  const dir = String(formData.get('dir') ?? '').trim(); // 'up' | 'down'
-  if (!id || !slug) throw new Error('缺必要參數');
-
-  const tenant = await getTenantBySlug(slug);
-  if (!tenant) throw new Error('攤位不存在');
-
-  const { data: target } = await supabaseAdmin
-    .from('product_variants')
-    .select('id, product_id')
-    .eq('id', id)
-    .eq('tenant_id', tenant.id)
-    .maybeSingle();
-  const productId = (target as { product_id: string } | null)?.product_id;
-  if (!productId) throw new Error('找不到這個變體');
-
-  const { data: rows } = await supabaseAdmin
-    .from('product_variants')
-    .select('id, sort_order, created_at')
-    .eq('tenant_id', tenant.id)
-    .eq('product_id', productId);
-
-  // 用跟前台一樣的規則排好(null 排最後),才不會後台按了前台沒動
-  const list = ((rows ?? []) as { id: string; sort_order: number | null; created_at: string }[])
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) ||
-        a.created_at.localeCompare(b.created_at),
-    );
-
-  const i = list.findIndex((v) => v.id === id);
-  const j = dir === 'up' ? i - 1 : i + 1;
-  if (i < 0 || j < 0 || j >= list.length) {
-    // 已經在頭或尾,不動作
-    redirect(`/admin/${slug}/products?saved=variant_${id}#variant-${id}`);
+export async function saveVariantOrder(
+  tenantSlug: string,
+  productId: string,
+  orderedIds: string[],
+): Promise<{ ok: boolean }> {
+  if (!tenantSlug || !productId || !Array.isArray(orderedIds) || orderedIds.length === 0) {
+    return { ok: false };
   }
-  [list[i], list[j]] = [list[j], list[i]];
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return { ok: false };
+  const ids = orderedIds.filter((id) => typeof id === 'string' && id).slice(0, 100);
 
+  // 整組寫回 0..n:順便把舊資料殘留的 null 補成實際數字,之後排序才穩定
   const results = await Promise.all(
-    list.map((v, idx) =>
+    ids.map((id, i) =>
       supabaseAdmin
         .from('product_variants')
-        .update({ sort_order: idx })
-        .eq('id', v.id)
+        .update({ sort_order: i })
+        .eq('id', id)
+        .eq('product_id', productId)
         .eq('tenant_id', tenant.id),
     ),
   );
   const failed = results.find((r) => r.error);
   if (failed) {
-    console.error('[moveVariant]', failed.error);
-    throw new Error('排序儲存失敗:' + failed.error!.message);
+    console.error('[saveVariantOrder]', failed.error);
+    return { ok: false };
   }
 
-  revalidatePath(`/admin/${slug}/products`);
-  revalidatePath(`/${slug}`);
-  redirect(`/admin/${slug}/products?saved=variant_${id}#variant-${id}`);
+  // 只重新驗證前台(後台畫面已經在 client 端換好位置了,不需要整頁重載)
+  revalidatePath(`/${tenantSlug}`);
+  return { ok: true };
 }
 
 // ====================

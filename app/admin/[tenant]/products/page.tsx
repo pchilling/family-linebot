@@ -7,7 +7,6 @@ import {
   deletePriceTier,
   deleteProduct,
   deleteVariant,
-  moveVariant,
   updatePriceTier,
   updateProduct,
   updateProductSale,
@@ -17,6 +16,7 @@ import { CategoryOrderManager } from './category-order';
 import { ProductImageUploader } from './image-uploader';
 import { ShareButton } from './share-button';
 import { ShareFocusEditor } from './share-focus-editor';
+import { VariantOrderList } from './variant-order';
 import { SubmitButton } from '../../_components/submit-button';
 import { FlashToast } from '../../../_components/toast';
 import { MediaManager } from './media-manager';
@@ -881,64 +881,16 @@ details[open] .chev { transform: rotate(90deg); }
                 {/* 變體 */}
                 <section style={{ padding: '20px 18px', borderBottom: `1px solid ${c.borderSubtle}` }}>
                   <div style={sectionTitle}>變體 ({variantCount})</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {p.product_variants.map((v, vi) => {
-                      const variantSaved = savedId === `variant_${v.id}`;
+                  {/* Phase 19 v2(2026-10-20):順序改 client 端即時換位置,存檔在背景跑 —
+                      原本每按一次都要整頁重載(59 商品 + 82 變體),要等好幾秒 */}
+                  <VariantOrderList
+                    tenantSlug={tenant.slug}
+                    productId={p.id}
+                    items={p.product_variants.map((v) => ({ id: v.id, saved: savedId === `variant_${v.id}` }))}
+                  >
+                    {p.product_variants.map((v) => {
                       return (
-                        <div
-                          key={v.id}
-                          id={`variant-${v.id}`}
-                          style={{
-                            padding: 12,
-                            background: variantSaved ? c.successBg : '#fafafa',
-                            border: `1px solid ${variantSaved ? c.successBorder : c.borderSubtle}`,
-                            borderRadius: 6,
-                          }}
-                        >
-                          {/* Phase 19:顯示順序 — 客人看到的規格排列,第一個也是預設選中的 */}
-                          {p.product_variants.length > 1 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                              <span style={{ fontSize: 11, color: c.textMuted }}>
-                                顯示順序 第 {vi + 1} 個{vi === 0 ? '(客人預設看到這個)' : ''}
-                              </span>
-                              <form action={moveVariant} style={{ display: 'inline' }}>
-                                <input type="hidden" name="id" value={v.id} />
-                                <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                                <input type="hidden" name="dir" value="up" />
-                                <button
-                                  type="submit"
-                                  disabled={vi === 0}
-                                  title="往上移一格"
-                                  style={{
-                                    width: 26, height: 24, border: `1px solid ${c.border}`, borderRadius: 4,
-                                    background: '#fff', color: vi === 0 ? '#d4d4d8' : c.textSec,
-                                    cursor: vi === 0 ? 'not-allowed' : 'pointer', fontSize: 11, lineHeight: 1,
-                                  }}
-                                >
-                                  ↑
-                                </button>
-                              </form>
-                              <form action={moveVariant} style={{ display: 'inline' }}>
-                                <input type="hidden" name="id" value={v.id} />
-                                <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                                <input type="hidden" name="dir" value="down" />
-                                <button
-                                  type="submit"
-                                  disabled={vi === p.product_variants.length - 1}
-                                  title="往下移一格"
-                                  style={{
-                                    width: 26, height: 24, border: `1px solid ${c.border}`, borderRadius: 4,
-                                    background: '#fff',
-                                    color: vi === p.product_variants.length - 1 ? '#d4d4d8' : c.textSec,
-                                    cursor: vi === p.product_variants.length - 1 ? 'not-allowed' : 'pointer',
-                                    fontSize: 11, lineHeight: 1,
-                                  }}
-                                >
-                                  ↓
-                                </button>
-                              </form>
-                            </div>
-                          )}
+                        <div key={v.id}>
                           <form action={updateVariant} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
                             <input type="hidden" name="id" value={v.id} />
                             <input type="hidden" name="tenant_slug" value={tenant.slug} />
@@ -986,7 +938,7 @@ details[open] .chev { transform: rotate(90deg); }
                         </div>
                       );
                     })}
-                  </div>
+                  </VariantOrderList>
 
                   <details style={{ marginTop: 12 }}>
                     <summary
