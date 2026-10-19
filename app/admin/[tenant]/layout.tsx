@@ -129,7 +129,8 @@ export default async function TenantAdminLayout({
   .admin-mobile-hamburger { display: inline-flex !important; }
 
   /* === Main content padding 緊湊 === */
-  .admin-content { padding: 56px 12px 32px !important; }
+  /* 2026-10-20:頂部留白 56 → 68,內容第一行才不會貼著左上角的漢堡按鈕(12~52px) */
+  .admin-content { padding: 68px 12px 32px !important; }
   .admin-content main { padding: 0 !important; max-width: 100% !important; }
 
   /* === Tables → 卡片化(每列變一張卡)=== */

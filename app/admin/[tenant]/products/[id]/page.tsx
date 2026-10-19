@@ -8,6 +8,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { compareVariantOrder, getTenantBySlug, supabaseAdmin, type PriceTier } from '@/lib/supabase';
+import { IconChevronLeft } from '@/lib/icons';
 import { deleteProduct, updateProduct, updateProductSale } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
@@ -160,8 +161,16 @@ details summary::-webkit-details-marker { display: none; }
         </div>
       )}
 
-      <Link href={`/admin/${tenant.slug}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#71717a', textDecoration: 'none' }}>
-        ← 商品列表
+      {/* 跟商城同款的膠囊返回鍵 */}
+      <Link
+        href={`/admin/${tenant.slug}/products`}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4, padding: '8px 14px 8px 10px', minHeight: 38,
+          boxSizing: 'border-box', background: '#fff', border: '1px solid #e4e4e7', borderRadius: 999,
+          fontSize: 13, fontWeight: 600, color: '#18181b', textDecoration: 'none',
+        }}
+      >
+        <IconChevronLeft size={15} /> 商品列表
       </Link>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', margin: '14px 0 18px' }}>
