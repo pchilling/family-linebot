@@ -797,3 +797,81 @@ function formatClassLine(c: ClassRow): string {
     : '';
   return `${dateStr}(${wd}) ${timeStr} ${c.name}${priceTag}`;
 }
+
+// ====================
+// Phase 17.2(2026-10-19):LINE Pay 金流通知卡
+// 付款成功與退款原本是純文字推播,跟訂單成立的 Flex 卡不一致 — 改成同款卡片。
+// 一則訊息最多 1 顆 emoji(標題),按鈕不放 emoji。
+// ====================
+
+/** 金流通知卡:收款成功 / 退款完成共用 */
+export function buildPaymentFlexMessage(params: {
+  kind: 'paid' | 'refunded';
+  orderNo: string;
+  amountTwd: number;
+  orderUrl: string;
+  /** 部分退款時帶原訂單金額,卡片上會註明尚未全退 */
+  remainingTwd?: number;
+}): messagingApi.FlexMessage {
+  const isRefund = params.kind === 'refunded';
+  const accent = isRefund ? '#b45309' : '#16a34a';
+  const title = isRefund ? '✓ 退款已完成' : '✓ 已收到您的付款';
+  const amountLabel = isRefund ? '退款金額' : '付款金額';
+
+  const bodyContents: messagingApi.FlexBox['contents'] = [
+    { type: 'text', text: title, weight: 'bold', size: 'lg', color: accent },
+    {
+      type: 'box', layout: 'baseline', margin: 'lg',
+      contents: [
+        { type: 'text', text: '訂單編號', size: 'sm', color: '#71717a', flex: 3 },
+        { type: 'text', text: params.orderNo, size: 'sm', weight: 'bold', color: '#18181b', flex: 5, align: 'end' },
+      ],
+    },
+    {
+      type: 'box', layout: 'baseline', margin: 'sm',
+      contents: [
+        { type: 'text', text: amountLabel, size: 'sm', color: '#71717a', flex: 3 },
+        {
+          type: 'text',
+          text: `${isRefund ? '- ' : ''}NT$ ${params.amountTwd.toLocaleString()}`,
+          size: 'md', weight: 'bold', color: accent, flex: 5, align: 'end',
+        },
+      ],
+    },
+    { type: 'box', layout: 'baseline', margin: 'sm',
+      contents: [
+        { type: 'text', text: '付款方式', size: 'sm', color: '#71717a', flex: 3 },
+        { type: 'text', text: 'LINE Pay', size: 'sm', color: '#18181b', flex: 5, align: 'end' },
+      ],
+    },
+    { type: 'separator', margin: 'lg', color: '#e4e4e7' },
+    {
+      type: 'text',
+      text: isRefund
+        ? (params.remainingTwd && params.remainingTwd > 0
+            ? `本筆為部分退款,訂單尚有 NT$ ${params.remainingTwd.toLocaleString()} 未退。款項將退回您原本付款的 LINE Pay 帳戶,實際入帳時間依支付方式而定。`
+            : '款項將退回您原本付款的 LINE Pay 帳戶,實際入帳時間依您的付款方式而定。')
+        : '我們會盡快為您出貨,出貨後會再通知您。感謝您的訂購!',
+      size: 'xs', color: '#71717a', wrap: true, margin: 'lg',
+    },
+  ];
+
+  return {
+    type: 'flex',
+    altText: `${title} · 訂單 ${params.orderNo} · NT$ ${params.amountTwd.toLocaleString()}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      body: { type: 'box', layout: 'vertical', spacing: 'none', contents: bodyContents },
+      footer: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [
+          {
+            type: 'button', style: 'primary', color: accent, height: 'sm',
+            action: { type: 'uri', label: '查看訂單', uri: params.orderUrl },
+          },
+        ],
+      },
+    },
+  };
+}

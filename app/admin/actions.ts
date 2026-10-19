@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { refundLinePayPayment } from '@/lib/linepay';
-import { lineClient } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
 
@@ -889,17 +889,18 @@ export async function refundLinePayOrder(formData: FormData) {
   const lineUserId = order.users?.line_user_id;
   if (lineUserId) {
     try {
+      const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
+      const tenant = await getTenantBySlug(slug);
       await lineClient.pushMessage({
         to: lineUserId,
         messages: [
-          {
-            type: 'text',
-            text:
-              `✓ 退款已完成\n` +
-              `訂單編號:${order.order_no}\n` +
-              `退款金額:NT$ ${amount.toLocaleString()}\n\n` +
-              `款項會退回您原本付款的 LINE Pay 帳戶,實際入帳時間依發卡銀行或支付方式而定。`,
-          },
+          buildPaymentFlexMessage({
+            kind: 'refunded',
+            orderNo: order.order_no,
+            amountTwd: amount,
+            remainingTwd: grandTotal - refundedTotal,
+            orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}`,
+          }),
         ],
       });
     } catch (e) {

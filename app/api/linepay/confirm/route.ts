@@ -9,7 +9,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { confirmLinePayPayment } from '@/lib/linepay';
-import { lineClient } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -94,15 +94,12 @@ export async function GET(req: NextRequest) {
       await lineClient.pushMessage({
         to: lineUserId,
         messages: [
-          {
-            type: 'text',
-            text:
-              `✓ 已收到您的 LINE Pay 付款\n` +
-              `訂單編號:${order.order_no}\n` +
-              `付款金額:NT$ ${amount.toLocaleString()}\n\n` +
-              `我們會盡快為您出貨,謝謝!\n` +
-              `${baseUrl}/${slug}/order/${order.order_no}`,
-          },
+          buildPaymentFlexMessage({
+            kind: 'paid',
+            orderNo: order.order_no,
+            amountTwd: amount,
+            orderUrl: `${baseUrl}/${slug}/order/${order.order_no}`,
+          }),
         ],
       });
     } catch (e) {

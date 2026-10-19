@@ -21,7 +21,7 @@
  * 安全:只有帶對 CRON_SECRET 的請求能呼叫(這支會取消訂單,不能公開)。
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { lineClient } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
 import { checkLinePayPaymentStatus, confirmLinePayPayment } from '@/lib/linepay';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -109,15 +109,12 @@ async function reconcileLinePay(): Promise<string[]> {
         await lineClient.pushMessage({
           to: lineUserId,
           messages: [
-            {
-              type: 'text',
-              text:
-                `✓ 已收到您的 LINE Pay 付款\n` +
-                `訂單編號:${o.order_no}\n` +
-                `付款金額:NT$ ${amount.toLocaleString()}\n\n` +
-                `我們會盡快為您出貨,謝謝!\n` +
-                `${baseUrl}/${slug}/order/${o.order_no}`,
-            },
+            buildPaymentFlexMessage({
+              kind: 'paid',
+              orderNo: o.order_no,
+              amountTwd: amount,
+              orderUrl: `${baseUrl}/${slug}/order/${o.order_no}`,
+            }),
           ],
         });
       } catch (e) {
