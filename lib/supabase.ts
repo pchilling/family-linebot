@@ -484,7 +484,21 @@ export type VariantPublic = {
   image_url: string | null;
   is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
   status: string;
+  sort_order: number | null; // Phase 19:攤主自訂的顯示順序
 };
+
+/**
+ * Phase 19(2026-10-19):變體顯示順序的共用比較子。
+ * sort_order 小的排前面;沒排過的(null)排最後。
+ * JS 的 sort 是穩定排序,所以同序的會維持原本順序。
+ * 三個顯示點(網頁商品頁 / LIFF / 後台)都用這個,順序才會一致。
+ */
+export function compareVariantOrder(
+  a: { sort_order?: number | null },
+  b: { sort_order?: number | null },
+): number {
+  return (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER);
+}
 
 export type ProductDetail = {
   id: string;
@@ -510,7 +524,7 @@ export async function getProductBySlug(
   slugOrId: string,
 ): Promise<ProductDetail | null> {
   const cols =
-    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, is_bundle, status)';
+    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, is_bundle, status, sort_order)';
   // 先試 slug
   let { data } = await supabaseAdmin
     .from('products')
@@ -547,7 +561,10 @@ export async function getProductBySlug(
     product_variants: VariantPublic[] | null;
   };
   const row = data as Row;
-  const variants = (row.product_variants ?? []).filter((v) => v.status === 'active');
+  // Phase 19:依攤主排的順序顯示(影響畫面預設選中的規格)
+  const variants = (row.product_variants ?? [])
+    .filter((v) => v.status === 'active')
+    .sort(compareVariantOrder);
   return {
     id: row.id,
     slug: row.slug,
@@ -714,11 +731,16 @@ export async function buildGiftItems(
   ];
   const { data: variants } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, stock')
+    .select('id, product_id, stock, sort_order')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .in('product_id', productIds);
-  const all = (variants as { id: string; product_id: string; stock: number }[] | null) ?? [];
+  // Phase 19:贈品挑規格時也照攤主排的順序,跟商品頁顯示一致
+  const all = (
+    (variants as { id: string; product_id: string; stock: number; sort_order: number | null }[] | null) ?? []
+  )
+    .slice()
+    .sort(compareVariantOrder);
 
   // 同一次結帳可能有多條規則指向同一個贈品,庫存要逐筆扣掉才不會超送
   const remaining = new Map(all.map((v) => [v.id, v.stock]));

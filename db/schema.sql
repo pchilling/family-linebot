@@ -1229,3 +1229,13 @@ where slug = 'oilswa';
 -- 已退金額累計:支援分次部分退款;退到跟實收相同時訂單自動標 refunded
 -- (handle_order_cancel trigger 會自動退庫存)。
 alter table orders add column if not exists linepay_refunded_twd int not null default 0;
+
+
+-- ====================
+-- Phase 19(2026-10-19):變體顯示順序
+-- 原本三個顯示點(網頁商品詳情 / LIFF 商品專區 / 後台)都沒指定變體排序,
+-- 順序由 Postgres 決定,攤主無法調整;而畫面預設選中第一個規格,
+-- 等於價格印象也被隨機決定(例:水氧機預設選到 3台 NT$3,600)。
+-- 語意同 products.sort_order:null = 沒排過,排在最後。
+-- ====================
+alter table product_variants add column if not exists sort_order int;

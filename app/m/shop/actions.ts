@@ -1,6 +1,6 @@
 'use server';
 
-import { buildGiftItems, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import type { messagingApi } from '@line/bot-sdk';
@@ -140,7 +140,7 @@ export async function loadShopData(
   const [productsRes, memberRes, tenantRes, tiersRes] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, created_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, is_bundle, status)')
+      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, created_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, is_bundle, status, sort_order)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -225,7 +225,7 @@ export async function loadShopData(
       : [];
 
   type ProductRow = ShopProduct & {
-    product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; image_url: string | null; is_bundle: boolean | null; status: string }[] | null;
+    product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; image_url: string | null; is_bundle: boolean | null; status: string; sort_order: number | null }[] | null;
   };
   return {
     products: ((productsRes.data ?? []) as unknown as ProductRow[]).map((p) => ({
@@ -242,8 +242,10 @@ export async function loadShopData(
       sale_start_at: p.sale_start_at ?? null,
       sale_end_at: p.sale_end_at ?? null,
       stock: p.stock,
+      // Phase 19:依攤主排的順序(也決定商品 modal 預設選中哪個規格)
       variants: (p.product_variants ?? [])
         .filter((v) => v.status === 'active')
+        .sort(compareVariantOrder)
         .map((v) => ({ id: v.id, variant_name: v.variant_name, price_twd: v.price_twd, stock: v.stock, image_url: v.image_url ?? null, is_bundle: v.is_bundle ?? false })),
       tiers: tiersByProduct.get(p.id) ?? [],
       sort_order: p.sort_order ?? null,
