@@ -1,991 +1,508 @@
+/**
+ * 後台總覽(2026-10-20 改版)
+ *
+ * 原本是一堆單點數字(今日訂單、今日營收…),看了不知道好不好。
+ * 改成四排:數字卡(本月 vs 上月同期)→ 每週營收 + 付款通路 → 分類排行 + 熱銷 → 快速操作。
+ * 訂單相關的數字全部從「近 90 天訂單(含明細)」一支查詢在程式裡算,不再十幾支查詢各算各的。
+ * 營收主數字一律「不含運費」,含運另標小字。
+ */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
-import {
-  card,
-  colors,
-  contentMaxWidth,
-  fontSize,
-  fontWeight,
-  h1Style,
-  h2Style,
-  monoNum,
-  radius,
-  sectionLabel,
-  space,
-} from '@/lib/admin-theme';
 
 type Props = {
   params: Promise<{ tenant: string }>;
+  searchParams: Promise<{ range?: string }>;
 };
 
-// Admin dashboard 每次都重抓最新數據,不用任何 cache
 export const dynamic = 'force-dynamic';
 
-function asiaTaipeiDayRange() {
-  const now = new Date();
-  const twOffsetMs = 8 * 60 * 60 * 1000;
-  const twNow = new Date(now.getTime() + twOffsetMs);
-  const start = new Date(
-    Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth(), twNow.getUTCDate()) - twOffsetMs,
+type OrderRow = {
+  id: string;
+  status: string;
+  payment_status: string;
+  payment_method: string | null;
+  source: string;
+  total_twd: number;
+  shipping_fee_twd: number | null;
+  user_id: string | null;
+  shipping_phone: string | null;
+  created_at: string;
+  order_items: { qty: number; price_at_purchase: number; products: { name: string; category: string | null } | null }[] | null;
+};
+
+const TW = 8 * 3600 * 1000;
+/** 台北時區的「某天 00:00」對應的 UTC Date */
+function twDayStart(y: number, m: number, d: number): Date {
+  return new Date(Date.UTC(y, m, d) - TW);
+}
+function money(n: number): string {
+  return 'NT$ ' + Math.round(n).toLocaleString();
+}
+function pct(part: number, whole: number): number {
+  return whole > 0 ? Math.round((part / whole) * 100) : 0;
+}
+
+const c = {
+  text: '#18181b',
+  sec: '#52525b',
+  muted: '#71717a',
+  faint: '#a1a1aa',
+  line: '#e4e4e7',
+  lineSoft: '#f4f4f5',
+  up: '#15803d',
+  down: '#b91c1c',
+  blue: '#2563eb',
+  linePay: '#06c755',
+};
+const card: React.CSSProperties = { background: '#fff', border: `1px solid ${c.line}`, borderRadius: 12 };
+const num: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
+const lbl: React.CSSProperties = { fontSize: 12, color: c.muted };
+const big: React.CSSProperties = { fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1, ...num };
+const ct: React.CSSProperties = { margin: 0, fontSize: 13.5, fontWeight: 700 };
+const cs: React.CSSProperties = { fontSize: 12, color: c.muted, marginTop: 2 };
+
+function Delta({ now, before, unit = '' }: { now: number; before: number; unit?: string }) {
+  const diff = now - before;
+  const color = diff > 0 ? c.up : diff < 0 ? c.down : c.muted;
+  const sign = diff > 0 ? '+ ' : diff < 0 ? '− ' : '';
+  const fmt = (v: number) => (unit === '$' ? money(v) : `${v.toLocaleString()}${unit}`);
+  return (
+    <div style={{ marginTop: 8, fontSize: 12, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <span style={{ ...num, fontWeight: 700, color }}>{sign}{fmt(Math.abs(diff))}</span>
+      <span style={{ ...num, color: c.muted }}>上月同期 {fmt(before)}</span>
+    </div>
   );
-  const end = new Date(
-    Date.UTC(twNow.getUTCFullYear(), twNow.getUTCMonth(), twNow.getUTCDate() + 1) - twOffsetMs,
-  );
-  return { start: start.toISOString(), end: end.toISOString() };
 }
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('zh-TW', {
-    timeZone: 'Asia/Taipei',
-    month: 'numeric',
-    day: 'numeric',
-    weekday: 'narrow',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
-
-function formatToday(): string {
-  return new Date().toLocaleDateString('zh-TW', {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long',
-  });
-}
-
-export default async function TenantDashboardPage({ params }: Props) {
+export default async function TenantDashboardPage({ params, searchParams }: Props) {
   const { tenant: slug } = await params;
+  const sp = await searchParams;
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
-
   const hasActivities = hasFeature(tenant, 'activities');
+  const hasLinePay = hasFeature(tenant, 'line_pay');
 
-  const { start: dayStart, end: dayEnd } = asiaTaipeiDayRange();
-  const nowIso = new Date().toISOString();
-  const week7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  // 報表 - 過去 30 天
-  const days30Ago = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  // ── 時間範圍(全部以台北時區算)──
+  const now = new Date();
+  const tw = new Date(now.getTime() + TW);
+  const y = tw.getUTCFullYear();
+  const m = tw.getUTCMonth();
+  const d = tw.getUTCDate();
+  const monthStart = twDayStart(y, m, 1);
+  const lastMonthStart = twDayStart(y, m - 1, 1);
+  const lastMonthSameEnd = new Date(Math.min(twDayStart(y, m - 1, d + 1).getTime(), monthStart.getTime()));
+  const since90 = new Date(now.getTime() - 90 * 86400000);
+  const dayStart = twDayStart(y, m, d);
+  const dayEnd = twDayStart(y, m, d + 1);
+  const week7 = new Date(now.getTime() + 7 * 86400000);
+  const range = sp.range === '30' || sp.range === '90' ? sp.range : 'month';
+  const rangeSince = range === '30' ? new Date(now.getTime() - 30 * 86400000) : range === '90' ? since90 : monthStart;
+  const rangeLabel = range === '30' ? '近 30 天' : range === '90' ? '近 90 天' : '本月';
 
-  const [
-    ordersTodayResp,
-    revenueTodayResp,
-    attendancesTodayResp,
-    classesTodayResp,
-    pendingPaymentResp,
-    pendingShipResp,
-    reportedResp,
-    lowStockResp,
-    upcomingResvResp,
-    revenue30dResp,
-    topProductsResp,
-    funnelResp,
-    activityTrendResp,
-  ] = await Promise.all([
-    supabaseAdmin
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenant.id)
-      .gte('created_at', dayStart)
-      .lt('created_at', dayEnd),
-    // 今日下單總額(不管付款狀態 — 反映「真實銷售」直覺)
-    // 排除 cancelled / refunded;2026-09-08:含運費(對帳實收金額)
-    supabaseAdmin
-      .from('orders')
-      .select('total_twd, shipping_fee_twd, status')
-      .eq('tenant_id', tenant.id)
-      .gte('created_at', dayStart)
-      .lt('created_at', dayEnd)
-      .not('status', 'in', '(cancelled,refunded)'),
-    // 2026-09-08:今日簽到只算收費課(免費課到場不需管理)
-    hasActivities
-      ? supabaseAdmin
-          .from('attendances')
-          .select('id, classes!inner(is_paid)', { count: 'exact', head: true })
-          .eq('tenant_id', tenant.id)
-          .eq('classes.is_paid', true)
-          .gte('checked_in_at', dayStart)
-          .lt('checked_in_at', dayEnd)
-      : Promise.resolve({ count: null }),
-    hasActivities
-      ? supabaseAdmin
-          .from('classes')
-          .select('id, name, scheduled_at, capacity, status')
-          .eq('tenant_id', tenant.id)
-          // 只列收費課(2026-09-02):免費課直接到場不用管理,總覽只看要對帳的
-          .eq('is_paid', true)
-          .gte('scheduled_at', dayStart)
-          .lt('scheduled_at', dayEnd)
-          .neq('status', 'cancelled')
-          .order('scheduled_at')
-      : Promise.resolve({ data: null }),
-    supabaseAdmin
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenant.id)
-      .eq('status', 'open')
-      .eq('payment_status', 'pending'),
-    supabaseAdmin
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenant.id)
-      .eq('status', 'paid'),
-    // 2026-09-08:客人已回報後五碼、等核帳的筆數(最需要行動的數字)
-    supabaseAdmin
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenant.id)
-      .eq('payment_status', 'pending')
-      .not('payment_reported_at', 'is', null)
-      .not('status', 'in', '(cancelled,refunded)'),
-    tenant.plan === 'free'
-      ? Promise.resolve({ data: null, count: null })
-      : supabaseAdmin
-          .from('product_variants')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenant.id)
-          .eq('status', 'active')
-          .lte('stock', 3),
-    hasActivities
-      ? supabaseAdmin
-          .from('classes')
-          .select('id, name, scheduled_at, capacity, reservations!inner(status, position)')
-          .eq('tenant_id', tenant.id)
-          // 2026-09-08:只列收費課(免費課無報名機制)
-          .eq('is_paid', true)
-          .gte('scheduled_at', nowIso)
-          .lt('scheduled_at', week7)
-          .neq('status', 'cancelled')
-          .in('reservations.status', ['confirmed', 'waitlist'])
-          .order('scheduled_at')
-          .limit(20)
-      : Promise.resolve({ data: null }),
-    // 報表 A:過去 30 天每日營收(2026-09-08:含運費)
-    supabaseAdmin
-      .from('orders')
-      .select('created_at, total_twd, shipping_fee_twd')
-      .eq('tenant_id', tenant.id)
-      .gte('created_at', days30Ago)
-      .not('status', 'in', '(cancelled,refunded)'),
-    // 報表 B:熱賣商品(過去 30 天 by revenue,join products 拿名)
-    supabaseAdmin
-      .from('order_items')
-      .select('product_id, qty, price_at_purchase, products(name), orders!inner(created_at, tenant_id, status)')
-      .eq('orders.tenant_id', tenant.id)
-      .gte('orders.created_at', days30Ago)
-      .not('orders.status', 'in', '(cancelled,refunded)')
-      .limit(500),
-    // 報表 C:訂單狀態分布(過去 30 天)
-    supabaseAdmin
-      .from('orders')
-      .select('status, payment_status')
-      .eq('tenant_id', tenant.id)
-      .gte('created_at', days30Ago),
-    // 報表 D:活動趨勢(過去 30 天 attendances per day;2026-09-08 只算收費課)
-    hasActivities
-      ? supabaseAdmin
-          .from('attendances')
-          .select('checked_in_at, classes!inner(is_paid)')
-          .eq('tenant_id', tenant.id)
-          .eq('classes.is_paid', true)
-          .gte('checked_in_at', days30Ago)
-      : Promise.resolve({ data: null }),
-  ]);
+  const [ordersResp, reportedResp, pendShipResp, lowStockResp, classesTodayResp, attendTodayResp, upcomingResp] =
+    await Promise.all([
+      supabaseAdmin
+        .from('orders')
+        .select(
+          'id, status, payment_status, payment_method, source, total_twd, shipping_fee_twd, user_id, shipping_phone, created_at, order_items(qty, price_at_purchase, products(name, category))',
+        )
+        .eq('tenant_id', tenant.id)
+        .gte('created_at', new Date(Math.min(since90.getTime(), lastMonthStart.getTime())).toISOString())
+        .limit(2000),
+      supabaseAdmin
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('payment_status', 'pending')
+        .not('payment_reported_at', 'is', null)
+        .not('status', 'in', '(cancelled,refunded)'),
+      supabaseAdmin.from('orders').select('id', { count: 'exact', head: true }).eq('tenant_id', tenant.id).eq('status', 'paid'),
+      supabaseAdmin
+        .from('product_variants')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('status', 'active')
+        .lte('stock', 3),
+      hasActivities
+        ? supabaseAdmin
+            .from('classes')
+            .select('id, name, scheduled_at, capacity')
+            .eq('tenant_id', tenant.id)
+            .eq('is_paid', true)
+            .gte('scheduled_at', dayStart.toISOString())
+            .lt('scheduled_at', dayEnd.toISOString())
+            .neq('status', 'cancelled')
+            .order('scheduled_at')
+        : Promise.resolve({ data: null }),
+      hasActivities
+        ? supabaseAdmin
+            .from('attendances')
+            .select('id, classes!inner(is_paid)', { count: 'exact', head: true })
+            .eq('tenant_id', tenant.id)
+            .eq('classes.is_paid', true)
+            .gte('checked_in_at', dayStart.toISOString())
+            .lt('checked_in_at', dayEnd.toISOString())
+        : Promise.resolve({ count: null }),
+      hasActivities
+        ? supabaseAdmin
+            .from('classes')
+            .select('id, name, scheduled_at, capacity, reservations!inner(status)')
+            .eq('tenant_id', tenant.id)
+            .eq('is_paid', true)
+            .gte('scheduled_at', now.toISOString())
+            .lt('scheduled_at', week7.toISOString())
+            .neq('status', 'cancelled')
+            .in('reservations.status', ['confirmed', 'waitlist'])
+            .order('scheduled_at')
+            .limit(20)
+        : Promise.resolve({ data: null }),
+    ]);
 
-  const ordersToday = ordersTodayResp.count ?? 0;
-  const revenueToday = (
-    (revenueTodayResp.data as { total_twd: number; shipping_fee_twd: number | null }[] | null) ?? []
-  ).reduce((s, o) => s + (o.total_twd ?? 0) + (o.shipping_fee_twd ?? 0), 0);
-  const reportedCount = reportedResp.count ?? 0;
-  const attendancesToday = attendancesTodayResp.count ?? 0;
-  type TodayClass = { id: string; name: string; scheduled_at: string; capacity: number | null; status: string };
-  const classesToday = ((classesTodayResp.data as unknown) as TodayClass[] | null) ?? [];
-  const pendingPayment = pendingPaymentResp.count ?? 0;
-  const pendingShip = pendingShipResp.count ?? 0;
-  const lowStockCount = lowStockResp.count ?? null;
+  const all = ((ordersResp.data ?? []) as unknown as OrderRow[]).map((o) => ({ ...o, t: new Date(o.created_at).getTime() }));
+  const valid = all.filter((o) => o.status !== 'cancelled' && o.status !== 'refunded');
+  const inRange = (o: { t: number }, from: Date, to?: Date) => o.t >= from.getTime() && (!to || o.t < to.getTime());
 
-  type ResvCls = {
-    id: string;
-    name: string;
-    scheduled_at: string;
-    capacity: number | null;
-    reservations: { status: string; position: number | null }[];
+  // ── 第一排:本月 vs 上月同期 ──
+  const thisM = valid.filter((o) => inRange(o, monthStart));
+  const lastM = valid.filter((o) => inRange(o, lastMonthStart, lastMonthSameEnd));
+  const sum = (xs: typeof valid) => xs.reduce((s, o) => s + (o.total_twd ?? 0), 0);
+  const revThis = sum(thisM);
+  const revLast = sum(lastM);
+  const shipThis = thisM.reduce((s, o) => s + (o.shipping_fee_twd ?? 0), 0);
+  const aovThis = thisM.length ? revThis / thisM.length : 0;
+  const aovLast = lastM.length ? revLast / lastM.length : 0;
+  const itemsThis = thisM.reduce((s, o) => s + (o.order_items ?? []).reduce((a, i) => a + i.qty, 0), 0);
+  const customersThis = new Set(thisM.map((o) => o.user_id ?? o.shipping_phone ?? o.id)).size;
+  const cancelledThis = all.filter((o) => inRange(o, monthStart) && (o.status === 'cancelled' || o.status === 'refunded')).length;
+  const reported = reportedResp.count ?? 0;
+  const pendShip = pendShipResp.count ?? 0;
+  const lowStock = lowStockResp.count ?? 0;
+
+  // ── 第二排左:近 8 週(週一起算)──
+  const dow = (tw.getUTCDay() + 6) % 7; // 週一 = 0
+  const thisWeekStart = twDayStart(y, m, d - dow);
+  const weeks = Array.from({ length: 8 }, (_, i) => {
+    const start = new Date(thisWeekStart.getTime() - (7 - i) * 7 * 86400000);
+    const end = new Date(start.getTime() + 7 * 86400000);
+    const v = sum(valid.filter((o) => inRange(o, start, end)));
+    const s = new Date(start.getTime() + TW);
+    return { label: `${s.getUTCMonth() + 1}/${s.getUTCDate()}`, value: v, current: i === 7 };
+  });
+  const weekMax = Math.max(2500, ...weeks.map((w) => w.value)) * 1.15;
+  const bestWeek = weeks.slice(0, 7).reduce((b, w) => (w.value > b.value ? w : b), weeks[0]);
+  const avg4 = Math.round(weeks.slice(3, 7).reduce((s, w) => s + w.value, 0) / 4);
+
+  // ── 範圍內(本月 / 30 / 90 天):付款、通路、分類、熱銷 ──
+  const scoped = valid.filter((o) => inRange(o, rangeSince));
+  const count = (key: (o: OrderRow) => string) => {
+    const mp = new Map<string, number>();
+    for (const o of scoped) mp.set(key(o), (mp.get(key(o)) ?? 0) + 1);
+    return mp;
   };
-  const resvClassRows = ((upcomingResvResp.data as unknown) as ResvCls[] | null) ?? [];
-  const classMap = new Map<
-    string,
-    { name: string; scheduled_at: string; capacity: number | null; confirmed: number; waitlist: number }
-  >();
-  for (const c of resvClassRows) {
-    const ex = classMap.get(c.id);
-    if (!ex) {
-      classMap.set(c.id, {
-        name: c.name,
-        scheduled_at: c.scheduled_at,
-        capacity: c.capacity,
-        confirmed: 0,
-        waitlist: 0,
-      });
-    }
-    const entry = classMap.get(c.id)!;
-    for (const r of c.reservations ?? []) {
-      if (r.status === 'confirmed') entry.confirmed++;
-      else if (r.status === 'waitlist') entry.waitlist++;
+  const payMap = count((o) => (o.payment_method === 'line_pay' ? 'line_pay' : 'bank'));
+  const srcMap = count((o) => (o.source === 'liff' ? 'liff' : o.source === 'web' ? 'web' : 'other'));
+  const payBank = payMap.get('bank') ?? 0;
+  const payLine = payMap.get('line_pay') ?? 0;
+  const srcLiff = srcMap.get('liff') ?? 0;
+  const srcWeb = srcMap.get('web') ?? 0;
+  const srcOther = srcMap.get('other') ?? 0;
+
+  const catMap = new Map<string, number>();
+  const prodMap = new Map<string, { qty: number; rev: number }>();
+  for (const o of scoped) {
+    for (const i of o.order_items ?? []) {
+      if (!i.products) continue;
+      const amt = i.qty * i.price_at_purchase;
+      if (amt <= 0) continue; // 贈品(0 元)不計
+      const cat = i.products.category ?? '未分類';
+      catMap.set(cat, (catMap.get(cat) ?? 0) + amt);
+      const p = prodMap.get(i.products.name) ?? { qty: 0, rev: 0 };
+      p.qty += i.qty;
+      p.rev += amt;
+      prodMap.set(i.products.name, p);
     }
   }
-  const upcomingResvs = Array.from(classMap.entries())
-    .map(([id, v]) => ({ id, ...v }))
-    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+  const cats = [...catMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const catMax = cats[0]?.[1] ?? 1;
+  const tops = [...prodMap.entries()].sort((a, b) => b[1].rev - a[1].rev).slice(0, 8);
 
-  // ============ 報表處理 ============
+  // ── 活動 ──
+  type Cls = { id: string; name: string; scheduled_at: string; capacity: number | null; reservations?: { status: string }[] };
+  const classesToday = ((classesTodayResp.data as unknown) as Cls[] | null) ?? [];
+  const attendToday = attendTodayResp.count ?? 0;
+  const upcomingRaw = ((upcomingResp.data as unknown) as Cls[] | null) ?? [];
+  const upcoming = new Map<string, { name: string; at: string; capacity: number | null; confirmed: number; waitlist: number }>();
+  for (const cl of upcomingRaw) {
+    const ex = upcoming.get(cl.id) ?? { name: cl.name, at: cl.scheduled_at, capacity: cl.capacity, confirmed: 0, waitlist: 0 };
+    for (const r of cl.reservations ?? []) {
+      if (r.status === 'confirmed') ex.confirmed++;
+      else if (r.status === 'waitlist') ex.waitlist++;
+    }
+    upcoming.set(cl.id, ex);
+  }
+  const fmtAt = (iso: string) =>
+    new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
-  // A. 30 天每日營收(以 Asia/Taipei 日期 group)
-  const dayKeys: string[] = [];
-  const dayMap = new Map<string, number>();
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    const tw = new Date(d.getTime() + 8 * 60 * 60 * 1000);
-    const k = `${tw.getUTCFullYear()}-${String(tw.getUTCMonth() + 1).padStart(2, '0')}-${String(tw.getUTCDate()).padStart(2, '0')}`;
-    dayKeys.push(k);
-    dayMap.set(k, 0);
-  }
-  for (const o of (revenue30dResp.data as { created_at: string; total_twd: number | null; shipping_fee_twd: number | null }[] | null) ?? []) {
-    const tw = new Date(new Date(o.created_at).getTime() + 8 * 60 * 60 * 1000);
-    const k = `${tw.getUTCFullYear()}-${String(tw.getUTCMonth() + 1).padStart(2, '0')}-${String(tw.getUTCDate()).padStart(2, '0')}`;
-    if (dayMap.has(k)) dayMap.set(k, dayMap.get(k)! + (o.total_twd ?? 0) + (o.shipping_fee_twd ?? 0));
-  }
-  const revenueSeries = dayKeys.map((k) => ({ date: k, revenue: dayMap.get(k) ?? 0 }));
-  const revenueMax = Math.max(1, ...revenueSeries.map((d) => d.revenue));
-  const revenueTotal30 = revenueSeries.reduce((s, d) => s + d.revenue, 0);
-
-  // B. 熱賣商品 top 5(by revenue)
-  type OrderItemRow = {
-    product_id: string;
-    qty: number;
-    price_at_purchase: number;
-    products: { name: string } | null;
-  };
-  const topMap = new Map<string, { name: string; qty: number; revenue: number }>();
-  for (const it of (topProductsResp.data as unknown as OrderItemRow[] | null) ?? []) {
-    const ex = topMap.get(it.product_id) ?? {
-      name: it.products?.name ?? '(已刪)',
-      qty: 0,
-      revenue: 0,
-    };
-    ex.qty += it.qty;
-    ex.revenue += (it.price_at_purchase ?? 0) * it.qty;
-    topMap.set(it.product_id, ex);
-  }
-  const topProducts = Array.from(topMap.entries())
-    .map(([id, v]) => ({ id, ...v }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
-  const topRevenueMax = Math.max(1, ...topProducts.map((p) => p.revenue));
-
-  // C. 訂單狀態分布(過去 30 天)
-  const statusCounts = { open: 0, paid: 0, shipped: 0, delivered: 0, cancelled: 0, refunded: 0 };
-  for (const o of (funnelResp.data as { status: string }[] | null) ?? []) {
-    if (o.status in statusCounts) statusCounts[o.status as keyof typeof statusCounts]++;
-  }
-  const funnelTotal =
-    statusCounts.open +
-    statusCounts.paid +
-    statusCounts.shipped +
-    statusCounts.delivered +
-    statusCounts.cancelled +
-    statusCounts.refunded;
-
-  // D. 活動 30 天 attendance per day
-  const activityDayMap = new Map<string, number>();
-  for (const k of dayKeys) activityDayMap.set(k, 0);
-  for (const a of (activityTrendResp.data as { checked_in_at: string }[] | null) ?? []) {
-    const tw = new Date(new Date(a.checked_in_at).getTime() + 8 * 60 * 60 * 1000);
-    const k = `${tw.getUTCFullYear()}-${String(tw.getUTCMonth() + 1).padStart(2, '0')}-${String(tw.getUTCDate()).padStart(2, '0')}`;
-    if (activityDayMap.has(k)) activityDayMap.set(k, activityDayMap.get(k)! + 1);
-  }
-  const activitySeries = dayKeys.map((k) => ({ date: k, count: activityDayMap.get(k) ?? 0 }));
-  const activityMax = Math.max(1, ...activitySeries.map((d) => d.count));
-  const activityTotal30 = activitySeries.reduce((s, d) => s + d.count, 0);
+  const todayLabel = tw.toLocaleDateString('zh-TW', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+  const base = `/admin/${tenant.slug}`;
+  const rangeHref = (r: string) => (r === 'month' ? base : `${base}?range=${r}`);
 
   return (
-    <div style={{ maxWidth: contentMaxWidth, margin: '0 auto' }}>
+    <main className="dash" style={{ color: c.text }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `
-/* iPad portrait / horizontal / 小筆電(<1300):4 col 太擠改 2x2 */
-@media (min-width: 768px) and (max-width: 1300px) {
-  body .admin-content .dashboard-metric-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 14px !important;
-    margin-bottom: 32px !important;
-  }
-  body .admin-content .dashboard-metric-grid > a > div,
-  body .admin-content .dashboard-metric-grid > div {
-    padding: 18px 20px !important;
-  }
-  body .admin-content .dashboard-list-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 16px !important;
-    margin-bottom: 32px !important;
-  }
-}
-
-@media (max-width: 767px) {
-  /* 高 specificity 蓋過 layout 的 catch-all [style*=...] rule */
-  body .admin-content .dashboard-metric-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
-    margin-bottom: 20px !important;
-  }
-  /* 卡片壓扁:高度自然 + padding 緊湊 + 內部 gap 縮小 */
-  body .admin-content .dashboard-metric-grid > a > div,
-  body .admin-content .dashboard-metric-grid > div {
-    padding: 10px 12px !important;
-    height: auto !important;
-    min-height: 76px !important;
-    gap: 0 !important;
-    border-radius: 10px !important;
-  }
-  /* Label small caps 縮一點 */
-  body .admin-content .dashboard-metric-grid [style*="text-transform: uppercase"],
-  body .admin-content .dashboard-metric-grid [style*="textTransform: uppercase"] {
-    font-size: 10px !important;
-    letter-spacing: 0.06em !important;
-  }
-  /* 大數字 — 不那麼粗大,line-height 緊湊 */
-  body .admin-content .dashboard-metric-grid [style*="lineHeight: 1.1"] {
-    font-size: 26px !important;
-    margin-top: 2px !important;
-    line-height: 1 !important;
-  }
-  /* sub 字 — 緊貼大數字 */
-  body .admin-content .dashboard-metric-grid > a > div > div:last-child,
-  body .admin-content .dashboard-metric-grid > div > div:last-child {
-    margin-top: 2px !important;
-    font-size: 11px !important;
-    line-height: 1.3 !important;
-  }
-  body .admin-content .dashboard-list-grid {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-  body .admin-content .dashboard-hero h1 {
-    font-size: 24px !important;
-  }
-}
+.dash { padding: 28px 32px 48px; }
+@media (max-width: 768px) { .dash { padding: 8px 4px 32px; } .wv { display: none; } }
+.qa { display:flex; align-items:center; gap:8px; padding:12px 14px; border:1px solid ${c.line}; border-radius:10px; background:#fff; font-size:13px; font-weight:600; color:${c.text}; text-decoration:none; flex:1 1 160px; min-width:0; }
+.qa:hover { border-color:${c.text}; }
+.qa .n { margin-left:auto; font-size:12px; font-weight:700; padding:2px 8px; border-radius:999px; background:${c.lineSoft}; color:${c.sec}; font-variant-numeric:tabular-nums; }
+.qa .n.hot { background:#fee2e2; color:${c.down}; }
+.dash-grid4 { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; }
+.dash-grid21 { display:grid; grid-template-columns:2fr 1fr; gap:14px; }
+.dash-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width: 1100px) { .dash-grid4 { grid-template-columns:repeat(2, minmax(0,1fr)); } .dash-grid21, .dash-grid2 { grid-template-columns:1fr; } }
           `,
         }}
       />
 
-      {/* Hero */}
-      <header className="dashboard-hero" style={{ marginBottom: space['10'] }}>
-        <div style={{ ...sectionLabel, marginBottom: space['2'] }}>{formatToday()}</div>
-        <h1 style={h1Style}>{tenant.name}</h1>
-      </header>
-
-      {/* Metric row */}
-      <section
-        className="dashboard-metric-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: space['4'],
-          marginBottom: space['10'],
-        }}
-      >
-        <MetricCard
-          label="今日訂單"
-          value={ordersToday}
-          link={`/admin/${slug}/orders`}
-          sub={`下單 NT$ ${revenueToday.toLocaleString()}`}
-        />
-        {hasActivities ? (
-          <MetricCard
-            label="今日簽到(收費課)"
-            value={attendancesToday}
-            link={`/admin/${slug}/attendances`}
-            sub={`收費活動 ${classesToday.length} 場`}
-          />
-        ) : (
-          <MetricCard label="客戶" value="—" sub="客戶名單" link={`/admin/${slug}/customers`} muted />
-        )}
-        <MetricCard
-          label="待付款"
-          value={pendingPayment}
-          link={`/admin/${slug}/orders`}
-          sub={
-            reportedCount > 0
-              ? `已回報五碼待核 ${reportedCount} · 待出貨 ${pendingShip}`
-              : `待出貨 ${pendingShip}`
-          }
-          warn={pendingPayment > 0 || pendingShip > 0 || reportedCount > 0}
-        />
-        {tenant.plan === 'free' ? (
-          <MetricCard label="庫存" value="—" sub="Pro 方案才有" muted />
-        ) : (
-          <MetricCard
-            label="低庫存"
-            value={lowStockCount ?? 0}
-            link={`/admin/${slug}/inventory`}
-            sub="變體 ≤ 3"
-            warn={(lowStockCount ?? 0) > 0}
-          />
-        )}
-      </section>
-
-      {/* 活動相關 sections — 只給 features.activities 開啟的 tenant 看 */}
-      {hasActivities && (
-        <section
-          className="dashboard-list-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: space['6'],
-            marginBottom: space['10'],
-          }}
-        >
-          <ListSection
-            title="今日收費活動"
-            count={classesToday.length}
-            empty="今日無收費活動"
-            items={classesToday.map((c) => ({
-              id: c.id,
-              primary: c.name,
-              secondary: `${formatDateTime(c.scheduled_at)}${c.capacity ? ` · 容量 ${c.capacity}` : ''}`,
-              href: `/admin/${slug}/attendances?class_id=${c.id}`,
-              cta: '簽到',
-            }))}
-          />
-
-          <ListSection
-            title="未來 7 天有報名"
-            count={upcomingResvs.length}
-            empty="無報名"
-            items={upcomingResvs.map((r) => ({
-              id: r.id,
-              primary: r.name,
-              secondary: `${formatDateTime(r.scheduled_at)}`,
-              stat: (
-                <>
-                  <strong style={monoNum}>{r.confirmed}</strong>
-                  {r.capacity && (
-                    <span style={{ color: colors.textMuted }}> / {r.capacity}</span>
-                  )}
-                  {r.waitlist > 0 && (
-                    <span style={{ color: colors.warning, marginLeft: 6 }}>
-                      +{r.waitlist}
-                    </span>
-                  )}
-                </>
-              ),
-              href: `/admin/${slug}/attendances?class_id=${r.id}`,
-              cta: '管理',
-            }))}
-          />
-        </section>
-      )}
-
-      {/* 報表 A:30 天營收時序 */}
-      <section style={{ marginBottom: space['10'] }}>
-        <div style={{ ...sectionLabel, marginBottom: space['3'] }}>
-          過去 30 天營收(NT$ {revenueTotal30.toLocaleString()} 累積)
+      {/* 頁首 */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>總覽</h1>
+          <div style={cs}>{tenant.name} · {todayLabel} · 本月第 {d} 天</div>
         </div>
-        <div
-          style={{
-            background: colors.bgCard,
-            border: `1px solid ${colors.border}`,
-            borderRadius: radius.lg,
-            padding: space['6'],
-          }}
-        >
-          <RevenueLineChart series={revenueSeries} max={revenueMax} />
+        <div style={{ display: 'flex', gap: 4, padding: 3, background: c.lineSoft, borderRadius: 9 }}>
+          {[['month', '本月'], ['30', '近 30 天'], ['90', '近 90 天']].map(([r, label]) => {
+            const on = r === range;
+            return (
+              <Link
+                key={r}
+                href={rangeHref(r)}
+                style={{ padding: '7px 12px', borderRadius: 7, background: on ? '#fff' : 'transparent', color: on ? c.text : c.sec, fontSize: 12.5, fontWeight: on ? 700 : 500, boxShadow: on ? '0 1px 2px rgba(0,0,0,.06)' : 'none', textDecoration: 'none' }}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </div>
-      </section>
+      </div>
 
-      {/* 報表 B:熱賣商品 Top 5 */}
-      {topProducts.length > 0 && (
-        <section style={{ marginBottom: space['10'] }}>
-          <div style={{ ...sectionLabel, marginBottom: space['3'] }}>過去 30 天熱賣商品 Top 5</div>
-          <div
-            style={{
-              background: colors.bgCard,
-              border: `1px solid ${colors.border}`,
-              borderRadius: radius.lg,
-              padding: space['6'],
-              display: 'flex',
-              flexDirection: 'column',
-              gap: space['3'],
-            }}
-          >
-            {topProducts.map((p, i) => (
-              <ProductBar
-                key={p.id}
-                rank={i + 1}
-                name={p.name}
-                qty={p.qty}
-                revenue={p.revenue}
-                max={topRevenueMax}
-              />
+      {/* 第一排:數字卡 */}
+      <div className="dash-grid4" style={{ marginBottom: 14 }}>
+        <div style={{ ...card, padding: '16px 18px' }}>
+          <div style={lbl}>本月營收(不含運費)</div>
+          <div style={{ ...big, marginTop: 8 }}>{money(revThis)}</div>
+          <Delta now={revThis} before={revLast} unit="$" />
+          <div style={{ ...cs, ...num, marginTop: 6 }}>含運費 {money(revThis + shipThis)} · 運費 {money(shipThis)}</div>
+        </div>
+        <div style={{ ...card, padding: '16px 18px' }}>
+          <div style={lbl}>本月訂單</div>
+          <div style={{ ...big, marginTop: 8 }}>{thisM.length} <span style={{ fontSize: 14, fontWeight: 500, color: c.muted }}>筆</span></div>
+          <Delta now={thisM.length} before={lastM.length} unit=" 筆" />
+          <div style={{ ...cs, ...num, marginTop: 6 }}>{customersThis} 位客人 · 取消 / 退款 {cancelledThis}</div>
+        </div>
+        <div style={{ ...card, padding: '16px 18px' }}>
+          <div style={lbl}>客單價</div>
+          <div style={{ ...big, marginTop: 8 }}>{money(aovThis)}</div>
+          <Delta now={Math.round(aovThis)} before={Math.round(aovLast)} unit="$" />
+          <div style={{ ...cs, ...num, marginTop: 6 }}>每單平均 {thisM.length ? (itemsThis / thisM.length).toFixed(1) : '0'} 件</div>
+        </div>
+        <Link href={`${base}/orders`} style={{ ...card, padding: '16px 18px', textDecoration: 'none', color: c.text, display: 'block' }}>
+          <div style={lbl}>待處理</div>
+          <div style={{ display: 'flex', gap: 18, marginTop: 8, flexWrap: 'wrap' }}>
+            <div><div style={{ ...big, color: reported > 0 ? c.down : c.text }}>{reported}</div><div style={cs}>待核帳</div></div>
+            <div><div style={{ ...big, color: pendShip > 0 ? c.blue : c.text }}>{pendShip}</div><div style={cs}>待出貨</div></div>
+            <div><div style={{ ...big, color: lowStock > 0 ? c.down : c.text }}>{lowStock}</div><div style={cs}>低庫存</div></div>
+          </div>
+          <div style={{ ...cs, marginTop: 6 }}>點進去看清單 ›</div>
+        </Link>
+      </div>
+
+      {/* 第二排:每週營收 + 付款通路 */}
+      <div className="dash-grid21" style={{ marginBottom: 14 }}>
+        <div style={{ ...card, padding: '16px 18px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={ct}>每週營收</h2>
+              <div style={cs}>近 8 週,一週一根(週一起算);最右邊是本週(進行中)</div>
+            </div>
+            <div style={{ ...num, fontSize: 12, color: c.sec, textAlign: 'right' }}>
+              <div>本月累積 <strong style={{ color: c.text, fontSize: 14 }}>{money(revThis)}</strong></div>
+              <div style={{ marginTop: 2 }}>上月同期 {money(revLast)}</div>
+            </div>
+          </div>
+          <div style={{ position: 'relative', height: 190, marginTop: 18 }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
+              <div style={{ borderTop: `1px dashed ${c.line}`, fontSize: 10.5, color: c.faint, textAlign: 'right', ...num }}>{money(weekMax / 1.15)}</div>
+              <div style={{ borderTop: `1px dashed ${c.line}`, fontSize: 10.5, color: c.faint, textAlign: 'right', ...num }}>{money(weekMax / 1.15 / 2)}</div>
+              <div style={{ borderTop: `1px solid ${c.line}` }} />
+            </div>
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, display: 'flex', alignItems: 'flex-end', gap: 14, padding: '0 6px' }}>
+              {weeks.map((w) => (
+                <div key={w.label} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minWidth: 0 }}>
+                  <span className="wv" style={{ ...num, fontSize: 11.5, fontWeight: 700, color: w.current ? c.muted : w.value ? c.text : '#d4d4d8', whiteSpace: 'nowrap' }}>
+                    {w.value ? money(w.value) : w.current ? '進行中' : '—'}
+                  </span>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: w.value ? `${(w.value / weekMax) * 100}%` : 4,
+                      background: w.current ? '#fff' : w.value ? c.text : '#ececee',
+                      border: w.current ? `2px dashed ${c.faint}` : 0,
+                      boxSizing: 'border-box',
+                      borderRadius: '6px 6px 0 0',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 14, padding: '0 6px', marginTop: 8 }}>
+            {weeks.map((w) => (
+              <div key={w.label} style={{ ...num, flex: 1, textAlign: 'center', fontSize: 10.5, color: w.current ? c.text : c.faint, whiteSpace: 'nowrap', minWidth: 0 }}>
+                {w.current ? '本週' : w.label}
+              </div>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* 報表 C:訂單狀態漏斗 */}
-      {funnelTotal > 0 && (
-        <section style={{ marginBottom: space['10'] }}>
-          <div style={{ ...sectionLabel, marginBottom: space['3'] }}>
-            過去 30 天訂單狀態(共 {funnelTotal} 筆)
+          <div style={{ display: 'flex', gap: 18, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${c.lineSoft}`, fontSize: 12, color: c.sec, flexWrap: 'wrap', ...num }}>
+            <span>單週最高 <strong style={{ color: c.text }}>{money(bestWeek.value)}</strong>{bestWeek.value > 0 ? `(${bestWeek.label} 那週)` : ''}</span>
+            <span>近 4 週平均 <strong style={{ color: c.text }}>{money(avg4)}</strong> / 週</span>
+            <span>本週到目前 <strong style={{ color: c.text }}>{money(weeks[7].value)}</strong></span>
           </div>
-          <div
-            style={{
-              background: colors.bgCard,
-              border: `1px solid ${colors.border}`,
-              borderRadius: radius.lg,
-              padding: space['6'],
-            }}
-          >
-            <OrderFunnel counts={statusCounts} total={funnelTotal} />
-          </div>
-        </section>
-      )}
+        </div>
 
-      {/* 報表 D:活動 30 天簽到趨勢(只 hasActivities) */}
-      {hasActivities && (
-        <section style={{ marginBottom: space['10'] }}>
-          <div style={{ ...sectionLabel, marginBottom: space['3'] }}>
-            過去 30 天收費課簽到({activityTotal30} 人次累積)
-          </div>
-          <div
-            style={{
-              background: colors.bgCard,
-              border: `1px solid ${colors.border}`,
-              borderRadius: radius.lg,
-              padding: space['6'],
-            }}
-          >
-            <ActivityBarChart series={activitySeries} max={activityMax} />
-          </div>
-        </section>
-      )}
-
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────
-// Components
-// ────────────────────────────────────────────────
-
-/**
- * SVG 折線 chart — 30 天每日營收。純 SVG,沒裝 lib。
- */
-function RevenueLineChart({
-  series,
-  max,
-}: {
-  series: { date: string; revenue: number }[];
-  max: number;
-}) {
-  const W = 720;
-  const H = 200;
-  const PAD_X = 40;
-  const PAD_Y = 16;
-  const innerW = W - PAD_X * 2;
-  const innerH = H - PAD_Y * 2;
-  const stepX = innerW / Math.max(1, series.length - 1);
-  const points = series
-    .map((d, i) => {
-      const x = PAD_X + i * stepX;
-      const y = PAD_Y + innerH - (d.revenue / max) * innerH;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-  const areaPath = `M ${PAD_X} ${PAD_Y + innerH} L ${points.replace(/ /g, ' L ')} L ${PAD_X + innerW} ${PAD_Y + innerH} Z`;
-
-  // 標 Y 軸最大 + 中間 + 0
-  const yLabels = [max, Math.round(max / 2), 0];
-
-  return (
-    <div style={{ width: '100%', overflowX: 'auto' }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: '100%', minWidth: 480, height: 'auto', display: 'block' }}
-      >
-        {/* Grid lines */}
-        {yLabels.map((v, i) => {
-          const y = PAD_Y + (innerH * i) / 2;
-          return (
-            <g key={i}>
-              <line x1={PAD_X} y1={y} x2={PAD_X + innerW} y2={y} stroke="#e4e4e7" strokeDasharray="2,3" />
-              <text x={PAD_X - 6} y={y + 4} fontSize="9" textAnchor="end" fill="#71717a">
-                {v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
-              </text>
-            </g>
-          );
-        })}
-        {/* Area fill */}
-        <path d={areaPath} fill="rgba(5,200,120,0.08)" />
-        {/* Line */}
-        <polyline points={points} fill="none" stroke="#05C878" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {/* Dots */}
-        {series.map((d, i) => {
-          const x = PAD_X + i * stepX;
-          const y = PAD_Y + innerH - (d.revenue / max) * innerH;
-          return (
-            <circle key={i} cx={x} cy={y} r={d.revenue > 0 ? 2 : 0} fill="#05C878">
-              <title>
-                {d.date}:NT$ {d.revenue.toLocaleString()}
-              </title>
-            </circle>
-          );
-        })}
-        {/* X 軸標籤(每 5 天) */}
-        {series.map((d, i) => {
-          if (i % 5 !== 0 && i !== series.length - 1) return null;
-          const x = PAD_X + i * stepX;
-          const label = d.date.slice(5); // MM-DD
-          return (
-            <text key={i} x={x} y={H - 2} fontSize="9" textAnchor="middle" fill="#71717a">
-              {label}
-            </text>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-/**
- * 熱賣商品橫桿
- */
-function ProductBar({
-  rank,
-  name,
-  qty,
-  revenue,
-  max,
-}: {
-  rank: number;
-  name: string;
-  qty: number;
-  revenue: number;
-  max: number;
-}) {
-  const w = Math.max(2, (revenue / max) * 100);
-  const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.textPrimary }}>
-          {medal} {name}
-        </span>
-        <span style={{ ...monoNum, fontSize: fontSize.sm, color: colors.textMuted, whiteSpace: 'nowrap' }}>
-          {qty} 件 · NT$ {revenue.toLocaleString()}
-        </span>
-      </div>
-      <div style={{ width: '100%', height: 6, background: colors.bgSubtle, borderRadius: 3, overflow: 'hidden' }}>
-        <div
-          style={{
-            width: `${w}%`,
-            height: '100%',
-            background: 'linear-gradient(90deg, #05C878 0%, #16a34a 100%)',
-            borderRadius: 3,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * 訂單狀態漏斗
- */
-function OrderFunnel({
-  counts,
-  total,
-}: {
-  counts: { open: number; paid: number; shipped: number; delivered: number; cancelled: number; refunded: number };
-  total: number;
-}) {
-  const stages = [
-    { key: 'open', label: '未付款', count: counts.open, color: '#d97706' },
-    { key: 'paid', label: '已付款', count: counts.paid, color: '#16a34a' },
-    { key: 'shipped', label: '已出貨', count: counts.shipped, color: '#0070f3' },
-    { key: 'delivered', label: '已送達', count: counts.delivered, color: '#15803d' },
-    { key: 'cancelled', label: '取消', count: counts.cancelled, color: '#9ca3af' },
-    { key: 'refunded', label: '退款', count: counts.refunded, color: '#71717a' },
-  ];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {stages.filter((s) => s.count > 0).map((s) => {
-        const pct = total > 0 ? (s.count / total) * 100 : 0;
-        return (
-          <div key={s.key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: fontSize.sm }}>
-              <span style={{ color: colors.textPrimary, fontWeight: fontWeight.medium }}>
-                {s.label}
-              </span>
-              <span style={{ ...monoNum, color: colors.textMuted }}>
-                {s.count} · {pct.toFixed(1)}%
-              </span>
-            </div>
-            <div style={{ width: '100%', height: 10, background: colors.bgSubtle, borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: s.color, borderRadius: 3 }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * 活動簽到 30 天 bar chart
- */
-function ActivityBarChart({
-  series,
-  max,
-}: {
-  series: { date: string; count: number }[];
-  max: number;
-}) {
-  const W = 720;
-  const H = 160;
-  const PAD_X = 36;
-  const PAD_Y = 12;
-  const innerW = W - PAD_X * 2;
-  const innerH = H - PAD_Y * 2;
-  const barW = (innerW / series.length) * 0.7;
-  const gap = (innerW / series.length) * 0.3;
-
-  return (
-    <div style={{ width: '100%', overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 480, height: 'auto', display: 'block' }}>
-        {[max, 0].map((v, i) => {
-          const y = PAD_Y + (innerH * i);
-          return (
-            <g key={i}>
-              <line x1={PAD_X} y1={y} x2={PAD_X + innerW} y2={y} stroke="#e4e4e7" strokeDasharray="2,3" />
-              <text x={PAD_X - 6} y={y + 4} fontSize="9" textAnchor="end" fill="#71717a">{v}</text>
-            </g>
-          );
-        })}
-        {series.map((d, i) => {
-          const h = (d.count / max) * innerH;
-          const x = PAD_X + i * (barW + gap);
-          const y = PAD_Y + innerH - h;
-          return (
-            <rect
-              key={i}
-              x={x}
-              y={y}
-              width={barW}
-              height={h}
-              fill={d.count > 0 ? '#05C878' : 'transparent'}
-              rx={1}
-            >
-              <title>{d.date}:{d.count} 人</title>
-            </rect>
-          );
-        })}
-        {series.map((d, i) => {
-          if (i % 5 !== 0 && i !== series.length - 1) return null;
-          const x = PAD_X + i * (barW + gap) + barW / 2;
-          return (
-            <text key={i} x={x} y={H - 2} fontSize="9" textAnchor="middle" fill="#71717a">
-              {d.date.slice(5)}
-            </text>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  link,
-  warn,
-  muted,
-}: {
-  label: string;
-  value: number | string;
-  sub?: string;
-  link?: string;
-  warn?: boolean;
-  muted?: boolean;
-}) {
-  // 緊湊版:固定高度 + 縮 padding,4 卡並排視覺一致
-  const inner = (
-    <div
-      style={{
-        ...card,
-        padding: `${space['4']}px ${space['5']}px`,
-        minHeight: 110,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        gap: space['1'],
-        transition: 'border-color 150ms, box-shadow 150ms',
-        cursor: link ? 'pointer' : 'default',
-      }}
-    >
-      <div style={{ ...sectionLabel, color: muted ? colors.textDisabled : colors.textMuted }}>
-        {label}
-      </div>
-      <div
-        style={{
-          ...monoNum,
-          fontSize: typeof value === 'string' && value.length > 6 ? fontSize.xl : fontSize['2xl'],
-          fontWeight: fontWeight.semibold,
-          color: muted
-            ? colors.textDisabled
-            : warn
-              ? colors.warning
-              : colors.textPrimary,
-          lineHeight: 1.05,
-        }}
-      >
-        {value}
-      </div>
-      <div
-        style={{
-          fontSize: fontSize.xs,
-          color: muted ? colors.textDisabled : colors.textMuted,
-          minHeight: 16,
-        }}
-      >
-        {sub ?? ''}
-      </div>
-    </div>
-  );
-
-  if (link) {
-    return (
-      <Link href={link} style={{ textDecoration: 'none', color: 'inherit' }}>
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
-}
-
-type ListItem = {
-  id: string;
-  primary: string;
-  secondary: string;
-  href: string;
-  cta: string;
-  stat?: React.ReactNode;
-};
-
-function ListSection({
-  title,
-  count,
-  empty,
-  items,
-}: {
-  title: string;
-  count: number;
-  empty: string;
-  items: ListItem[];
-}) {
-  return (
-    <div style={card}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          marginBottom: space['4'],
-        }}
-      >
-        <h2 style={h2Style}>{title}</h2>
-        <span style={{ ...monoNum, fontSize: fontSize.base, color: colors.textMuted }}>
-          {count}
-        </span>
-      </div>
-
-      {items.length === 0 ? (
-        <p
-          style={{
-            margin: 0,
-            padding: `${space['6']}px 0`,
-            textAlign: 'center',
-            color: colors.textDisabled,
-            fontSize: fontSize.sm,
-          }}
-        >
-          {empty}
-        </p>
-      ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
-          {items.map((it, i) => (
-            <li
-              key={it.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: space['3'],
-                padding: `${space['3']}px 0`,
-                borderTop: i > 0 ? `1px solid ${colors.borderSubtle}` : 'none',
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: fontSize.md,
-                    fontWeight: fontWeight.medium,
-                    color: colors.textPrimary,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {it.primary}
+        <div style={{ ...card, padding: '16px 18px' }}>
+          <h2 style={ct}>付款與通路</h2>
+          <div style={cs}>{rangeLabel}的訂單怎麼來、怎麼付</div>
+          {scoped.length === 0 ? (
+            <p style={{ ...cs, marginTop: 18 }}>這段期間還沒有訂單。</p>
+          ) : (
+            <>
+              <div style={{ marginTop: 18 }}>
+                <div style={{ ...lbl, marginBottom: 6 }}>付款方式</div>
+                <div style={{ display: 'flex', height: 22, borderRadius: 6, overflow: 'hidden', background: c.lineSoft }}>
+                  <div style={{ width: `${pct(payBank, scoped.length)}%`, background: c.text }} />
+                  <div style={{ width: `${pct(payLine, scoped.length)}%`, background: c.linePay }} />
                 </div>
-                <div
-                  style={{
-                    fontSize: fontSize.sm,
-                    color: colors.textMuted,
-                    marginTop: 2,
-                  }}
-                >
-                  {it.secondary}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, gap: 8, flexWrap: 'wrap', ...num }}>
+                  <span><Dot color={c.text} />匯款 {payBank} 筆({pct(payBank, scoped.length)}%)</span>
+                  <span><Dot color={c.linePay} />LINE Pay {payLine} 筆({pct(payLine, scoped.length)}%)</span>
                 </div>
               </div>
-              {it.stat && (
-                <div style={{ fontSize: fontSize.md, ...monoNum, textAlign: 'right' }}>
-                  {it.stat}
+              <div style={{ marginTop: 20 }}>
+                <div style={{ ...lbl, marginBottom: 6 }}>下單通路</div>
+                <div style={{ display: 'flex', height: 22, borderRadius: 6, overflow: 'hidden', background: c.lineSoft }}>
+                  <div style={{ width: `${pct(srcLiff, scoped.length)}%`, background: c.text }} />
+                  <div style={{ width: `${pct(srcWeb, scoped.length)}%`, background: c.faint }} />
+                  <div style={{ width: `${pct(srcOther, scoped.length)}%`, background: '#d4d4d8' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, gap: 8, flexWrap: 'wrap', ...num }}>
+                  <span><Dot color={c.text} />LINE 商品專區 {srcLiff} 筆</span>
+                  <span><Dot color={c.faint} />網頁 {srcWeb} 筆</span>
+                  {srcOther > 0 && <span><Dot color="#d4d4d8" />其他 {srcOther} 筆</span>}
+                </div>
+              </div>
+              {hasLinePay && payLine > 0 && (
+                <div style={{ marginTop: 20, padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, color: '#166534', lineHeight: 1.5 }}>
+                  {rangeLabel}有 {payLine} 筆用 LINE Pay 付款,省下 {payLine} 次核帳。
                 </div>
               )}
-              <Link
-                href={it.href}
-                style={{
-                  fontSize: fontSize.sm,
-                  color: colors.textSecondary,
-                  textDecoration: 'none',
-                  padding: `${space['1']}px ${space['2']}px`,
-                  borderRadius: radius.sm,
-                  border: `1px solid ${colors.border}`,
-                  background: colors.bgCard,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {it.cta}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 第三排:分類排行 + 熱銷 */}
+      <div className="dash-grid2" style={{ marginBottom: 14 }}>
+        <div style={{ ...card, padding: '16px 18px' }}>
+          <h2 style={ct}>分類排行</h2>
+          <div style={cs}>{rangeLabel}各分類營收(不含贈品)</div>
+          {cats.length === 0 ? (
+            <p style={{ ...cs, marginTop: 14 }}>還沒有資料。</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 14 }}>
+              {cats.map(([name, rev]) => (
+                <div key={name} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 96px', alignItems: 'center', gap: 10, fontSize: 12.5 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                  <div style={{ height: 14, background: c.lineSoft, borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.max(2, (rev / catMax) * 100)}%`, background: c.text, borderRadius: 3 }} />
+                  </div>
+                  <span style={{ ...num, textAlign: 'right', fontWeight: 600 }}>{money(rev)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ ...card, padding: '16px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div><h2 style={ct}>熱銷商品</h2><div style={cs}>{rangeLabel}前 8 名,依營收</div></div>
+            <Link href={`${base}/products`} style={{ fontSize: 12, color: c.sec, textDecoration: 'none' }}>看全部 ›</Link>
+          </div>
+          {tops.length === 0 ? (
+            <p style={{ ...cs, marginTop: 14 }}>還沒有資料。</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
+              {tops.map(([name, p], i) => (
+                <div key={name} style={{ display: 'grid', gridTemplateColumns: '22px 1fr 56px 96px', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid ${c.lineSoft}`, fontSize: 12.5 }}>
+                  <span style={{ ...num, color: c.faint }}>{i + 1}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                  <span style={{ ...num, color: c.muted, textAlign: 'right' }}>× {p.qty}</span>
+                  <span style={{ ...num, textAlign: 'right', fontWeight: 600 }}>{money(p.rev)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 第四排:快速操作 + 活動 */}
+      <div className={hasActivities ? 'dash-grid21' : undefined}>
+        <div>
+          <div style={{ ...lbl, marginBottom: 8 }}>快速操作</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Link href={`${base}/products`} className="qa">新增商品</Link>
+            <Link href={`${base}/orders?payment=pending`} className="qa">待核帳訂單 <span className={`n${reported > 0 ? ' hot' : ''}`}>{reported}</span></Link>
+            <Link href={`${base}/orders?status=paid`} className="qa">待出貨訂單 <span className={`n${pendShip > 0 ? ' hot' : ''}`}>{pendShip}</span></Link>
+            <Link href={`${base}/inventory`} className="qa">庫存不足 <span className={`n${lowStock > 0 ? ' hot' : ''}`}>{lowStock}</span></Link>
+            {hasLinePay && <Link href={`${base}/linepay`} className="qa">LINE Pay 對帳</Link>}
+            {hasActivities && <Link href={`${base}/classes`} className="qa">活動與簽到</Link>}
+          </div>
+        </div>
+
+        {hasActivities && (
+          <div style={{ ...card, padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <h2 style={ct}>活動</h2>
+              <span style={{ ...cs, ...num }}>今日簽到 {attendToday}</span>
+            </div>
+            {classesToday.length === 0 && upcoming.size === 0 ? (
+              <p style={{ ...cs, marginTop: 10 }}>今天沒有收費課,7 天內也沒有已報名的課。</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
+                {classesToday.map((cl) => (
+                  <div key={cl.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: `1px solid ${c.lineSoft}`, fontSize: 12.5 }}>
+                    <span style={{ fontWeight: 600 }}>今天 {cl.name}</span>
+                    <span style={{ ...num, color: c.muted }}>{fmtAt(cl.scheduled_at)}{cl.capacity ? ` · 名額 ${cl.capacity}` : ''}</span>
+                  </div>
+                ))}
+                {[...upcoming.entries()].slice(0, 4).map(([id, u]) => (
+                  <div key={id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: `1px solid ${c.lineSoft}`, fontSize: 12.5 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</span>
+                    <span style={{ ...num, color: c.muted, whiteSpace: 'nowrap' }}>{fmtAt(u.at)} · 報名 {u.confirmed}{u.capacity ? `/${u.capacity}` : ''}{u.waitlist ? ` · 候補 ${u.waitlist}` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
 
+function Dot({ color }: { color: string }) {
+  return <span style={{ display: 'inline-block', width: 8, height: 8, background: color, borderRadius: 2, marginRight: 5 }} />;
+}
