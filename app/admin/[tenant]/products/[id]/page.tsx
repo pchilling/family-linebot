@@ -134,7 +134,8 @@ export default async function ProductEditPage({
   })();
 
   return (
-    <main style={{ padding: '24px 28px 56px', maxWidth: 1100, margin: '0 auto', color: '#18181b' }}>
+    {/* 2026-10-20:桌機寬度放寬到 1400,規格表格的欄位才不用擠 */}
+    <main style={{ padding: '24px 32px 56px', maxWidth: 1400, margin: '0 auto', color: '#18181b' }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `

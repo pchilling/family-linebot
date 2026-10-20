@@ -185,7 +185,8 @@ export default async function ProductsPage({
   const activeCount = products.filter((p) => p.status === 'active').length;
 
   return (
-    <main style={{ padding: '24px 28px 48px', maxWidth: 1100, margin: '0 auto', color: c.text }}>
+    {/* 2026-10-20:桌機寬度放寬到 1500,表格有空間就用(手機版由 layout 的 CSS 壓成 100%) */}
+    <main style={{ padding: '24px 32px 48px', maxWidth: 1500, margin: '0 auto', color: c.text }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `
