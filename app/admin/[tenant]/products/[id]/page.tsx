@@ -17,7 +17,11 @@ import { ShareButton } from '../share-button';
 import { ShareFocusEditor } from '../share-focus-editor';
 import { ProductStatusToggle } from '../status-toggle';
 import { VariantsTable, type TierRowData, type VariantRowData } from './variants-table';
-import { ProductTabs, TABS, type TabKey } from './product-tabs';
+import { ProductTabs, type TabKey } from './product-tabs';
+
+// 分頁 key 清單在這裡自己列,不從 'use client' 檔案匯入常數 —
+// 伺服器端 import 前端檔案的非元件匯出會變成參照,呼叫 .find 會炸(2026-10-20 踩過)
+const TAB_KEYS: TabKey[] = ['variants', 'basic', 'media', 'sale'];
 
 type MediaItem = { type: 'image' | 'video'; url: string };
 type ProductRow = {
@@ -109,7 +113,7 @@ export default async function ProductEditPage({
 
   const variants = (p.product_variants ?? []).slice().sort(compareVariantOrder);
   const tiers = ((trows ?? []) as PriceTier[]).map<TierRowData>((t) => ({ id: t.id, min_qty: t.min_qty, price_twd: t.price_twd }));
-  const tab: TabKey = (TABS.find((t) => t.key === sp.tab)?.key ?? 'variants') as TabKey;
+  const tab: TabKey = TAB_KEYS.includes(sp.tab as TabKey) ? (sp.tab as TabKey) : 'variants';
   const totalStock = variants.filter((v) => v.status === 'active').reduce((s, v) => s + (v.stock ?? 0), 0);
   const cover = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url;
   const publicUrl = `/${tenant.slug}/p/${p.slug ?? p.id}`;
