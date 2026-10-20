@@ -184,8 +184,8 @@ export default async function ProductsPage({
   const activeCount = products.filter((p) => p.status === 'active').length;
 
   return (
-    // 2026-10-20:桌機寬度放寬到 1500,表格有空間就用(手機版由 layout 的 CSS 壓成 100%)
-    <main style={{ padding: '24px 32px 48px', maxWidth: 1500, margin: '0 auto', color: c.text }}>
+    // 2026-10-20:不設寬度上限,螢幕多寬就用多寬(手機版由 layout 的 CSS 另外處理)
+    <main style={{ padding: '24px 32px 48px', color: c.text }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -259,11 +259,12 @@ details[open] .chev { transform: rotate(90deg); }
             <table className="rtable" style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th scope="col" style={{ ...th, width: '40%' }}>商品</th>
-                  <th scope="col" style={{ ...th, textAlign: 'right' }}>售價</th>
-                  <th scope="col" style={{ ...th, width: '26%' }}>庫存(直接改,離開欄位就存)</th>
-                  <th scope="col" style={th}>狀態</th>
-                  <th scope="col" style={th}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>操作</span></th>
+                  {/* 只有「商品」欄吃剩餘寬度,其他欄固定寬,寬螢幕上才不會每欄之間都隔一大段 */}
+                  <th scope="col" style={th}>商品</th>
+                  <th scope="col" style={{ ...th, textAlign: 'right', width: 150 }}>售價</th>
+                  <th scope="col" style={{ ...th, width: 300 }}>庫存(直接改,離開欄位就存)</th>
+                  <th scope="col" style={{ ...th, width: 150 }}>狀態</th>
+                  <th scope="col" style={{ ...th, width: 100 }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>操作</span></th>
                 </tr>
               </thead>
               <tbody>
