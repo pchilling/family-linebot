@@ -388,6 +388,12 @@ export async function createProduct(formData: FormData) {
   if (vErr) console.error('[createProduct default variant]', vErr);
 
   revalidateProductRoutes(formData);
+
+  // 2026-10-20:從新增 modal 來的,直接進該商品的編輯頁補規格與圖片
+  const tenantSlug = String(formData.get('tenant_slug') || '').trim();
+  if (tenantSlug && String(formData.get('return_to') || '') === 'edit') {
+    redirect(`/admin/${tenantSlug}/products/${product.id}?tab=variants&saved=1`);
+  }
 }
 
 // ====================

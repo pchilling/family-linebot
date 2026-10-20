@@ -9,11 +9,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { compareVariantOrder, getTenantBySlug, isSaleActive, supabaseAdmin } from '@/lib/supabase';
-import { createProduct } from '../../actions';
 import { CategoryOrderManager } from './category-order';
+import { NewProductModal } from './new-product-modal';
 import { StockCell } from './stock-cell';
 import { ProductStatusToggle } from './status-toggle';
-import { SubmitButton } from '../../_components/submit-button';
 import { FlashToast } from '../../../_components/toast';
 
 type Variant = {
@@ -222,9 +221,7 @@ details[open] .chev { transform: rotate(90deg); }
           <a href={`/admin/${tenant.slug}/products/sort`} style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 14px', border: `1px solid ${c.border}`, borderRadius: 8, background: c.card, fontSize: 13, fontWeight: 600, color: c.text, textDecoration: 'none' }}>
             排序商品
           </a>
-          <a href="#new-product" style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 16px', border: 0, borderRadius: 8, background: c.accent, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            + 新增商品
-          </a>
+          <NewProductModal tenantId={tenant.id} tenantSlug={tenant.slug} categories={orderedCats} badgeColors={BADGE_COLORS} />
         </div>
       </header>
 
@@ -253,7 +250,7 @@ details[open] .chev { transform: rotate(90deg); }
 
       {/* 列表 */}
       {products.length === 0 ? (
-        <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>還沒有商品,從下方「新增商品」開始。</p>
+        <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>還沒有商品,按右上角「新增商品」開始。</p>
       ) : pageProducts.length === 0 ? (
         <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>沒有符合條件的商品。</p>
       ) : (
@@ -333,41 +330,6 @@ details[open] .chev { transform: rotate(90deg); }
           </div>
         </div>
       )}
-
-      {/* 新增商品 */}
-      <details id="new-product" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
-        <summary style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600 }}>
-          <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11 }}>▶</span>
-          新增商品
-          <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>建立後點進去補規格、圖片</span>
-        </summary>
-        <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${c.borderSubtle}` }}>
-          <form action={createProduct} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 16 }}>
-            <input type="hidden" name="tenant_id" value={tenant.id} />
-            <input type="hidden" name="tenant_slug" value={tenant.slug} />
-            <label style={label}><span style={labelText}>商品名稱 *</span><input name="name" required style={input} /></label>
-            <label style={label}><span style={labelText}>分類</span><input name="category" list="cats" style={input} /></label>
-            <datalist id="cats">{orderedCats.map((cat) => <option key={cat} value={cat} />)}</datalist>
-            <label style={label}><span style={labelText}>售價 *</span><input name="price_twd" type="number" min={0} required style={input} /></label>
-            <label style={label}><span style={labelText}>成本</span><input name="cost_twd" type="number" min={0} style={input} /></label>
-            <label style={label}><span style={labelText}>初始庫存</span><input name="stock" type="number" min={0} defaultValue={0} style={input} /></label>
-            <label style={label}><span style={labelText}>角標(選填)</span><input name="badge" maxLength={8} style={input} placeholder="HOT" /></label>
-            <label style={label}>
-              <span style={labelText}>角標顏色</span>
-              <select name="badge_color" defaultValue="" style={input}>
-                {BADGE_COLORS.map((bc) => <option key={bc.value || 'default'} value={bc.value}>{bc.label}</option>)}
-              </select>
-            </label>
-            <label style={{ ...label, gridColumn: '1 / -1' }}>
-              <span style={labelText}>商品說明</span>
-              <textarea name="description" rows={2} style={{ ...input, fontFamily: 'inherit' }} />
-            </label>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <SubmitButton pendingText="建立中…">建立商品</SubmitButton>
-            </div>
-          </form>
-        </div>
-      </details>
 
       {/* 分類顯示順序 */}
       {orderedCats.length > 1 && (
