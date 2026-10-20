@@ -101,6 +101,11 @@ export default async function TenantAdminLayout({
       <style
         dangerouslySetInnerHTML={{
           __html: `
+/* 2026-10-20:所有後台頁面不限寬,螢幕多寬用多寬。
+   各頁原本各自在 <main> 設 maxWidth(720~1200 不等),寬螢幕兩側留一大片白;
+   統一在這裡用 !important 蓋掉,不用逐頁改。哪一頁拉太寬難看再個別處理。 */
+.admin-content main { max-width: none !important; }
+
 /* Global:details summary 隱藏默認三角(各 page 自帶 ▶ 視覺) */
 .admin-content details summary {
   list-style: none;
