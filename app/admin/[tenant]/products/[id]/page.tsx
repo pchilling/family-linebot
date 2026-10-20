@@ -17,6 +17,7 @@ import { ShareButton } from '../share-button';
 import { ShareFocusEditor } from '../share-focus-editor';
 import { ProductStatusToggle } from '../status-toggle';
 import { VariantsTable, type TierRowData, type VariantRowData } from './variants-table';
+import { ProductTabs, TABS, type TabKey } from './product-tabs';
 
 type MediaItem = { type: 'image' | 'video'; url: string };
 type ProductRow = {
@@ -39,14 +40,6 @@ type ProductRow = {
   status: string;
   product_variants: VariantRowData[] | null;
 };
-
-const TABS = [
-  { key: 'variants', label: '規格與庫存' },
-  { key: 'basic', label: '基本資料' },
-  { key: 'media', label: '圖片與分享' },
-  { key: 'sale', label: '促銷' },
-] as const;
-type TabKey = (typeof TABS)[number]['key'];
 
 const BADGE_COLORS: { value: string; label: string }[] = [
   { value: '', label: '預設(橙棕)' },
@@ -120,7 +113,6 @@ export default async function ProductEditPage({
   const totalStock = variants.filter((v) => v.status === 'active').reduce((s, v) => s + (v.stock ?? 0), 0);
   const cover = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url;
   const publicUrl = `/${tenant.slug}/p/${p.slug ?? p.id}`;
-  const tabHref = (k: TabKey) => `/admin/${tenant.slug}/products/${p.id}?tab=${k}`;
 
   const saleState = (() => {
     if (p.sale_discount_pct === null || !p.sale_start_at || !p.sale_end_at) return null;
@@ -195,26 +187,9 @@ details summary::-webkit-details-marker { display: none; }
         </div>
       </div>
 
-      <nav aria-label="編輯分頁" style={{ display: 'flex', gap: 18, borderBottom: '1px solid #e4e4e7', marginBottom: 18, overflowX: 'auto', whiteSpace: 'nowrap' }}>
-        {TABS.map((t) => {
-          const on = t.key === tab;
-          return (
-            <Link
-              key={t.key}
-              href={tabHref(t.key)}
-              aria-current={on ? 'page' : undefined}
-              style={{
-                padding: '10px 4px', marginBottom: -1, borderBottom: `2px solid ${on ? '#18181b' : 'transparent'}`,
-                fontSize: 13.5, fontWeight: on ? 700 : 500, color: on ? '#18181b' : '#52525b', textDecoration: 'none',
-              }}
-            >
-              {t.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {tab === 'variants' && (
+      {/* 分頁純前端切換,點了當下就換;四個面板都先掛著,切換不會掉未存的編輯 */}
+      <ProductTabs initial={tab} panels={{
+        variants: (
         <VariantsTable
           tenantSlug={tenant.slug}
           tenantId={tenant.id}
@@ -224,9 +199,9 @@ details summary::-webkit-details-marker { display: none; }
           variants={variants}
           tiers={tiers}
         />
-      )}
+        ),
 
-      {tab === 'basic' && (
+        basic: (
         <form action={updateProduct} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <input type="hidden" name="id" value={p.id} />
           <input type="hidden" name="tenant_id" value={tenant.id} />
@@ -258,9 +233,9 @@ details summary::-webkit-details-marker { display: none; }
             <SubmitButton pendingText="儲存中…">儲存基本資料</SubmitButton>
           </div>
         </form>
-      )}
+        ),
 
-      {tab === 'media' && (
+        media: (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <section style={{ ...card, padding: 16 }}>
             <h2 style={h2}>商品圖與影片</h2>
@@ -283,9 +258,9 @@ details summary::-webkit-details-marker { display: none; }
             )}
           </section>
         </div>
-      )}
+        ),
 
-      {tab === 'sale' && (
+        sale: (
         <form action={updateProductSale} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <input type="hidden" name="product_id" value={p.id} />
           <input type="hidden" name="tenant_slug" value={tenant.slug} />
@@ -310,7 +285,8 @@ details summary::-webkit-details-marker { display: none; }
             <SubmitButton pendingText="儲存中…">儲存促銷</SubmitButton>
           </div>
         </form>
-      )}
+        ),
+      }} />
 
       <details style={{ marginTop: 28 }}>
         <summary style={{ fontSize: 12.5, color: '#a1a1aa', width: 'fit-content' }}>進階:刪除這個商品</summary>

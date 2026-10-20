@@ -16,6 +16,7 @@ import {
   space,
 } from '@/lib/admin-theme';
 import { NavLinks } from './nav-links';
+import { NavProgress } from './nav-progress';
 import { MobileToggle, SidebarBackdrop } from './mobile-toggle';
 
 // 字型在 app/layout.tsx root 統一載入(Phase 8.2),這裡不再各自載
@@ -97,6 +98,8 @@ export default async function TenantAdminLayout({
         color: colors.textPrimary,
       }}
     >
+      {/* 2026-10-20:點任何站內連結立刻出現頂部進度條,到站才收 */}
+      <NavProgress />
       {/* CSS:手機版 sidebar 改 fixed drawer + hamburger;內頁 RWD */}
       <style
         dangerouslySetInnerHTML={{
@@ -105,6 +108,16 @@ export default async function TenantAdminLayout({
    各頁原本各自在 <main> 設 maxWidth(720~1200 不等),寬螢幕兩側留一大片白;
    統一在這裡用 !important 蓋掉,不用逐頁改。哪一頁拉太寬難看再個別處理。 */
 .admin-content main { max-width: none !important; }
+
+/* 2026-10-20:任何按鈕/連結按下去當下就有反應(縮一點、變淡),不等伺服器 */
+.admin-content a, .admin-content button, .admin-sidebar a {
+  transition: transform .08s ease, opacity .08s ease;
+}
+.admin-content a:active, .admin-content button:active:not(:disabled), .admin-sidebar a:active {
+  transform: scale(.97);
+  opacity: .75;
+}
+button:disabled { cursor: progress; }
 
 /* Global:details summary 隱藏默認三角(各 page 自帶 ▶ 視覺) */
 .admin-content details summary {
