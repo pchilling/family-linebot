@@ -282,3 +282,30 @@ export async function uploadProductMediaVideo(formData: FormData): Promise<Uploa
 
   return { ok: true, url: publicUrl };
 }
+
+/**
+ * 2026-10-20 新增商品 modal 用:商品還沒建立、沒有 id 可綁,
+ * 先把裁好的圖上傳到 storage 拿回網址,建立商品時再一起帶進去。
+ * 不碰資料庫;只驗攤位與檔案。
+ */
+export async function uploadDraftImage(formData: FormData): Promise<UploadProductImageResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const file = formData.get('file');
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
+  if (file.size > 3 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 3MB' };
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const path = `${tenant.id}/products/draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const { error: upErr } = await supabaseAdmin.storage
+    .from('tenant-assets')
+    .upload(path, file, { contentType: 'image/jpeg', upsert: false });
+  if (upErr) {
+    console.error('[uploadDraftImage upload]', upErr);
+    return { ok: false, error: '上傳失敗:' + upErr.message };
+  }
+  const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+  return { ok: true, url: publicUrl };
+}

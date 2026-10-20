@@ -334,7 +334,10 @@ export async function createProduct(formData: FormData) {
   const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
   const cost_twd = numOrNull(formData.get('cost_twd'));
   const stock = numOrNull(formData.get('stock')) ?? 0;
-  const image_url = String(formData.get('image_url') || '').trim() || null;
+  // 2026-10-20:新增 modal 可一次上傳多張圖(media_url 重複欄位),第一張兼作 image_url
+  const mediaUrls = formData.getAll('media_url').map(String).map((s) => s.trim()).filter(Boolean);
+  const image_url = String(formData.get('image_url') || '').trim() || mediaUrls[0] || null;
+  const media = mediaUrls.map((url) => ({ type: 'image' as const, url }));
   const category = String(formData.get('category') || '').trim() || null;
   const badge = String(formData.get('badge') || '').trim() || null;
   const badgeColorRaw = String(formData.get('badge_color') || '').trim();
@@ -360,6 +363,7 @@ export async function createProduct(formData: FormData) {
       cost_twd,
       stock,
       image_url,
+      media,
       category,
       badge,
       badge_color,

@@ -8,15 +8,18 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { uploadProductImage, uploadProductMediaImage, uploadVariantImage, uploadClassImage } from './image-actions';
+import { uploadDraftImage, uploadProductImage, uploadProductMediaImage, uploadVariantImage, uploadClassImage } from './image-actions';
 
 type Props = {
   /**
    * 'product' = 上傳 product.image_url
    * 'variant' = 上傳 product_variants.image_url
    * 'class' = 上傳 classes.image_url(活動)
+   * 'draft' = 商品還沒建立(新增 modal):只上傳到 storage,網址交給 onUploaded,不碰資料庫、不重載頁面
    */
-  entity?: 'product' | 'variant' | 'class';
+  entity?: 'product' | 'variant' | 'class' | 'draft';
+  /** entity='draft' 時每張上傳成功會呼叫 */
+  onUploaded?: (url: string) => void;
   /**
    * 'replace' = 取代既有單張 image_url(預設)
    * 'media' = 上傳到 products.media 陣列(Phase 9.6 多媒體用)
@@ -50,6 +53,7 @@ export function ProductImageUploader({
   productName,
   compact = false,
   uploadLabel,
+  onUploaded,
 }: Props) {
   // 計算 aspect ratio + 輸出尺寸
   const ASPECT = aspect ?? (entity === 'class' ? DEFAULT_CLASS_ASPECT : DEFAULT_PRODUCT_ASPECT);
@@ -145,23 +149,36 @@ export function ProductImageUploader({
 
       const formData = new FormData();
       formData.append('tenant_slug', tenantSlug);
-      const idField =
-        entity === 'variant' ? 'variant_id' : entity === 'class' ? 'class_id' : 'product_id';
-      formData.append(idField, entityId);
+      if (entity !== 'draft') {
+        const idField =
+          entity === 'variant' ? 'variant_id' : entity === 'class' ? 'class_id' : 'product_id';
+        formData.append(idField, entityId);
+      }
       formData.append('file', blob, `${entity}.jpg`);
       // mode='media' 走 Phase 9.6 multi-media 路徑(append 到 product.media)
       const result =
-        mode === 'media' && entity === 'product'
-          ? await uploadProductMediaImage(formData)
-          : entity === 'variant'
-            ? await uploadVariantImage(formData)
-            : entity === 'class'
-              ? await uploadClassImage(formData)
-              : await uploadProductImage(formData);
+        entity === 'draft'
+          ? await uploadDraftImage(formData)
+          : mode === 'media' && entity === 'product'
+            ? await uploadProductMediaImage(formData)
+            : entity === 'variant'
+              ? await uploadVariantImage(formData)
+              : entity === 'class'
+                ? await uploadClassImage(formData)
+                : await uploadProductImage(formData);
 
       if (result.ok) {
-        setSuccess('上傳成功');
-        setTimeout(() => window.location.reload(), 500);
+        if (entity === 'draft') {
+          // 草稿模式:網址交回去、清掉裁切畫面,可以接著上傳下一張;不重載頁面
+          if (result.url) onUploaded?.(result.url);
+          setImgSrc('');
+          setCompletedCrop(undefined);
+          setSuccess('已加入');
+          setTimeout(() => setSuccess(null), 1200);
+        } else {
+          setSuccess('上傳成功');
+          setTimeout(() => window.location.reload(), 500);
+        }
       } else {
         setError(result.error);
       }
