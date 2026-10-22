@@ -12,6 +12,28 @@ export const lineClient = new MessagingApiClient({
 });
 
 /**
+ * Phase 23(2026-10-23):金流異常警報 — 推一則文字給店家負責人。
+ * 收件人放環境變數 ALERT_LINE_USER_IDS(LINE user id,逗號分隔可多人);沒設就什麼都不做。
+ * 用在只寫 log 沒人會看的狀況:綠界通知對不到訂單、金額不符、已取消的單收到錢、
+ * 收了錢但訂單沒更新到、退款退了錢但訂單沒標到。失敗只 warn,絕不能影響主流程。
+ */
+export async function notifyAdmin(title: string, lines: string[]): Promise<void> {
+  const ids = (process.env.ALERT_LINE_USER_IDS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (ids.length === 0) return;
+  const text = `[金流異常] ${title}\n${lines.filter(Boolean).join('\n')}`;
+  await Promise.all(
+    ids.map((to) =>
+      lineClient
+        .pushMessage({ to, messages: [{ type: 'text', text }] })
+        .catch((e) => console.warn('[notifyAdmin] push 失敗', e)),
+    ),
+  );
+}
+
+/**
  * LINE webhook 簽章驗證
  * LINE 用 channel secret 對 request body 做 HMAC-SHA256 base64,放 x-line-signature header
  * 用 timingSafeEqual 比對避免 timing attack

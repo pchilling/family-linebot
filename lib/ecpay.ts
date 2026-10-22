@@ -18,7 +18,7 @@
  * 兩邊都會進 applyEcpayPaymentResult,設計成重複呼叫不會重複處理。
  */
 import crypto from 'node:crypto';
-import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
 import { supabaseAdmin } from '@/lib/supabase';
 
 const STAGE_HOST = 'https://payment-stage.ecpay.com.tw';
@@ -364,6 +364,10 @@ export async function refundEcpayCredit(params: {
       if (n.ok) return { ok: true, action: 'E+N', message: n.message };
       // E 成功 N 失敗:交易回到已授權,再按一次退款就會走到 N;留 log 給人看
       console.error('[ecpay refund] 取消關帳成功但放棄失敗,請再退一次', params.merchantTradeNo, tried);
+      await notifyAdmin('綠界退款做到一半:已取消關帳,但放棄授權失敗', [
+        `特店交易編號 ${params.merchantTradeNo}`,
+        '請到後台對同一筆再按一次退款。',
+      ]);
     }
 
     r = await run('R');
@@ -476,11 +480,22 @@ export async function applyEcpayPaymentResult(fields: EcpayFields, baseUrl: stri
   const order = await findEcpayOrder(fields);
   if (!order) {
     console.error('[ecpay] 付款通知找不到訂單', fields.MerchantTradeNo, fields.TradeNo, fields.TradeAmt);
+    await notifyAdmin('綠界說收到一筆款,但對不到任何訂單', [
+      `綠界交易編號 ${fields.TradeNo ?? '-'}`,
+      `特店交易編號 ${fields.MerchantTradeNo ?? '-'}`,
+      `金額 NT$ ${fields.TradeAmt ?? '-'}`,
+      '請到綠界廠商後台查這筆是誰付的。',
+    ]);
     return 'not_found';
   }
   const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
   if (Number(fields.TradeAmt) !== amount) {
     console.error('[ecpay] 付款金額跟訂單不符', order.order_no, fields.TradeAmt, amount);
+    await notifyAdmin('綠界收到的金額跟訂單不一樣,沒有標已收款', [
+      `訂單 ${order.order_no}`,
+      `綠界收到 NT$ ${fields.TradeAmt},訂單應付 NT$ ${amount}`,
+      '請到綠界廠商後台核對後人工處理。',
+    ]);
     return 'amount_mismatch';
   }
   if (order.payment_status === 'paid') return 'already_paid';
@@ -493,6 +508,11 @@ export async function applyEcpayPaymentResult(fields: EcpayFields, baseUrl: stri
       .from('orders')
       .update({ payment_status: 'paid', ecpay_trade_no: tradeNo })
       .eq('id', order.id);
+    await notifyAdmin('已取消的訂單收到綠界付款,要退錢給客人', [
+      `訂單 ${order.order_no}(${order.status === 'refunded' ? '已退款' : '已取消'})`,
+      `收到 NT$ ${amount},綠界交易編號 ${tradeNo ?? '-'}`,
+      '請到後台訂單詳情用綠界退款退給客人。',
+    ]);
     return 'paid';
   }
 
@@ -511,6 +531,11 @@ export async function applyEcpayPaymentResult(fields: EcpayFields, baseUrl: stri
   if (error) {
     // 錢已經收了,這裡失敗只能靠人工補標或等綠界重送,務必留 log
     console.error('[ecpay] 已收款但更新訂單失敗', order.order_no, tradeNo, error);
+    await notifyAdmin('綠界已收款但訂單沒標到已收款', [
+      `訂單 ${order.order_no},NT$ ${amount}`,
+      `綠界交易編號 ${tradeNo ?? '-'}`,
+      '綠界會再重送通知;若一小時後還是未付款,請到後台手動標已收款。',
+    ]);
     return 'error';
   }
 

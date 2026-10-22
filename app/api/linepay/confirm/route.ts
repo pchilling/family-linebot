@@ -9,7 +9,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { confirmLinePayPayment } from '@/lib/linepay';
-import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -94,6 +94,11 @@ export async function GET(req: NextRequest) {
   if (updErr) {
     // 錢已經收了,這裡失敗只能靠人工補標,務必留 log
     console.error('[linepay confirm] 已扣款但更新訂單失敗', order.order_no, transactionId, updErr);
+    await notifyAdmin('LINE Pay 已扣款但訂單沒標到已收款', [
+      `訂單 ${order.order_no},NT$ ${amount}`,
+      `交易序號 ${transactionId}`,
+      '請到後台手動標已收款(明早排程也會再補一次)。',
+    ]);
   }
 
   const lineUserId = order.users?.line_user_id;
