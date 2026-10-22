@@ -48,21 +48,7 @@ export default function PolicyLayout({ children }: { children: React.ReactNode }
           ← NEOP STALL
         </Link>
 
-        {/* 律師審核警告 */}
-        <div
-          style={{
-            padding: '12px 16px',
-            background: '#fef3c7',
-            border: '1px solid #fcd34d',
-            color: '#92400e',
-            fontSize: 12,
-            borderRadius: 8,
-            marginBottom: 28,
-            lineHeight: 1.6,
-          }}
-        >
-          ⚠️ <strong>本頁面為平台初版範本</strong>,<strong>未經律師審核</strong>。實際對外營運前請委請律師審閱並依業務狀況調整。
-        </div>
+        {/* 2026-10-22:原本這裡有「初版範本、未經律師審核」橫幅,店已對外營運,Peter 決定拿掉 */}
 
         {/* Policy nav */}
         <nav
