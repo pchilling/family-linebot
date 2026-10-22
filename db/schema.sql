@@ -1275,3 +1275,15 @@ alter table orders add column if not exists ecpay_refunded_twd int not null defa
 -- Phase 21.2(2026-10-22):退款原因 — 後台退款時填(選填),客人在 LINE 退款卡上看得到,
 -- LINE Pay 與綠界共用同一欄。
 alter table orders add column if not exists refund_note text;
+
+
+-- ====================
+-- Phase 22(2026-10-23):訂單頁存取碼
+-- 訂單頁 /{slug}/order/{order_no} 不用登入就能開,而單號是連號的 — 任何人改個數字就能
+-- 翻到別人的收件人姓名、電話、地址。改成網址要帶 ?k=存取碼:沒帶對的碼只看得到狀態,
+-- 個資遮蔽(王＊＊、0912***34)、不能回報後 5 碼、不能發動付款。
+-- 我們自己發出的連結(LINE 卡片、付款導回、下單完成頁、查我的訂單驗證後)都會自動帶碼。
+-- ====================
+alter table orders add column if not exists access_key text;
+alter table orders alter column access_key set default substr(md5(random()::text || clock_timestamp()::text || gen_random_uuid()::text), 1, 16);
+update orders set access_key = substr(md5(random()::text || clock_timestamp()::text || gen_random_uuid()::text), 1, 16) where access_key is null;

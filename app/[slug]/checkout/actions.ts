@@ -69,7 +69,7 @@ type CartItemInput = {
 };
 
 export type CreateOrderResult =
-  | { ok: true; orderNo: string }
+  | { ok: true; orderNo: string; accessKey: string | null }
   | { ok: false; error: string };
 
 // D#13:運費規則(tenants.shipping_rules.options;空陣列 = 該攤位不收運費)
@@ -317,7 +317,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const cartSig = cartItems.map((c) => `${c.variantId}x${c.qty}`).sort().join(',');
   const { data: recentDup } = await supabaseAdmin
     .from('orders')
-    .select('order_no, order_items(variant_id, qty)')
+    .select('order_no, access_key, order_items(variant_id, qty)')
     .eq('tenant_id', tenant.id)
     .eq('shipping_phone', phone)
     .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
@@ -325,11 +325,11 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     .limit(1)
     .maybeSingle();
   if (recentDup) {
-    const dup = recentDup as { order_no: string; order_items: { variant_id: string | null; qty: number }[] | null };
+    const dup = recentDup as { order_no: string; access_key: string | null; order_items: { variant_id: string | null; qty: number }[] | null };
     const dupSig = (dup.order_items ?? []).map((i) => `${i.variant_id}x${i.qty}`).sort().join(',');
     if (dupSig === cartSig) {
       console.warn('[createOrder] 2 分鐘內重複下單,回既有單號', dup.order_no);
-      return { ok: true, orderNo: dup.order_no };
+      return { ok: true, orderNo: dup.order_no, accessKey: dup.access_key ?? null };
     }
   }
 
@@ -351,7 +351,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       guest_email: guestEmail || null,
       guest_phone: phone,
     })
-    .select('id, order_no')
+    .select('id, order_no, access_key')
     .single();
 
   if (oErr || !orderRow) {
@@ -380,7 +380,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     return { ok: false, error: '建立訂單明細失敗' };
   }
 
-  return { ok: true, orderNo: (orderRow as { order_no: string }).order_no };
+  const created = orderRow as { order_no: string; access_key: string | null };
+  // Phase 22:存取碼跟著回前端,下單完成頁的連結要帶 ?k= 才看得到完整訂單
+  return { ok: true, orderNo: created.order_no, accessKey: created.access_key ?? null };
 }
 
 // ====================
@@ -435,7 +437,7 @@ export async function startLinePay(
 
   const { data } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, total_twd, shipping_fee_twd, payment_status, status')
+    .select('id, order_no, total_twd, shipping_fee_twd, payment_status, status, payment_method, access_key')
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
     .maybeSingle();
@@ -446,12 +448,18 @@ export async function startLinePay(
     shipping_fee_twd: number | null;
     payment_status: string;
     status: string;
+    payment_method: string | null;
+    access_key: string | null;
   } | null;
 
   if (!order) return { ok: false, error: '找不到訂單' };
   if (order.payment_status === 'paid') return { ok: false, error: '這筆訂單已付款' };
   if (order.status === 'cancelled' || order.status === 'refunded') {
     return { ok: false, error: '這筆訂單已取消' };
+  }
+  // 2026-10-23:只有結帳時就選 LINE Pay 的單才能發動(單號連號,不擋會被拿來改別人的單)
+  if (order.payment_method !== 'line_pay') {
+    return { ok: false, error: '這筆訂單不是 LINE Pay 付款' };
   }
 
   const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
@@ -464,7 +472,7 @@ export async function startLinePay(
     productName: `${tenant.name} 訂單 ${order.order_no}`,
     // LINE Pay 會在 confirmUrl 後面自動帶 transactionId / orderId
     confirmUrl: `${baseUrl}/api/linepay/confirm?slug=${encodeURIComponent(tenantSlug)}`,
-    cancelUrl: `${baseUrl}/${tenantSlug}/order/${order.order_no}?linepay=cancel`,
+    cancelUrl: `${baseUrl}/${tenantSlug}/order/${order.order_no}?linepay=cancel${order.access_key ? `&k=${order.access_key}` : ''}`,
   });
   if (!result.ok) return { ok: false, error: result.error };
 
@@ -485,6 +493,7 @@ export async function startLinePay(
 export async function startLinePayAndRedirect(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const orderNo = String(formData.get('order_no') ?? '').trim();
+  const k = String(formData.get('k') ?? '').trim();
   const result = await startLinePay(slug, orderNo);
-  redirect(result.ok ? result.paymentUrl : `/${slug}/order/${orderNo}?linepay=failed`);
+  redirect(result.ok ? result.paymentUrl : `/${slug}/order/${orderNo}?linepay=failed${k ? `&k=${encodeURIComponent(k)}` : ''}`);
 }

@@ -38,6 +38,7 @@ type OrderRow = {
   payment_method: string | null;
   atm_vaccount: string | null;
   atm_expire_at: string | null;
+  access_key: string | null;
 };
 
 function escapeHtml(s: string): string {
@@ -96,7 +97,10 @@ export async function GET(req: NextRequest) {
   const tenant = await getTenantBySlug(slug);
   if (!tenant) return NextResponse.redirect(home);
 
-  const orderUrl = (query: string) => new URL(`/${slug}/order/${orderNo}${query}`, req.nextUrl.origin);
+  // Phase 22:導回訂單頁要帶存取碼(訂單載入後填入),沒帶的話客人會看到遮蔽版
+  let accessKey = '';
+  const orderUrl = (query: string) =>
+    new URL(`/${slug}/order/${orderNo}${query}${accessKey ? `${query ? '&' : '?'}k=${accessKey}` : ''}`, req.nextUrl.origin);
 
   if (!hasFeature(tenant, 'ecpay') || !isEcpayConfigured()) {
     console.error('[ecpay pay] 此攤位未開放綠界', slug);
@@ -110,7 +114,7 @@ export async function GET(req: NextRequest) {
 
   const { data } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, total_twd, shipping_fee_twd, payment_status, status, payment_method, atm_vaccount, atm_expire_at')
+    .select('id, order_no, total_twd, shipping_fee_twd, payment_status, status, payment_method, atm_vaccount, atm_expire_at, access_key')
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
     .maybeSingle();
@@ -120,9 +124,16 @@ export async function GET(req: NextRequest) {
     console.error('[ecpay pay] 找不到訂單', orderNo);
     return NextResponse.redirect(home);
   }
+  accessKey = order.access_key ?? '';
   if (order.payment_status === 'paid') return NextResponse.redirect(orderUrl('?ecpay=done'));
   if (order.status === 'cancelled' || order.status === 'refunded') {
     return NextResponse.redirect(orderUrl('?ecpay=cancelled_order'));
+  }
+  // 2026-10-23:只有結帳時就選綠界的單才能走這裡。單號是連號的,不擋的話任何人
+  // 都能拿別人的匯款單來這裡「改成信用卡」,客人回頭看訂單頁會一頭霧水。
+  if (order.payment_method !== 'ecpay_credit' && order.payment_method !== 'ecpay_atm') {
+    console.warn('[ecpay pay] 非綠界訂單不可發動綠界付款', orderNo, order.payment_method);
+    return NextResponse.redirect(orderUrl(''));
   }
   // ATM 已經取過號而且還沒過期 → 不要再要一組新帳號,直接回訂單頁看帳號
   if (
@@ -166,7 +177,7 @@ export async function GET(req: NextRequest) {
     returnUrl: `${baseUrl}/api/ecpay/notify`,
     paymentInfoUrl: `${baseUrl}/api/ecpay/notify`,
     browserReturnUrl: `${baseUrl}/api/ecpay/pay`,
-    clientBackUrl: `${baseUrl}/${slug}/order/${order.order_no}`,
+    clientBackUrl: `${baseUrl}/${slug}/order/${order.order_no}${accessKey ? `?k=${accessKey}` : ''}`,
   });
   if (!checkout) return NextResponse.redirect(orderUrl('?ecpay=failed'));
 
@@ -194,7 +205,9 @@ export async function POST(req: NextRequest) {
     console.error('[ecpay pay] 導回找不到訂單', fields.MerchantTradeNo, fields.CustomField1);
     return NextResponse.redirect(new URL('/', req.nextUrl.origin), 303);
   }
-  const orderUrl = (query: string) => new URL(`/${slug}/order/${order.order_no}${query}`, req.nextUrl.origin);
+  const k = order.access_key ?? '';
+  const orderUrl = (query: string) =>
+    new URL(`/${slug}/order/${order.order_no}${query}${k ? `${query ? '&' : '?'}k=${k}` : ''}`, req.nextUrl.origin);
 
   if (!verifyEcpayCallback(fields)) {
     console.error('[ecpay pay] 導回檢查碼不符', fields.MerchantTradeNo);
