@@ -1035,6 +1035,8 @@ export async function refundLinePayOrder(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
   const amountRaw = Number(formData.get('refund_amount'));
+  // 2026-10-22:退款原因(選填)— 客人在 LINE 退款卡上看得到,也存回訂單
+  const reason = String(formData.get('refund_note') || '').trim().slice(0, 100) || null;
 
   const back = (saved: string) => {
     if (!slug) return;
@@ -1088,6 +1090,7 @@ export async function refundLinePayOrder(formData: FormData) {
   const refundedTotal = already + amount;
   const isFullRefund = refundedTotal >= grandTotal;
   const payload: Record<string, unknown> = { linepay_refunded_twd: refundedTotal };
+  if (reason) payload.refund_note = reason;
   if (isFullRefund) {
     // status 改 refunded 會觸發 handle_order_cancel 自動退庫存
     payload.status = 'refunded';
@@ -1113,6 +1116,7 @@ export async function refundLinePayOrder(formData: FormData) {
             amountTwd: amount,
             remainingTwd: grandTotal - refundedTotal,
             orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}`,
+            reason: reason ?? undefined,
           }),
         ],
       });
@@ -1134,6 +1138,8 @@ export async function refundEcpayOrder(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
   const amountRaw = Number(formData.get('refund_amount'));
+  // 退款原因(選填)— 客人在 LINE 退款卡上看得到,也存回訂單
+  const reason = String(formData.get('refund_note') || '').trim().slice(0, 100) || null;
 
   const back = (saved: string, msg?: string) => {
     if (!slug) return;
@@ -1202,6 +1208,7 @@ export async function refundEcpayOrder(formData: FormData) {
   const refundedTotal = already + amount;
   const isFullRefund = refundedTotal >= grandTotal;
   const payload: Record<string, unknown> = { ecpay_refunded_twd: refundedTotal };
+  if (reason) payload.refund_note = reason;
   if (isFullRefund) {
     // status 改 refunded 會觸發 handle_order_cancel 自動退庫存
     payload.status = 'refunded';
@@ -1228,6 +1235,7 @@ export async function refundEcpayOrder(formData: FormData) {
             remainingTwd: grandTotal - refundedTotal,
             orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}`,
             method: '信用卡',
+            reason: reason ?? undefined,
             refundNote:
               result.action === 'R'
                 ? '款項將退回您刷卡的信用卡,發卡銀行約需 14–21 個工作天入帳,可能會落在下一期帳單。'

@@ -816,6 +816,8 @@ export function buildPaymentFlexMessage(params: {
   method?: string;
   /** 退款卡的「錢怎麼回去」說明;不帶 = 退回原付款帳戶的通用文字 */
   refundNote?: string;
+  /** 2026-10-22:店家填的退款原因(例:商品缺貨),卡片上獨立一列讓客人知道為什麼 */
+  reason?: string;
 }): messagingApi.FlexMessage {
   const isRefund = params.kind === 'refunded';
   const accent = isRefund ? '#b45309' : '#16a34a';
@@ -851,13 +853,26 @@ export function buildPaymentFlexMessage(params: {
         { type: 'text', text: methodLabel, size: 'sm', color: '#18181b', flex: 5, align: 'end' },
       ],
     },
+    ...(isRefund && params.reason
+      ? [
+          {
+            type: 'box' as const,
+            layout: 'vertical' as const,
+            margin: 'md' as const,
+            contents: [
+              { type: 'text' as const, text: '退款原因', size: 'xs' as const, color: '#71717a' },
+              { type: 'text' as const, text: params.reason, size: 'sm' as const, color: '#18181b', wrap: true, margin: 'xs' as const },
+            ],
+          },
+        ]
+      : []),
     { type: 'separator', margin: 'lg', color: '#e4e4e7' },
     {
       type: 'text',
       text: isRefund
         ? (params.remainingTwd && params.remainingTwd > 0
             ? `本筆為部分退款,訂單尚有 NT$ ${params.remainingTwd.toLocaleString()} 未退。${refundBack}`
-            : refundBack)
+            : refundBack) + '\n造成不便很抱歉,有任何問題直接回覆這則訊息,我們會盡快處理。'
         : '我們會盡快為您出貨,出貨後會再通知您。感謝您的訂購!',
       size: 'xs', color: '#71717a', wrap: true, margin: 'lg',
     },

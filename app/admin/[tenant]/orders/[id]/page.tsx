@@ -27,6 +27,7 @@ type OrderDetail = {
   ecpay_merchant_trade_no: string | null; // Phase 21:我們送給綠界的特店交易編號(退款要一起帶)
   ecpay_trade_no: string | null; // Phase 21:綠界交易編號(對帳 / 退款用)
   ecpay_refunded_twd: number | null; // Phase 21.1:綠界已退款金額(部分退款累計)
+  refund_note: string | null; // Phase 21.2:退款原因(LINE Pay / 綠界共用,客人在退款卡看得到)
   atm_bank_code: string | null; // Phase 21:綠界 ATM 虛擬帳號
   atm_vaccount: string | null;
   atm_expire_at: string | null;
@@ -62,7 +63,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
       // payment_last5 / payment_reported_at / shipping_*:Phase 14-15 SQL(2026-09-02)已加
       `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
        linepay_transaction_id, linepay_refunded_twd,
-       ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, atm_bank_code, atm_vaccount, atm_expire_at,
+       ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, refund_note, atm_bank_code, atm_vaccount, atm_expire_at,
        invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, note,
@@ -79,6 +80,15 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
 function sourceLabel(s: string): string {
   return ({ web: '網站', liff: 'LIFF', manual: '手動', line_chat: 'LINE 對話' }[s]) ?? s;
 }
+// 2026-10-22:退款原因常用選項(可自由改寫;客人會在 LINE 退款卡看到)
+const REFUND_REASONS = [
+  '商品暫時缺貨,已為您全額退款',
+  '依您的要求取消訂單',
+  '重複下單,多的那筆已退款',
+  '商品有瑕疵,已退款並致歉',
+  '運費多收,退還差額',
+];
+
 // 2026-09-08:付款方式代碼 → 中文(原本直接顯示 'bank' 讓人看不懂)
 function payMethodLabel(s: string): string {
   return ({ bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay', ecpay_credit: '信用卡(綠界)', ecpay_atm: 'ATM 轉帳(綠界)' }[s]) ?? s;
@@ -357,7 +367,9 @@ export default async function OrderDetailPage({
               {' '}· 可退 <strong>NT$ {remaining.toLocaleString()}</strong>
             </div>
             {remaining <= 0 ? (
-              <div style={{ fontSize: 13, color: '#9a3412', fontWeight: 600 }}>此筆已全額退款完畢。</div>
+              <div style={{ fontSize: 13, color: '#9a3412', fontWeight: 600 }}>
+                此筆已全額退款完畢。{o.refund_note && <span style={{ fontWeight: 400 }}> 退款原因:{o.refund_note}</span>}
+              </div>
             ) : (
               <form action={refundLinePayOrder} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <input type="hidden" name="id" value={o.id} />
@@ -372,6 +384,13 @@ export default async function OrderDetailPage({
                     defaultValue={remaining}
                     style={input}
                   />
+                </label>
+                <label style={{ ...label, flex: '1 1 240px' }}>
+                  <span style={labelText}>退款原因(客人會在 LINE 通知看到,選填)</span>
+                  <input name="refund_note" list="refund-reasons-linepay" maxLength={100} style={input} placeholder="例:商品暫時缺貨,已為您全額退款" />
+                  <datalist id="refund-reasons-linepay">
+                    {REFUND_REASONS.map((r) => <option key={r} value={r} />)}
+                  </datalist>
                 </label>
                 <SubmitButton
                   variant="danger"
@@ -427,7 +446,9 @@ export default async function OrderDetailPage({
                   {' '}· 可退 <strong>NT$ {Math.max(0, remaining).toLocaleString()}</strong>
                 </div>
                 {remaining <= 0 || o.payment_status !== 'paid' ? (
-                  <div style={{ fontSize: 13, color: '#115e59', fontWeight: 600 }}>此筆已全額退款完畢。</div>
+                  <div style={{ fontSize: 13, color: '#115e59', fontWeight: 600 }}>
+                    此筆已全額退款完畢。{o.refund_note && <span style={{ fontWeight: 400 }}> 退款原因:{o.refund_note}</span>}
+                  </div>
                 ) : (
                   <form action={refundEcpayOrder} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                     <input type="hidden" name="id" value={o.id} />
@@ -442,6 +463,13 @@ export default async function OrderDetailPage({
                         defaultValue={remaining}
                         style={input}
                       />
+                    </label>
+                    <label style={{ ...label, flex: '1 1 240px' }}>
+                      <span style={labelText}>退款原因(客人會在 LINE 通知看到,選填)</span>
+                      <input name="refund_note" list="refund-reasons-ecpay" maxLength={100} style={input} placeholder="例:商品暫時缺貨,已為您全額退款" />
+                      <datalist id="refund-reasons-ecpay">
+                        {REFUND_REASONS.map((r) => <option key={r} value={r} />)}
+                      </datalist>
                     </label>
                     <SubmitButton
                       variant="danger"

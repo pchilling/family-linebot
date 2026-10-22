@@ -1271,3 +1271,7 @@ where slug = 'oilswa';
 -- 已退金額累計:支援分次部分退款;退到跟實收相同時訂單自動標 refunded(trigger 自動退庫存)。
 -- 今天剛刷還沒請款的單走「放棄授權」免手續費,已請款的走「退刷」。
 alter table orders add column if not exists ecpay_refunded_twd int not null default 0;
+
+-- Phase 21.2(2026-10-22):退款原因 — 後台退款時填(選填),客人在 LINE 退款卡上看得到,
+-- LINE Pay 與綠界共用同一欄。
+alter table orders add column if not exists refund_note text;
