@@ -386,8 +386,8 @@ export default async function OrderDetailPage({
                   />
                 </label>
                 <label style={{ ...label, flex: '1 1 240px' }}>
-                  <span style={labelText}>退款原因(客人會在 LINE 通知看到,選填)</span>
-                  <input name="refund_note" list="refund-reasons-linepay" maxLength={100} style={input} placeholder="例:商品暫時缺貨,已為您全額退款" />
+                  <span style={labelText}>退款原因(必填,客人會在 LINE 通知看到)</span>
+                  <input name="refund_note" list="refund-reasons-linepay" maxLength={100} required style={input} placeholder="例:商品暫時缺貨,已為您全額退款" />
                   <datalist id="refund-reasons-linepay">
                     {REFUND_REASONS.map((r) => <option key={r} value={r} />)}
                   </datalist>
@@ -465,8 +465,8 @@ export default async function OrderDetailPage({
                       />
                     </label>
                     <label style={{ ...label, flex: '1 1 240px' }}>
-                      <span style={labelText}>退款原因(客人會在 LINE 通知看到,選填)</span>
-                      <input name="refund_note" list="refund-reasons-ecpay" maxLength={100} style={input} placeholder="例:商品暫時缺貨,已為您全額退款" />
+                      <span style={labelText}>退款原因(必填,客人會在 LINE 通知看到)</span>
+                      <input name="refund_note" list="refund-reasons-ecpay" maxLength={100} required style={input} placeholder="例:商品暫時缺貨,已為您全額退款" />
                       <datalist id="refund-reasons-ecpay">
                         {REFUND_REASONS.map((r) => <option key={r} value={r} />)}
                       </datalist>

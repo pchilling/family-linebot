@@ -1035,15 +1035,16 @@ export async function refundLinePayOrder(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
   const amountRaw = Number(formData.get('refund_amount'));
-  // 2026-10-22:退款原因(選填)— 客人在 LINE 退款卡上看得到,也存回訂單
+  // 2026-10-22:退款原因(必填,防手滑)— 客人在 LINE 退款卡上看得到,也存回訂單
   const reason = String(formData.get('refund_note') || '').trim().slice(0, 100) || null;
 
-  const back = (saved: string) => {
+  const back = (saved: string, msg?: string) => {
     if (!slug) return;
     revalidatePath(`/admin/${slug}/orders/${id}`);
     revalidatePath(`/admin/${slug}/orders`);
-    redirect(`/admin/${slug}/orders/${id}?saved=${saved}`);
+    redirect(`/admin/${slug}/orders/${id}?saved=${saved}${msg ? `&msg=${encodeURIComponent(msg)}` : ''}`);
   };
+  if (!reason) return back('refund_failed', '請填退款原因');
 
   const { data } = await supabaseAdmin
     .from('orders')
@@ -1138,7 +1139,7 @@ export async function refundEcpayOrder(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
   const amountRaw = Number(formData.get('refund_amount'));
-  // 退款原因(選填)— 客人在 LINE 退款卡上看得到,也存回訂單
+  // 退款原因(必填,防手滑)— 客人在 LINE 退款卡上看得到,也存回訂單
   const reason = String(formData.get('refund_note') || '').trim().slice(0, 100) || null;
 
   const back = (saved: string, msg?: string) => {
@@ -1147,6 +1148,7 @@ export async function refundEcpayOrder(formData: FormData) {
     revalidatePath(`/admin/${slug}/orders`);
     redirect(`/admin/${slug}/orders/${id}?saved=${saved}${msg ? `&msg=${encodeURIComponent(msg)}` : ''}`);
   };
+  if (!reason) return back('refund_failed', '請填退款原因');
 
   const { data } = await supabaseAdmin
     .from('orders')
