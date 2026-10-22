@@ -22,6 +22,17 @@ export async function reportPaymentLast5(formData: FormData): Promise<void> {
   const tenant = await getTenantPublic(slug);
   if (!tenant) throw new Error('攤位不存在');
 
+  // Phase 22:存取碼對不上就不給回報(不然任何人都能對別人的單亂填後 5 碼)
+  const k = String(formData.get('k') ?? '').trim();
+  const { data: keyRow } = await supabaseAdmin
+    .from('orders')
+    .select('access_key')
+    .eq('tenant_id', tenant.id)
+    .eq('order_no', orderNo)
+    .maybeSingle();
+  const accessKey = (keyRow as { access_key: string | null } | null)?.access_key ?? null;
+  if (!accessKey || k !== accessKey) throw new Error('連結無效,請從 LINE 通知或下單完成頁的連結開啟這張訂單');
+
   const { data: updated, error } = await supabaseAdmin
     .from('orders')
     .update({ payment_last5: last5, payment_reported_at: new Date().toISOString() })
@@ -60,5 +71,5 @@ export async function reportPaymentLast5(formData: FormData): Promise<void> {
   }
 
   revalidatePath(`/${slug}/order/${orderNo}`);
-  redirect(`/${slug}/order/${orderNo}?reported=1`);
+  redirect(`/${slug}/order/${orderNo}?reported=1&k=${accessKey}`);
 }

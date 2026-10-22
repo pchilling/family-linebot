@@ -330,6 +330,8 @@ export default function CheckoutPage({ params }: Props) {
     }
     setRedirecting(true); // 馬上切到 loading 畫面,避免接下來 clear() 觸發空車閃屏
     clear();
+    // Phase 22:訂單頁連結要帶存取碼,沒帶的話個資會被遮蔽、也不能付款 / 回報
+    const kq = result.accessKey ? `k=${result.accessKey}` : '';
     // 2026-10-15:選 LINE Pay → 導去付款頁。
     // 發動失敗不擋單(訂單已成立),退回訂單頁讓客人重按一次付款。
     if (isLinePayPay) {
@@ -338,7 +340,7 @@ export default function CheckoutPage({ params }: Props) {
         window.location.href = pay.paymentUrl;
         return;
       }
-      router.push(`/${slug}/order/${result.orderNo}?linepay=failed`);
+      router.push(`/${slug}/order/${result.orderNo}?linepay=failed${kq ? `&${kq}` : ''}`);
       return;
     }
     // 2026-10-22:選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay,它會把瀏覽器送到綠界付款頁
@@ -347,7 +349,7 @@ export default function CheckoutPage({ params }: Props) {
       window.location.href = `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(result.orderNo)}&method=${method}`;
       return;
     }
-    router.push(`/${slug}/order/${result.orderNo}`);
+    router.push(`/${slug}/order/${result.orderNo}${kq ? `?${kq}` : ''}`);
   }
 
   const inputStyle: React.CSSProperties = {

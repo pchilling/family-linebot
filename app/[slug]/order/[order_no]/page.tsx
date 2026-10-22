@@ -11,7 +11,8 @@ type Props = {
   params: Promise<{ slug: string; order_no: string }>;
   // 2026-10-15:LINE Pay 導回帶的狀態(done / cancel / failed)
   // 2026-10-22:綠界導回帶的狀態(done / atm / failed / cancelled_order)
-  searchParams?: Promise<{ linepay?: string; ecpay?: string }>;
+  // 2026-10-23:k = 訂單存取碼;沒帶對的碼只看得到狀態,個資遮蔽、不能付款或回報
+  searchParams?: Promise<{ linepay?: string; ecpay?: string; k?: string }>;
 };
 
 type OrderItemRow = {
@@ -45,8 +46,27 @@ type OrderDetail = {
   note: string | null;
   guest_email: string | null;
   created_at: string;
+  access_key: string | null; // Phase 22:訂單存取碼(網址 ?k=),對得上才看得到個資
   items: OrderItemRow[];
 };
+
+// Phase 22:沒帶存取碼時個資只給部分,讓本人認得出是自己的單、外人看不出完整資料
+function maskName(s: string | null): string {
+  if (!s) return '';
+  return s.length <= 1 ? s : s[0] + '＊'.repeat(Math.min(s.length - 1, 3));
+}
+function maskPhone(s: string | null): string {
+  const d = (s ?? '').replace(/\D/g, '');
+  return d.length >= 6 ? `${d.slice(0, 4)}***${d.slice(-2)}` : '***';
+}
+function maskAddress(s: string | null): string {
+  if (!s) return '';
+  return `${s.slice(0, 6)}＊＊＊`;
+}
+function maskEmail(s: string): string {
+  const [u, d] = s.split('@');
+  return `${(u ?? '').slice(0, 2)}***@${d ?? ''}`;
+}
 
 /**
  * 從自由文字的匯款資訊抓銀行帳號(2026-09-11 一鍵複製用):
@@ -74,7 +94,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
+      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -123,6 +143,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     note: row.note,
     guest_email: row.guest_email,
     created_at: row.created_at,
+    access_key: row.access_key ?? null,
     items,
   };
 }
@@ -157,6 +178,21 @@ export default async function OrderPage({ params, searchParams }: Props) {
   if (!tenant) notFound();
   const order = await getOrder(tenant.id, order_no);
   if (!order) notFound();
+
+  // Phase 22:存取碼對得上才是「本人開的連結」;單號是連號的,沒這層任何人改個數字就能翻別人的地址電話
+  const unlocked = !!order.access_key && (sp?.k ?? '') === order.access_key;
+  const lockedNotice = (
+    <section style={{ padding: '1rem 1.25rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, marginBottom: '1rem', fontSize: '0.8125rem', color: '#92400e', lineHeight: 1.7 }}>
+      為保護個資,這個網址只能看訂單狀態。完整資訊、付款與回報功能請從 LINE 通知或下單完成頁的連結開啟;沒有連結的話可到
+      <a href={`/${slug}/order-lookup`} style={{ color: '#92400e', fontWeight: 700, margin: '0 2px' }}>查我的訂單</a>
+      用電話或 Email 驗證後進入。
+    </section>
+  );
+  const lockedHint = (
+    <div style={{ padding: '0.75rem 0.875rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, color: '#92400e', fontSize: '0.8125rem', lineHeight: 1.6 }}>
+      請從 LINE 通知或下單完成頁的連結開啟這張訂單,才能進行付款或回報。
+    </div>
+  );
 
   // 額外拉 tenant.contact_info + payment_info + shipping_rules(沒在 getTenantPublic)
   const { data: tenantExtra } = await supabaseAdmin
@@ -375,27 +411,30 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 : '付款沒有完成,款項未被扣除,請再試一次或聯絡我們。'}
             </div>
           )}
-          <form action={startLinePayAndRedirect}>
-            <input type="hidden" name="tenant_slug" value={slug} />
-            <input type="hidden" name="order_no" value={order.order_no} />
-            <button
-              type="submit"
-              style={{
-                width: '100%',
-                minHeight: 48,
-                padding: '0 1.5rem',
-                background: '#06c755',
-                color: '#fff',
-                border: 0,
-                borderRadius: 10,
-                fontSize: '0.9375rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              用 LINE Pay 付款 · NT$ {grandTotal.toLocaleString()}
-            </button>
-          </form>
+          {unlocked ? (
+            <form action={startLinePayAndRedirect}>
+              <input type="hidden" name="tenant_slug" value={slug} />
+              <input type="hidden" name="order_no" value={order.order_no} />
+              <input type="hidden" name="k" value={order.access_key ?? ''} />
+              <button
+                type="submit"
+                style={{
+                  width: '100%',
+                  minHeight: 48,
+                  padding: '0 1.5rem',
+                  background: '#06c755',
+                  color: '#fff',
+                  border: 0,
+                  borderRadius: 10,
+                  fontSize: '0.9375rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                用 LINE Pay 付款 · NT$ {grandTotal.toLocaleString()}
+              </button>
+            </form>
+          ) : lockedHint}
         </section>
       )}
 
@@ -442,7 +481,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 : `這組轉帳帳號已過期(期限 ${atmExpireLabel}),請重新取得一組新帳號。`}
             </div>
           )}
-          {atmReady ? (
+          {!unlocked ? lockedHint : atmReady ? (
             <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '0.875rem 1rem', fontSize: '0.9375rem', color: '#134e4a', lineHeight: 1.9 }}>
               <div>銀行代碼:<strong>{order.atm_bank_code}</strong></div>
               <div>
@@ -478,7 +517,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             </a>
           )}
           {/* ATM 單可以改刷卡;信用卡單不提供改 ATM(ATM 選項 2026-10-22 起預設關) */}
-          {isEcpayAtm && (
+          {isEcpayAtm && unlocked && (
             <div style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#6b7280', textAlign: 'center' }}>
               改用 <a href={ecpayPayUrl('credit')} style={{ color: '#1d4ed8' }}>信用卡付款</a>
             </div>
@@ -549,7 +588,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <section id="report" style={{ scrollMarginTop: 16, padding: '0.875rem 1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.9375rem', color: '#15803d', fontWeight: 600 }}>
           <IconCheckCircle size={18} /> 已收到您的款項,無需再回報。
         </section>
-      ) : order.payment_reported_at ? (
+      ) : !unlocked ? lockedNotice : order.payment_reported_at ? (
         <section id="report" style={{ scrollMarginTop: 16, padding: '1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -570,6 +609,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <form action={reportPaymentLast5} style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <input type="hidden" name="tenant_slug" value={slug} />
               <input type="hidden" name="order_no" value={order.order_no} />
+              <input type="hidden" name="k" value={order.access_key ?? ''} />
               {/* 2026-09-11:改 5 格 OTP 輸入 */}
               <OtpInput name="last5" required boxSize={38} />
               <button type="submit" style={{ flex: '0 0 auto', padding: '0.7rem 1.5rem', background: '#111827', color: '#fff', border: 0, borderRadius: 10, fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}>
@@ -605,6 +645,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
           <form action={reportPaymentLast5} style={{ display: 'flex', gap: 10, marginTop: '1rem', flexWrap: 'wrap' }}>
             <input type="hidden" name="tenant_slug" value={slug} />
             <input type="hidden" name="order_no" value={order.order_no} />
+            <input type="hidden" name="k" value={order.access_key ?? ''} />
             {/* 2026-09-11:改 5 格 OTP 輸入(shadcn Input OTP 風格) */}
             <OtpInput name="last5" required />
             <button
@@ -720,34 +761,34 @@ export default async function OrderPage({ params, searchParams }: Props) {
         }}
       >
         <h3 style={{ margin: '0 0 1rem', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
-          寄送資訊
+          寄送資訊{!unlocked && <span style={{ fontSize: '0.75rem', color: '#b45309', marginLeft: 8 }}>(部分遮蔽)</span>}
         </h3>
         <dl style={{ display: 'grid', gridTemplateColumns: '5rem 1fr', gap: '0.5rem 1rem', margin: 0, fontSize: '0.875rem' }}>
           <dt style={{ color: '#9ca3af' }}>收件人</dt>
-          <dd style={{ margin: 0 }}>{order.shipping_recipient}</dd>
+          <dd style={{ margin: 0 }}>{unlocked ? order.shipping_recipient : maskName(order.shipping_recipient)}</dd>
           <dt style={{ color: '#9ca3af' }}>電話</dt>
-          <dd style={{ margin: 0 }}>{order.shipping_phone}</dd>
+          <dd style={{ margin: 0 }}>{unlocked ? order.shipping_phone : maskPhone(order.shipping_phone)}</dd>
           <dt style={{ color: '#9ca3af' }}>地址</dt>
-          <dd style={{ margin: 0 }}>{order.shipping_address}</dd>
+          <dd style={{ margin: 0 }}>{unlocked ? order.shipping_address : maskAddress(order.shipping_address)}</dd>
           {order.guest_email && (
             <>
               <dt style={{ color: '#9ca3af' }}>Email</dt>
-              <dd style={{ margin: 0 }}>{order.guest_email}</dd>
+              <dd style={{ margin: 0 }}>{unlocked ? order.guest_email : maskEmail(order.guest_email)}</dd>
             </>
           )}
-          {order.invoice_tax_id && (
+          {unlocked && order.invoice_tax_id && (
             <>
               <dt style={{ color: '#9ca3af' }}>統一編號</dt>
               <dd style={{ margin: 0, fontFamily: 'ui-monospace, monospace' }}>{order.invoice_tax_id}</dd>
             </>
           )}
-          {order.invoice_title && (
+          {unlocked && order.invoice_title && (
             <>
               <dt style={{ color: '#9ca3af' }}>發票抬頭</dt>
               <dd style={{ margin: 0 }}>{order.invoice_title}</dd>
             </>
           )}
-          {order.note && (
+          {unlocked && order.note && (
             <>
               <dt style={{ color: '#9ca3af' }}>備註</dt>
               <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{order.note}</dd>
