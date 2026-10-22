@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BannerHero } from './banner-hero';
-import { getActiveProducts, getTenantPublic, isSaleActive, applySaleDiscount, supabaseAdmin } from '@/lib/supabase';
-import { IconFlame, IconPackage } from '@/lib/icons';
+import { ShopListing, type ListingProduct } from './shop-listing';
+import { getActiveProducts, getTenantPublic, isSaleActive, supabaseAdmin, type MediaItem } from '@/lib/supabase';
+import { IconPackage } from '@/lib/icons';
 
 // Phase 16.2(2026-09-18):同分類內照後台拖曳的手動排序(null = 沒排過,排最後再照筆劃)
 function bySortOrder(
@@ -15,121 +15,125 @@ function bySortOrder(
   );
 }
 
-// % off → 台灣「折」講法(10% off → 9折;15% off → 85折)
-function pctToZhe(pct: number): string {
-  const keep = 100 - pct;
-  return `${keep % 10 === 0 ? keep / 10 : keep}折`;
-}
-
-// Phase 15.2:角標文字色 — 亮色底(如黃)配深字,深色底配白字
-function badgeFg(bg: string): string {
-  const r = parseInt(bg.slice(1, 3), 16);
-  const g = parseInt(bg.slice(3, 5), 16);
-  const b = parseInt(bg.slice(5, 7), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#18181b' : '#ffffff';
-}
-
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ f?: string }>;
 };
 
 // ISR:tenant brand / 商品 列表變動不頻繁,cache 30s。第二位訪客拿 CDN 快取 → 飛快。
 // admin 改動會 revalidatePath 推送,不會看到太舊資料。
 export const revalidate = 30;
 
-export default async function TenantHomePage({ params, searchParams }: Props) {
+type VariantLite = {
+  id: string;
+  product_id: string;
+  variant_name: string;
+  price_twd: number;
+  stock: number;
+  image_url: string | null;
+  sort_order: number | null;
+  created_at: string;
+};
+
+/**
+ * 攤位首頁 = 商品列表(Phase 24,2026-10-23 改版):
+ * 篩選、排序、搜尋都在前端的 ShopListing 做,這裡負責把商品、規格、分階、分類順序一次備好。
+ */
+export default async function TenantHomePage({ params }: Props) {
   const { slug } = await params;
-  const { f } = await searchParams;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
 
-  const allProducts = await getActiveProducts(tenant.id);
+  const [allProducts, variantsResp, tiersResp] = await Promise.all([
+    getActiveProducts(tenant.id),
+    supabaseAdmin
+      .from('product_variants')
+      .select('id, product_id, variant_name, price_twd, stock, image_url, sort_order, created_at')
+      .eq('tenant_id', tenant.id)
+      .eq('status', 'active'),
+    supabaseAdmin
+      .from('product_price_tiers')
+      .select('product_id, min_qty, price_twd')
+      .eq('tenant_id', tenant.id)
+      .order('min_qty', { ascending: true }),
+  ]);
 
-  // 2026-09-11(回饋 #9):卡片顯示分階總價(如 100 / 450)— 撈整攤分階,每商品取最低門檻那條
-  const { data: tierRows } = await supabaseAdmin
-    .from('product_price_tiers')
-    .select('product_id, min_qty, price_twd')
-    .eq('tenant_id', tenant.id)
-    .order('min_qty', { ascending: true });
+  const variantsByProduct = new Map<string, VariantLite[]>();
+  for (const v of ((variantsResp.data as VariantLite[] | null) ?? [])) {
+    const list = variantsByProduct.get(v.product_id) ?? [];
+    list.push(v);
+    variantsByProduct.set(v.product_id, list);
+  }
+  // 2026-09-11(回饋 #9):卡片顯示分階提示,每商品取最低門檻那條
   const firstTierByProduct = new Map<string, { min_qty: number; price_twd: number }>();
-  for (const t of (tierRows as { product_id: string; min_qty: number; price_twd: number }[] | null) ?? []) {
-    if (!firstTierByProduct.has(t.product_id)) {
-      firstTierByProduct.set(t.product_id, { min_qty: t.min_qty, price_twd: t.price_twd });
-    }
+  for (const t of ((tiersResp.data as { product_id: string; min_qty: number; price_twd: number }[] | null) ?? [])) {
+    if (!firstTierByProduct.has(t.product_id)) firstTierByProduct.set(t.product_id, t);
   }
 
-  // chip filter:全部 / 最新 / 各 category
   // C#8(2026-09-02):tenant.category_order 有列的照設定順序,沒列的照筆劃排後面
   const found = [...new Set(allProducts.map((p) => p.category).filter((c): c is string => !!c))];
   const categories = [
     ...tenant.category_order.filter((c) => found.includes(c)),
     ...found.filter((c) => !tenant.category_order.includes(c)).sort((a, b) => a.localeCompare(b, 'zh-Hant')),
   ];
-  const isCategory = !!f && categories.includes(f);
+  if (allProducts.some((p) => !p.category)) categories.push('其他');
+
+  // 「精選排序」:特價優先 → 有角標次之(同文字聚成一群,群序 = 群內最小 sort_order)→ 其餘照分類設定順序分組
   const now = new Date();
-  const hasSale = allProducts.some((p) => isSaleActive(p, now));
-
-  let products = [...allProducts];
-  if (f === 'latest') {
-    // 2026-09-18:角標寫「新品」的優先置頂,其餘照上架時間新→舊
-    // (query 已 created_at desc;sort 是穩定排序,各組內時間序保留)
-    const isNewBadge = (p: { badge: string | null }) => !!p.badge && p.badge.includes('新品');
-    products.sort((a, b) => (isNewBadge(a) ? 0 : 1) - (isNewBadge(b) ? 0 : 1));
-  } else if (f === 'sale') {
-    // 2026-09-03:「特價中」chip — 只列限時優惠生效中的商品
-    products = allProducts.filter((p) => isSaleActive(p, now));
-  } else if (isCategory) {
-    products = allProducts
-      .filter((p) => p.category === f)
-      .sort(bySortOrder);
-  } else {
-    // 全部 預設(2026-09-03):特價優先 → 有角標次之 → 其餘照分類設定順序分組
-    // 2026-09-21:同文字的角標聚成一群;角標群的先後 = 群內最小 sort_order
-    // (想讓哪一群整組排前面,到「商品排序」把該群任一商品拖前面即可)
-    const badgeRank = new Map<string, number>();
-    for (const p of allProducts) {
-      if (!p.badge) continue;
-      const r = p.sort_order ?? Number.MAX_SAFE_INTEGER;
-      const cur = badgeRank.get(p.badge);
-      if (cur === undefined || r < cur) badgeRank.set(p.badge, r);
-    }
-    products.sort((a, b) => {
-      const pa = isSaleActive(a, now) ? 0 : a.badge ? 1 : 2;
-      const pb = isSaleActive(b, now) ? 0 : b.badge ? 1 : 2;
-      if (pa !== pb) return pa - pb;
-      if (pa === 1) {
-        const ga = badgeRank.get(a.badge!) ?? Number.MAX_SAFE_INTEGER;
-        const gb = badgeRank.get(b.badge!) ?? Number.MAX_SAFE_INTEGER;
-        if (ga !== gb) return ga - gb;
-        if (a.badge !== b.badge) return a.badge!.localeCompare(b.badge!, 'zh-Hant');
-        return bySortOrder(a, b);
-      }
-      const ia = a.category ? categories.indexOf(a.category) : categories.length;
-      const ib = b.category ? categories.indexOf(b.category) : categories.length;
-      if (ia !== ib) return ia - ib;
-      return bySortOrder(a, b);
-    });
+  const badgeRank = new Map<string, number>();
+  for (const p of allProducts) {
+    if (!p.badge) continue;
+    const r = p.sort_order ?? Number.MAX_SAFE_INTEGER;
+    const cur = badgeRank.get(p.badge);
+    if (cur === undefined || r < cur) badgeRank.set(p.badge, r);
   }
+  const featured = [...allProducts].sort((a, b) => {
+    const pa = isSaleActive(a, now) ? 0 : a.badge ? 1 : 2;
+    const pb = isSaleActive(b, now) ? 0 : b.badge ? 1 : 2;
+    if (pa !== pb) return pa - pb;
+    if (pa === 1) {
+      const ga = badgeRank.get(a.badge!) ?? Number.MAX_SAFE_INTEGER;
+      const gb = badgeRank.get(b.badge!) ?? Number.MAX_SAFE_INTEGER;
+      if (ga !== gb) return ga - gb;
+      if (a.badge !== b.badge) return a.badge!.localeCompare(b.badge!, 'zh-Hant');
+      return bySortOrder(a, b);
+    }
+    const ia = a.category ? categories.indexOf(a.category) : categories.length;
+    const ib = b.category ? categories.indexOf(b.category) : categories.length;
+    if (ia !== ib) return ia - ib;
+    return bySortOrder(a, b);
+  });
+  const rankOf = new Map(featured.map((p, i) => [p.id, i]));
 
-  const activeKey = f === 'latest' || f === 'sale' || isCategory ? f : '';
-  const titleLabel = f === 'latest' ? '最新商品' : f === 'sale' ? '特價中' : isCategory ? f : '所有商品';
-  const chips: { key: string; label: React.ReactNode; href: string }[] = [
-    { key: '', label: '全部', href: `/${slug}` },
-    { key: 'latest', label: '最新', href: `/${slug}?f=latest` },
-    ...(hasSale
-      ? [{
-          key: 'sale',
-          label: (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              <IconFlame size={13} />特價中
-            </span>
-          ) as React.ReactNode,
-          href: `/${slug}?f=sale`,
-        }]
-      : []),
-    ...categories.map((c) => ({ key: c, label: c as React.ReactNode, href: `/${slug}?f=${encodeURIComponent(c)}` })),
-  ];
+  const listing: ListingProduct[] = allProducts.map((p) => {
+    const vs = [...(variantsByProduct.get(p.id) ?? [])].sort(
+      (a, b) => (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER),
+    );
+    const prices = vs.map((v) => v.price_twd);
+    const firstImage = (p.media ?? []).find((m) => m.type === 'image') as (MediaItem & { fit?: 'cover' | 'contain' }) | undefined;
+    const tier = firstTierByProduct.get(p.id);
+    const single = vs.length === 1 ? vs[0] : null;
+    const earliest = vs.reduce((acc, v) => (acc && acc < v.created_at ? acc : v.created_at), '' as string);
+    return {
+      id: p.id,
+      slug: p.slug ?? p.id,
+      name: p.name,
+      category: p.category ?? '其他',
+      image: firstImage?.url ?? p.image_url ?? null,
+      fit: firstImage?.fit === 'contain' ? 'contain' : 'cover',
+      badge: p.badge,
+      badgeColor: p.badge_color,
+      saleActive: isSaleActive(p, now),
+      salePct: p.sale_discount_pct ?? 0,
+      lo: prices.length ? Math.min(...prices) : 0,
+      hi: prices.length ? Math.max(...prices) : 0,
+      stock: vs.reduce((s, v) => s + (v.stock ?? 0), 0),
+      variantCount: vs.length,
+      single: single ? { id: single.id, name: single.variant_name, price: single.price_twd, image: single.image_url } : null,
+      tierHint: tier ? `${tier.min_qty} 件起 NT$ ${tier.price_twd.toLocaleString()}/件` : null,
+      createdAt: earliest || '',
+      rank: rankOf.get(p.id) ?? Number.MAX_SAFE_INTEGER,
+    };
+  });
 
   // Hero banner — Phase 9.8 multi-media,fallback 舊 og_image_url
   const banners = tenant.banners.length > 0
@@ -140,276 +144,20 @@ export default async function TenantHomePage({ params, searchParams }: Props) {
 
   return (
     <>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-.product-card {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s, border-color 0.2s;
-}
-.product-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  border-color: #d4d4d8;
-}
-.product-card:hover .product-img {
-  transform: scale(1.04);
-}
-.product-img {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.hero-banner {
-  animation: hero-fadein 0.5s ease;
-}
-@keyframes hero-fadein {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-          `,
-        }}
-      />
-
       {banners.length > 0 && (
-        <div className="hero-banner" style={{ marginBottom: '2.5rem' }}>
+        <div className="ui-enter" style={{ marginBottom: '2.5rem' }}>
           <BannerHero banners={banners} tenantName={tenant.name} />
         </div>
       )}
 
       {allProducts.length === 0 ? (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '4rem 1.5rem',
-            color: '#71717a',
-            background: '#ffffff',
-            border: '1px solid #e4e4e7',
-            borderRadius: 12,
-          }}
-        >
+        <div className="ui-card" style={{ textAlign: 'center', padding: '4rem 1.5rem', color: 'var(--ui-muted)' }}>
           <div style={{ marginBottom: 16, color: '#d4d4d8' }}><IconPackage size={44} /></div>
-          <p style={{ fontSize: '1.125rem', margin: 0, fontWeight: 500, color: '#18181b' }}>
-            攤位準備中
-          </p>
-          <p style={{ fontSize: '0.875rem', margin: '0.5rem 0 0', color: '#a1a1aa' }}>
-            商品即將上架,敬請期待
-          </p>
+          <p style={{ fontSize: '1.125rem', margin: 0, fontWeight: 500, color: 'var(--ui-ink)' }}>攤位準備中</p>
+          <p style={{ fontSize: '0.875rem', margin: '0.5rem 0 0', color: 'var(--ui-faint)' }}>商品即將上架,敬請期待</p>
         </div>
       ) : (
-        <>
-          {/* Chip filter row(橫滑) */}
-          {chips.length > 1 && (
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                overflowX: 'auto',
-                marginBottom: '1.25rem',
-                paddingBottom: 4,
-                scrollbarWidth: 'none',
-              }}
-            >
-              {chips.map((c) => {
-                const isActive = activeKey === c.key;
-                return (
-                  <Link
-                    key={c.key || 'all'}
-                    href={c.href}
-                    style={{
-                      padding: '6px 14px',
-                      background: isActive ? '#18181b' : '#ffffff',
-                      color: isActive ? '#ffffff' : '#52525b',
-                      border: `1px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
-                      borderRadius: 999,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      textDecoration: 'none',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {c.label}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Section title */}
-          <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#18181b', letterSpacing: '-0.01em' }}>
-              {titleLabel}
-            </h2>
-            <span style={{ fontSize: '0.8125rem', color: '#a1a1aa' }}>
-              {products.length} 件
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-              gap: '1.25rem',
-            }}
-          >
-            {products.map((p) => (
-              <a
-                key={p.id}
-                href={`/${slug}/p/${p.slug ?? p.id}`}
-                className="product-card"
-                style={{
-                  display: 'block',
-                  background: '#ffffff',
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  border: '1px solid #e4e4e7',
-                  textDecoration: 'none',
-                  color: 'inherit',
-                }}
-              >
-                <div style={{ overflow: 'hidden', position: 'relative' }}>
-                  {/* C#9(2026-09-02):自訂角標(HOT / 9折…)。有 sale badge 時排它下面 */}
-                  {p.badge && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        padding: '4px 10px',
-                        // Phase 15.2:自選角標色,亮色底自動配深字
-                        background: p.badge_color ?? '#b45309',
-                        color: badgeFg(p.badge_color ?? '#b45309'),
-                        borderRadius: 999,
-                        fontSize: 11,
-                        fontWeight: 800,
-                        letterSpacing: '0.03em',
-                        zIndex: 1,
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                      }}
-                    >
-                      {p.badge}
-                    </div>
-                  )}
-                  {/* Phase 9.9 v2:sale badge 顯示 % off 在縮圖左上 */}
-                  {isSaleActive(p, now) && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        left: 8,
-                        padding: '4px 10px',
-                        background: '#dc2626',
-                        color: '#fff',
-                        borderRadius: 999,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        zIndex: 1,
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                      }}
-                    >
-                      {/* 2026-09-03:改台灣「折」講法;2026-09-08 emoji → icon */}
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        <IconFlame size={11} />{pctToZhe(p.sale_discount_pct!)}
-                      </span>
-                    </div>
-                  )}
-                  {(() => {
-                    // Phase 9.6:列表縮圖優先用 media 第一張 image,fallback image_url
-                    const firstImage = (p.media ?? []).find((m) => m.type === 'image');
-                    const thumb = firstImage?.url ?? p.image_url;
-                    return thumb;
-                  })() ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={(p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? ''}
-                      alt={p.name}
-                      className="product-img"
-                      style={{
-                        width: '100%',
-                        aspectRatio: '3 / 4',
-                        objectFit: 'cover',
-                        display: 'block',
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: '100%',
-                        aspectRatio: '3 / 4',
-                        background: '#f4f4f5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#a1a1aa',
-                        fontSize: '0.875rem',
-                      }}
-                    >
-                      無圖
-                    </div>
-                  )}
-                </div>
-                <div style={{ padding: '0.875rem 1rem 1.125rem' }}>
-                  <div
-                    style={{
-                      fontWeight: 500,
-                      fontSize: '0.9375rem',
-                      lineHeight: 1.4,
-                      color: '#18181b',
-                      letterSpacing: '-0.005em',
-                      overflow: 'hidden',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      minHeight: '2.625rem',
-                    }}
-                  >
-                    {p.name}
-                  </div>
-                  {p.min_price_twd > 0 && (
-                    isSaleActive(p, now) ? (
-                      <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                        <span
-                          style={{
-                            color: '#dc2626',
-                            fontSize: '0.9375rem',
-                            fontWeight: 700,
-                            fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                            letterSpacing: '-0.01em',
-                          }}
-                        >
-                          NT$ {applySaleDiscount(p.min_price_twd, p.sale_discount_pct!).toLocaleString()}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: '#a1a1aa', textDecoration: 'line-through' }}>
-                          {p.min_price_twd.toLocaleString()}
-                        </span>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          marginTop: '0.5rem',
-                          color: '#18181b',
-                          fontSize: '0.9375rem',
-                          fontWeight: 600,
-                          fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                          letterSpacing: '-0.01em',
-                        }}
-                      >
-                        NT$ {p.min_price_twd.toLocaleString()}
-                        {(() => {
-                          const t = firstTierByProduct.get(p.id);
-                          return t ? (
-                            <span style={{ color: '#b45309' }}>
-                              {' / '}
-                              {(t.min_qty * t.price_twd).toLocaleString()}
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
-                    )
-                  )}
-                </div>
-              </a>
-            ))}
-          </div>
-        </>
+        <ShopListing slug={slug} products={listing} categories={categories} />
       )}
     </>
   );
