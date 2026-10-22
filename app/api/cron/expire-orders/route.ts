@@ -25,7 +25,7 @@
  * 安全:只有帶對 CRON_SECRET 的請求能呼叫(這支會取消訂單,不能公開)。
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
 import { checkLinePayPaymentStatus, confirmLinePayPayment } from '@/lib/linepay';
 import { applyEcpayPaymentResult, queryEcpayTrade } from '@/lib/ecpay';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -95,6 +95,11 @@ async function reconcileLinePay(): Promise<string[]> {
     const confirmed = await confirmLinePayPayment(o.linepay_transaction_id, amount);
     if (!confirmed.ok) {
       console.error('[reconcileLinePay] 補請款失敗', o.order_no, confirmed.code, confirmed.error);
+      await notifyAdmin('LINE Pay 客人已授權,但補請款失敗', [
+        `訂單 ${o.order_no},NT$ ${amount}`,
+        `LINE Pay 回 ${confirmed.code}:${confirmed.error}`,
+        '請到 LINE Pay 商家中心查這筆。',
+      ]);
       continue;
     }
 
@@ -106,6 +111,10 @@ async function reconcileLinePay(): Promise<string[]> {
     if (updErr) {
       // 錢已經請款了,這裡失敗要人工補標
       console.error('[reconcileLinePay] 已請款但更新訂單失敗', o.order_no, updErr);
+      await notifyAdmin('LINE Pay 已補請款但訂單沒標到已收款', [
+        `訂單 ${o.order_no},NT$ ${amount}`,
+        '請到後台手動標已收款。',
+      ]);
       continue;
     }
     recovered.push(o.order_no);
@@ -189,6 +198,13 @@ async function reconcileEcpay(): Promise<string[]> {
         console.log('[reconcileEcpay] 補標已付款', o.order_no, q.tradeAmt);
       } else {
         console.warn('[reconcileEcpay] 綠界說已付款但沒補成', o.order_no, result);
+        if (result !== 'already_paid') {
+          await notifyAdmin('綠界說這筆已付款,但系統沒能標成已收款', [
+            `訂單 ${o.order_no},綠界 NT$ ${q.tradeAmt}`,
+            `原因:${result}`,
+            '請到後台核對後手動標已收款。',
+          ]);
+        }
       }
     }
     await new Promise((r) => setTimeout(r, 500));

@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { refundLinePayPayment } from '@/lib/linepay';
 import { refundEcpayCredit } from '@/lib/ecpay';
-import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
 
@@ -1102,6 +1102,10 @@ export async function refundLinePayOrder(formData: FormData) {
   if (updErr) {
     // 錢已經退了,這裡失敗要人工補標,務必留 log
     console.error('[refundLinePayOrder] 已退款但更新訂單失敗', order.order_no, amount, updErr);
+    await notifyAdmin('LINE Pay 退款已退出,但訂單沒標到', [
+      `訂單 ${order.order_no},退 NT$ ${amount}`,
+      '請到後台把訂單狀態改成已退款(不要再按一次退款)。',
+    ]);
   }
 
   const lineUserId = order.users?.line_user_id;
@@ -1222,6 +1226,10 @@ export async function refundEcpayOrder(formData: FormData) {
   if (updErr) {
     // 錢已經退了,這裡失敗要人工補標,務必留 log
     console.error('[refundEcpayOrder] 已退款但更新訂單失敗', order.order_no, amount, updErr);
+    await notifyAdmin('綠界退款已退出,但訂單沒標到', [
+      `訂單 ${order.order_no},退 NT$ ${amount}`,
+      '請到後台把訂單狀態改成已退款(不要再按一次退款)。',
+    ]);
   }
 
   const lineUserId = order.users?.line_user_id;
