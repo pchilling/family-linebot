@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
-import { updateOrder, markOrderPaid, markOrderShipped, refundLinePayOrder } from '../../../actions';
+import { updateOrder, markOrderPaid, markOrderShipped, refundEcpayOrder, refundLinePayOrder } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
 
@@ -24,7 +24,9 @@ type OrderDetail = {
   payment_reported_at: string | null; // D#14:客人自助回報時間
   linepay_transaction_id: string | null; // Phase 17:LINE Pay 交易序號(退款要用)
   linepay_refunded_twd: number | null; // Phase 17:已退款金額(部分退款累計)
-  ecpay_trade_no: string | null; // Phase 21:綠界交易編號(對帳 / 到綠界後台退款用)
+  ecpay_merchant_trade_no: string | null; // Phase 21:我們送給綠界的特店交易編號(退款要一起帶)
+  ecpay_trade_no: string | null; // Phase 21:綠界交易編號(對帳 / 退款用)
+  ecpay_refunded_twd: number | null; // Phase 21.1:綠界已退款金額(部分退款累計)
   atm_bank_code: string | null; // Phase 21:綠界 ATM 虛擬帳號
   atm_vaccount: string | null;
   atm_expire_at: string | null;
@@ -60,7 +62,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
       // payment_last5 / payment_reported_at / shipping_*:Phase 14-15 SQL(2026-09-02)已加
       `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
        linepay_transaction_id, linepay_refunded_twd,
-       ecpay_trade_no, atm_bank_code, atm_vaccount, atm_expire_at,
+       ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, atm_bank_code, atm_vaccount, atm_expire_at,
        invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, note,
@@ -104,7 +106,7 @@ export default async function OrderDetailPage({
   searchParams,
 }: {
   params: Promise<{ tenant: string; id: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; msg?: string }>;
 }) {
   const { tenant: slug, id } = await params;
   const sp = await searchParams;
@@ -117,10 +119,14 @@ export default async function OrderDetailPage({
   const justShipped = sp.saved === 'shipped';
   const justEdit = sp.saved === 'edit';
   // Phase 17:LINE Pay 退款結果
+  // Phase 21.1:綠界退款多兩種結果(放棄授權免手續費 / 批次請款時段不能退),失敗原因用 msg 帶回
+  const refundDetail = sp.msg ? decodeURIComponent(String(sp.msg)).slice(0, 300) : '';
   const refundMsg =
     sp.saved === 'refunded' ? '退款已送出,客人會收到 LINE 通知'
+    : sp.saved === 'refunded_void' ? '已取消授權(這筆還沒請款,不收手續費),客人會收到 LINE 通知'
     : sp.saved === 'refund_over' ? '退款失敗:金額超過可退金額'
-    : sp.saved === 'refund_failed' ? '退款失敗,款項未退出 — 請看 Vercel log 或到 LINE Pay 商家中心確認'
+    : sp.saved === 'refund_closing' ? '綠界每天 20:15–20:30 批次請款中,請 20:35 後再退'
+    : sp.saved === 'refund_failed' ? `退款失敗,款項未退出${refundDetail ? `:${refundDetail}` : ' — 請看 Vercel log 或到金流商後台確認'}`
     : null;
   const isPaid = o.payment_status === 'paid';
   const isShipped = o.status === 'shipped' || o.status === 'delivered';
@@ -407,9 +413,59 @@ export default async function OrderDetailPage({
               ? '綠界已通知收款,訂單自動標為已收款。'
               : '客人付款後綠界會自動通知,這筆會自己變成已收款,不用人工核帳。'}
           </div>
-          <div style={{ fontSize: 12, color: '#115e59', marginTop: 10, lineHeight: 1.6 }}>
-            要退款請到綠界廠商後台(信用卡可線上退刷;ATM 要人工匯回客人帳戶),退完再把下方訂單狀態改成「已退款」。
-          </div>
+          {/* Phase 21.1:信用卡可以直接在這裡退(跟 LINE Pay 同一套);ATM 要人工匯回 */}
+          {o.payment_method === 'ecpay_credit' && o.ecpay_merchant_trade_no && o.ecpay_trade_no &&
+          (o.payment_status === 'paid' || (o.ecpay_refunded_twd ?? 0) > 0) ? (() => {
+            const grandTotal = o.total_twd + (o.shipping_fee_twd ?? 0);
+            const alreadyRefunded = o.ecpay_refunded_twd ?? 0;
+            const remaining = grandTotal - alreadyRefunded;
+            return (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #99f6e4' }}>
+                <div style={{ fontSize: 13, color: '#134e4a', lineHeight: 1.7, marginBottom: 10 }}>
+                  實收 NT$ {grandTotal.toLocaleString()}
+                  {alreadyRefunded > 0 && <> · 已退 NT$ {alreadyRefunded.toLocaleString()}</>}
+                  {' '}· 可退 <strong>NT$ {Math.max(0, remaining).toLocaleString()}</strong>
+                </div>
+                {remaining <= 0 || o.payment_status !== 'paid' ? (
+                  <div style={{ fontSize: 13, color: '#115e59', fontWeight: 600 }}>此筆已全額退款完畢。</div>
+                ) : (
+                  <form action={refundEcpayOrder} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <input type="hidden" name="id" value={o.id} />
+                    <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                    <label style={{ ...label, flex: '0 1 160px' }}>
+                      <span style={labelText}>退款金額(NT$)</span>
+                      <input
+                        name="refund_amount"
+                        type="number"
+                        min="1"
+                        max={remaining}
+                        defaultValue={remaining}
+                        style={input}
+                      />
+                    </label>
+                    <SubmitButton
+                      variant="danger"
+                      pendingText="退款中…"
+                      confirmText={`確定要退款給客人嗎?退款不可取消,確認後會立刻向綠界送出退款。(訂單 ${o.order_no})`}
+                    >
+                      送出退款
+                    </SubmitButton>
+                  </form>
+                )}
+                <div style={{ fontSize: 12, color: '#115e59', marginTop: 10, lineHeight: 1.6 }}>
+                  預設帶全額。今天剛刷、還沒請款的單會用「放棄授權」退,不收任何手續費;已請款的用「退刷」,綠界退回 2.75% 手續費、扣 NT$1 處理費。
+                  部分退款要等請款後(隔天早上 6 點後)才做得到。每天 20:15–20:30 綠界批次請款中不能退。
+                  全額退完會自動把訂單標成「已退款」並退回庫存。
+                </div>
+              </div>
+            );
+          })() : (
+            <div style={{ fontSize: 12, color: '#115e59', marginTop: 10, lineHeight: 1.6 }}>
+              {o.payment_method === 'ecpay_atm'
+                ? 'ATM 轉帳要退款請人工匯回客人帳戶,退完再把下方訂單狀態改成「已退款」。'
+                : '這筆還沒收到綠界的付款通知,收款後這裡會出現退款功能。'}
+            </div>
+          )}
         </section>
       )}
 

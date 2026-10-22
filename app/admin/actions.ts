@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { refundLinePayPayment } from '@/lib/linepay';
+import { refundEcpayCredit } from '@/lib/ecpay';
 import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
@@ -1121,6 +1122,125 @@ export async function refundLinePayOrder(formData: FormData) {
   }
 
   return back('refunded');
+}
+
+// ====================
+// 綠界信用卡退款(2026-10-22)— 跟 LINE Pay 同一套:填金額 + 二次確認。
+// 全額退 → 順便把訂單標已退款(trigger 自動退庫存);部分退 → 只退錢,狀態不動。
+// 今天剛刷還沒請款的單會走「放棄授權」(免手續費),已請款的走「退刷」(扣 NT$1 處理費)。
+// ⚠️ 退款不可逆,先退錢成功才改訂單。失敗原因用 msg 帶回頁面顯示。
+// ====================
+export async function refundEcpayOrder(formData: FormData) {
+  const id = String(formData.get('id'));
+  const slug = String(formData.get('tenant_slug') || '').trim();
+  const amountRaw = Number(formData.get('refund_amount'));
+
+  const back = (saved: string, msg?: string) => {
+    if (!slug) return;
+    revalidatePath(`/admin/${slug}/orders/${id}`);
+    revalidatePath(`/admin/${slug}/orders`);
+    redirect(`/admin/${slug}/orders/${id}?saved=${saved}${msg ? `&msg=${encodeURIComponent(msg)}` : ''}`);
+  };
+
+  const { data } = await supabaseAdmin
+    .from('orders')
+    .select(
+      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, users(line_user_id)',
+    )
+    .eq('id', id)
+    .maybeSingle();
+  const order = (data ?? null) as unknown as {
+    id: string;
+    order_no: string;
+    total_twd: number;
+    shipping_fee_twd: number | null;
+    payment_status: string;
+    payment_method: string | null;
+    ecpay_merchant_trade_no: string | null;
+    ecpay_trade_no: string | null;
+    ecpay_refunded_twd: number | null;
+    users: { line_user_id: string | null } | null;
+  } | null;
+
+  if (
+    !order ||
+    order.payment_method !== 'ecpay_credit' ||
+    !order.ecpay_merchant_trade_no ||
+    !order.ecpay_trade_no ||
+    order.payment_status !== 'paid'
+  ) {
+    console.error('[refundEcpayOrder] 不是可退款的綠界信用卡訂單', id);
+    return back('refund_failed', '這筆不是已收款的綠界信用卡訂單');
+  }
+
+  const grandTotal = order.total_twd + (order.shipping_fee_twd ?? 0);
+  const already = order.ecpay_refunded_twd ?? 0;
+  const remaining = grandTotal - already;
+  if (remaining <= 0) {
+    console.error('[refundEcpayOrder] 已無可退金額', order.order_no);
+    return back('refund_failed', '已無可退金額');
+  }
+
+  const amount =
+    Number.isFinite(amountRaw) && amountRaw > 0 ? Math.floor(amountRaw) : remaining;
+  if (amount > remaining) {
+    console.error('[refundEcpayOrder] 退款金額超過可退金額', order.order_no, amount, remaining);
+    return back('refund_over');
+  }
+
+  // 整筆沒退過而且這次退全額,才有資格走「放棄授權」免手續費
+  const result = await refundEcpayCredit({
+    merchantTradeNo: order.ecpay_merchant_trade_no,
+    tradeNo: order.ecpay_trade_no,
+    amount,
+    fullRefund: already === 0 && amount === grandTotal,
+  });
+  if (!result.ok) {
+    return back(result.code === 'closing_window' ? 'refund_closing' : 'refund_failed', result.message);
+  }
+
+  const refundedTotal = already + amount;
+  const isFullRefund = refundedTotal >= grandTotal;
+  const payload: Record<string, unknown> = { ecpay_refunded_twd: refundedTotal };
+  if (isFullRefund) {
+    // status 改 refunded 會觸發 handle_order_cancel 自動退庫存
+    payload.status = 'refunded';
+    payload.payment_status = 'refunded';
+  }
+  const { error: updErr } = await supabaseAdmin.from('orders').update(payload).eq('id', id);
+  if (updErr) {
+    // 錢已經退了,這裡失敗要人工補標,務必留 log
+    console.error('[refundEcpayOrder] 已退款但更新訂單失敗', order.order_no, amount, updErr);
+  }
+
+  const lineUserId = order.users?.line_user_id;
+  if (lineUserId) {
+    try {
+      const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
+      const tenant = await getTenantBySlug(slug);
+      await lineClient.pushMessage({
+        to: lineUserId,
+        messages: [
+          buildPaymentFlexMessage({
+            kind: 'refunded',
+            orderNo: order.order_no,
+            amountTwd: amount,
+            remainingTwd: grandTotal - refundedTotal,
+            orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}`,
+            method: '信用卡',
+            refundNote:
+              result.action === 'R'
+                ? '款項將退回您刷卡的信用卡,發卡銀行約需 14–21 個工作天入帳,可能會落在下一期帳單。'
+                : '這筆刷卡已取消授權,不會出現在您的信用卡帳單;若已看到暫時的佔額,銀行會在幾個工作天內釋放。',
+          }),
+        ],
+      });
+    } catch (e) {
+      console.warn('[refundEcpayOrder] push 失敗', e);
+    }
+  }
+
+  return back(result.action === 'R' ? 'refunded' : 'refunded_void');
 }
 
 // ====================
