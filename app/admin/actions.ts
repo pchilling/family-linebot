@@ -1049,7 +1049,7 @@ export async function refundLinePayOrder(formData: FormData) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, linepay_transaction_id, linepay_refunded_twd, users(line_user_id)',
+      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, linepay_transaction_id, linepay_refunded_twd, access_key, users(line_user_id)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -1062,6 +1062,7 @@ export async function refundLinePayOrder(formData: FormData) {
     payment_method: string | null;
     linepay_transaction_id: string | null;
     linepay_refunded_twd: number | null;
+    access_key: string | null;
     users: { line_user_id: string | null } | null;
   } | null;
 
@@ -1116,7 +1117,7 @@ export async function refundLinePayOrder(formData: FormData) {
             orderNo: order.order_no,
             amountTwd: amount,
             remainingTwd: grandTotal - refundedTotal,
-            orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}`,
+            orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}${order.access_key ? `?k=${order.access_key}` : ''}`,
             reason: reason ?? undefined,
           }),
         ],
@@ -1153,7 +1154,7 @@ export async function refundEcpayOrder(formData: FormData) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, users(line_user_id)',
+      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, access_key, users(line_user_id)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -1167,6 +1168,7 @@ export async function refundEcpayOrder(formData: FormData) {
     ecpay_merchant_trade_no: string | null;
     ecpay_trade_no: string | null;
     ecpay_refunded_twd: number | null;
+    access_key: string | null;
     users: { line_user_id: string | null } | null;
   } | null;
 
@@ -1235,7 +1237,7 @@ export async function refundEcpayOrder(formData: FormData) {
             orderNo: order.order_no,
             amountTwd: amount,
             remainingTwd: grandTotal - refundedTotal,
-            orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}`,
+            orderUrl: `${baseUrl}/${tenant?.slug ?? slug}/order/${order.order_no}${order.access_key ? `?k=${order.access_key}` : ''}`,
             method: '信用卡',
             reason: reason ?? undefined,
             refundNote:

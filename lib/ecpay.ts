@@ -420,12 +420,13 @@ type EcpayOrderRow = {
   status: string;
   ecpay_merchant_trade_no: string | null;
   atm_vaccount: string | null;
+  access_key: string | null;
   tenants: { slug: string; name: string } | null;
   users: { line_user_id: string | null } | null;
 };
 
 const ORDER_SELECT =
-  'id, order_no, total_twd, shipping_fee_twd, payment_status, status, ecpay_merchant_trade_no, atm_vaccount, tenants(slug, name), users(line_user_id)';
+  'id, order_no, total_twd, shipping_fee_twd, payment_status, status, ecpay_merchant_trade_no, atm_vaccount, access_key, tenants(slug, name), users(line_user_id)';
 
 /**
  * 用通知裡的資料找訂單:先比特店交易編號;對不上(客人後來換過付款方式,
@@ -524,7 +525,7 @@ export async function applyEcpayPaymentResult(fields: EcpayFields, baseUrl: stri
             kind: 'paid',
             orderNo: order.order_no,
             amountTwd: amount,
-            orderUrl: `${baseUrl}/${slug}/order/${order.order_no}`,
+            orderUrl: `${baseUrl}/${slug}/order/${order.order_no}${order.access_key ? `?k=${order.access_key}` : ''}`,
             method: paymentMethodLabel(method ?? 'ecpay_credit'),
           }),
         ],

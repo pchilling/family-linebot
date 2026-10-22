@@ -481,7 +481,7 @@ export async function placeOrder(
       shipping_fee_twd: shippingFee,
       note: note || null,
     })
-    .select('id, order_no, total_twd')
+    .select('id, order_no, total_twd, access_key')
     .single();
   if (orderErr || !order) {
     console.error('[placeOrder insert order]', orderErr);
@@ -523,7 +523,7 @@ export async function placeOrder(
   //    所以這裡用本地 cart × price snapshot 直接算
   const totalForPush = pricedSubtotal + shippingFee; // 折後小計 + 運費
   try {
-    await pushOrderConfirmation(lineUserId, order.order_no, totalForPush, paymentMethod);
+    await pushOrderConfirmation(lineUserId, order.order_no, totalForPush, paymentMethod, order.access_key ?? null);
   } catch (e) {
     console.warn('[placeOrder push]', e);
   }
@@ -594,6 +594,7 @@ async function pushOrderConfirmation(
   orderNo: string,
   totalTwd: number,
   paymentMethod: string = 'bank',
+  accessKey: string | null = null, // Phase 22:訂單頁連結帶存取碼
 ): Promise<void> {
   // 2026-10-16:LINE Pay 單不要講匯款(客人是線上付款),改提示去完成付款
   // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號)同理
@@ -609,7 +610,7 @@ async function pushOrderConfirmation(
   const tenant = (t as { slug: string; payment_info: string | null; name: string } | null) ?? null;
 
   const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw';
-  const orderUrl = tenant ? `${baseUrl}/${tenant.slug}/order/${orderNo}` : '';
+  const orderUrl = tenant ? `${baseUrl}/${tenant.slug}/order/${orderNo}${accessKey ? `?k=${accessKey}` : ''}` : '';
 
   // 沒有訂單連結(理論上不會發生)→ 退回純文字
   if (!orderUrl) {

@@ -22,6 +22,7 @@ type OrderRow = {
   payment_status: string;
   status: string;
   linepay_transaction_id: string | null;
+  access_key: string | null;
   users: { line_user_id: string | null } | null;
 };
 
@@ -40,13 +41,18 @@ export async function GET(req: NextRequest) {
   const tenant = await getTenantBySlug(slug);
   if (!tenant) return NextResponse.redirect(home);
 
+  // Phase 22:導回訂單頁要帶存取碼(訂單載入後填入),沒帶的話客人會看到遮蔽版
+  let accessKey = '';
   const orderUrl = (query: string) =>
-    new URL(`/${slug}/order/${orderNo}${query}`, req.nextUrl.origin);
+    new URL(
+      `/${slug}/order/${orderNo}${query}${accessKey ? `${query ? '&' : '?'}k=${accessKey}` : ''}`,
+      req.nextUrl.origin,
+    );
 
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, payment_status, status, linepay_transaction_id, users(line_user_id)',
+      'id, order_no, total_twd, shipping_fee_twd, payment_status, status, linepay_transaction_id, access_key, users(line_user_id)',
     )
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
@@ -57,6 +63,7 @@ export async function GET(req: NextRequest) {
     console.error('[linepay confirm] 找不到訂單', orderNo);
     return NextResponse.redirect(home);
   }
+  accessKey = order.access_key ?? '';
   // 重複導回(客人按上一頁 / 重新整理)→ 直接看訂單頁,不再扣一次
   if (order.payment_status === 'paid') {
     return NextResponse.redirect(orderUrl('?linepay=done'));
@@ -98,7 +105,7 @@ export async function GET(req: NextRequest) {
             kind: 'paid',
             orderNo: order.order_no,
             amountTwd: amount,
-            orderUrl: `${baseUrl}/${slug}/order/${order.order_no}`,
+            orderUrl: `${baseUrl}/${slug}/order/${order.order_no}${accessKey ? `?k=${accessKey}` : ''}`,
           }),
         ],
       });

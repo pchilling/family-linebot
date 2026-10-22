@@ -58,6 +58,7 @@ type PendingLinePayOrder = {
   total_twd: number;
   shipping_fee_twd: number | null;
   linepay_transaction_id: string;
+  access_key: string | null;
   tenants: { slug: string } | null;
   users: { line_user_id: string | null } | null;
 };
@@ -72,7 +73,7 @@ async function reconcileLinePay(): Promise<string[]> {
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, linepay_transaction_id, tenants(slug), users(line_user_id)',
+      'id, order_no, total_twd, shipping_fee_twd, linepay_transaction_id, access_key, tenants(slug), users(line_user_id)',
     )
     .eq('payment_status', 'pending')
     .eq('status', 'open')
@@ -122,7 +123,7 @@ async function reconcileLinePay(): Promise<string[]> {
               kind: 'paid',
               orderNo: o.order_no,
               amountTwd: amount,
-              orderUrl: `${baseUrl}/${slug}/order/${o.order_no}`,
+              orderUrl: `${baseUrl}/${slug}/order/${o.order_no}${o.access_key ? `?k=${o.access_key}` : ''}`,
             }),
           ],
         });
