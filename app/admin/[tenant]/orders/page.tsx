@@ -367,12 +367,13 @@ export default async function OrdersListPage({
                       </span>
                     </div>
                   )}
-                  {/* 2026-10-16:客人選了 LINE Pay 但沒付完 — 不是等你核帳的單,
-                      隔天排程會自動取消並退庫存,標出來免得被當成待辦 */}
-                  {o.payment_status === 'pending' && o.payment_method === 'line_pay' && (
+                  {/* 2026-10-16:客人選了線上付款(LINE Pay / 綠界)但還沒付完 — 不是等你核帳的單,
+                      付完會自動變已收款;逾期排程會自動取消並退庫存,標出來免得被當成待辦 */}
+                  {o.payment_status === 'pending' &&
+                    (o.payment_method === 'line_pay' || o.payment_method === 'ecpay_credit' || o.payment_method === 'ecpay_atm') && (
                     <div style={{ marginTop: 3 }}>
                       <span style={{ display: 'inline-block', padding: '1px 7px', background: '#f4f4f5', color: '#71717a', borderRadius: 3, fontSize: 11, fontWeight: 600 }}>
-                        LINE Pay 未完成
+                        {o.payment_method === 'line_pay' ? 'LINE Pay 未完成' : o.payment_method === 'ecpay_credit' ? '信用卡未完成' : 'ATM 待轉帳'}
                       </span>
                     </div>
                   )}

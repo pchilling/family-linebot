@@ -200,10 +200,18 @@ export default async function TenantDashboardPage({ params, searchParams }: Prop
     for (const o of scoped) mp.set(key(o), (mp.get(key(o)) ?? 0) + 1);
     return mp;
   };
-  const payMap = count((o) => (o.payment_method === 'line_pay' ? 'line_pay' : 'bank'));
+  // 線上付款三種(LINE Pay / 綠界信用卡 / 綠界 ATM)各自計,其餘都算匯款
+  const payMap = count((o) =>
+    o.payment_method === 'line_pay' || o.payment_method === 'ecpay_credit' || o.payment_method === 'ecpay_atm'
+      ? o.payment_method
+      : 'bank',
+  );
   const srcMap = count((o) => (o.source === 'liff' ? 'liff' : o.source === 'web' ? 'web' : 'other'));
   const payBank = payMap.get('bank') ?? 0;
   const payLine = payMap.get('line_pay') ?? 0;
+  const payCredit = payMap.get('ecpay_credit') ?? 0;
+  const payAtm = payMap.get('ecpay_atm') ?? 0;
+  const payOnline = payLine + payCredit + payAtm;
   const srcLiff = srcMap.get('liff') ?? 0;
   const srcWeb = srcMap.get('web') ?? 0;
   const srcOther = srcMap.get('other') ?? 0;
@@ -385,10 +393,14 @@ export default async function TenantDashboardPage({ params, searchParams }: Prop
                 <div style={{ display: 'flex', height: 22, borderRadius: 6, overflow: 'hidden', background: c.lineSoft }}>
                   <div style={{ width: `${pct(payBank, scoped.length)}%`, background: c.text }} />
                   <div style={{ width: `${pct(payLine, scoped.length)}%`, background: c.linePay }} />
+                  <div style={{ width: `${pct(payCredit, scoped.length)}%`, background: c.blue }} />
+                  <div style={{ width: `${pct(payAtm, scoped.length)}%`, background: '#0f766e' }} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, gap: 8, flexWrap: 'wrap', ...num }}>
                   <span><Dot color={c.text} />匯款 {payBank} 筆({pct(payBank, scoped.length)}%)</span>
                   <span><Dot color={c.linePay} />LINE Pay {payLine} 筆({pct(payLine, scoped.length)}%)</span>
+                  {payCredit > 0 && <span><Dot color={c.blue} />信用卡 {payCredit} 筆({pct(payCredit, scoped.length)}%)</span>}
+                  {payAtm > 0 && <span><Dot color="#0f766e" />ATM 轉帳 {payAtm} 筆({pct(payAtm, scoped.length)}%)</span>}
                 </div>
               </div>
               <div style={{ marginTop: 20 }}>
@@ -404,9 +416,9 @@ export default async function TenantDashboardPage({ params, searchParams }: Prop
                   {srcOther > 0 && <span><Dot color="#d4d4d8" />其他 {srcOther} 筆</span>}
                 </div>
               </div>
-              {hasLinePay && payLine > 0 && (
+              {payOnline > 0 && (
                 <div style={{ marginTop: 20, padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, color: '#166534', lineHeight: 1.5 }}>
-                  {rangeLabel}有 {payLine} 筆用 LINE Pay 付款,省下 {payLine} 次核帳。
+                  {rangeLabel}有 {payOnline} 筆線上付款(LINE Pay / 信用卡 / ATM 轉帳),省下 {payOnline} 次人工核帳。
                 </div>
               )}
             </>

@@ -24,6 +24,10 @@ type OrderDetail = {
   payment_reported_at: string | null; // D#14:客人自助回報時間
   linepay_transaction_id: string | null; // Phase 17:LINE Pay 交易序號(退款要用)
   linepay_refunded_twd: number | null; // Phase 17:已退款金額(部分退款累計)
+  ecpay_trade_no: string | null; // Phase 21:綠界交易編號(對帳 / 到綠界後台退款用)
+  atm_bank_code: string | null; // Phase 21:綠界 ATM 虛擬帳號
+  atm_vaccount: string | null;
+  atm_expire_at: string | null;
   invoice_tax_id: string | null; // Phase 15.4:統編發票
   invoice_title: string | null;
   total_twd: number;
@@ -56,6 +60,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
       // payment_last5 / payment_reported_at / shipping_*:Phase 14-15 SQL(2026-09-02)已加
       `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
        linepay_transaction_id, linepay_refunded_twd,
+       ecpay_trade_no, atm_bank_code, atm_vaccount, atm_expire_at,
        invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, note,
@@ -74,7 +79,7 @@ function sourceLabel(s: string): string {
 }
 // 2026-09-08:付款方式代碼 → 中文(原本直接顯示 'bank' 讓人看不懂)
 function payMethodLabel(s: string): string {
-  return ({ bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay' }[s]) ?? s;
+  return ({ bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay', ecpay_credit: '信用卡(綠界)', ecpay_atm: 'ATM 轉帳(綠界)' }[s]) ?? s;
 }
 function sourceColor(s: string): string {
   return ({ web: '#7c3aed', liff: '#06c755', manual: '#9ca3af', line_chat: '#f59e0b' }[s]) ?? '#666';
@@ -284,6 +289,8 @@ export default async function OrderDetailPage({
                   <option value="bank">銀行轉帳</option>
                   <option value="cash">現金</option>
                   <option value="line_pay">LINE Pay</option>
+                  <option value="ecpay_credit">信用卡(綠界)</option>
+                  <option value="ecpay_atm">ATM 轉帳(綠界)</option>
                 </select>
               </label>
               <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已收款」?">✓ 確認已收款</SubmitButton>
@@ -377,6 +384,35 @@ export default async function OrderDetailPage({
         );
       })()}
 
+      {/* Phase 21(2026-10-22):綠界(信用卡 / ATM 虛擬帳號)資訊 — 收款由綠界通知自動標,
+          退款在綠界廠商後台操作(信用卡可線上退刷;ATM 要人工匯回),這裡只看不動。 */}
+      {(o.payment_method === 'ecpay_atm' || o.payment_method === 'ecpay_credit') && (
+        <section style={{ ...section, background: '#f0fdfa', borderColor: '#99f6e4' }}>
+          <h2 style={{ ...h2, color: '#115e59' }}>綠界 {o.payment_method === 'ecpay_atm' ? 'ATM 轉帳' : '信用卡'}</h2>
+          <div style={{ fontSize: 13, color: '#134e4a', lineHeight: 1.8 }}>
+            綠界交易編號{' '}
+            <code style={{ fontFamily: 'ui-monospace, monospace' }}>{o.ecpay_trade_no ?? '—(尚未付款 / 取號)'}</code>
+            {o.payment_method === 'ecpay_atm' && (
+              <>
+                <br />
+                虛擬帳號 {o.atm_bank_code ?? '—'} /{' '}
+                <code style={{ fontFamily: 'ui-monospace, monospace' }}>{o.atm_vaccount ?? '尚未取號'}</code>
+                {o.atm_expire_at && (
+                  <> · 繳費期限 {new Date(o.atm_expire_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                )}
+              </>
+            )}
+            <br />
+            {o.payment_status === 'paid'
+              ? '綠界已通知收款,訂單自動標為已收款。'
+              : '客人付款後綠界會自動通知,這筆會自己變成已收款,不用人工核帳。'}
+          </div>
+          <div style={{ fontSize: 12, color: '#115e59', marginTop: 10, lineHeight: 1.6 }}>
+            要退款請到綠界廠商後台(信用卡可線上退刷;ATM 要人工匯回客人帳戶),退完再把下方訂單狀態改成「已退款」。
+          </div>
+        </section>
+      )}
+
       <section style={section}>
         <h2 style={h2}>狀態 / 出貨 / 備註(進階)</h2>
         <form action={updateOrder} style={{ display: 'grid', gap: 12 }}>
@@ -406,11 +442,13 @@ export default async function OrderDetailPage({
             </label>
             <label style={label}>
               <span style={labelText}>付款方式</span>
-              <input name="payment_method" defaultValue={o.payment_method ?? ''} list="payment_methods" style={input} placeholder="bank / cash / line_pay" />
+              <input name="payment_method" defaultValue={o.payment_method ?? ''} list="payment_methods" style={input} placeholder="bank / cash / line_pay / ecpay_credit / ecpay_atm" />
               <datalist id="payment_methods">
                 <option value="bank">銀行轉帳</option>
                 <option value="cash">現金</option>
                 <option value="line_pay">LINE Pay</option>
+                <option value="ecpay_credit">信用卡(綠界)</option>
+                <option value="ecpay_atm">ATM 轉帳(綠界)</option>
               </datalist>
             </label>
           </div>
