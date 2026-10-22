@@ -7,9 +7,12 @@
  * 商品格(4:5 圖、角標、售完、特價原價劃線、低庫存、規格數)、單規格商品卡上直接加入購物車、
  * 載入更多。手機版篩選收進底部抽屜,頂部多一排分類膠囊。
  * 所有篩選排序在前端做(商品量幾十到幾百件,一次載完比來回問伺服器快)。
+ * 2026-10-23:商品圖右上角愛心收藏(存本機,見 favorites-state),可「只看收藏」。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from './cart-state';
+import { useFavorites } from './favorites-state';
+import { IconHeart } from '@/lib/icons';
 import { Badge, Button, ButtonLink, Checkbox, Input, Select, Stars, Switch } from '@/lib/ui';
 
 export type ListingProduct = {
@@ -82,7 +85,8 @@ const CSS = `
 .sl-chip{height:28px;gap:4px;padding:0 4px 0 10px;font-weight:400}
 .sl-chip button{display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:50%;background:none;color:var(--ui-muted);cursor:pointer;padding:0}
 .sl-chip button:hover{background:var(--ui-line-soft);color:var(--ui-ink)}
-.sl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:32px 24px;padding-top:24px}
+.sl-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:32px 24px;padding-top:24px}
+@media (max-width:1280px){.sl-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .sl-card{position:relative;display:flex;flex-direction:column;gap:12px;text-decoration:none;color:var(--ui-ink)}
 .sl-ph{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--ui-line-soft);border:1px solid var(--ui-line);display:flex;align-items:center;justify-content:center}
 .sl-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s ease-out}
@@ -90,7 +94,11 @@ const CSS = `
 .sl-card:hover .sl-ph img{transform:scale(1.05)}
 .sl-ph img[data-dim="true"]{opacity:.6}
 .sl-on{position:absolute;top:10px;left:10px;background:rgba(255,255,255,.85);backdrop-filter:blur(6px)}
-.sl-on.r{left:auto;right:10px}.sl-on.b{top:auto;bottom:10px}
+.sl-on.b{top:auto;bottom:10px}
+.sl-fav{position:absolute;top:8px;right:8px;z-index:2;width:32px;height:32px;border-radius:50%;border:1px solid var(--ui-line);background:rgba(255,255,255,.85);backdrop-filter:blur(6px);display:grid;place-items:center;padding:0;cursor:pointer;color:var(--ui-ink);transition:transform .15s,color .15s}
+.sl-fav:hover{transform:scale(1.08)}
+.sl-fav:active{transform:scale(.9)}
+.sl-fav[data-on="true"]{color:#e11d48}
 .sl-qa{position:absolute;left:10px;right:10px;bottom:10px;height:36px;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;z-index:2;font-size:13px}
 .sl-card:hover .sl-qa,.sl-qa:focus-visible{opacity:1;transform:none}
 .sl-name{font-size:14px;font-weight:500;line-height:1.45;margin:0;text-wrap:pretty}
@@ -99,13 +107,13 @@ const CSS = `
 .sl-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ui-muted);min-height:16px}
 .sl-empty{margin-top:24px;padding:64px 24px;border:1px solid var(--ui-line);border-radius:8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px}
 .sl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;background:var(--ui-ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:ui-swap .25s ease both}
-.sl-toast a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.sl-toast a,.sl-toast button{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;font:inherit;cursor:pointer}
 @media (max-width:1024px){
   .sl-layout{display:block}
   .sl-side{position:static}
   .sl-cats{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .sl-cats::-webkit-scrollbar{display:none}
-  .sl-pill{flex-shrink:0;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:13px;font-weight:500;color:var(--ui-ink);cursor:pointer;white-space:nowrap}
+  .sl-pill{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:13px;font-weight:500;color:var(--ui-ink);cursor:pointer;white-space:nowrap}
   .sl-pill[data-on="true"]{background:var(--ui-accent);color:var(--ui-on-accent);border-color:var(--ui-accent)}
   .sl-filterbtn{display:inline-flex}
   .sl-search{width:36px;padding-left:34px;padding-right:0;transition:width .2s}
@@ -117,7 +125,8 @@ const CSS = `
 }
 `;
 
-type Filters = { cats: string[]; min: number; max: number; inStock: boolean; onSale: boolean; q: string };
+type Filters = { cats: string[]; min: number; max: number; inStock: boolean; onSale: boolean; q: string; fav: boolean };
+type Toast = { text: string; icon?: 'heart'; action?: { label: string; href?: string; onClick?: () => void } };
 
 export function ShopListing({
   slug,
@@ -132,14 +141,15 @@ export function ShopListing({
     const top = Math.max(0, ...products.map((p) => p.hi));
     return Math.max(100, Math.ceil(top / 100) * 100);
   }, [products]);
-  const [f, setF] = useState<Filters>({ cats: [], min: 0, max: priceMax, inStock: false, onSale: false, q: '' });
+  const [f, setF] = useState<Filters>({ cats: [], min: 0, max: priceMax, inStock: false, onSale: false, q: '', fav: false });
   const [sort, setSort] = useState<Sort>('featured');
   const [shown, setShown] = useState(PAGE);
   const [sheet, setSheet] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { addItem } = useCart(slug);
+  const { has: isFav, toggle: toggleFav, count: favCount } = useFavorites(slug);
 
   // 網址 ?cat= 帶進來的分類(例如從 LINE 貼的連結),載入時套上
   useEffect(() => {
@@ -168,6 +178,7 @@ export function ShopListing({
       p.lo <= f.max &&
       (!f.inStock || p.stock > 0) &&
       (!f.onSale || p.saleActive) &&
+      (!f.fav || isFav(p.id)) &&
       (!q || p.name.toLowerCase().includes(q))
     );
   };
@@ -200,7 +211,8 @@ export function ShopListing({
   if (f.min !== 0 || f.max !== priceMax) chips.push({ key: 'p', label: `NT$ ${money(f.min)} – ${money(f.max)}`, remove: () => update({ min: 0, max: priceMax }) });
   if (f.inStock) chips.push({ key: 's', label: '只看有貨', remove: () => update({ inStock: false }) });
   if (f.onSale) chips.push({ key: 'o', label: '特價中', remove: () => update({ onSale: false }) });
-  const clearAll = () => update({ cats: [], min: 0, max: priceMax, inStock: false, onSale: false, q: '' });
+  if (f.fav) chips.push({ key: 'f', label: '只看收藏', remove: () => update({ fav: false }) });
+  const clearAll = () => update({ cats: [], min: 0, max: priceMax, inStock: false, onSale: false, q: '', fav: false });
   const pct = (v: number) => (priceMax > 0 ? (v / priceMax) * 100 : 0);
 
   function quickAdd(e: React.MouseEvent, p: ListingProduct) {
@@ -217,7 +229,23 @@ export function ShopListing({
       qty: 1,
       imageUrl: p.single.image ?? p.image,
     });
-    setToast(`已加入購物車:${p.name}`);
+    showToast({ text: `已加入購物車:${p.name}`, action: { label: '去結帳', href: `/${slug}/checkout` } });
+  }
+
+  // 愛心:切換收藏,不跳頁;加入時給「看收藏」捷徑
+  function toggleFavorite(e: React.MouseEvent, p: ListingProduct) {
+    e.preventDefault();
+    e.stopPropagation();
+    const on = toggleFav(p.id);
+    showToast(
+      on
+        ? { text: `已加入收藏:${p.name}`, icon: 'heart', action: { label: '看收藏', onClick: () => { update({ fav: true }); setToast(null); } } }
+        : { text: `已取消收藏:${p.name}`, icon: 'heart' },
+    );
+  }
+
+  function showToast(t: Toast) {
+    setToast(t);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2600);
   }
@@ -252,6 +280,13 @@ export function ShopListing({
       </fieldset>
       <fieldset className="sl-fset">
         <label className="sl-field">
+          <span>只看收藏</span>
+          {favCount > 0 && <span className="ui-num" style={{ fontSize: 12, color: 'var(--ui-muted)' }}>({favCount})</span>}
+          <span style={{ marginLeft: 'auto', display: 'inline-flex' }}><Switch checked={f.fav} onChange={(e) => update({ fav: e.target.checked })} aria-label="只看收藏" /></span>
+        </label>
+      </fieldset>
+      <fieldset className="sl-fset">
+        <label className="sl-field">
           <span>只看有貨</span>
           <span style={{ marginLeft: 'auto', display: 'inline-flex' }}><Switch checked={f.inStock} onChange={(e) => update({ inStock: e.target.checked })} aria-label="只看有貨" /></span>
         </label>
@@ -281,6 +316,10 @@ export function ShopListing({
         <section aria-label="商品" style={{ minWidth: 0 }}>
           <div className="sl-cats" aria-label="分類">
             <button type="button" className="sl-pill" data-on={f.cats.length === 0 ? 'true' : 'false'} onClick={() => update({ cats: [] })}>全部</button>
+            <button type="button" className="sl-pill" data-on={f.fav ? 'true' : 'false'} aria-pressed={f.fav} onClick={() => update({ fav: !f.fav })}>
+              <IconHeart size={14} filled={f.fav} />
+              收藏{favCount > 0 && <span className="ui-num">{favCount}</span>}
+            </button>
             {catRows.map((c) => (
               <button key={c.name} type="button" className="sl-pill" data-on={c.checked ? 'true' : 'false'} onClick={() => update({ cats: toggleIn(f.cats, c.name) })}>{c.name}</button>
             ))}
@@ -335,17 +374,31 @@ export function ShopListing({
 
           {filtered.length === 0 ? (
             <div className="sl-empty ui-swap">
-              <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>沒有符合條件的商品</h3>
-                <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>把價格範圍放寬一點,或少勾幾個分類試試。</p>
-              </div>
-              <Button variant="outline" onClick={clearAll}>清除篩選</Button>
+              {f.fav && favCount === 0 ? (
+                <>
+                  <div style={{ color: 'var(--ui-line)' }}><IconHeart size={40} /></div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>還沒有收藏的商品</h3>
+                    <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>點商品圖右上角的愛心,就會收在這裡。</p>
+                  </div>
+                  <Button variant="outline" onClick={() => update({ fav: false })}>看全部商品</Button>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>沒有符合條件的商品</h3>
+                    <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>把價格範圍放寬一點,或少勾幾個分類試試。</p>
+                  </div>
+                  <Button variant="outline" onClick={clearAll}>清除篩選</Button>
+                </>
+              )}
             </div>
           ) : (
             <div className="sl-grid">
               {visible.map((p, i) => {
                 const salePrice = p.saleActive ? Math.round((p.lo * (100 - p.salePct)) / 100) : p.lo;
                 const soldOut = p.stock <= 0;
+                const fav = isFav(p.id);
                 return (
                   <a key={p.id} href={`/${slug}/p/${p.slug}`} className="sl-card ui-swap" style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
                     <div className="sl-ph">
@@ -354,7 +407,18 @@ export function ShopListing({
                       {p.badge && (
                         <Badge className="sl-on" style={{ background: p.badgeColor ?? '#18181b', color: badgeFg(p.badgeColor ?? '#18181b'), borderColor: 'transparent' }}>{p.badge}</Badge>
                       )}
-                      {soldOut && <Badge className="sl-on r">售完</Badge>}
+                      {/* 右上角固定給愛心;售完改放左下(和限時折同位置,兩者不會同時出現) */}
+                      <button
+                        type="button"
+                        className="sl-fav"
+                        data-on={fav ? 'true' : 'false'}
+                        aria-pressed={fav}
+                        aria-label={fav ? `取消收藏:${p.name}` : `收藏:${p.name}`}
+                        onClick={(e) => toggleFavorite(e, p)}
+                      >
+                        <IconHeart size={16} filled={fav} />
+                      </button>
+                      {soldOut && <Badge className="sl-on b">售完</Badge>}
                       {p.saleActive && !soldOut && <Badge className="sl-on b">限時{pctToZhe(p.salePct)}</Badge>}
                       {!soldOut && (
                         p.single ? (
@@ -425,9 +489,18 @@ export function ShopListing({
 
       {toast && (
         <div className="sl-toast" role="status">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
-          <span>{toast}</span>
-          <a href={`/${slug}/checkout`}>去結帳</a>
+          {toast.icon === 'heart' ? (
+            <IconHeart size={16} color="#fb7185" filled />
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
+          )}
+          <span>{toast.text}</span>
+          {toast.action &&
+            (toast.action.href ? (
+              <a href={toast.action.href}>{toast.action.label}</a>
+            ) : (
+              <button type="button" onClick={toast.action.onClick}>{toast.action.label}</button>
+            ))}
         </div>
       )}
     </div>

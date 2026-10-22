@@ -13,7 +13,7 @@ import type { CSSProperties, ReactNode, AnchorHTMLAttributes, ButtonHTMLAttribut
 export const UI_CSS = `
 .ui-num{font-variant-numeric:tabular-nums}
 .ui-muted{color:var(--ui-muted)}
-.ui-wrap{width:100%;box-sizing:border-box;margin:0 auto;padding:0 40px}
+.ui-wrap{width:100%;max-width:1360px;box-sizing:border-box;margin:0 auto;padding:0 40px}
 @media (max-width:1024px){.ui-wrap{padding:0 20px}}
 .ui-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font:inherit;font-size:14px;font-weight:500;line-height:1;cursor:pointer;border:1px solid transparent;text-decoration:none;transition:background .15s,color .15s,border-color .15s,opacity .15s;-webkit-tap-highlight-color:transparent}
 .ui-btn:disabled,.ui-btn[aria-disabled="true"]{pointer-events:none;opacity:.5}

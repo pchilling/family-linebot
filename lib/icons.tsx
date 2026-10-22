@@ -183,3 +183,13 @@ export function IconZap({ size = 16, color = 'currentColor', style }: IconProps)
     </svg>
   );
 }
+
+// 2026-10-23:收藏愛心;filled = 已收藏(實心),否則空心線條
+export function IconHeart({ size = 16, color = 'currentColor', style, filled = false }: IconProps & { filled?: boolean }) {
+  const props = svgProps(size, color, style);
+  return (
+    <svg {...props} fill={filled ? color : 'none'}>
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+    </svg>
+  );
+}
