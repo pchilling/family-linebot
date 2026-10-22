@@ -80,7 +80,7 @@ const CSS = `
 .sl-chip{height:28px;gap:4px;padding:0 4px 0 10px;font-weight:400}
 .sl-chip button{display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:50%;background:none;color:var(--ui-muted);cursor:pointer;padding:0}
 .sl-chip button:hover{background:var(--ui-line-soft);color:var(--ui-ink)}
-.sl-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 24px;padding-top:24px}
+.sl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:32px 24px;padding-top:24px}
 .sl-card{position:relative;display:flex;flex-direction:column;gap:12px;text-decoration:none;color:var(--ui-ink)}
 .sl-ph{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--ui-line-soft);border:1px solid var(--ui-line);display:flex;align-items:center;justify-content:center}
 .sl-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s ease-out}
@@ -98,7 +98,6 @@ const CSS = `
 .sl-empty{margin-top:24px;padding:64px 24px;border:1px solid var(--ui-line);border-radius:8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px}
 .sl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;background:var(--ui-ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:ui-swap .25s ease both}
 .sl-toast a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
-@media (max-width:1180px){.sl-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:1024px){
   .sl-layout{display:block}
   .sl-side{position:static}
