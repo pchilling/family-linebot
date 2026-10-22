@@ -114,6 +114,17 @@ export function IconWallet({ size = 16, color = 'currentColor', style }: IconPro
   );
 }
 
+// 2026-10-22:信用卡(綠界刷卡)
+export function IconCreditCard({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+      <path d="M6 15h4" />
+    </svg>
+  );
+}
+
 // 2026-10-15:配送(宅配 / 貨運)
 export function IconTruck({ size = 16, color = 'currentColor', style }: IconProps) {
   return (

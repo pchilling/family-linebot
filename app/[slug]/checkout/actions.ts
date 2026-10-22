@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { buildGiftItems, getTenantBySlug, getProductTiers, hasFeature, isSaleActive, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
+import { isEcpayConfigured } from '@/lib/ecpay';
 
 // 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
 // (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
@@ -153,8 +154,14 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const guestEmail = String(formData.get('guestEmail') ?? '').trim();
   const shippingMethod = String(formData.get('shipping_method') ?? '').trim();
   // 2026-10-15:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
+  // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款,不信任前端
+  const rawPayment = String(formData.get('payment_method') ?? '').trim();
   const paymentMethod =
-    String(formData.get('payment_method') ?? '').trim() === 'line_pay' ? 'line_pay' : 'bank';
+    rawPayment === 'line_pay'
+      ? 'line_pay'
+      : (rawPayment === 'ecpay_atm' || rawPayment === 'ecpay_credit') && (await isEcpayAvailable(tenantSlug))
+        ? rawPayment
+        : 'bank';
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
 
@@ -384,6 +391,16 @@ export async function isLinePayAvailable(tenantSlug: string): Promise<boolean> {
   if (!isLinePayConfigured()) return false;
   const tenant = await getTenantBySlug(tenantSlug);
   return hasFeature(tenant, 'line_pay');
+}
+
+/**
+ * 2026-10-22:這個攤位能不能用綠界(信用卡 / ATM 虛擬帳號)— 金鑰已設 + feature flag 開。
+ * 綠界的付款是瀏覽器導到 /api/ecpay/pay 再表單跳轉,不像 LINE Pay 需要 server action 發動。
+ */
+export async function isEcpayAvailable(tenantSlug: string): Promise<boolean> {
+  if (!isEcpayConfigured()) return false;
+  const tenant = await getTenantBySlug(tenantSlug);
+  return hasFeature(tenant, 'ecpay');
 }
 
 export type StartLinePayResult =

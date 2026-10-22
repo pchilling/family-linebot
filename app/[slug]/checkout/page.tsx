@@ -4,8 +4,11 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
-import { IconBank, IconChevronLeft, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type ShippingOption } from './actions';
+import { IconBank, IconChevronLeft, IconCreditCard, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type ShippingOption } from './actions';
+
+// 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
+type PayMethod = 'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -211,12 +214,23 @@ export default function CheckoutPage({ params }: Props) {
   const [giftCfg, setGiftCfg] = useState<GiftConfigPublic>({ mode: 'stack', rules: [] });
   // 2026-10-15:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
   const [linePayOn, setLinePayOn] = useState(false);
-  const [payMethod, setPayMethod] = useState<'bank' | 'line_pay'>('bank');
+  // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號);有開的話預設選信用卡,少走人工核帳
+  const [ecpayOn, setEcpayOn] = useState(false);
+  const [payMethod, setPayMethod] = useState<PayMethod>('bank');
   useEffect(() => {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
     getGiftRulesPublic(slug).then(setGiftCfg).catch(() => {});
     isLinePayAvailable(slug).then(setLinePayOn).catch(() => {});
+    isEcpayAvailable(slug)
+      .then((on) => {
+        setEcpayOn(on);
+        if (on) setPayMethod((m) => (m === 'bank' ? 'ecpay_credit' : m));
+      })
+      .catch(() => {});
   }, [slug]);
+  const isLinePayPay = linePayOn && payMethod === 'line_pay';
+  const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
+  const isOnlinePay = isLinePayPay || isEcpayPay;
 
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
   // 原本這頁照加入當下的原價顯示,後端實收卻有套分階 → 畫面 540 實收 500 對不上
@@ -259,7 +273,7 @@ export default function CheckoutPage({ params }: Props) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#374151' }}>
         <p style={{ fontSize: '1.125rem', margin: 0 }}>
-          {linePayOn && payMethod === 'line_pay' ? '訂單已成立,正在前往 LINE Pay...' : '訂單已成立,跳轉中...'}
+          {isLinePayPay ? '訂單已成立,正在前往 LINE Pay...' : isEcpayPay ? '訂單已成立,正在前往付款頁...' : '訂單已成立,跳轉中...'}
         </p>
       </div>
     );
@@ -312,13 +326,19 @@ export default function CheckoutPage({ params }: Props) {
     clear();
     // 2026-10-15:選 LINE Pay → 導去付款頁。
     // 發動失敗不擋單(訂單已成立),退回訂單頁讓客人重按一次付款。
-    if (linePayOn && payMethod === 'line_pay') {
+    if (isLinePayPay) {
       const pay = await startLinePay(slug, result.orderNo);
       if (pay.ok) {
         window.location.href = pay.paymentUrl;
         return;
       }
       router.push(`/${slug}/order/${result.orderNo}?linepay=failed`);
+      return;
+    }
+    // 2026-10-22:選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay,它會把瀏覽器送到綠界付款頁
+    if (isEcpayPay) {
+      const method = payMethod === 'ecpay_atm' ? 'atm' : 'credit';
+      window.location.href = `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(result.orderNo)}&method=${method}`;
       return;
     }
     router.push(`/${slug}/order/${result.orderNo}`);
@@ -590,13 +610,65 @@ export default function CheckoutPage({ params }: Props) {
             </div>
           </div>
         )}
-        {/* 2026-10-15:付款方式(攤位有開 LINE Pay 才顯示;沒開一律匯款) */}
-        {linePayOn && (
+        {/* 2026-10-15:付款方式(攤位有開 LINE Pay 或綠界才顯示;都沒開一律匯款)
+            2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳) */}
+        {(linePayOn || ecpayOn) && (
           <div>
             <h3 className="ck-label">
               付款方式 <span className="ck-req">*</span>
             </h3>
             <div className="opt-list">
+              {ecpayOn && (
+                <OptionCard
+                  name="payment_method"
+                  value="ecpay_credit"
+                  checked={payMethod === 'ecpay_credit'}
+                  onSelect={() => setPayMethod('ecpay_credit')}
+                  accent="#1d4ed8"
+                  icon={<IconCreditCard size={19} />}
+                  title="信用卡"
+                  trailing={
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                      立即付款
+                    </span>
+                  }
+                  desc="送出後前往綠界刷卡,付款完成訂單自動更新"
+                />
+              )}
+              {linePayOn && (
+                <OptionCard
+                  name="payment_method"
+                  value="line_pay"
+                  checked={payMethod === 'line_pay'}
+                  onSelect={() => setPayMethod('line_pay')}
+                  accent="#06c755"
+                  icon={<IconWallet size={19} />}
+                  title="LINE Pay"
+                  trailing={
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                      立即付款
+                    </span>
+                  }
+                  desc="送出後直接前往 LINE Pay 付款,不用回報後 5 碼"
+                />
+              )}
+              {ecpayOn && (
+                <OptionCard
+                  name="payment_method"
+                  value="ecpay_atm"
+                  checked={payMethod === 'ecpay_atm'}
+                  onSelect={() => setPayMethod('ecpay_atm')}
+                  accent="#0f766e"
+                  icon={<IconBank size={19} />}
+                  title="ATM 轉帳"
+                  trailing={
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#0f766e', background: '#ccfbf1', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                      免回報
+                    </span>
+                  }
+                  desc="送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳"
+                />
+              )}
               <OptionCard
                 name="payment_method"
                 value="bank"
@@ -604,23 +676,8 @@ export default function CheckoutPage({ params }: Props) {
                 onSelect={() => setPayMethod('bank')}
                 accent="#475569"
                 icon={<IconBank size={19} />}
-                title="銀行轉帳"
-                desc="下單後到訂單頁回報匯款帳號後 5 碼"
-              />
-              <OptionCard
-                name="payment_method"
-                value="line_pay"
-                checked={payMethod === 'line_pay'}
-                onSelect={() => setPayMethod('line_pay')}
-                accent="#06c755"
-                icon={<IconWallet size={19} />}
-                title="LINE Pay"
-                trailing={
-                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                    立即付款
-                  </span>
-                }
-                desc="送出後直接前往 LINE Pay 付款,不用回報後 5 碼"
+                title="匯款至店家帳戶"
+                desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳"
               />
             </div>
           </div>
@@ -696,7 +753,7 @@ export default function CheckoutPage({ params }: Props) {
               處理中,訂單建立中…
             </span>
           ) : (
-            `${linePayOn && payMethod === 'line_pay' ? '前往 LINE Pay 付款' : '送出訂單'} · NT$ ${grandTotal.toLocaleString()}`
+            `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '送出訂單'} · NT$ ${grandTotal.toLocaleString()}`
           )}
         </button>
         <p
@@ -707,7 +764,7 @@ export default function CheckoutPage({ params }: Props) {
             fontSize: '0.75rem',
           }}
         >
-          下單後賣家會私訊匯款方式
+          {isOnlinePay ? '付款完成後訂單會自動更新,不用回報帳號後 5 碼' : '下單後賣家會私訊匯款方式'}
         </p>
       </form>
     </div>
