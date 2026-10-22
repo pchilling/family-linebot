@@ -8,7 +8,7 @@ export default function RefundPage() {
   return (
     <article style={prose}>
       <h1 style={h1}>退款政策</h1>
-      <p style={meta}>上次更新:2026-06-04(初版範本)</p>
+      <p style={meta}>上次更新:2026-10-22</p>
 
       <section>
         <h2 style={h2}>一、退換貨期限(7 日鑑賞期)</h2>
@@ -44,8 +44,11 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>四、退款方式</h2>
         <ul style={ul}>
-          <li><strong>原路退款</strong>:LINE Pay / 信用卡(若有接金流時)</li>
-          <li><strong>銀行匯款退回</strong>:請提供帳戶資料,3-5 工作天內匯回</li>
+          <li>
+            <strong>原路退款</strong>:LINE Pay 退回您的 LINE Pay 帳戶;信用卡退回原刷卡卡片,
+            發卡銀行約需 14–21 個工作天入帳,可能落在下一期帳單
+          </li>
+          <li><strong>銀行匯款退回</strong>:請提供帳戶資料,3–5 個工作天內匯回</li>
           <li><strong>下次訂單折抵</strong>(經買賣雙方同意)</li>
         </ul>
       </section>
@@ -53,8 +56,8 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>五、退款時間</h2>
         <ul style={ul}>
-          <li>賣家收到退回商品並驗收完成後 **7 工作天內**處理退款</li>
-          <li>金流業者實際入帳時間以該業者規定為準</li>
+          <li>賣家收到退回商品並驗收完成後 **7 個工作天內**送出退款</li>
+          <li>金流業者實際入帳時間以該業者規定為準,手續費不會轉嫁給消費者</li>
         </ul>
       </section>
 
