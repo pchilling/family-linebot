@@ -13,12 +13,12 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>一、退換貨期限(7 日鑑賞期)</h2>
         <p>
-          依《消費者保護法》第 19 條,你享有商品收到後 **7 日內**
+          依《消費者保護法》第 19 條,你享有商品收到後 <strong>7 日內</strong>
           無條件解除契約之權利(俗稱「7 日鑑賞期」)。請於該期限內以
           Email 或 LINE 訊息通知賣家欲退貨。
         </p>
         <p style={small}>
-          ⚠️ **不適用 7 日鑑賞期**之商品(依消保法施行細則第 17 條):
+          ⚠️ <strong>不適用 7 日鑑賞期</strong>之商品(依消保法施行細則第 17 條):
           客製化商品、易腐敗 / 期限商品、報紙雜誌、已拆封之影音 / 軟體 / 個人衛生用品。
           上架時應於商品頁面明確標示。
         </p>
@@ -27,7 +27,7 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>二、退款條件</h2>
         <ul style={ul}>
-          <li>商品**未拆封 / 未使用**,且包裝完整、配件齊全</li>
+          <li>商品<strong>未拆封 / 未使用</strong>,且包裝完整、配件齊全</li>
           <li>於收到商品後 7 日內(含寄回的物流時間)主動聯繫</li>
           <li>非屬上述不適用之商品類型</li>
         </ul>
@@ -36,8 +36,8 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>三、瑕疵 / 寄錯 / 短少</h2>
         <p>
-          如收到商品**瑕疵、與描述不符、寄錯品項、短少**,請於 3 日內附**照片**
-          以 LINE / Email 通知賣家。賣家會無條件接受退貨,**運費由賣家負擔**。
+          如收到商品<strong>瑕疵、與描述不符、寄錯品項、短少</strong>,請於 3 日內附<strong>照片</strong>
+          以 LINE / Email 通知賣家。賣家會無條件接受退貨,<strong>運費由賣家負擔</strong>。
         </p>
       </section>
 
@@ -56,7 +56,7 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>五、退款時間</h2>
         <ul style={ul}>
-          <li>賣家收到退回商品並驗收完成後 **7 個工作天內**送出退款</li>
+          <li>賣家收到退回商品並驗收完成後 <strong>7 個工作天內</strong>送出退款</li>
           <li>金流業者實際入帳時間以該業者規定為準,手續費不會轉嫁給消費者</li>
         </ul>
       </section>
@@ -64,8 +64,8 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>六、運費負擔</h2>
         <ul style={ul}>
-          <li>**正常 7 日鑑賞期退貨**:消費者負擔退回運費</li>
-          <li>**商品瑕疵 / 寄錯 / 短少**:賣家負擔來回運費</li>
+          <li><strong>正常 7 日鑑賞期退貨</strong>:消費者負擔退回運費</li>
+          <li><strong>商品瑕疵 / 寄錯 / 短少</strong>:賣家負擔來回運費</li>
         </ul>
       </section>
 
@@ -82,7 +82,7 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>八、爭議處理</h2>
         <p>
-          如對退款結果有爭議,得向**中華民國消費者文教基金會**申訴,
+          如對退款結果有爭議,得向<strong>中華民國消費者文教基金會</strong>申訴,
           或循行政院消費者保護會法定程序處理。
         </p>
       </section>

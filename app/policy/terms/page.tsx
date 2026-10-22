@@ -14,7 +14,7 @@ export default function TermsPage() {
         <h2 style={h2}>一、平台說明</h2>
         <p>
           NEOP STALL(下稱「本平台」)由 NEO Potential Studio 維運,提供賣家(以下稱「攤位」)
-          建立線上店面與接收訂單之服務。本平台僅作為**技術仲介**,不直接參與
+          建立線上店面與接收訂單之服務。本平台僅作為<strong>技術仲介</strong>,不直接參與
           買賣雙方之實際交易。
         </p>
       </section>
@@ -85,7 +85,7 @@ export default function TermsPage() {
         <h2 style={h2}>九、準據法與管轄</h2>
         <p>
           本條款之解釋與適用,以中華民國法律為準據法。如生爭議,
-          雙方同意以**台灣台中地方法院**為第一審管轄法院。
+          雙方同意以<strong>台灣台中地方法院</strong>為第一審管轄法院。
         </p>
       </section>
     </article>

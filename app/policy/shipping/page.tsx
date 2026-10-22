@@ -35,16 +35,16 @@ export default function ShippingPage() {
         <ul style={ul}>
           <li>實際運費依商品重量、體積、寄送地區及方式計算</li>
           <li>於結帳頁面顯示明細</li>
-          <li>部分攤位可能提供**滿額免運**(以該攤位公告為準)</li>
+          <li>部分攤位可能提供<strong>滿額免運</strong>(以該攤位公告為準)</li>
         </ul>
       </section>
 
       <section>
         <h2 style={h2}>四、寄送範圍</h2>
         <ul style={ul}>
-          <li>**台灣本島**:全區可寄</li>
-          <li>**離島**(澎湖 / 金門 / 馬祖):另計運費或部分商品不寄</li>
-          <li>**海外**:除非攤位明確標示,否則不寄</li>
+          <li><strong>台灣本島</strong>:全區可寄</li>
+          <li><strong>離島</strong>(澎湖 / 金門 / 馬祖):另計運費或部分商品不寄</li>
+          <li><strong>海外</strong>:除非攤位明確標示,否則不寄</li>
         </ul>
       </section>
 
@@ -72,7 +72,7 @@ export default function ShippingPage() {
       <section>
         <h2 style={h2}>七、貨件遺失 / 物流毀損</h2>
         <p>
-          收到包裹**立即驗收**。若有外觀破損 / 內容物受損,**請當下拍照存證**
+          收到包裹<strong>立即驗收</strong>。若有外觀破損 / 內容物受損,<strong>請當下拍照存證</strong>
           並於 24 小時內通知賣家。賣家會與物流公司申訴並協助處理。
         </p>
       </section>

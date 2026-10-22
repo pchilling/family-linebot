@@ -61,7 +61,7 @@ export default function PolicyLayout({ children }: { children: React.ReactNode }
             lineHeight: 1.6,
           }}
         >
-          ⚠️ <strong>本頁面為平台初版範本</strong>,**未經律師審核**。實際對外營運前請委請律師審閱並依業務狀況調整。
+          ⚠️ <strong>本頁面為平台初版範本</strong>,<strong>未經律師審核</strong>。實際對外營運前請委請律師審閱並依業務狀況調整。
         </div>
 
         {/* Policy nav */}

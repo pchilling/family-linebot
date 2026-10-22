@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         <h2 style={h2}>一、適用範圍</h2>
         <p>
           本政策適用於使用 NEOP STALL 平台、子網域(例:`/oilswa` 等攤位)、
-          LINE Bot 及 LIFF 介面所收集之個人資料。**不適用於**第三方連結(例:
+          LINE Bot 及 LIFF 介面所收集之個人資料。<strong>不適用於</strong>第三方連結(例:
           LINE Pay、外部物流網站)所收集之資料。
         </p>
       </section>
@@ -49,7 +49,7 @@ export default function PrivacyPage() {
           <li><strong>物流業者</strong>:出貨資訊(姓名 / 地址 / 電話)</li>
           <li><strong>金流業者</strong>(若有接,目前手動匯款):支付資訊</li>
         </ul>
-        <p>**不會**將資料販售給第三方廣告商。</p>
+        <p><strong>不會</strong>將資料販售給第三方廣告商。</p>
       </section>
 
       <section>
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
           <li>請求刪除</li>
         </ul>
         <p>行使方式:寄信至 <a href="mailto:peter@neop.tw" style={link}>peter@neop.tw</a>,
-        我們將於 30 天內處理。但**訂單交易紀錄依商業會計法須保存 5 年**,期間內不得刪除。</p>
+        我們將於 30 天內處理。但<strong>訂單交易紀錄依商業會計法須保存 5 年</strong>,期間內不得刪除。</p>
       </section>
 
       <section>
