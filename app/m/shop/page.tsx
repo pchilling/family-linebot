@@ -6,9 +6,11 @@ import { BannerHero } from '../../[slug]/banner-hero';
 import { CopyButton } from '../../[slug]/order/[order_no]/copy-button';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { OtpInput } from '@/lib/otp-input';
-import { IconBank, IconCheck, IconChevronLeft, IconFlame, IconGift, IconPencil, IconWallet } from '@/lib/icons';
+import { IconBank, IconCheck, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPencil, IconWallet } from '@/lib/icons';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
+  ecpayPayUrlLiff,
+  isEcpayAvailableLiff,
   isLinePayAvailableLiff,
   loadShopData,
   placeOrder,
@@ -49,7 +51,11 @@ export default function ShopPage() {
   const [shipError, setShipError] = useState(false); // 2026-10-16:沒選配送方式的提示
   // 2026-10-16:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
   const [linePayOn, setLinePayOn] = useState(false);
-  const [payMethod, setPayMethod] = useState<'bank' | 'line_pay'>('bank');
+  // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號);有開的話預設選信用卡
+  const [ecpayOn, setEcpayOn] = useState(false);
+  const [payMethod, setPayMethod] = useState<'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit'>('bank');
+  const isLinePayPay = linePayOn && payMethod === 'line_pay';
+  const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
   // 2026-09-11(回饋 #10):上一筆訂單的收件資訊,結帳預填
   const [lastShip, setLastShip] = useState<{ recipient: string | null; phone: string | null; address: string | null } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -106,6 +112,12 @@ export default function ShopPage() {
         setLastShip(data.lastShipping);
         // 2026-10-16:LINE Pay 開關(失敗就當沒開,不影響進場)
         isLinePayAvailableLiff().then(setLinePayOn).catch(() => {});
+        isEcpayAvailableLiff()
+          .then((on) => {
+            setEcpayOn(on);
+            if (on) setPayMethod((m) => (m === 'bank' ? 'ecpay_credit' : m));
+          })
+          .catch(() => {});
         // 2026-09-11:關鍵圖片(banner / logo / 首屏商品圖)預載完才進頁,
         // 不再一張張蹦出來;最多等 3 秒,網路慢也不卡死
         const preloadUrls: string[] = [];
@@ -339,13 +351,22 @@ export default function ShopPage() {
       const { order_no } = await placeOrder(formData);
       // 2026-10-16:選 LINE Pay → 直接跳付款頁(付完由 LINE Pay 導回訂單頁)。
       // 發動失敗不擋單 — 訂單已成立,退回完成畫面,客人可從訂單頁再付一次。
-      if (linePayOn && payMethod === 'line_pay') {
+      if (isLinePayPay) {
         const pay = await startLinePayLiff(order_no);
         if (pay.ok) {
           window.location.href = pay.paymentUrl;
           return;
         }
         setError('無法前往 LINE Pay,訂單已保留,可從訂單頁再付一次');
+      }
+      // 2026-10-22:選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay,它會把瀏覽器送到綠界付款頁
+      if (isEcpayPay) {
+        const url = await ecpayPayUrlLiff(order_no, payMethod === 'ecpay_atm' ? 'atm' : 'credit');
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+        setError('無法前往付款,訂單已保留,可從訂單頁再付一次');
       }
       setOrderNo(order_no);
       setStatus('done');
@@ -1423,15 +1444,24 @@ export default function ShopPage() {
               </div>
             )}
 
-            {/* 2026-10-16:付款方式(攤位有開 LINE Pay 才顯示;沒開一律匯款) */}
-            {linePayOn && (
+            {/* 2026-10-16:付款方式(攤位有開 LINE Pay 或綠界才顯示;都沒開一律匯款)
+                2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳) */}
+            {(linePayOn || ecpayOn) && (
               <div>
                 <div style={cardTitle}>付款方式 *</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {([
-                    { key: 'bank', title: '銀行轉帳', icon: <IconBank size={18} />, accent: '#52525b', desc: '下單後回報匯款帳號後 5 碼' },
-                    { key: 'line_pay', title: 'LINE Pay', icon: <IconWallet size={18} />, accent: '#06c755', desc: '送出後直接付款,不用回報後 5 碼' },
-                  ] as const).map((opt) => {
+                  {[
+                    ...(ecpayOn
+                      ? [{ key: 'ecpay_credit' as const, title: '信用卡', icon: <IconCreditCard size={18} />, accent: '#1d4ed8', desc: '送出後前往綠界刷卡,付款完成訂單自動更新' }]
+                      : []),
+                    ...(linePayOn
+                      ? [{ key: 'line_pay' as const, title: 'LINE Pay', icon: <IconWallet size={18} />, accent: '#06c755', desc: '送出後直接付款,不用回報後 5 碼' }]
+                      : []),
+                    ...(ecpayOn
+                      ? [{ key: 'ecpay_atm' as const, title: 'ATM 轉帳', icon: <IconBank size={18} />, accent: '#0f766e', desc: '送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳' }]
+                      : []),
+                    { key: 'bank' as const, title: '匯款至店家帳戶', icon: <IconBank size={18} />, accent: '#52525b', desc: '匯款後回報帳號後 5 碼,等待人工核帳' },
+                  ].map((opt) => {
                     const isActive = payMethod === opt.key;
                     return (
                       <label
@@ -1557,15 +1587,17 @@ export default function ShopPage() {
                   處理中,訂單建立中…
                 </span>
               ) : (
-                `${linePayOn && payMethod === 'line_pay' ? '前往 LINE Pay 付款' : '確認送出'} · NT$ ${grandTotal.toLocaleString()}`
+                `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '確認送出'} · NT$ ${grandTotal.toLocaleString()}`
               )}
             </button>
           </form>
 
           <p style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#a1a1aa', lineHeight: 1.6 }}>
-            {linePayOn && payMethod === 'line_pay'
+            {isLinePayPay
               ? '送出後會跳到 LINE Pay 完成付款,付款成功訂單會自動更新。'
-              : '送出後客服會盡快聯繫您確認付款與出貨。'}
+              : isEcpayPay
+                ? '送出後會前往綠界完成付款,付款成功訂單會自動更新。'
+                : '送出後客服會盡快聯繫您確認付款與出貨。'}
           </p>
         </section>
       )}

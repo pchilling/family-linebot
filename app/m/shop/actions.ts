@@ -1,7 +1,7 @@
 'use server';
 
 import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
-import { isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
+import { isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -340,8 +340,14 @@ export async function placeOrder(
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const note = String(formData.get('note') || '').trim();
   // 2026-10-16:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
+  // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款
+  const rawPayment = String(formData.get('payment_method') || '').trim();
   const paymentMethod =
-    String(formData.get('payment_method') || '').trim() === 'line_pay' ? 'line_pay' : 'bank';
+    rawPayment === 'line_pay'
+      ? 'line_pay'
+      : (rawPayment === 'ecpay_atm' || rawPayment === 'ecpay_credit') && (await isEcpayAvailableLiff())
+        ? rawPayment
+        : 'bank';
 
   if (cart.length === 0) throw new Error('購物車是空的');
   if (!recipient || !phone || !address) throw new Error('收件人 / 電話 / 地址 必填');
@@ -588,7 +594,10 @@ async function pushOrderConfirmation(
   paymentMethod: string = 'bank',
 ): Promise<void> {
   // 2026-10-16:LINE Pay 單不要講匯款(客人是線上付款),改提示去完成付款
+  // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號)同理
   const isLinePay = paymentMethod === 'line_pay';
+  const isEcpayAtm = paymentMethod === 'ecpay_atm';
+  const isEcpayCredit = paymentMethod === 'ecpay_credit';
   // 拉 tenant payment_info + slug(for order URL)
   const { data: t } = await supabaseAdmin
     .from('tenants')
@@ -628,19 +637,21 @@ async function pushOrderConfirmation(
     },
   ];
 
-  if (isLinePay) {
+  if (isLinePay || isEcpayAtm || isEcpayCredit) {
     bodyContents.push({ type: 'separator', margin: 'lg', color: '#e4e4e7' });
     bodyContents.push({
       type: 'text',
-      text: '付款方式:LINE Pay',
+      text: `付款方式:${isLinePay ? 'LINE Pay' : isEcpayAtm ? 'ATM 轉帳' : '信用卡'}`,
       weight: 'bold',
       size: 'sm',
       margin: 'lg',
-      color: '#06c755',
+      color: isLinePay ? '#06c755' : isEcpayAtm ? '#0f766e' : '#1d4ed8',
     });
     bodyContents.push({
       type: 'text',
-      text: '若還沒完成付款,點下方「查看訂單」就能繼續付款。付款完成後訂單會自動更新,不用回報帳號後 5 碼。',
+      text: isEcpayAtm
+        ? '專屬轉帳帳號會另外傳給您,也可以點下方「查看訂單」查看。轉帳完成後訂單會自動更新,不用回報帳號後 5 碼。'
+        : '若還沒完成付款,點下方「查看訂單」就能繼續付款。付款完成後訂單會自動更新,不用回報帳號後 5 碼。',
       size: 'xs',
       color: '#71717a',
       wrap: true,
@@ -720,4 +731,22 @@ export async function startLinePayLiff(orderNo: string): Promise<StartLinePayRes
   const slug = await tenantSlug();
   if (!slug) return { ok: false, error: '攤位設定異常' };
   return startLinePay(slug, orderNo);
+}
+
+// ====================
+// 2026-10-22:LIFF 的綠界(信用卡 / ATM 虛擬帳號)— 一樣共用公開商城那套。
+// 綠界不用 server 發動,前端直接 window.location 到 /api/ecpay/pay 即可。
+// ====================
+
+/** 這個攤位能不能用綠界(金鑰已設 + feature flag 開) */
+export async function isEcpayAvailableLiff(): Promise<boolean> {
+  const slug = await tenantSlug();
+  return slug ? isEcpayAvailable(slug) : false;
+}
+
+/** 綠界付款入口網址;回 null = 攤位設定異常 */
+export async function ecpayPayUrlLiff(orderNo: string, method: 'atm' | 'credit'): Promise<string | null> {
+  const slug = await tenantSlug();
+  if (!slug) return null;
+  return `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(orderNo)}&method=${method}`;
 }
