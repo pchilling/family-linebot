@@ -63,7 +63,9 @@ export async function GET(req: NextRequest) {
     console.error('[linepay confirm] 找不到訂單', orderNo);
     return NextResponse.redirect(home);
   }
-  accessKey = order.access_key ?? '';
+  // Phase 22:交易序號對得上(只有 LINE Pay 真的導回來才會帶對)才在網址帶存取碼,
+  // 不然任何人拿單號加隨便一個序號來敲這支就能拿到碼
+  if (order.linepay_transaction_id === transactionId) accessKey = order.access_key ?? '';
   // 重複導回(客人按上一頁 / 重新整理)→ 直接看訂單頁,不再扣一次
   if (order.payment_status === 'paid') {
     return NextResponse.redirect(orderUrl('?linepay=done'));

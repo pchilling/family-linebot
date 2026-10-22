@@ -729,11 +729,36 @@ export async function isLinePayAvailableLiff(): Promise<boolean> {
   return slug ? isLinePayAvailable(slug) : false;
 }
 
-/** 對既有訂單發動 LINE Pay,回付款頁網址(前端自行跳轉) */
-export async function startLinePayLiff(orderNo: string): Promise<StartLinePayResult> {
+/**
+ * Phase 22:確認這張單是這個 LINE 用戶的,才把存取碼交出去。
+ * server action 任何人都呼叫得到,不驗身分的話拿單號就能要到別人的碼。
+ */
+async function accessKeyForLineUser(idToken: string, orderNo: string): Promise<string | null> {
+  const lineUserId = await verifyIdToken(idToken);
+  const { data: user } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('tenant_id', TENANT_ID)
+    .eq('line_user_id', lineUserId)
+    .maybeSingle();
+  if (!user) return null;
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('access_key')
+    .eq('tenant_id', TENANT_ID)
+    .eq('order_no', orderNo)
+    .eq('user_id', (user as { id: string }).id)
+    .maybeSingle();
+  return (order as { access_key: string | null } | null)?.access_key ?? null;
+}
+
+/** 對既有訂單發動 LINE Pay,回付款頁網址(前端自行跳轉);要驗 LINE 身分與訂單歸屬 */
+export async function startLinePayLiff(idToken: string, orderNo: string): Promise<StartLinePayResult> {
   const slug = await tenantSlug();
   if (!slug) return { ok: false, error: '攤位設定異常' };
-  return startLinePay(slug, orderNo);
+  const key = await accessKeyForLineUser(idToken, orderNo);
+  if (!key) return { ok: false, error: '找不到這筆訂單' };
+  return startLinePay(slug, orderNo, key);
 }
 
 // ====================
@@ -753,9 +778,11 @@ export async function isEcpayAtmAvailableLiff(): Promise<boolean> {
   return slug ? isEcpayAtmAvailable(slug) : false;
 }
 
-/** 綠界付款入口網址;回 null = 攤位設定異常 */
-export async function ecpayPayUrlLiff(orderNo: string, method: 'atm' | 'credit'): Promise<string | null> {
+/** 綠界付款入口網址(帶存取碼);回 null = 攤位設定異常或這張單不是這個人的 */
+export async function ecpayPayUrlLiff(idToken: string, orderNo: string, method: 'atm' | 'credit'): Promise<string | null> {
   const slug = await tenantSlug();
   if (!slug) return null;
-  return `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(orderNo)}&method=${method}`;
+  const key = await accessKeyForLineUser(idToken, orderNo);
+  if (!key) return null;
+  return `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(orderNo)}&method=${method}&k=${encodeURIComponent(key)}`;
 }

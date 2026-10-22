@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const slug = (sp.get('slug') ?? '').trim();
   const orderNo = (sp.get('orderNo') ?? '').trim();
+  const providedKey = (sp.get('k') ?? '').trim();
   const methodParam = (sp.get('method') ?? '').trim().toLowerCase();
   const method: EcpayMethod | null = methodParam === 'atm' ? 'atm' : methodParam === 'credit' ? 'credit' : null;
   const home = new URL(slug ? `/${slug}` : '/', req.nextUrl.origin);
@@ -124,7 +125,13 @@ export async function GET(req: NextRequest) {
     console.error('[ecpay pay] 找不到訂單', orderNo);
     return NextResponse.redirect(home);
   }
-  accessKey = order.access_key ?? '';
+  // Phase 22:要帶對存取碼才能發動付款。驗不過就導回「不帶碼」的訂單頁 —
+  // 這裡要是把碼帶出去,任何人拿單號來敲這支就等於拿到別人的存取碼。
+  if (!order.access_key || providedKey !== order.access_key) {
+    console.warn('[ecpay pay] 存取碼不符', orderNo);
+    return NextResponse.redirect(orderUrl(''));
+  }
+  accessKey = order.access_key;
   if (order.payment_status === 'paid') return NextResponse.redirect(orderUrl('?ecpay=done'));
   if (order.status === 'cancelled' || order.status === 'refunded') {
     return NextResponse.redirect(orderUrl('?ecpay=cancelled_order'));
@@ -206,12 +213,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.nextUrl.origin), 303);
   }
   const k = order.access_key ?? '';
-  const orderUrl = (query: string) =>
-    new URL(`/${slug}/order/${order.order_no}${query}${k ? `${query ? '&' : '?'}k=${k}` : ''}`, req.nextUrl.origin);
+  // 檢查碼驗過才是綠界真的導回來,才可以在網址帶存取碼;驗不過的導回不帶碼
+  const orderUrl = (query: string, withKey = true) =>
+    new URL(`/${slug}/order/${order.order_no}${query}${withKey && k ? `${query ? '&' : '?'}k=${k}` : ''}`, req.nextUrl.origin);
 
   if (!verifyEcpayCallback(fields)) {
     console.error('[ecpay pay] 導回檢查碼不符', fields.MerchantTradeNo);
-    return NextResponse.redirect(orderUrl('?ecpay=failed'), 303);
+    return NextResponse.redirect(orderUrl('?ecpay=failed', false), 303);
   }
 
   const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? req.nextUrl.origin).replace(/\/+$/, '');

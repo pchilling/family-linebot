@@ -240,7 +240,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
     ? new Date(order.atm_expire_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
   const ecpayPayUrl = (m: 'atm' | 'credit') =>
-    `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(order.order_no)}&method=${m}`;
+    `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(order.order_no)}&method=${m}&k=${encodeURIComponent(order.access_key ?? '')}`;
   const stage =
     order.status === 'delivered' ? 4
     : order.status === 'shipped' ? 3

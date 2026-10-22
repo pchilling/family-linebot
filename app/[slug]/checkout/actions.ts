@@ -428,6 +428,8 @@ export type StartLinePayResult =
 export async function startLinePay(
   tenantSlug: string,
   orderNo: string,
+  /** Phase 22:訂單存取碼,對不上不給發動(cancelUrl 會帶碼回訂單頁,不驗的話等於把碼送人) */
+  accessKey: string,
 ): Promise<StartLinePayResult> {
   if (!(await isLinePayAvailable(tenantSlug))) {
     return { ok: false, error: '此攤位未開放 LINE Pay' };
@@ -453,6 +455,10 @@ export async function startLinePay(
   } | null;
 
   if (!order) return { ok: false, error: '找不到訂單' };
+  if (!order.access_key || accessKey !== order.access_key) {
+    console.warn('[startLinePay] 存取碼不符', orderNo);
+    return { ok: false, error: '連結無效,請從訂單頁的連結操作' };
+  }
   if (order.payment_status === 'paid') return { ok: false, error: '這筆訂單已付款' };
   if (order.status === 'cancelled' || order.status === 'refunded') {
     return { ok: false, error: '這筆訂單已取消' };
@@ -494,6 +500,6 @@ export async function startLinePayAndRedirect(formData: FormData): Promise<void>
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const orderNo = String(formData.get('order_no') ?? '').trim();
   const k = String(formData.get('k') ?? '').trim();
-  const result = await startLinePay(slug, orderNo);
+  const result = await startLinePay(slug, orderNo, k);
   redirect(result.ok ? result.paymentUrl : `/${slug}/order/${orderNo}?linepay=failed${k ? `&k=${encodeURIComponent(k)}` : ''}`);
 }

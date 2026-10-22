@@ -360,7 +360,7 @@ export default function ShopPage() {
       // 發動失敗不擋單 — 訂單已成立,退回完成畫面,客人可從訂單頁再付一次。
       if (isLinePayPay) {
         setLeaving(true);
-        const pay = await startLinePayLiff(order_no);
+        const pay = await startLinePayLiff(idToken, order_no);
         if (pay.ok) {
           window.location.href = pay.paymentUrl;
           return;
@@ -371,7 +371,7 @@ export default function ShopPage() {
       // 2026-10-22:選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay,它會把瀏覽器送到綠界付款頁
       if (isEcpayPay) {
         setLeaving(true);
-        const url = await ecpayPayUrlLiff(order_no, payMethod === 'ecpay_atm' ? 'atm' : 'credit');
+        const url = await ecpayPayUrlLiff(idToken, order_no, payMethod === 'ecpay_atm' ? 'atm' : 'credit');
         if (url) {
           window.location.href = url;
           return;

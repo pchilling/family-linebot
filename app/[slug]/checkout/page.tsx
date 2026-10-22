@@ -335,7 +335,7 @@ export default function CheckoutPage({ params }: Props) {
     // 2026-10-15:選 LINE Pay → 導去付款頁。
     // 發動失敗不擋單(訂單已成立),退回訂單頁讓客人重按一次付款。
     if (isLinePayPay) {
-      const pay = await startLinePay(slug, result.orderNo);
+      const pay = await startLinePay(slug, result.orderNo, result.accessKey ?? '');
       if (pay.ok) {
         window.location.href = pay.paymentUrl;
         return;
@@ -346,7 +346,7 @@ export default function CheckoutPage({ params }: Props) {
     // 2026-10-22:選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay,它會把瀏覽器送到綠界付款頁
     if (isEcpayPay) {
       const method = payMethod === 'ecpay_atm' ? 'atm' : 'credit';
-      window.location.href = `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(result.orderNo)}&method=${method}`;
+      window.location.href = `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(result.orderNo)}&method=${method}${kq ? `&${kq}` : ''}`;
       return;
     }
     router.push(`/${slug}/order/${result.orderNo}${kq ? `?${kq}` : ''}`);
