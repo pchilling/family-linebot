@@ -24,18 +24,18 @@ const GAP = 0.06; // 卡片間距(卡片寬的倍數)
 
 const CSS = `
 .bh{position:relative;--bh-card:clamp(240px,78vw,600px)}
-.bh-frame{overflow:hidden;padding:28px 0 16px;outline:none;cursor:grab;touch-action:pan-y;perspective:calc(var(--bh-card) * ${PERSPECTIVE})}
+.bh-frame{overflow:hidden;padding:24px 0 44px;outline:none;cursor:grab;touch-action:pan-y;perspective:calc(var(--bh-card) * ${PERSPECTIVE})}
 .bh-frame:active{cursor:grabbing}
 .bh-frame:focus-visible{border-radius:10px;box-shadow:inset 0 0 0 2px var(--ui-accent)}
 .bh-track{position:relative;height:calc(var(--bh-card) * 3 / 4);transform-style:preserve-3d;user-select:none;-webkit-user-select:none}
-.bh-card{position:absolute;left:50%;top:0;width:var(--bh-card);aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:#000;border:1px solid var(--ui-line);box-shadow:0 18px 40px rgba(0,0,0,.18);will-change:transform,opacity}
+.bh-card{position:absolute;left:50%;top:0;width:var(--bh-card);aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:#000;border:1px solid var(--ui-line);box-shadow:0 10px 28px rgba(0,0,0,.14);will-change:transform,opacity}
 .bh-card img,.bh-card video,.bh-card iframe{width:100%;height:100%;object-fit:cover;display:block;border:0}
 .bh-card[data-side="true"]{cursor:pointer}
 .bh-card[data-side="true"] iframe,.bh-card[data-side="true"] video{pointer-events:none}
-.bh-dots{display:flex;justify-content:center;gap:6px;padding-top:2px}
+.bh-dots{display:flex;justify-content:center;gap:6px;margin-top:-8px}
 .bh-dot{width:8px;height:8px;border-radius:50%;border:0;padding:0;cursor:pointer;background:var(--ui-ink);opacity:.25;transition:opacity .2s}
 .bh-dot[aria-current="true"]{opacity:1}
-@media (max-width:1024px){.bh-frame{padding:12px 0 10px}.bh-card{box-shadow:0 10px 24px rgba(0,0,0,.16)}}
+@media (max-width:1024px){.bh-frame{padding:12px 0 32px}.bh-card{box-shadow:0 6px 18px rgba(0,0,0,.14)}.bh-dots{margin-top:-4px}}
 `;
 
 /** 某張卡離中心 offset 格時的 transform / 透明度;寬度用 CSS 變數算,SSR 第一次就能排對位置 */
