@@ -1239,3 +1239,30 @@ alter table orders add column if not exists linepay_refunded_twd int not null de
 -- 語意同 products.sort_order:null = 沒排過,排在最後。
 -- ====================
 alter table product_variants add column if not exists sort_order int;
+
+
+-- ====================
+-- Phase 21(2026-10-22):綠界 ECPay 金流 — ATM 虛擬帳號 + 信用卡一次付清
+-- 客人結帳選 ATM 或信用卡 → 瀏覽器表單 POST 到綠界付款頁 →
+-- 綠界 Server 端通知 /api/ecpay/notify(付款結果 / ATM 取號結果)→ 自動標已付款,
+-- 不用再回報匯款後 5 碼人工核帳。瀏覽器導回 /api/ecpay/pay(POST)→ 訂單頁。
+-- 金鑰放環境變數:ECPAY_MERCHANT_ID / ECPAY_HASH_KEY / ECPAY_HASH_IV
+-- (測試站設 ECPAY_ENV=sandbox,用綠界公開的測試特店)
+-- payment_method 新增兩個值:'ecpay_atm'、'ecpay_credit'(欄位是 text,沒有 check)
+-- ====================
+
+-- 特店交易編號:每次發動付款都換一組(綠界不收重複的),通知回來時用它反查訂單
+alter table orders add column if not exists ecpay_merchant_trade_no text;
+-- 綠界交易編號:付款成功 / 取號成功時綠界給的,對帳與退款用
+alter table orders add column if not exists ecpay_trade_no text;
+-- ATM 虛擬帳號資訊(取號成功時存;訂單頁與後台顯示、繳費期限過了 cron 才取消)
+alter table orders add column if not exists atm_bank_code text;
+alter table orders add column if not exists atm_vaccount text;
+alter table orders add column if not exists atm_expire_at timestamptz;
+
+create index if not exists orders_ecpay_mtn_idx on orders(ecpay_merchant_trade_no);
+
+-- 愛油哇開放綠界付款選項(feature flag,其他攤位不受影響)
+update tenants
+set features = coalesce(features, '{}'::jsonb) || '{"ecpay": true}'::jsonb
+where slug = 'oilswa';

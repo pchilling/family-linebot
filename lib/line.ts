@@ -812,11 +812,14 @@ export function buildPaymentFlexMessage(params: {
   orderUrl: string;
   /** 部分退款時帶原訂單金額,卡片上會註明尚未全退 */
   remainingTwd?: number;
+  /** 付款方式顯示文字;不帶 = LINE Pay(2026-10-22 綠界 ATM / 信用卡也共用這張卡) */
+  method?: string;
 }): messagingApi.FlexMessage {
   const isRefund = params.kind === 'refunded';
   const accent = isRefund ? '#b45309' : '#16a34a';
   const title = isRefund ? '✓ 退款已完成' : '✓ 已收到您的付款';
   const amountLabel = isRefund ? '退款金額' : '付款金額';
+  const methodLabel = params.method ?? 'LINE Pay';
 
   const bodyContents: messagingApi.FlexBox['contents'] = [
     { type: 'text', text: title, weight: 'bold', size: 'lg', color: accent },
@@ -841,7 +844,7 @@ export function buildPaymentFlexMessage(params: {
     { type: 'box', layout: 'baseline', margin: 'sm',
       contents: [
         { type: 'text', text: '付款方式', size: 'sm', color: '#71717a', flex: 3 },
-        { type: 'text', text: 'LINE Pay', size: 'sm', color: '#18181b', flex: 5, align: 'end' },
+        { type: 'text', text: methodLabel, size: 'sm', color: '#18181b', flex: 5, align: 'end' },
       ],
     },
     { type: 'separator', margin: 'lg', color: '#e4e4e7' },
@@ -849,8 +852,8 @@ export function buildPaymentFlexMessage(params: {
       type: 'text',
       text: isRefund
         ? (params.remainingTwd && params.remainingTwd > 0
-            ? `本筆為部分退款,訂單尚有 NT$ ${params.remainingTwd.toLocaleString()} 未退。款項將退回您原本付款的 LINE Pay 帳戶,實際入帳時間依支付方式而定。`
-            : '款項將退回您原本付款的 LINE Pay 帳戶,實際入帳時間依您的付款方式而定。')
+            ? `本筆為部分退款,訂單尚有 NT$ ${params.remainingTwd.toLocaleString()} 未退。款項將退回您原本付款的 ${methodLabel} 帳戶,實際入帳時間依支付方式而定。`
+            : `款項將退回您原本付款的 ${methodLabel} 帳戶,實際入帳時間依您的付款方式而定。`)
         : '我們會盡快為您出貨,出貨後會再通知您。感謝您的訂購!',
       size: 'xs', color: '#71717a', wrap: true, margin: 'lg',
     },
