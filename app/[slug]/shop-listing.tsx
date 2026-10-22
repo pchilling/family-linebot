@@ -153,8 +153,11 @@ export function ShopListing({
 
   // 網址 ?cat= 帶進來的分類(例如從 LINE 貼的連結),載入時套上
   useEffect(() => {
-    const cat = new URLSearchParams(window.location.search).get('cat');
+    const sp = new URLSearchParams(window.location.search);
+    const cat = sp.get('cat');
     if (cat && categories.includes(cat)) setF((cur) => ({ ...cur, cats: [cat] }));
+    // ?fav=1:帳號選單的「我的收藏」直接開只看收藏
+    if (sp.get('fav') === '1') setF((cur) => ({ ...cur, fav: true }));
   }, [categories]);
   // 抽屜打開時鎖住底層捲動
   useEffect(() => {

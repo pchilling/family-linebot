@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { buildGiftItems, getTenantBySlug, getProductTiers, hasFeature, isSaleActive, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
 import { isEcpayConfigured } from '@/lib/ecpay';
+import { getCurrentMember } from '@/lib/member-auth';
 
 // 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
 // (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
@@ -333,10 +334,14 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     }
   }
 
+  // Phase 26:已登入就把訂單綁到會員(platform_users),「我的訂單」靠這個找;沒登入維持訪客單
+  const member = await getCurrentMember().catch(() => null);
+
   // 建 order(order_no / total_twd 由 trigger 處理;total_twd = 商品小計,運費另存)
   const { data: orderRow, error: oErr } = await supabaseAdmin
     .from('orders')
     .insert({
+      ...(member ? { platform_user_id: member.id } : {}),
       tenant_id: tenant.id,
       status: 'open',
       payment_status: 'pending',

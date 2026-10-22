@@ -219,6 +219,14 @@ export default function CheckoutPage({ params }: Props) {
   // ATM 虛擬帳號另有開關(ecpay_atm flag);2026-10-22 起預設關,只開信用卡
   const [ecpayAtmOn, setEcpayAtmOn] = useState(false);
   const [payMethod, setPayMethod] = useState<PayMethod>('bank');
+  // Phase 26:已登入就預填收件人與電話,並把信箱帶進訂單(查單、對帳號用);沒登入照舊
+  const [member, setMember] = useState<{ name: string | null; email: string | null; phone: string | null } | null>(null);
+  useEffect(() => {
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d: { member: { name: string | null; email: string | null; phone: string | null } | null }) => setMember(d.member ?? null))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
     getGiftRulesPublic(slug).then(setGiftCfg).catch(() => {});
@@ -714,14 +722,16 @@ export default function CheckoutPage({ params }: Props) {
             <label htmlFor="recipient" style={labelStyle}>
               收件人姓名 <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <input id="recipient" name="recipient" type="text" required style={inputStyle} />
+            {/* key 跟著會員資料換:資料載進來時重掛一次,把預設值填進去 */}
+            <input key={member ? 'm' : 'g'} id="recipient" name="recipient" type="text" required defaultValue={member?.name ?? ''} style={inputStyle} />
           </div>
           <div>
             <label htmlFor="phone" style={labelStyle}>
               聯絡電話 <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <input id="phone" name="phone" type="tel" required style={inputStyle} />
+            <input key={member ? 'm' : 'g'} id="phone" name="phone" type="tel" required defaultValue={member?.phone ?? ''} style={inputStyle} />
           </div>
+          {member?.email && <input type="hidden" name="guestEmail" value={member.email} />}
           <div>
             <label style={labelStyle}>
               寄送地址 <span style={{ color: '#ef4444' }}>*</span>

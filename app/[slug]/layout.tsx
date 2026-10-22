@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
 import { UI_CSS } from '@/lib/ui';
+import { AccountMenu } from './account-menu';
 import { CartLink } from './cart-state';
 
 type Props = {
@@ -101,7 +102,11 @@ export default async function TenantLayout({ children, params }: Props) {
             <a href={`/${slug}`}>商品</a>
             <a href={`/${slug}/order-lookup`}>查訂單</a>
           </nav>
-          <CartLink tenantSlug={slug} />
+          {/* Phase 26:購物車 icon + 帳號(未登入「登入」/ 登入後頭像選單) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <CartLink tenantSlug={slug} />
+            <AccountMenu slug={slug} />
+          </div>
         </div>
       </header>
 

@@ -1317,3 +1317,23 @@ create trigger product_reviews_updated_at before update on product_reviews
 
 -- 邀請紀錄:推過評價卡就記時間,不重複推
 alter table orders add column if not exists review_invited_at timestamptz;
+
+
+-- ====================
+-- Phase 26(2026-10-23):商店會員登入(LINE / Google / 信箱)
+-- 會員用平台共用的 platform_users + platform_user_auth_methods(跟 neraoil 同一套),這裡只加:
+-- 1. orders.platform_user_id:登入後下的單綁會員,「我的訂單」靠它找(訪客單維持 null)
+-- 2. login_emails:信箱登入信的寄送紀錄,擋同一個信箱 / IP 寄太多次(信由 Resend 寄,Supabase 不再替我們擋)
+-- ====================
+alter table orders add column if not exists platform_user_id uuid references platform_users(id) on delete set null;
+create index if not exists orders_platform_user_idx on orders(platform_user_id) where platform_user_id is not null;
+
+create table if not exists login_emails (
+  id bigserial primary key,
+  email text not null,
+  ip text,
+  sent_at timestamptz not null default now()
+);
+create index if not exists login_emails_email_sent on login_emails(email, sent_at desc);
+create index if not exists login_emails_ip_sent on login_emails(ip, sent_at desc);
+alter table login_emails enable row level security;
