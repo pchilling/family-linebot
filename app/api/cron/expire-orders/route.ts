@@ -1,15 +1,19 @@
 /**
- * 每日訂單維護(2026-10-15 建立,2026-10-16 加 LINE Pay 抓漏)
+ * 每日訂單維護(2026-10-15 建立,2026-10-16 加 LINE Pay 抓漏,2026-10-22 加綠界抓漏)
  *
- * 由 Vercel Cron 每天台北時間 09:00 觸發(見 vercel.json),依序做兩件事:
+ * 由 Vercel Cron 每天台北時間 09:00 觸發(見 vercel.json),依序做三件事:
  *
  * 步驟 1 — LINE Pay 抓漏:
  *   客人在 LINE Pay 按了付款、但導回我們網站那一步失敗(關掉瀏覽器、網路斷),
  *   confirm 就沒跑到 → 錢沒被請款、訂單也還掛著未付款。
  *   這裡主動問 LINE Pay「這筆客人授權了沒」,有授權就補請款並標已付款。
- *   ⚠️ 一定要排在步驟 2 前面,否則會先把客人以為付過的單取消掉。
+ *   ⚠️ 一定要排在步驟 3 前面,否則會先把客人以為付過的單取消掉。
  *
- * 步驟 2 — 逾期未付款自動取消:
+ * 步驟 2 — 綠界抓漏:
+ *   綠界付款(信用卡 / ATM)是綠界 Server 端通知我們,通知失敗它會重送 4 次,
+ *   但還是可能漏(我們那時剛好掛掉)。這裡主動問綠界「這筆付了沒」,付了就補標已付款。
+ *
+ * 步驟 3 — 逾期未付款自動取消:
  * 訂單一成立就扣庫存,未付款的單若放著不管會一直佔庫存 —
  * 超過期限就自動標 cancelled,handle_order_cancel trigger 會把庫存退回來,
  * 並推一則 LINE 通知客人。
@@ -23,13 +27,18 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { buildPaymentFlexMessage, lineClient } from '@/lib/line';
 import { checkLinePayPaymentStatus, confirmLinePayPayment } from '@/lib/linepay';
+import { applyEcpayPaymentResult, queryEcpayTrade } from '@/lib/ecpay';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// 期限:線上付款是當下就該付完,給短一點;匯款要跑銀行,給寬一點
+// 期限:線上付款是當下就該付完,給短一點;匯款要跑銀行,給寬一點。
+// 綠界 ATM 虛擬帳號的繳費期限是 3 天(到第 3 天 23:59),這裡給 4 天,
+// 確保一定是綠界那邊先到期、我們才取消,不會客人還能轉帳但單已經被取消。
 const EXPIRE_DAYS: Record<string, number> = {
   line_pay: 1,
+  ecpay_credit: 1,
+  ecpay_atm: 4,
   bank: 3,
 };
 const DEFAULT_EXPIRE_DAYS = 3;
@@ -125,6 +134,67 @@ async function reconcileLinePay(): Promise<string[]> {
   return recovered;
 }
 
+type PendingEcpayOrder = {
+  id: string;
+  order_no: string;
+  ecpay_merchant_trade_no: string;
+};
+
+/**
+ * 步驟 2:找出「有發動過綠界付款但還沒標已付款」的訂單,問綠界付了沒。
+ * 付了就走跟 Server 端通知一樣的處理(標已付款 + 推 LINE 通知卡)。
+ * 綠界查詢有頻率限制(太密集會被鎖 30 分鐘),逐筆之間隔半秒;只看 7 天內、最多 30 筆。
+ */
+async function reconcileEcpay(): Promise<string[]> {
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .select('id, order_no, ecpay_merchant_trade_no')
+    .eq('payment_status', 'pending')
+    .eq('status', 'open')
+    .not('ecpay_merchant_trade_no', 'is', null)
+    .gte('created_at', since)
+    .order('created_at', { ascending: true })
+    .limit(30);
+
+  if (error) {
+    console.error('[reconcileEcpay] 查詢失敗', error);
+    return [];
+  }
+
+  const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
+  const recovered: string[] = [];
+  for (const o of (data ?? []) as PendingEcpayOrder[]) {
+    const q = await queryEcpayTrade(o.ecpay_merchant_trade_no);
+    if (!q.ok) {
+      console.warn('[reconcileEcpay] 查詢失敗', o.order_no, q.error);
+      continue;
+    }
+    if (q.paid) {
+      // 組成跟綠界通知一樣的欄位,共用同一套更新邏輯(金額比對、推播、不重複處理)
+      const result = await applyEcpayPaymentResult(
+        {
+          RtnCode: '1',
+          MerchantTradeNo: o.ecpay_merchant_trade_no,
+          TradeNo: q.tradeNo,
+          TradeAmt: String(q.tradeAmt),
+          PaymentType: q.paymentType,
+          CustomField1: o.id,
+        },
+        baseUrl,
+      );
+      if (result === 'paid') {
+        recovered.push(o.order_no);
+        console.log('[reconcileEcpay] 補標已付款', o.order_no, q.tradeAmt);
+      } else {
+        console.warn('[reconcileEcpay] 綠界說已付款但沒補成', o.order_no, result);
+      }
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return recovered;
+}
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -135,8 +205,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  // 步驟 1:先補收款,再做步驟 2 的逾期取消(順序不能顛倒)
+  // 步驟 1、2:先補收款,再做步驟 3 的逾期取消(順序不能顛倒)
   const recovered = await reconcileLinePay();
+  const recoveredEcpay = await reconcileEcpay();
 
   const now = Date.now();
   // 先用最寬的期限撈,再依付款方式逐筆判斷
@@ -203,12 +274,14 @@ export async function GET(req: NextRequest) {
   }
 
   console.log(
-    `[expire-orders] LINE Pay 補收款 ${recovered.length} 筆;檢查 ${(data ?? []).length} 筆,取消 ${cancelled.length} 筆`,
+    `[expire-orders] LINE Pay 補收款 ${recovered.length} 筆;綠界補收款 ${recoveredEcpay.length} 筆;檢查 ${(data ?? []).length} 筆,取消 ${cancelled.length} 筆`,
     cancelled.join(', '),
   );
   return NextResponse.json({
     linepay_recovered: recovered.length,
     recovered_orders: recovered,
+    ecpay_recovered: recoveredEcpay.length,
+    ecpay_recovered_orders: recoveredEcpay,
     checked: (data ?? []).length,
     cancelled: cancelled.length,
     orders: cancelled,
