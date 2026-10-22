@@ -477,13 +477,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
               {isEcpayAtm ? '取得 ATM 轉帳帳號' : `用信用卡付款 · NT$ ${grandTotal.toLocaleString()}`}
             </a>
           )}
-          <div style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#6b7280', textAlign: 'center' }}>
-            {isEcpayAtm ? (
-              <>改用 <a href={ecpayPayUrl('credit')} style={{ color: '#1d4ed8' }}>信用卡付款</a></>
-            ) : (
-              <>改用 <a href={ecpayPayUrl('atm')} style={{ color: '#0f766e' }}>ATM 轉帳</a></>
-            )}
-          </div>
+          {/* ATM 單可以改刷卡;信用卡單不提供改 ATM(ATM 選項 2026-10-22 起預設關) */}
+          {isEcpayAtm && (
+            <div style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#6b7280', textAlign: 'center' }}>
+              改用 <a href={ecpayPayUrl('credit')} style={{ color: '#1d4ed8' }}>信用卡付款</a>
+            </div>
+          )}
         </section>
       )}
 

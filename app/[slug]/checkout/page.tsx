@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconChevronLeft, IconCreditCard, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type ShippingOption } from './actions';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type ShippingOption } from './actions';
 
 // 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
 type PayMethod = 'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit';
@@ -216,6 +216,8 @@ export default function CheckoutPage({ params }: Props) {
   const [linePayOn, setLinePayOn] = useState(false);
   // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號);有開的話預設選信用卡,少走人工核帳
   const [ecpayOn, setEcpayOn] = useState(false);
+  // ATM 虛擬帳號另有開關(ecpay_atm flag);2026-10-22 起預設關,只開信用卡
+  const [ecpayAtmOn, setEcpayAtmOn] = useState(false);
   const [payMethod, setPayMethod] = useState<PayMethod>('bank');
   useEffect(() => {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
@@ -227,6 +229,7 @@ export default function CheckoutPage({ params }: Props) {
         if (on) setPayMethod((m) => (m === 'bank' ? 'ecpay_credit' : m));
       })
       .catch(() => {});
+    isEcpayAtmAvailable(slug).then(setEcpayAtmOn).catch(() => {});
   }, [slug]);
   const isLinePayPay = linePayOn && payMethod === 'line_pay';
   const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
@@ -271,10 +274,13 @@ export default function CheckoutPage({ params }: Props) {
   // 已成立 → 顯 loading 直到 router.push 真的跳完(避免閃空車畫面 / 空表單)
   if (redirecting) {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#374151' }}>
-        <p style={{ fontSize: '1.125rem', margin: 0 }}>
-          {isLinePayPay ? '訂單已成立,正在前往 LINE Pay...' : isEcpayPay ? '訂單已成立,正在前往付款頁...' : '訂單已成立,跳轉中...'}
+      <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#374151', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <style>{`@keyframes ck-spin { to { transform: rotate(360deg); } }`}</style>
+        <span style={{ width: 38, height: 38, border: '3px solid #e4e4e7', borderTopColor: '#18181b', borderRadius: '50%', animation: 'ck-spin 0.8s linear infinite' }} />
+        <p style={{ fontSize: '1.125rem', margin: 0, fontWeight: 600 }}>
+          {isLinePayPay ? '訂單已成立,正在前往 LINE Pay…' : isEcpayPay ? '訂單已成立,正在前往付款頁…' : '訂單已成立,跳轉中…'}
         </p>
+        <p style={{ fontSize: '0.8125rem', margin: 0, color: '#9ca3af' }}>請不要重複操作或關閉畫面</p>
       </div>
     );
   }
@@ -549,6 +555,23 @@ export default function CheckoutPage({ params }: Props) {
         </div>
       </div>
 
+      {/* 2026-10-22:建立訂單期間蓋住整個畫面,按不到別的東西(建好後換成上面的跳轉畫面) */}
+      {submitting && (
+        <div
+          aria-busy="true"
+          aria-live="polite"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
+          }}
+        >
+          <style>{`@keyframes ck-spin { to { transform: rotate(360deg); } }`}</style>
+          <span style={{ width: 38, height: 38, border: '3px solid #e4e4e7', borderTopColor: '#18181b', borderRadius: '50%', animation: 'ck-spin 0.8s linear infinite' }} />
+          <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#18181b' }}>訂單建立中,請稍候…</div>
+          <div style={{ fontSize: '0.75rem', color: '#71717a' }}>請不要重複按送出或關閉畫面</div>
+        </div>
+      )}
       <form className="ck-form" action={handleSubmit}>
         {/* D#13:配送方式(攤位有設運費規則才顯示)
             2026-10-15:選項本身已經是「面」了,不再包一層卡 — 免得整頁變成一堆同款方框 */}
@@ -652,7 +675,7 @@ export default function CheckoutPage({ params }: Props) {
                   desc="送出後直接前往 LINE Pay 付款,不用回報後 5 碼"
                 />
               )}
-              {ecpayOn && (
+              {ecpayAtmOn && (
                 <OptionCard
                   name="payment_method"
                   value="ecpay_atm"

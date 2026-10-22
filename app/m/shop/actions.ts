@@ -1,7 +1,7 @@
 'use server';
 
 import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
-import { isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
+import { isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -345,9 +345,11 @@ export async function placeOrder(
   const paymentMethod =
     rawPayment === 'line_pay'
       ? 'line_pay'
-      : (rawPayment === 'ecpay_atm' || rawPayment === 'ecpay_credit') && (await isEcpayAvailableLiff())
-        ? rawPayment
-        : 'bank';
+      : rawPayment === 'ecpay_credit' && (await isEcpayAvailableLiff())
+        ? 'ecpay_credit'
+        : rawPayment === 'ecpay_atm' && (await isEcpayAtmAvailableLiff())
+          ? 'ecpay_atm'
+          : 'bank';
 
   if (cart.length === 0) throw new Error('購物車是空的');
   if (!recipient || !phone || !address) throw new Error('收件人 / 電話 / 地址 必填');
@@ -742,6 +744,12 @@ export async function startLinePayLiff(orderNo: string): Promise<StartLinePayRes
 export async function isEcpayAvailableLiff(): Promise<boolean> {
   const slug = await tenantSlug();
   return slug ? isEcpayAvailable(slug) : false;
+}
+
+/** ATM 虛擬帳號另有 ecpay_atm flag(2026-10-22 起預設關) */
+export async function isEcpayAtmAvailableLiff(): Promise<boolean> {
+  const slug = await tenantSlug();
+  return slug ? isEcpayAtmAvailable(slug) : false;
 }
 
 /** 綠界付款入口網址;回 null = 攤位設定異常 */

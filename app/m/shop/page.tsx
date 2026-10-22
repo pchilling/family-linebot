@@ -10,6 +10,7 @@ import { IconBank, IconCheck, IconChevronLeft, IconCreditCard, IconFlame, IconGi
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   ecpayPayUrlLiff,
+  isEcpayAtmAvailableLiff,
   isEcpayAvailableLiff,
   isLinePayAvailableLiff,
   loadShopData,
@@ -53,7 +54,12 @@ export default function ShopPage() {
   const [linePayOn, setLinePayOn] = useState(false);
   // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號);有開的話預設選信用卡
   const [ecpayOn, setEcpayOn] = useState(false);
+  // ATM 虛擬帳號另有開關(ecpay_atm flag);2026-10-22 起預設關,只開信用卡
+  const [ecpayAtmOn, setEcpayAtmOn] = useState(false);
   const [payMethod, setPayMethod] = useState<'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit'>('bank');
+  // 2026-10-22:訂單建好、正在跳去付款頁的那幾秒也要蓋住畫面(跟 submitting 一起顯示遮罩),
+  // 不然客人以為沒反應會亂按
+  const [leaving, setLeaving] = useState(false);
   const isLinePayPay = linePayOn && payMethod === 'line_pay';
   const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
   // 2026-09-11(回饋 #10):上一筆訂單的收件資訊,結帳預填
@@ -118,6 +124,7 @@ export default function ShopPage() {
             if (on) setPayMethod((m) => (m === 'bank' ? 'ecpay_credit' : m));
           })
           .catch(() => {});
+        isEcpayAtmAvailableLiff().then(setEcpayAtmOn).catch(() => {});
         // 2026-09-11:關鍵圖片(banner / logo / 首屏商品圖)預載完才進頁,
         // 不再一張張蹦出來;最多等 3 秒,網路慢也不卡死
         const preloadUrls: string[] = [];
@@ -352,20 +359,24 @@ export default function ShopPage() {
       // 2026-10-16:選 LINE Pay → 直接跳付款頁(付完由 LINE Pay 導回訂單頁)。
       // 發動失敗不擋單 — 訂單已成立,退回完成畫面,客人可從訂單頁再付一次。
       if (isLinePayPay) {
+        setLeaving(true);
         const pay = await startLinePayLiff(order_no);
         if (pay.ok) {
           window.location.href = pay.paymentUrl;
           return;
         }
+        setLeaving(false);
         setError('無法前往 LINE Pay,訂單已保留,可從訂單頁再付一次');
       }
       // 2026-10-22:選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay,它會把瀏覽器送到綠界付款頁
       if (isEcpayPay) {
+        setLeaving(true);
         const url = await ecpayPayUrlLiff(order_no, payMethod === 'ecpay_atm' ? 'atm' : 'credit');
         if (url) {
           window.location.href = url;
           return;
         }
+        setLeaving(false);
         setError('無法前往付款,訂單已保留,可從訂單頁再付一次');
       }
       setOrderNo(order_no);
@@ -718,6 +729,24 @@ export default function ShopPage() {
   // C#7:攤位有設商城底色就套用
   return (
     <main style={{ ...page, ...(tenant.shop_bg_color ? { background: tenant.shop_bg_color } : {}) }}>
+      {/* 2026-10-22:送出訂單到跳去付款頁之間蓋住整個畫面,按不到別的東西 */}
+      {(status === 'submitting' || leaving) && (
+        <div
+          aria-busy="true"
+          aria-live="polite"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
+          }}
+        >
+          <span style={{ width: 38, height: 38, border: '3px solid #e4e4e7', borderTopColor: '#18181b', borderRadius: '50%', animation: 'shop-spin 0.8s linear infinite' }} />
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#18181b' }}>
+            {leaving ? '訂單已成立,正在前往付款…' : '訂單建立中,請稍候…'}
+          </div>
+          <div style={{ fontSize: 12, color: '#71717a' }}>請不要重複按送出或關閉畫面</div>
+        </div>
+      )}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -730,6 +759,7 @@ export default function ShopPage() {
 .shop-add-btn:active {
   transform: scale(0.96);
 }
+@keyframes shop-spin { to { transform: rotate(360deg); } }
 @keyframes shop-fadein {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1457,7 +1487,7 @@ export default function ShopPage() {
                     ...(linePayOn
                       ? [{ key: 'line_pay' as const, title: 'LINE Pay', icon: <IconWallet size={18} />, accent: '#06c755', desc: '送出後直接付款,不用回報後 5 碼' }]
                       : []),
-                    ...(ecpayOn
+                    ...(ecpayAtmOn
                       ? [{ key: 'ecpay_atm' as const, title: 'ATM 轉帳', icon: <IconBank size={18} />, accent: '#0f766e', desc: '送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳' }]
                       : []),
                     { key: 'bank' as const, title: '匯款至店家帳戶', icon: <IconBank size={18} />, accent: '#52525b', desc: '匯款後回報帳號後 5 碼,等待人工核帳' },

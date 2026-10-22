@@ -102,6 +102,11 @@ export async function GET(req: NextRequest) {
     console.error('[ecpay pay] 此攤位未開放綠界', slug);
     return NextResponse.redirect(orderUrl('?ecpay=failed'));
   }
+  // ATM 虛擬帳號另有 ecpay_atm flag(2026-10-22 起預設關,只開信用卡)
+  if (method === 'atm' && !hasFeature(tenant, 'ecpay_atm')) {
+    console.error('[ecpay pay] 此攤位未開放 ATM 虛擬帳號', slug);
+    return NextResponse.redirect(orderUrl('?ecpay=failed'));
+  }
 
   const { data } = await supabaseAdmin
     .from('orders')

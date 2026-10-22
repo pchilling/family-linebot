@@ -159,9 +159,11 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const paymentMethod =
     rawPayment === 'line_pay'
       ? 'line_pay'
-      : (rawPayment === 'ecpay_atm' || rawPayment === 'ecpay_credit') && (await isEcpayAvailable(tenantSlug))
-        ? rawPayment
-        : 'bank';
+      : rawPayment === 'ecpay_credit' && (await isEcpayAvailable(tenantSlug))
+        ? 'ecpay_credit'
+        : rawPayment === 'ecpay_atm' && (await isEcpayAtmAvailable(tenantSlug))
+          ? 'ecpay_atm'
+          : 'bank';
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
 
@@ -401,6 +403,16 @@ export async function isEcpayAvailable(tenantSlug: string): Promise<boolean> {
   if (!isEcpayConfigured()) return false;
   const tenant = await getTenantBySlug(tenantSlug);
   return hasFeature(tenant, 'ecpay');
+}
+
+/**
+ * ATM 虛擬帳號另外用 ecpay_atm flag 控制。
+ * 2026-10-22 Peter 決定先只開信用卡(人工匯款保留),ATM 程式留著,要開再把 flag 打開。
+ */
+export async function isEcpayAtmAvailable(tenantSlug: string): Promise<boolean> {
+  if (!isEcpayConfigured()) return false;
+  const tenant = await getTenantBySlug(tenantSlug);
+  return hasFeature(tenant, 'ecpay') && hasFeature(tenant, 'ecpay_atm');
 }
 
 export type StartLinePayResult =
