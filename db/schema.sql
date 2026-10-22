@@ -1287,3 +1287,33 @@ alter table orders add column if not exists refund_note text;
 alter table orders add column if not exists access_key text;
 alter table orders alter column access_key set default substr(md5(random()::text || clock_timestamp()::text || gen_random_uuid()::text), 1, 16);
 update orders set access_key = substr(md5(random()::text || clock_timestamp()::text || gen_random_uuid()::text), 1, 16) where access_key is null;
+
+
+-- ====================
+-- Phase 25(2026-10-23):商品評價(星等)
+-- 出貨 / 取貨後過 3 天,每日排程推一張 LINE 卡請客人評價;客人用訂單存取碼進評價頁
+-- (不用登入)對每個商品打 1–5 星、可留一句話。商品卡與商品頁顯示平均星數與評價數,
+-- 後台可隱藏不當內容但不能改分數(真實評價才能放星星,假的會踩公平交易法)。
+-- ====================
+create table if not exists product_reviews (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  product_id uuid not null references products(id) on delete cascade,
+  order_id uuid references orders(id) on delete set null,
+  user_id uuid references users(id) on delete set null,
+  rating int not null check (rating between 1 and 5),
+  comment text,
+  display_name text,                 -- 顯示用暱稱(預設 LINE 顯示名,客人可改)
+  status text not null default 'visible' check (status in ('visible', 'hidden')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (order_id, product_id)      -- 同一筆訂單的同一商品只能評一次(再送 = 更新)
+);
+create index if not exists product_reviews_product_idx on product_reviews(product_id, status);
+create index if not exists product_reviews_tenant_idx on product_reviews(tenant_id, created_at desc);
+alter table product_reviews enable row level security;
+create trigger product_reviews_updated_at before update on product_reviews
+  for each row execute function set_updated_at();
+
+-- 邀請紀錄:推過評價卡就記時間,不重複推
+alter table orders add column if not exists review_invited_at timestamptz;

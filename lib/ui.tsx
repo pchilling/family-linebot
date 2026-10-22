@@ -150,6 +150,31 @@ export function Switch({ className, ...props }: InputHTMLAttributes<HTMLInputEle
   );
 }
 
+const STAR_PATH = 'M12 2.5l2.9 6.1 6.7.8-4.9 4.6 1.3 6.6L12 17.3l-6 3.3 1.3-6.6L2.4 9.4l6.7-.8z';
+
+/**
+ * 星等(Phase 25):5 顆星,依 value 填滿比例,半顆也畫得出來。
+ * 底層 5 顆灰星,上層一條裁切寬度的黃星;純 CSS/SVG,server component 也能用。
+ */
+export function Stars({ value, size = 14, gap = 2 }: { value: number; size?: number; gap?: number }) {
+  const pct = Math.max(0, Math.min(5, value)) / 5 * 100;
+  const row = (color: string) => (
+    <span style={{ display: 'inline-flex', gap }}>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <svg key={i} width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden style={{ flexShrink: 0 }}>
+          <path d={STAR_PATH} />
+        </svg>
+      ))}
+    </span>
+  );
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', lineHeight: 0, verticalAlign: 'middle' }} role="img" aria-label={`${value.toFixed(1)} 顆星(滿分 5 顆)`}>
+      {row('#e4e4e7')}
+      <span style={{ position: 'absolute', inset: 0, overflow: 'hidden', width: `${pct}%` }}>{row('#f59e0b')}</span>
+    </span>
+  );
+}
+
 export function Card({ className, style, children }: { className?: string; style?: CSSProperties; children: ReactNode }) {
   return (
     <div className={cx('ui-card', className)} style={style}>

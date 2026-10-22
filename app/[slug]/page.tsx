@@ -43,7 +43,7 @@ export default async function TenantHomePage({ params }: Props) {
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
 
-  const [allProducts, variantsResp, tiersResp] = await Promise.all([
+  const [allProducts, variantsResp, tiersResp, reviewsResp] = await Promise.all([
     getActiveProducts(tenant.id),
     supabaseAdmin
       .from('product_variants')
@@ -55,7 +55,20 @@ export default async function TenantHomePage({ params }: Props) {
       .select('product_id, min_qty, price_twd')
       .eq('tenant_id', tenant.id)
       .order('min_qty', { ascending: true }),
+    // Phase 25:評價星等(只算顯示中的),在程式裡彙總,量小不用另開 view
+    supabaseAdmin
+      .from('product_reviews')
+      .select('product_id, rating')
+      .eq('tenant_id', tenant.id)
+      .eq('status', 'visible'),
   ]);
+  const ratingAgg = new Map<string, { sum: number; count: number }>();
+  for (const r of ((reviewsResp.data as { product_id: string; rating: number }[] | null) ?? [])) {
+    const a = ratingAgg.get(r.product_id) ?? { sum: 0, count: 0 };
+    a.sum += r.rating;
+    a.count += 1;
+    ratingAgg.set(r.product_id, a);
+  }
 
   const variantsByProduct = new Map<string, VariantLite[]>();
   for (const v of ((variantsResp.data as VariantLite[] | null) ?? [])) {
@@ -113,7 +126,9 @@ export default async function TenantHomePage({ params }: Props) {
     const tier = firstTierByProduct.get(p.id);
     const single = vs.length === 1 ? vs[0] : null;
     const earliest = vs.reduce((acc, v) => (acc && acc < v.created_at ? acc : v.created_at), '' as string);
+    const agg = ratingAgg.get(p.id);
     return {
+      rating: agg ? { avg: Math.round((agg.sum / agg.count) * 10) / 10, count: agg.count } : null,
       id: p.id,
       slug: p.slug ?? p.id,
       name: p.name,

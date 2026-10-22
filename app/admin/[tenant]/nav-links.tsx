@@ -78,6 +78,7 @@ export function NavLinks({
     { key: 'products', label: '商品', href: `/admin/${tenantSlug}/products` },
     { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders`, badge: ordersPending },
     { key: 'customers', label: '客戶', href: `/admin/${tenantSlug}/customers` },
+    { key: 'reviews', label: '評價', href: `/admin/${tenantSlug}/reviews` },
     // LINE Pay 對帳:只給有開 line_pay 的攤位
     ...(hasLinePay
       ? [{ key: 'linepay', label: 'LINE Pay 對帳', href: `/admin/${tenantSlug}/linepay` }]

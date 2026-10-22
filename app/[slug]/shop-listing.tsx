@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from './cart-state';
-import { Badge, Button, ButtonLink, Checkbox, Input, Select, Switch } from '@/lib/ui';
+import { Badge, Button, ButtonLink, Checkbox, Input, Select, Stars, Switch } from '@/lib/ui';
 
 export type ListingProduct = {
   id: string;
@@ -33,9 +33,11 @@ export type ListingProduct = {
   createdAt: string;
   /** 「精選排序」的名次(伺服器照特價 → 角標群 → 分類順序 → 手動排序算好) */
   rank: number;
+  /** Phase 25:平均星數與評價數;沒評價 = null(卡片上就不畫星星,不放假的) */
+  rating: { avg: number; count: number } | null;
 };
 
-type Sort = 'featured' | 'price-asc' | 'price-desc' | 'newest';
+type Sort = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'rating';
 const PAGE = 18;
 
 const money = (n: number) => n.toLocaleString('en-US');
@@ -175,6 +177,15 @@ export function ShopListing({
     if (sort === 'price-asc') return a.lo - b.lo;
     if (sort === 'price-desc') return b.hi - a.hi;
     if (sort === 'newest') return b.createdAt.localeCompare(a.createdAt);
+    if (sort === 'rating') {
+      // 有評價的排前面,先比平均再比則數;都沒評價的照精選順序
+      const ra = a.rating?.avg ?? -1;
+      const rb = b.rating?.avg ?? -1;
+      if (ra !== rb) return rb - ra;
+      const ca = a.rating?.count ?? 0;
+      const cb = b.rating?.count ?? 0;
+      if (ca !== cb) return cb - ca;
+    }
     return a.rank - b.rank;
   });
   const visible = sorted.slice(0, shown);
@@ -301,6 +312,7 @@ export function ShopListing({
                   <option value="price-asc">價格:低到高</option>
                   <option value="price-desc">價格:高到低</option>
                   <option value="newest">最新上架</option>
+                  <option value="rating">評價最高</option>
                 </Select>
               </div>
             </div>
@@ -366,6 +378,13 @@ export function ShopListing({
                           NT$ {money(salePrice)}{!p.saleActive && p.hi > p.lo ? ' 起' : ''}
                         </span>
                       </div>
+                      {p.rating && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ui-muted)' }}>
+                          <Stars value={p.rating.avg} size={13} />
+                          <span className="ui-num">{p.rating.avg.toFixed(1)}</span>
+                          <span className="ui-num">({p.rating.count})</span>
+                        </div>
+                      )}
                       <div className="sl-meta">
                         <span>{p.variantCount > 1 ? `${p.variantCount} 種規格` : p.tierHint ?? ''}</span>
                         {p.stock > 0 && p.stock <= 5 && <span className="ui-num" style={{ color: '#b45309', fontWeight: 500 }}>剩 {p.stock} 件</span>}

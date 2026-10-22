@@ -25,7 +25,7 @@
  * 安全:只有帶對 CRON_SECRET 的請求能呼叫(這支會取消訂單,不能公開)。
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
+import { buildPaymentFlexMessage, buildReviewInviteFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
 import { checkLinePayPaymentStatus, confirmLinePayPayment } from '@/lib/linepay';
 import { applyEcpayPaymentResult, queryEcpayTrade } from '@/lib/ecpay';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -212,6 +212,67 @@ async function reconcileEcpay(): Promise<string[]> {
   return recovered;
 }
 
+type ReviewInviteOrder = {
+  id: string;
+  order_no: string;
+  access_key: string | null;
+  tenants: { slug: string } | null;
+  users: { line_user_id: string | null } | null;
+  order_items: { price_at_purchase: number; products: { name: string } | null }[] | null;
+};
+
+/**
+ * 步驟 4(Phase 25):評價邀請 — 已出貨滿 3 天、或已送達 / 已取貨的訂單,推一張 LINE 卡
+ * 請客人評價(按鈕帶訂單存取碼直開評價頁)。推過就記 review_invited_at,不重複;
+ * 沒 LINE 身分的訪客單也記起來,免得每天重掃。只看 60 天內的單,一次最多 50 筆。
+ */
+async function inviteReviews(): Promise<string[]> {
+  const since = new Date(Date.now() - 60 * 86400000).toISOString();
+  const shippedCutoff = new Date(Date.now() - 3 * 86400000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .select('id, order_no, access_key, tenants(slug), users(line_user_id), order_items(price_at_purchase, products(name))')
+    .in('status', ['shipped', 'delivered'])
+    .is('review_invited_at', null)
+    .gte('created_at', since)
+    .or(`status.eq.delivered,shipped_at.lte.${shippedCutoff}`)
+    .order('created_at', { ascending: true })
+    .limit(50);
+  if (error) {
+    console.error('[inviteReviews] 查詢失敗', error);
+    return [];
+  }
+
+  const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
+  const invited: string[] = [];
+  for (const o of (data ?? []) as unknown as ReviewInviteOrder[]) {
+    const lineUserId = o.users?.line_user_id;
+    const slug = o.tenants?.slug;
+    // 贈品(0 元)不列在邀請卡上
+    const names = (o.order_items ?? []).filter((i) => i.price_at_purchase > 0).map((i) => i.products?.name ?? '').filter(Boolean);
+    if (lineUserId && slug && o.access_key && names.length > 0) {
+      try {
+        await lineClient.pushMessage({
+          to: lineUserId,
+          messages: [
+            buildReviewInviteFlexMessage({
+              orderNo: o.order_no,
+              productNames: [...new Set(names)],
+              reviewUrl: `${baseUrl}/${slug}/review/${o.order_no}?k=${o.access_key}`,
+            }),
+          ],
+        });
+        invited.push(o.order_no);
+      } catch (e) {
+        console.warn('[inviteReviews] push 失敗', o.order_no, e);
+        continue; // 推失敗不記,明天再試
+      }
+    }
+    await supabaseAdmin.from('orders').update({ review_invited_at: new Date().toISOString() }).eq('id', o.id);
+  }
+  return invited;
+}
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -290,8 +351,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 步驟 4:評價邀請(跟前面互不影響,放最後)
+  const invited = await inviteReviews();
+
   console.log(
-    `[expire-orders] LINE Pay 補收款 ${recovered.length} 筆;綠界補收款 ${recoveredEcpay.length} 筆;檢查 ${(data ?? []).length} 筆,取消 ${cancelled.length} 筆`,
+    `[expire-orders] LINE Pay 補收款 ${recovered.length} 筆;綠界補收款 ${recoveredEcpay.length} 筆;檢查 ${(data ?? []).length} 筆,取消 ${cancelled.length} 筆;評價邀請 ${invited.length} 筆`,
     cancelled.join(', '),
   );
   return NextResponse.json({
@@ -299,6 +363,8 @@ export async function GET(req: NextRequest) {
     recovered_orders: recovered,
     ecpay_recovered: recoveredEcpay.length,
     ecpay_recovered_orders: recoveredEcpay,
+    review_invited: invited.length,
+    review_invited_orders: invited,
     checked: (data ?? []).length,
     cancelled: cancelled.length,
     orders: cancelled,

@@ -821,6 +821,54 @@ function formatClassLine(c: ClassRow): string {
 }
 
 // ====================
+// Phase 25(2026-10-23):評價邀請卡 — 出貨 / 取貨後幾天推,按鈕直開評價頁(帶訂單存取碼)
+// ====================
+export function buildReviewInviteFlexMessage(params: {
+  orderNo: string;
+  productNames: string[];
+  reviewUrl: string;
+}): messagingApi.FlexMessage {
+  const names = params.productNames.slice(0, 3);
+  const more = params.productNames.length - names.length;
+  const listText = names.join('、') + (more > 0 ? ` 等 ${params.productNames.length} 件` : '');
+  return {
+    type: 'flex',
+    altText: `這次買的 ${listText} 還滿意嗎?給個評價吧`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'none',
+        contents: [
+          { type: 'text', text: '這次買的東西還滿意嗎?', weight: 'bold', size: 'lg', color: '#18181b' },
+          { type: 'text', text: '花 30 秒給個星星,讓其他客人參考,也讓我們知道哪裡可以更好。', size: 'sm', color: '#71717a', wrap: true, margin: 'md' },
+          { type: 'separator', margin: 'lg', color: '#e4e4e7' },
+          {
+            type: 'box', layout: 'baseline', margin: 'lg',
+            contents: [
+              { type: 'text', text: '訂單', size: 'sm', color: '#71717a', flex: 2 },
+              { type: 'text', text: params.orderNo, size: 'sm', weight: 'bold', color: '#18181b', flex: 6, align: 'end' },
+            ],
+          },
+          { type: 'text', text: listText, size: 'sm', color: '#18181b', wrap: true, margin: 'sm' },
+        ],
+      },
+      footer: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [
+          {
+            type: 'button', style: 'primary', color: '#18181b', height: 'sm',
+            action: { type: 'uri', label: '給個評價', uri: params.reviewUrl },
+          },
+        ],
+      },
+    },
+  };
+}
+
+// ====================
 // Phase 17.2(2026-10-19):LINE Pay 金流通知卡
 // 付款成功與退款原本是純文字推播,跟訂單成立的 Flex 卡不一致 — 改成同款卡片。
 // 一則訊息最多 1 顆 emoji(標題),按鈕不放 emoji。

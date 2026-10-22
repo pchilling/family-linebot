@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getProductBySlug, getProductTiers, getTenantPublic } from '@/lib/supabase';
+import { getProductBySlug, getProductTiers, getTenantPublic, supabaseAdmin } from '@/lib/supabase';
+import { Stars } from '@/lib/ui';
 import { VariantSelector } from './variant-selector';
+
+type ReviewRow = { rating: number; comment: string | null; display_name: string | null; created_at: string };
 
 type Props = {
   params: Promise<{ slug: string; product: string }>;
@@ -31,7 +34,21 @@ export default async function ProductDetailPage({ params }: Props) {
   if (!tenant) notFound();
   const item = await getProductBySlug(tenant.id, product);
   if (!item) notFound();
-  const tiers = await getProductTiers(item.id);
+  const [tiers, reviewsResp] = await Promise.all([
+    getProductTiers(item.id),
+    // Phase 25:顯示中的評價,新到舊,最多 50 則
+    supabaseAdmin
+      .from('product_reviews')
+      .select('rating, comment, display_name, created_at')
+      .eq('product_id', item.id)
+      .eq('status', 'visible')
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ]);
+  const reviews = ((reviewsResp.data as ReviewRow[] | null) ?? []);
+  const reviewCount = reviews.length;
+  const reviewAvg = reviewCount ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviewCount) * 10) / 10 : 0;
+  const dist = [5, 4, 3, 2, 1].map((n) => ({ n, count: reviews.filter((r) => r.rating === n).length }));
 
   // schema.org Product JSON-LD(Google rich result)— 沒 active variant 時不放 offers
   const activeVariants = item.variants;
@@ -45,6 +62,9 @@ export default async function ProductDetailPage({ params }: Props) {
   };
   if (item.description) structuredData.description = item.description;
   if (item.image_url) structuredData.image = item.image_url;
+  if (reviewCount > 0) {
+    structuredData.aggregateRating = { '@type': 'AggregateRating', ratingValue: reviewAvg, reviewCount, bestRating: 5, worstRating: 1 };
+  }
   if (activeVariants.length === 1) {
     structuredData.offers = {
       '@type': 'Offer',
@@ -109,6 +129,52 @@ export default async function ProductDetailPage({ params }: Props) {
             : null
         }
       />
+
+      {/* Phase 25(2026-10-23):商品評價 — 只放客人真的給的,沒有就老實說沒有 */}
+      <section id="reviews" aria-labelledby="reviews-h" style={{ marginTop: '3rem', maxWidth: 720 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+          <h2 id="reviews-h" style={{ margin: 0, fontSize: 18, fontWeight: 600, letterSpacing: '-.01em' }}>商品評價</h2>
+          {reviewCount > 0 && <span className="ui-muted ui-num" style={{ fontSize: 13 }}>{reviewCount} 則</span>}
+        </div>
+        {reviewCount === 0 ? (
+          <div className="ui-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--ui-muted)', fontSize: 14, lineHeight: 1.7 }}>
+            還沒有評價。買過的客人會在收到商品後收到評價邀請,第一則評價就會出現在這裡。
+          </div>
+        ) : (
+          <>
+            <div className="ui-card" style={{ padding: '1.25rem', display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 96 }}>
+                <span className="ui-num" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1, letterSpacing: '-.02em' }}>{reviewAvg.toFixed(1)}</span>
+                <Stars value={reviewAvg} size={16} />
+                <span className="ui-muted ui-num" style={{ fontSize: 12 }}>{reviewCount} 則評價</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {dist.map((d) => (
+                  <div key={d.n} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 32px', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--ui-muted)' }}>
+                    <span className="ui-num">{d.n} 星</span>
+                    <span style={{ height: 8, borderRadius: 999, background: 'var(--ui-line-soft)', overflow: 'hidden' }}>
+                      <span style={{ display: 'block', height: '100%', width: `${(d.count / reviewCount) * 100}%`, background: '#f59e0b', borderRadius: 999 }} />
+                    </span>
+                    <span className="ui-num" style={{ textAlign: 'right' }}>{d.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
+              {reviews.map((r, i) => (
+                <li key={i} style={{ padding: '14px 0', borderTop: i === 0 ? 0 : '1px solid var(--ui-line)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                    <Stars value={r.rating} size={13} />
+                    <span style={{ fontWeight: 500 }}>{r.display_name || '匿名'}</span>
+                    <span className="ui-muted ui-num">{new Date(r.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric' })}</span>
+                  </div>
+                  {r.comment && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: '#3f3f46', whiteSpace: 'pre-wrap' }}>{r.comment}</p>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
     </div>
   );
 }
