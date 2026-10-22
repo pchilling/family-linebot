@@ -1266,3 +1266,8 @@ create index if not exists orders_ecpay_mtn_idx on orders(ecpay_merchant_trade_n
 update tenants
 set features = coalesce(features, '{}'::jsonb) || '{"ecpay": true}'::jsonb
 where slug = 'oilswa';
+
+-- Phase 21.1(2026-10-22):綠界信用卡退款(後台半自動,跟 LINE Pay 同一套)
+-- 已退金額累計:支援分次部分退款;退到跟實收相同時訂單自動標 refunded(trigger 自動退庫存)。
+-- 今天剛刷還沒請款的單走「放棄授權」免手續費,已請款的走「退刷」。
+alter table orders add column if not exists ecpay_refunded_twd int not null default 0;

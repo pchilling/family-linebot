@@ -266,6 +266,121 @@ export async function queryEcpayTrade(merchantTradeNo: string): Promise<EcpayTra
 }
 
 // ====================
+// 信用卡退款(後台用,2026-10-22)
+// 綠界的信用卡有三個階段,退法不同:
+//   已授權(今天剛刷、還沒請款)→ N 放棄授權,一毛手續費都不收
+//   要關帳(每天 20:15 自動關帳後到隔天早上 6 點銀行請款完成前)→ 先 E 取消關帳再 N
+//   已關帳(請款完成)→ R 退刷,2.75% 手續費退回、NT$1 處理費不退
+// 我們沒有串「查狀態」那支(要另一組特店檢查碼),改成依序嘗試:失敗的動作綠界只會回錯,
+// 不會動到交易,所以試錯是安全的。部分退款只有已關帳(或要關帳)才做得到。
+// 綠界測試站不提供這支 API,只能在正式站試。
+// ====================
+
+type CreditAction = 'C' | 'R' | 'E' | 'N';
+
+async function doCreditAction(
+  cfg: EcpayConfig,
+  params: { merchantTradeNo: string; tradeNo: string; action: CreditAction; amount: number },
+): Promise<{ ok: boolean; code: string; message: string }> {
+  const fields: EcpayFields = {
+    MerchantID: cfg.merchantId,
+    MerchantTradeNo: params.merchantTradeNo,
+    TradeNo: params.tradeNo,
+    Action: params.action,
+    TotalAmount: String(Math.floor(params.amount)),
+  };
+  fields.CheckMacValue = computeCheckMacValue(fields, cfg);
+  let text: string;
+  try {
+    const res = await fetch(`${cfg.host}/CreditDetail/DoAction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(fields).toString(),
+      signal: AbortSignal.timeout(20000),
+    });
+    text = await res.text();
+  } catch (e) {
+    console.error('[ecpay refund] 連線失敗', params.action, params.merchantTradeNo, e);
+    return { ok: false, code: 'network', message: '無法連線綠界' };
+  }
+  // 回應是 k=v&k=v 字串(RtnCode=1 成功);保險起見也接受 JSON
+  let parsed: Record<string, string> = Object.fromEntries(new URLSearchParams(text));
+  if (!parsed.RtnCode) {
+    try {
+      const j = JSON.parse(text) as Record<string, unknown>;
+      parsed = Object.fromEntries(Object.entries(j).map(([k, v]) => [k, String(v)]));
+    } catch {
+      /* 不是 JSON,維持原樣 */
+    }
+  }
+  const code = parsed.RtnCode ?? 'no_response';
+  const message = parsed.RtnMsg ?? text.slice(0, 200);
+  console.log('[ecpay refund]', params.action, params.merchantTradeNo, params.amount, code, message);
+  return { ok: code === '1', code, message };
+}
+
+export type EcpayRefundResult =
+  | { ok: true; action: 'N' | 'E+N' | 'R'; message: string }
+  | { ok: false; code: 'no_config' | 'sandbox' | 'closing_window' | 'failed'; message: string };
+
+/**
+ * 信用卡退款。fullRefund = 整筆都還沒退過而且這次退全額(才有資格用「放棄授權」免手續費)。
+ * 成功時回用了哪個動作,後台可以告訴老闆這筆有沒有被扣處理費。
+ */
+export async function refundEcpayCredit(params: {
+  merchantTradeNo: string;
+  tradeNo: string;
+  amount: number;
+  fullRefund: boolean;
+}): Promise<EcpayRefundResult> {
+  const cfg = getConfig();
+  if (!cfg) return { ok: false, code: 'no_config', message: '綠界尚未設定' };
+  if (cfg.sandbox) return { ok: false, code: 'sandbox', message: '綠界測試站不支援退款 API' };
+  if (!Number.isInteger(params.amount) || params.amount <= 0) {
+    return { ok: false, code: 'failed', message: '金額異常' };
+  }
+
+  // 每天 20:15–20:30 綠界批次關帳請款,這段時間呼叫會跟它打架
+  const tw = new Date(Date.now() + 8 * 3600 * 1000);
+  const mins = tw.getUTCHours() * 60 + tw.getUTCMinutes();
+  if (mins >= 20 * 60 + 15 && mins < 20 * 60 + 35) {
+    return { ok: false, code: 'closing_window', message: '綠界 20:15–20:30 批次請款中,請 20:35 後再試' };
+  }
+
+  const run = (action: CreditAction) =>
+    doCreditAction(cfg, { merchantTradeNo: params.merchantTradeNo, tradeNo: params.tradeNo, action, amount: params.amount });
+  const tried: string[] = [];
+
+  if (params.fullRefund) {
+    let r = await run('N');
+    tried.push(`放棄授權:${r.message}`);
+    if (r.ok) return { ok: true, action: 'N', message: r.message };
+
+    r = await run('E');
+    tried.push(`取消關帳:${r.message}`);
+    if (r.ok) {
+      const n = await run('N');
+      tried.push(`放棄授權:${n.message}`);
+      if (n.ok) return { ok: true, action: 'E+N', message: n.message };
+      // E 成功 N 失敗:交易回到已授權,再按一次退款就會走到 N;留 log 給人看
+      console.error('[ecpay refund] 取消關帳成功但放棄失敗,請再退一次', params.merchantTradeNo, tried);
+    }
+
+    r = await run('R');
+    tried.push(`退刷:${r.message}`);
+    if (r.ok) return { ok: true, action: 'R', message: r.message };
+
+    console.error('[ecpay refund] 全額退款三種動作都失敗', params.merchantTradeNo, tried);
+    return { ok: false, code: 'failed', message: tried.join(' / ') };
+  }
+
+  const r = await run('R');
+  if (r.ok) return { ok: true, action: 'R', message: r.message };
+  console.error('[ecpay refund] 部分退刷失敗', params.merchantTradeNo, r.code, r.message);
+  return { ok: false, code: 'failed', message: `退刷:${r.message}` };
+}
+
+// ====================
 // 顯示用
 // ====================
 
