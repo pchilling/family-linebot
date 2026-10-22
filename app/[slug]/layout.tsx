@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
+import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
+import { UI_CSS } from '@/lib/ui';
 import { CartLink } from './cart-state';
 
 type Props = {
@@ -21,6 +23,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/**
+ * 公開商店的外框(Phase 24,2026-10-23 改版):
+ * 店家只選一個品牌色(tenants.brand_color),整站顏色由 lib/theme.ts 算出來放成 CSS 變數,
+ * 共用元件(lib/ui.tsx)與各頁一律吃變數。底色風格過渡期先從舊的 shop_bg_color 推
+ * (黃色系 → 奶油,其餘純白),等後台設定做好改讀 bg_style。
+ */
 export default async function TenantLayout({ children, params }: Props) {
   const { slug } = await params;
   const tenant = await getTenantPublic(slug);
@@ -34,171 +42,91 @@ export default async function TenantLayout({ children, params }: Props) {
     .maybeSingle();
   const contactInfo = (extraRow as { contact_info: string | null } | null)?.contact_info ?? null;
 
-  const brandColor = tenant.brand_color ?? '#1f2937';
+  const palette = derivePalette(tenant.brand_color, bgStyleFromLegacy(tenant.shop_bg_color));
+  const vars = paletteCssVars(palette) as React.CSSProperties;
 
   return (
     <div
       style={{
+        ...vars,
         minHeight: '100vh',
-        // C#7(2026-09-02):攤位自訂商城底色,沒設維持淺灰
-        background: tenant.shop_bg_color ?? '#fafafa',
-        color: '#111827',
+        background: 'var(--ui-bg)',
+        color: 'var(--ui-ink)',
+        fontFamily: 'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif',
+        WebkitFontSmoothing: 'antialiased',
       }}
     >
-      {/* 2026-09-11(reactbits 改版):hero 文字進場動畫 keyframes */}
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap"
+      />
+      <style dangerouslySetInnerHTML={{ __html: UI_CSS }} />
       <style
         dangerouslySetInnerHTML={{
           __html: `
-@keyframes hero-char { from { opacity: 0; transform: translateY(8px); filter: blur(6px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
-@keyframes hero-fade { from { opacity: 0; filter: blur(4px); } to { opacity: 1; filter: blur(0); } }
+.shop-hdr{position:sticky;top:0;z-index:20;height:56px;border-bottom:1px solid var(--ui-line);background:var(--ui-header)}
+.shop-hdr-in{height:100%;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.shop-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ui-ink);font-weight:600;font-size:15px;letter-spacing:-.01em;min-width:0}
+.shop-brand span.n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shop-nav{display:flex;gap:20px;font-size:14px;font-weight:500}
+.shop-nav a{text-decoration:none;color:var(--ui-muted)}.shop-nav a:hover{color:var(--ui-ink)}
+.shop-main{width:100%;padding-top:24px;padding-bottom:64px}
+.shop-foot{border-top:1px solid var(--ui-line);padding:28px 0;font-size:12px;color:var(--ui-muted);background:var(--ui-header)}
+.shop-foot a{color:var(--ui-muted);text-decoration:none}.shop-foot a:hover{color:var(--ui-ink)}
+@media (max-width:1024px){.shop-nav{display:none}.shop-main{padding-top:16px;padding-bottom:48px}}
           `,
         }}
       />
-      <header
-        style={{
-          padding: '1rem 1.5rem',
-          borderBottom: '1px solid #e5e7eb',
-          // Phase 15.1(2026-09-05):頂部列底色可自訂,沒設維持白色
-          background: tenant.header_bg_color ?? '#ffffff',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-        }}
-      >
-        <div style={{ maxWidth: 960, margin: '0 auto' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem',
-            }}
-          >
-            <a
-              href={`/${slug}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.625rem',
-                color: brandColor,
-                textDecoration: 'none',
-                minWidth: 0,
-              }}
-            >
-              {tenant.logo_url && (
-                <img
-                  src={tenant.logo_url}
-                  alt=""
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '1px solid rgba(0, 0, 0, 0.08)',
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: '1.25rem',
-                  color: brandColor,
-                  lineHeight: 1.3,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
+
+      <header className="shop-hdr">
+        <div className="ui-wrap shop-hdr-in">
+          <a href={`/${slug}`} className="shop-brand">
+            {tenant.logo_url ? (
+              <img
+                src={tenant.logo_url}
+                alt=""
+                style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--ui-line)', flexShrink: 0 }}
+              />
+            ) : (
+              <span
+                aria-hidden
+                style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--ui-accent)', color: 'var(--ui-on-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}
               >
-                {/* 2026-09-11(reactbits Split Text 改版):店名逐字浮現(只在整頁載入時播一次) */}
-                {tenant.name.split('').map((ch, i) => (
-                  <span
-                    key={`${ch}-${i}`}
-                    style={{
-                      display: 'inline-block',
-                      whiteSpace: 'pre',
-                      animation: 'hero-char 0.45s ease both',
-                      animationDelay: `${i * 45}ms`,
-                    }}
-                  >
-                    {ch}
-                  </span>
-                ))}
-              </h1>
-            </a>
-            <CartLink tenantSlug={slug} />
-          </div>
-          {tenant.description && (
-            <p
-              style={{
-                margin: '0.375rem 0 0',
-                color: '#6b7280',
-                fontSize: '0.875rem',
-                lineHeight: 1.4,
-                animation: 'hero-fade 0.6s ease 0.35s both',
-              }}
-            >
-              {tenant.description}
-            </p>
-          )}
+                {tenant.name.slice(0, 1)}
+              </span>
+            )}
+            <span className="n">{tenant.name}</span>
+          </a>
+          <nav className="shop-nav" aria-label="主選單">
+            <a href={`/${slug}`}>商品</a>
+            <a href={`/${slug}/order-lookup`}>查訂單</a>
+          </nav>
+          <CartLink tenantSlug={slug} />
         </div>
       </header>
-      <main style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem' }}>
-        {children}
-      </main>
-      <footer
-        style={{
-          padding: '2rem 1.5rem',
-          borderTop: '1px solid #e5e7eb',
-          textAlign: 'center',
-          background: '#ffffff',
-          marginTop: '4rem',
-        }}
-      >
-        {/* 2026-09-11(回饋 #13):對外聯絡資訊 */}
-        {contactInfo && (
-          <div
-            style={{
-              marginBottom: '1rem',
-              color: '#6b7280',
-              fontSize: '0.8125rem',
-              whiteSpace: 'pre-wrap',
-              lineHeight: 1.7,
-            }}
-          >
-            {contactInfo}
+
+      <main className="ui-wrap shop-main">{children}</main>
+
+      <footer className="shop-foot">
+        <div className="ui-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* 2026-09-11(回饋 #13):對外聯絡資訊 */}
+          {contactInfo && (
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 13 }}>{contactInfo}</div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span>© {new Date().getFullYear()} {tenant.name}</span>
+            {/* 法規連結(2026-09-08:查訂單併入此列;2026-10-22:政策頁改成攤位自己的) */}
+            <span style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <a href={`/${slug}/order-lookup`}>查訂單</a>
+              <a href={`/${slug}/policy/terms`}>服務條款</a>
+              <a href={`/${slug}/policy/privacy`}>隱私權</a>
+              <a href={`/${slug}/policy/refund`}>退款</a>
+              <a href={`/${slug}/policy/shipping`}>寄送</a>
+            </span>
           </div>
-        )}
-        {/* 法規連結(2026-09-08:查訂單併入此列,不再獨立一行 — 留給弄丟連結的網頁訪客) */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '0.875rem',
-            marginBottom: '0.75rem',
-            fontSize: '0.75rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <a href={`/${slug}/order-lookup`} style={{ color: '#9ca3af', textDecoration: 'none' }}>查訂單</a>
-          {/* 2026-10-22:政策頁改成攤位自己的(店名 / 聯絡 / 付款方式都從攤位設定帶) */}
-          <a href={`/${slug}/policy/terms`} style={{ color: '#9ca3af', textDecoration: 'none' }}>服務條款</a>
-          <a href={`/${slug}/policy/privacy`} style={{ color: '#9ca3af', textDecoration: 'none' }}>隱私權</a>
-          <a href={`/${slug}/policy/refund`} style={{ color: '#9ca3af', textDecoration: 'none' }}>退款</a>
-          <a href={`/${slug}/policy/shipping`} style={{ color: '#9ca3af', textDecoration: 'none' }}>寄送</a>
-        </div>
-        <div style={{ color: '#9ca3af', fontSize: '0.8125rem' }}>
-          © {new Date().getFullYear()} {tenant.name}
-        </div>
-        <div
-          style={{
-            marginTop: '0.5rem',
-            color: '#9ca3af',
-            fontSize: '0.75rem',
-            opacity: 0.75,
-          }}
-        >
-          Made with <strong style={{ color: '#6b7280', letterSpacing: '0.08em' }}>NEOP STALL</strong>
+          <div style={{ fontSize: 11, color: 'var(--ui-faint)' }}>
+            Made with <strong style={{ color: 'var(--ui-muted)', letterSpacing: '0.08em' }}>NEOP STALL</strong>
+          </div>
         </div>
       </footer>
     </div>

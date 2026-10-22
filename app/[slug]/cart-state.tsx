@@ -115,25 +115,11 @@ export function CartLink({ tenantSlug }: { tenantSlug: string }) {
   return (
     <a
       // 2026-09-11:購物車與結帳併成一頁,header 購物袋直接進 /checkout
+      // 2026-10-23:樣式改成共用元件的 outline 按鈕,數量疊在右上角
       href={`/${tenantSlug}/checkout`}
       aria-label={`購物車,${totalQty} 件`}
-      style={{
-        // 2026-09-12:數量改「疊在右上角」的徽章(App 圖示紅點那種),
-        // 不再塞按鈕內把按鈕撐寬 — 按鈕尺寸永遠固定
-        position: 'relative',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.375rem',
-        padding: '0.5rem 0.875rem',
-        background: '#ffffff',
-        border: '1px solid #e5e7eb',
-        borderRadius: 999,
-        color: '#374151',
-        textDecoration: 'none',
-        fontSize: '0.875rem',
-        fontWeight: 500,
-        whiteSpace: 'nowrap',
-      }}
+      className="ui-btn ui-btn-outline ui-btn-sm"
+      style={{ position: 'relative' }}
     >
       {/* 線條購物袋 icon(對齊 rich menu 商品專區的袋子造型),currentColor 跟文字同色 */}
       <svg
@@ -142,7 +128,7 @@ export function CartLink({ tenantSlug }: { tenantSlug: string }) {
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden
@@ -154,12 +140,13 @@ export function CartLink({ tenantSlug }: { tenantSlug: string }) {
       <span>購物車</span>
       {totalQty > 0 && (
         <span
+          className="ui-num"
           style={{
             position: 'absolute',
-            top: -6,
-            right: -6,
-            background: '#ef4444',
-            color: '#fff',
+            top: -7,
+            right: -7,
+            background: 'var(--ui-accent)',
+            color: 'var(--ui-on-accent)',
             border: '2px solid #fff',
             borderRadius: 999,
             minWidth: 18,

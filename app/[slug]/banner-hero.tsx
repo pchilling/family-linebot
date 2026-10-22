@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 type BannerItem = { type: 'image' | 'video'; url: string };
 
 /**
- * 公開頁 Hero Banner Carousel(Phase 9.8,2026-06-02):
+ * 公開頁 Hero Banner Carousel(Phase 9.8,2026-06-02;2026-10-23 樣式對齊新設計系統):
  * - CSS scroll-snap + touch swipe(無外部 lib)
  * - 影片 YouTube → iframe;自家 mp4 → <video autoplay muted loop>
  * - 點 dots / 左右箭頭切換
@@ -53,6 +53,23 @@ export function BannerHero({
   }, [idx, banners]);
 
   const showNav = banners.length > 1;
+  const arrow: React.CSSProperties = {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 36,
+    height: 36,
+    borderRadius: '50%',
+    border: '1px solid var(--ui-line)',
+    background: 'rgba(255,255,255,0.85)',
+    backdropFilter: 'blur(6px)',
+    color: 'var(--ui-ink)',
+    cursor: 'pointer',
+    display: 'grid',
+    placeItems: 'center',
+    padding: 0,
+    zIndex: 2,
+  };
 
   return (
     <div style={{ position: 'relative' }}>
@@ -64,10 +81,10 @@ export function BannerHero({
           overflowX: 'auto',
           scrollSnapType: 'x mandatory',
           WebkitOverflowScrolling: 'touch',
-          borderRadius: 12,
-          background: '#000',
+          borderRadius: 8,
+          border: '1px solid var(--ui-line)',
+          background: 'var(--ui-line-soft)',
           scrollbarWidth: 'none',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04)',
         }}
       >
         {banners.map((b, i) => (
@@ -90,57 +107,13 @@ export function BannerHero({
       </div>
 
       {showNav && idx > 0 && (
-        <button
-          type="button"
-          onClick={() => scrollTo(idx - 1)}
-          aria-label="上一張"
-          style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            background: 'rgba(0,0,0,0.45)',
-            color: '#fff',
-            border: 0,
-            cursor: 'pointer',
-            fontSize: 18,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2,
-          }}
-        >
-          ‹
+        <button type="button" onClick={() => scrollTo(idx - 1)} aria-label="上一張" style={{ ...arrow, left: 12 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m15 18-6-6 6-6" /></svg>
         </button>
       )}
       {showNav && idx < banners.length - 1 && (
-        <button
-          type="button"
-          onClick={() => scrollTo(idx + 1)}
-          aria-label="下一張"
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            background: 'rgba(0,0,0,0.45)',
-            color: '#fff',
-            border: 0,
-            cursor: 'pointer',
-            fontSize: 18,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2,
-          }}
-        >
-          ›
+        <button type="button" onClick={() => scrollTo(idx + 1)} aria-label="下一張" style={{ ...arrow, right: 12 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 18 6-6-6-6" /></svg>
         </button>
       )}
 
@@ -153,9 +126,6 @@ export function BannerHero({
             transform: 'translateX(-50%)',
             display: 'flex',
             gap: 6,
-            padding: '6px 10px',
-            background: 'rgba(0,0,0,0.35)',
-            borderRadius: 999,
             zIndex: 2,
           }}
         >
@@ -166,14 +136,15 @@ export function BannerHero({
               onClick={() => scrollTo(i)}
               aria-label={`第 ${i + 1} 張`}
               style={{
-                width: idx === i ? 18 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: idx === i ? '#fff' : 'rgba(255,255,255,0.55)',
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: idx === i ? 'var(--ui-ink)' : 'rgba(255,255,255,0.75)',
+                boxShadow: idx === i ? '0 0 0 1px #fff' : '0 0 0 1px rgba(0,0,0,0.15)',
                 border: 0,
                 padding: 0,
                 cursor: 'pointer',
-                transition: 'width 0.2s, background 0.2s',
+                transition: 'background 0.2s',
               }}
             />
           ))}
