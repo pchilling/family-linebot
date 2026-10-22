@@ -8,7 +8,7 @@ export default function RefundPage() {
   return (
     <article style={prose}>
       <h1 style={h1}>退款政策</h1>
-      <p style={meta}>上次更新:2026-10-22</p>
+      <p style={meta}>上次更新:2026-10-22 · 本頁為平台通用說明,各攤位的實際規則以該攤位商店頁面底部的「退款」頁為準</p>
 
       <section>
         <h2 style={h2}>一、退換貨期限(7 日鑑賞期)</h2>
@@ -44,10 +44,7 @@ export default function RefundPage() {
       <section>
         <h2 style={h2}>四、退款方式</h2>
         <ul style={ul}>
-          <li>
-            <strong>原路退款</strong>:LINE Pay 退回您的 LINE Pay 帳戶;信用卡退回原刷卡卡片,
-            發卡銀行約需 14–21 個工作天入帳,可能落在下一期帳單
-          </li>
+          <li><strong>原路退款</strong>:依您付款時使用的方式退回(LINE Pay、信用卡等,依該攤位有開放的付款方式)</li>
           <li><strong>銀行匯款退回</strong>:請提供帳戶資料,3–5 個工作天內匯回</li>
           <li><strong>下次訂單折抵</strong>(經買賣雙方同意)</li>
         </ul>

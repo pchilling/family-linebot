@@ -8,7 +8,7 @@ export default function ShippingPage() {
   return (
     <article style={prose}>
       <h1 style={h1}>寄送說明</h1>
-      <p style={meta}>上次更新:2026-06-04(初版範本)</p>
+      <p style={meta}>上次更新:2026-10-22 · 本頁為平台通用說明,各攤位的實際規則以該攤位商店頁面底部的「寄送」頁為準</p>
 
       <section>
         <h2 style={h2}>一、寄送方式</h2>

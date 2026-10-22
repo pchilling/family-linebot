@@ -181,10 +181,11 @@ export default async function TenantLayout({ children, params }: Props) {
           }}
         >
           <a href={`/${slug}/order-lookup`} style={{ color: '#9ca3af', textDecoration: 'none' }}>查訂單</a>
-          <a href="/policy/terms" style={{ color: '#9ca3af', textDecoration: 'none' }}>服務條款</a>
-          <a href="/policy/privacy" style={{ color: '#9ca3af', textDecoration: 'none' }}>隱私權</a>
-          <a href="/policy/refund" style={{ color: '#9ca3af', textDecoration: 'none' }}>退款</a>
-          <a href="/policy/shipping" style={{ color: '#9ca3af', textDecoration: 'none' }}>寄送</a>
+          {/* 2026-10-22:政策頁改成攤位自己的(店名 / 聯絡 / 付款方式都從攤位設定帶) */}
+          <a href={`/${slug}/policy/terms`} style={{ color: '#9ca3af', textDecoration: 'none' }}>服務條款</a>
+          <a href={`/${slug}/policy/privacy`} style={{ color: '#9ca3af', textDecoration: 'none' }}>隱私權</a>
+          <a href={`/${slug}/policy/refund`} style={{ color: '#9ca3af', textDecoration: 'none' }}>退款</a>
+          <a href={`/${slug}/policy/shipping`} style={{ color: '#9ca3af', textDecoration: 'none' }}>寄送</a>
         </div>
         <div style={{ color: '#9ca3af', fontSize: '0.8125rem' }}>
           © {new Date().getFullYear()} {tenant.name}
