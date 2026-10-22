@@ -3,7 +3,7 @@
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 
 export type LookupOrderResult =
-  | { ok: true; orderNo: string }
+  | { ok: true; orderNo: string; accessKey: string | null }
   | { ok: false; error: string };
 
 /**
@@ -28,7 +28,7 @@ export async function lookupOrder(formData: FormData): Promise<LookupOrderResult
 
   const { data, error } = await supabaseAdmin
     .from('orders')
-    .select('order_no, guest_email, guest_phone, shipping_phone')
+    .select('order_no, guest_email, guest_phone, shipping_phone, access_key')
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
     .maybeSingle();
@@ -47,6 +47,7 @@ export async function lookupOrder(formData: FormData): Promise<LookupOrderResult
     guest_email: string | null;
     guest_phone: string | null;
     shipping_phone: string | null;
+    access_key: string | null;
   };
   const o = data as OrderRow;
 
@@ -56,5 +57,6 @@ export async function lookupOrder(formData: FormData): Promise<LookupOrderResult
 
   if (!matched) return { ok: false, error: notFoundMsg };
 
-  return { ok: true, orderNo: o.order_no };
+  // Phase 22:驗過身分才給存取碼,訂單頁憑它解鎖個資與付款 / 回報功能
+  return { ok: true, orderNo: o.order_no, accessKey: o.access_key };
 }

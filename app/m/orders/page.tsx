@@ -135,7 +135,7 @@ export default function MyOrdersPage() {
           {orders.map((o) => (
             <li key={o.id}>
               <a
-                href={tenantSlug ? `/${tenantSlug}/order/${o.order_no}` : '#'}
+                href={tenantSlug ? `/${tenantSlug}/order/${o.order_no}${o.access_key ? `?k=${o.access_key}` : ''}` : '#'}
                 style={{
                   display: 'block',
                   padding: '14px 16px',

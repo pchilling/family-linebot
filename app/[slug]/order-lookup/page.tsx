@@ -25,7 +25,7 @@ export default function OrderLookupPage({ params }: Props) {
       setPending(false);
       return;
     }
-    router.push(`/${slug}/order/${result.orderNo}`);
+    router.push(`/${slug}/order/${result.orderNo}${result.accessKey ? `?k=${result.accessKey}` : ''}`);
   }
 
   const inputStyle: React.CSSProperties = {

@@ -31,6 +31,7 @@ export type OrderListItem = {
   payment_status: string;
   total_twd: number;
   created_at: string;
+  access_key: string | null; // Phase 22:訂單頁存取碼,連結要帶 ?k= 才看得到完整資訊
   items_summary: string; // 「商品A x2, 商品B x1」or「商品A x2 + 2 件」
 };
 
@@ -68,7 +69,7 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
   // 訂單 + 簡要 items(Phase 11:含 variant_name)
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, status, payment_status, total_twd, shipping_fee_twd, created_at, order_items(qty, products(name), product_variants(variant_name))')
+    .select('id, order_no, status, payment_status, total_twd, shipping_fee_twd, created_at, access_key, order_items(qty, products(name), product_variants(variant_name))')
     .eq('tenant_id', TENANT_ID)
     .eq('user_id', (user as { id: string }).id)
     .order('created_at', { ascending: false })
@@ -87,6 +88,7 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
     total_twd: number;
     shipping_fee_twd: number | null;
     created_at: string;
+    access_key: string | null;
     order_items: {
       qty: number;
       products: { name: string } | null;
@@ -124,6 +126,7 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
         // D#13:列表顯示含運總額
         total_twd: r.total_twd + (r.shipping_fee_twd ?? 0),
         created_at: r.created_at,
+        access_key: r.access_key ?? null,
         items_summary: summary,
       };
     }),
