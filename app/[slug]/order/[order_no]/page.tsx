@@ -4,13 +4,14 @@ import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
 import { reportPaymentLast5 } from './actions';
 import { startLinePayAndRedirect } from '../../checkout/actions';
-import { IconBank, IconCheck, IconCheckCircle, IconClock, IconPackage, IconPencil, IconUndo, IconX } from '@/lib/icons';
+import { IconBank, IconCheck, IconCheckCircle, IconClock, IconCreditCard, IconPackage, IconPencil, IconUndo, IconX } from '@/lib/icons';
 import { OtpInput } from '@/lib/otp-input';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
   // 2026-10-15:LINE Pay 導回帶的狀態(done / cancel / failed)
-  searchParams?: Promise<{ linepay?: string }>;
+  // 2026-10-22:綠界導回帶的狀態(done / atm / failed / cancelled_order)
+  searchParams?: Promise<{ linepay?: string; ecpay?: string }>;
 };
 
 type OrderItemRow = {
@@ -27,6 +28,10 @@ type OrderDetail = {
   status: string;
   payment_status: string;
   payment_method: string | null;
+  // 2026-10-22:綠界 ATM 虛擬帳號(取號成功後存,未付款時顯示給客人轉帳)
+  atm_bank_code: string | null;
+  atm_vaccount: string | null;
+  atm_expire_at: string | null;
   total_twd: number;
   shipping_method: string | null;
   shipping_fee_twd: number;
@@ -69,7 +74,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, payment_method, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
+      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, order_items(qty, price_at_purchase, subtotal_twd, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -102,6 +107,9 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     status: row.status,
     payment_status: row.payment_status,
     payment_method: row.payment_method ?? null,
+    atm_bank_code: row.atm_bank_code ?? null,
+    atm_vaccount: row.atm_vaccount ?? null,
+    atm_expire_at: row.atm_expire_at ?? null,
     total_twd: row.total_twd,
     shipping_method: row.shipping_method ?? null,
     shipping_fee_twd: row.shipping_fee_twd ?? 0,
@@ -142,7 +150,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function OrderPage({ params, searchParams }: Props) {
   const { slug, order_no } = await params;
-  const linePayState = (searchParams ? await searchParams : undefined)?.linepay ?? null;
+  const sp = searchParams ? await searchParams : undefined;
+  const linePayState = sp?.linepay ?? null;
+  const ecpayState = sp?.ecpay ?? null;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
   const order = await getOrder(tenant.id, order_no);
@@ -184,6 +194,17 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const isPickup = order.shipping_method === 'pickup';
   // 2026-10-15:LINE Pay 訂單不用匯款、也不用回報後 5 碼
   const isLinePayOrder = order.payment_method === 'line_pay';
+  // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號)也是線上付款,同樣不用匯款、不用回報後 5 碼
+  const isEcpayAtm = order.payment_method === 'ecpay_atm';
+  const isEcpayCredit = order.payment_method === 'ecpay_credit';
+  const isOnlinePayOrder = isLinePayOrder || isEcpayAtm || isEcpayCredit;
+  const atmExpired = !!order.atm_expire_at && new Date(order.atm_expire_at).getTime() < Date.now();
+  const atmReady = isEcpayAtm && !!order.atm_vaccount && !atmExpired;
+  const atmExpireLabel = order.atm_expire_at
+    ? new Date(order.atm_expire_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+  const ecpayPayUrl = (m: 'atm' | 'credit') =>
+    `/api/ecpay/pay?slug=${encodeURIComponent(slug)}&orderNo=${encodeURIComponent(order.order_no)}&method=${m}`;
   const stage =
     order.status === 'delivered' ? 4
     : order.status === 'shipped' ? 3
@@ -199,7 +220,13 @@ export default async function OrderPage({ params, searchParams }: Props) {
     : stage === 0
       ? {
           icon: <IconClock size={18} />,
-          title: isLinePayOrder ? '訂單成立,請完成 LINE Pay 付款' : '訂單成立,請匯款後回報後 5 碼',
+          title: isLinePayOrder
+            ? '訂單成立,請完成 LINE Pay 付款'
+            : isEcpayCredit
+              ? '訂單成立,請完成信用卡付款'
+              : isEcpayAtm
+                ? (atmReady ? '訂單成立,請在期限內完成 ATM 轉帳' : '訂單成立,請取得 ATM 轉帳帳號')
+                : '訂單成立,請匯款後回報後 5 碼',
           bg: '#fffbeb', border: '#fde68a', color: '#92400e',
         }
       : stage === 1
@@ -211,7 +238,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             : { icon: <IconCheckCircle size={18} />, title: isPickup ? '已取貨,感謝您的訂購' : '已送達,感謝您的訂購', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' };
   const steps = [
     '下單',
-    isLinePayOrder ? 'LINE Pay' : '回報五碼',
+    isLinePayOrder ? 'LINE Pay' : isEcpayCredit ? '刷卡' : isEcpayAtm ? 'ATM 轉帳' : '回報五碼',
     '已收款',
     isPickup ? '備貨' : '出貨',
     isPickup ? '取貨' : '送達',
@@ -372,7 +399,95 @@ export default async function OrderPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      {!isLinePayOrder && stage <= 1 && !isCancelled && (paymentInfo ? (
+      {/* 2026-10-22:綠界訂單未付款 → 信用卡:付款按鈕;ATM:顯示專屬轉帳帳號與期限(過期可重新取號) */}
+      {(isEcpayAtm || isEcpayCredit) && order.payment_status !== 'paid' && !isCancelled && (
+        <section
+          style={{
+            padding: '1.25rem',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: 12,
+            marginBottom: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '0.75rem' }}>
+            <span style={{ width: 36, height: 36, borderRadius: 10, background: isEcpayAtm ? '#ccfbf1' : '#dbeafe', color: isEcpayAtm ? '#0f766e' : '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {isEcpayAtm ? <IconBank size={17} /> : <IconCreditCard size={17} />}
+            </span>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
+                {isEcpayAtm ? (atmReady ? '下一步:ATM 轉帳' : '下一步:取得轉帳帳號') : '下一步:信用卡付款'}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 1 }}>
+                付款完成後訂單會自動更新,不需回報帳號後 5 碼
+              </div>
+            </div>
+          </div>
+          {(ecpayState === 'failed' || (isEcpayAtm && atmExpired)) && (
+            <div
+              style={{
+                padding: '0.625rem 0.875rem',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: 8,
+                color: '#92400e',
+                fontSize: '0.8125rem',
+                lineHeight: 1.6,
+                marginBottom: '0.75rem',
+              }}
+            >
+              {ecpayState === 'failed'
+                ? '付款沒有完成,款項未被扣除,請再試一次或聯絡我們。'
+                : `這組轉帳帳號已過期(期限 ${atmExpireLabel}),請重新取得一組新帳號。`}
+            </div>
+          )}
+          {atmReady ? (
+            <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '0.875rem 1rem', fontSize: '0.9375rem', color: '#134e4a', lineHeight: 1.9 }}>
+              <div>銀行代碼:<strong>{order.atm_bank_code}</strong></div>
+              <div>
+                轉帳帳號:
+                <strong style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', letterSpacing: '0.04em' }}>{order.atm_vaccount}</strong>
+              </div>
+              <div>轉帳金額:<strong>NT$ {grandTotal.toLocaleString()}</strong></div>
+              <div>繳費期限:<strong>{atmExpireLabel}</strong></div>
+              <div style={{ marginTop: '0.5rem' }}>
+                <CopyButton big text={order.atm_vaccount ?? ''} label={`複製帳號 ${order.atm_vaccount}`} />
+              </div>
+              <div style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#0f766e', lineHeight: 1.6 }}>
+                這組帳號只能用在這筆訂單,金額要完全一樣。轉帳後系統會自動確認,不用回報。
+              </div>
+            </div>
+          ) : (
+            <a
+              href={ecpayPayUrl(isEcpayAtm ? 'atm' : 'credit')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 48,
+                background: isEcpayAtm ? '#0f766e' : '#1d4ed8',
+                color: '#fff',
+                borderRadius: 10,
+                fontSize: '0.9375rem',
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              {isEcpayAtm ? '取得 ATM 轉帳帳號' : `用信用卡付款 · NT$ ${grandTotal.toLocaleString()}`}
+            </a>
+          )}
+          <div style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#6b7280', textAlign: 'center' }}>
+            {isEcpayAtm ? (
+              <>改用 <a href={ecpayPayUrl('credit')} style={{ color: '#1d4ed8' }}>信用卡付款</a></>
+            ) : (
+              <>改用 <a href={ecpayPayUrl('atm')} style={{ color: '#0f766e' }}>ATM 轉帳</a></>
+            )}
+          </div>
+        </section>
+      )}
+
+      {!isOnlinePayOrder && stage <= 1 && !isCancelled && (paymentInfo ? (
         <section
           style={{
             padding: '1.25rem',
@@ -431,7 +546,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
       {/* D#14:匯款後 5 碼自助回報 — 2026-09-08 v3:白底簡潔卡 + icon 磚,不再用大黃塊
           (2026-10-15:LINE Pay 未付款的單不顯示,上面已有付款按鈕) */}
-      {isCancelled || (isLinePayOrder && order.payment_status !== 'paid') ? null : order.payment_status === 'paid' ? (
+      {isCancelled || (isOnlinePayOrder && order.payment_status !== 'paid') ? null : order.payment_status === 'paid' ? (
         <section id="report" style={{ scrollMarginTop: 16, padding: '0.875rem 1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.9375rem', color: '#15803d', fontWeight: 600 }}>
           <IconCheckCircle size={18} /> 已收到您的款項,無需再回報。
         </section>
@@ -664,7 +779,9 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 : STATUS_LABEL[order.status] ?? order.status}
           </dd>
           <dt style={{ color: '#9ca3af' }}>付款</dt>
-          <dd style={{ margin: 0 }}>{PAYMENT_LABEL[order.payment_status] ?? order.payment_status}</dd>
+          <dd style={{ margin: 0 }}>
+            {order.payment_status === 'pending' && isOnlinePayOrder ? '等待付款' : PAYMENT_LABEL[order.payment_status] ?? order.payment_status}
+          </dd>
           <dt style={{ color: '#9ca3af' }}>下單時間</dt>
           <dd style={{ margin: 0 }}>{createdAt}</dd>
         </dl>
