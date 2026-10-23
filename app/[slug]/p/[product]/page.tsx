@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProductBySlug, getProductTiers, getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { Stars } from '@/lib/ui';
+import { getGiftRulesPublic, getShippingOptions, isEcpayAvailable, isLinePayAvailable } from '../../checkout/actions';
 import { VariantSelector } from './variant-selector';
 
 type ReviewRow = { rating: number; comment: string | null; display_name: string | null; created_at: string };
@@ -28,13 +29,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+const money = (n: number) => n.toLocaleString('en-US');
+
+const PAGE_CSS = `
+.pdp-crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ui-muted);padding:0 0 20px;flex-wrap:wrap}
+.pdp-crumb a{color:var(--ui-muted);text-decoration:none}.pdp-crumb a:hover{color:var(--ui-ink)}
+.pdp-crumb .sep{color:#d4d4d8}
+.pdp-crumb .cur{color:var(--ui-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
+.pdp-desc{margin-top:56px;max-width:720px}
+.pdp-desc h2{font-size:16px;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
+.pdp-desc p{margin:0;font-size:14px;line-height:1.8;color:#3f3f46;white-space:pre-wrap}
+@media (max-width:1024px){.pdp-desc{margin-top:36px}.pdp-bottom{padding-bottom:72px}}
+`;
+
+/**
+ * 商品詳情頁(2026-10-23 改版,照 Phase 24 原型):麵包屑 → 左圖右文(client) → 商品說明 → 評價。
+ * 配送 / 付款 / 滿額贈三行小字照攤位設定算好傳給 client。
+ */
 export default async function ProductDetailPage({ params }: Props) {
   const { slug, product } = await params;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
   const item = await getProductBySlug(tenant.id, product);
   if (!item) notFound();
-  const [tiers, reviewsResp] = await Promise.all([
+  const [tiers, reviewsResp, shipOptions, giftCfg, ecpayOn, linePayOn] = await Promise.all([
     getProductTiers(item.id),
     // Phase 25:顯示中的評價,新到舊,最多 50 則
     supabaseAdmin
@@ -44,11 +62,28 @@ export default async function ProductDetailPage({ params }: Props) {
       .eq('status', 'visible')
       .order('created_at', { ascending: false })
       .limit(50),
+    getShippingOptions(slug).catch(() => []),
+    getGiftRulesPublic(slug).catch(() => ({ mode: 'stack' as const, rules: [] })),
+    isEcpayAvailable(slug).catch(() => false),
+    isLinePayAvailable(slug).catch(() => false),
   ]);
   const reviews = ((reviewsResp.data as ReviewRow[] | null) ?? []);
   const reviewCount = reviews.length;
   const reviewAvg = reviewCount ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviewCount) * 10) / 10 : 0;
   const dist = [5, 4, 3, 2, 1].map((n) => ({ n, count: reviews.filter((r) => r.rating === n).length }));
+
+  // 右欄三行小字
+  const delivery = shipOptions.find((o) => o.key !== 'pickup' && o.free_over) ?? shipOptions.find((o) => o.key !== 'pickup');
+  const hasPickup = shipOptions.some((o) => o.key === 'pickup');
+  const shippingNote = delivery
+    ? `${delivery.free_over ? `${delivery.label}滿 NT$ ${money(delivery.free_over)} 免運` : `${delivery.label} NT$ ${money(delivery.fee)}`}${hasPickup ? ',也可門市自取' : ''}`
+    : hasPickup
+      ? '門市自取'
+      : null;
+  const payParts = [ecpayOn ? '信用卡' : null, linePayOn ? 'LINE Pay' : null].filter(Boolean);
+  const paymentNote = payParts.length > 0 ? `${payParts.join('、')} 線上付款,或匯款至店家帳戶` : '匯款至店家帳戶';
+  const lowestGift = [...giftCfg.rules].sort((a, b) => a.threshold_twd - b.threshold_twd)[0];
+  const giftNote = lowestGift ? `單筆滿 NT$ ${money(lowestGift.threshold_twd)} 送 ${lowestGift.product_name}${lowestGift.qty > 1 ? ` ×${lowestGift.qty}` : ''}` : null;
 
   // schema.org Product JSON-LD(Google rich result)— 沒 active variant 時不放 offers
   const activeVariants = item.variants;
@@ -70,9 +105,7 @@ export default async function ProductDetailPage({ params }: Props) {
       '@type': 'Offer',
       priceCurrency: 'TWD',
       price: prices[0],
-      availability: anyInStock
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
+      availability: anyInStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
     };
   } else if (activeVariants.length > 1) {
     structuredData.offers = {
@@ -81,33 +114,27 @@ export default async function ProductDetailPage({ params }: Props) {
       lowPrice: Math.min(...prices),
       highPrice: Math.max(...prices),
       offerCount: activeVariants.length,
-      availability: anyInStock
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
+      availability: anyInStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
     };
   }
 
   return (
-    <div>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
-      <a
-        href={`/${slug}`}
-        style={{
-          display: 'inline-block',
-          marginBottom: '1.5rem',
-          color: '#6b7280',
-          textDecoration: 'none',
-          fontSize: '0.875rem',
-        }}
-      >
-        ← 回攤位
-      </a>
-      {/* 整個 product detail 在 VariantSelector 內(client),含圖 / 名 / 描述 / 選擇器 / cart。
-          單欄佈局(行動裝置友善),變體切換時圖會同步換。
-          server page 只負責 SEO(JSON-LD 已在上面) + 回攤位 link。 */}
+    <div className="pdp-bottom ui-enter">
+      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
+
+      <nav className="pdp-crumb" aria-label="路徑">
+        <a href={`/${slug}`}>商品</a>
+        {item.category && (
+          <>
+            <span className="sep">/</span>
+            <a href={`/${slug}?cat=${encodeURIComponent(item.category)}`}>{item.category}</a>
+          </>
+        )}
+        <span className="sep">/</span>
+        <span className="cur">{item.name}</span>
+      </nav>
+
       <VariantSelector
         variants={item.variants}
         tenantSlug={slug}
@@ -115,25 +142,29 @@ export default async function ProductDetailPage({ params }: Props) {
         productSlug={item.slug}
         productName={item.name}
         productCategory={item.category}
-        productDescription={item.description}
         productImageUrl={item.image_url}
         productMedia={item.media}
         tiers={tiers.map((t) => ({ min_qty: t.min_qty, price_twd: t.price_twd }))}
         sale={
           item.sale_discount_pct !== null && item.sale_start_at && item.sale_end_at
-            ? {
-                discountPct: item.sale_discount_pct,
-                startAt: item.sale_start_at,
-                endAt: item.sale_end_at,
-              }
+            ? { discountPct: item.sale_discount_pct, startAt: item.sale_start_at, endAt: item.sale_end_at }
             : null
         }
+        rating={reviewCount > 0 ? { avg: reviewAvg, count: reviewCount } : null}
+        notes={{ shipping: shippingNote, payment: paymentNote, gift: giftNote }}
       />
 
+      {item.description && (
+        <section className="pdp-desc" aria-labelledby="desc-h">
+          <h2 id="desc-h">商品說明</h2>
+          <p>{item.description}</p>
+        </section>
+      )}
+
       {/* Phase 25(2026-10-23):商品評價 — 只放客人真的給的,沒有就老實說沒有 */}
-      <section id="reviews" aria-labelledby="reviews-h" style={{ marginTop: '3rem', maxWidth: 720 }}>
+      <section id="reviews" aria-labelledby="reviews-h" style={{ marginTop: '3rem', maxWidth: 720, scrollMarginTop: 80 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <h2 id="reviews-h" style={{ margin: 0, fontSize: 18, fontWeight: 600, letterSpacing: '-.01em' }}>商品評價</h2>
+          <h2 id="reviews-h" style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: '-.01em' }}>商品評價</h2>
           {reviewCount > 0 && <span className="ui-muted ui-num" style={{ fontSize: 13 }}>{reviewCount} 則</span>}
         </div>
         {reviewCount === 0 ? (

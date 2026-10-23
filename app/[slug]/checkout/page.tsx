@@ -4,7 +4,8 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
-import { IconBank, IconChevronLeft, IconCreditCard, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
+import { IconBank, IconCreditCard, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
+import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
 import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type ShippingOption } from './actions';
 
 // 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
@@ -14,189 +15,70 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-/**
- * 2026-10-15:配送 / 付款方式的選項卡樣式。
- * 原本是一排小圓鈕,點擊區小又難看;改成整張卡可點,左邊 icon 磚、右邊自訂圓鈕。
- * 原生 radio 藏起來但保留(鍵盤 Tab / 表單送出照常運作)。
- */
-const checkoutCss = `
-/* ── 結帳頁設計系統(2026-10-15 改版)─────────────────────────
-   底色是攤位自訂的奶油黃 #ffffea、品牌色純黑,配色就從這兩個長出來:
-   強調色用植物深綠(草本標籤的經典配色,也避開到處都是的焦糖橘),
-   所有邊線改暖色 — 原本用冷灰 #e5e7eb 壓在黃底上會顯髒,是畫面「醜」的主因。
-   金額一律走等寬 tabular 數字(全站已載入 JetBrains Mono,不另外加字型),
-   上下對齊,呼應店裡賣的「精準分裝」。
-   ───────────────────────────────────────────────────── */
-.ck {
-  --surface: #ffffff;
-  --ink: #000000;
-  --ink-2: #6b6a58;
-  --line: #e7e3c6;
-  --line-soft: #f2eedb;
-  --green: #0b5d3b;
-  --green-wash: #edf3ea;
-  --alert: #b3261e;
-  max-width: 620px;
-  margin: 0 auto;
-}
-.num {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.ck-back {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 8px 15px 8px 11px; min-height: 38px; box-sizing: border-box;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
-  font-size: 14px; font-weight: 600; color: var(--ink); text-decoration: none;
-  margin-bottom: 1.5rem;
-}
-.ck-back:hover { background: var(--line-soft); }
-.ck-head {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
-  margin: 0 0 1.25rem; padding-bottom: 0.75rem; border-bottom: 1.5px solid var(--ink);
-}
-.ck-head h2 { margin: 0; font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-.ck-head > span { font-size: 0.8125rem; color: var(--ink-2); white-space: nowrap; }
-.ck-panel {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: 12px; padding: 1rem 1.125rem;
-}
-/* 區塊標題:黑色句子體,不用字距拉開的灰色小標 */
-.ck-label { margin: 0 0 0.625rem; font-size: 0.875rem; font-weight: 700; color: var(--ink); }
-.ck-req { color: var(--alert); font-weight: 400; }
+const money = (n: number) => n.toLocaleString('en-US');
 
-/* ── 滿額贈量杯刻度:這頁唯一放膽的地方 ───────────────── */
-.gauge-track {
-  position: relative; height: 30px; background: var(--surface);
-  border: 1.5px solid var(--ink); border-radius: 3px; overflow: hidden;
+const CSS = `
+.ck-title{padding:4px 0 24px;display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.ck-title h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em}
+.ck-steps{display:flex;gap:6px;font-size:13px;color:var(--ui-muted);align-items:center}
+.ck-steps b{color:var(--ui-ink);font-weight:500}
+.ck-steps i{width:16px;height:1px;background:var(--ui-line);display:inline-block}
+.ck-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:48px;align-items:start}
+.ck-form{display:flex;flex-direction:column;gap:36px;min-width:0}
+.ck-sec{display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px}
+.ck-sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.ck-sec-h h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.ck-sec-h span{font-size:12px;color:var(--ui-muted)}
+.ck-opts{display:flex;flex-direction:column;gap:10px}
+.ck-field{display:flex;flex-direction:column;gap:6px}
+.ck-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ck-sum{position:sticky;top:80px;padding:20px}
+.ck-sum h2{margin:0 0 16px;font-size:16px;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
+.ck-sum h2 span{font-size:12px;color:var(--ui-muted);font-weight:400}
+.ck-item{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--ui-line-soft)}
+.ck-item:first-of-type{border-top:0;padding-top:0}
+.ck-th{width:56px;height:70px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-line-soft);overflow:hidden;position:relative;flex-shrink:0;display:grid;place-items:center;color:#d4d4d8}
+.ck-th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ck-it{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ck-it-n{font-size:14px;font-weight:500;line-height:1.4}
+.ck-it-v{font-size:12px;color:var(--ui-muted)}
+.ck-it-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+.ck-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:30px;overflow:hidden;background:var(--ui-surface)}
+.ck-qty button{width:30px;height:30px;border:0;background:transparent;font:inherit;font-size:16px;cursor:pointer;color:var(--ui-ink);padding:0}
+.ck-qty button:hover{background:var(--ui-line-soft)}
+.ck-qty input{width:36px;height:30px;text-align:center;font:inherit;font-size:13px;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;box-sizing:border-box;outline:none}
+.ck-rm{width:26px;height:26px;border:0;background:none;color:var(--ui-faint);border-radius:6px;cursor:pointer;display:grid;place-items:center;flex-shrink:0;padding:0}
+.ck-rm:hover{background:#fef2f2;color:#b91c1c}
+.ck-gift{margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:13px;display:flex;flex-direction:column;gap:8px}
+.ck-gift-t{display:flex;justify-content:space-between;gap:12px;font-weight:500;align-items:center}
+.ck-bar{height:6px;border-radius:999px;background:var(--ui-line);overflow:hidden}
+.ck-bar div{height:100%;border-radius:999px;background:var(--ui-accent);transition:width .45s cubic-bezier(.3,.8,.4,1)}
+.ck-tot{margin-top:16px;padding-top:14px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:8px;font-size:14px}
+.ck-tot .r{display:flex;justify-content:space-between;gap:12px;color:#52525b}
+.ck-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:10px;margin-top:4px;border-top:1px solid var(--ui-line);color:var(--ui-ink);font-weight:600}
+.ck-tot .g span:last-child{font-size:22px}
+.ck-fine{font-size:12px;color:var(--ui-muted);text-align:center;margin:10px 0 0;line-height:1.6}
+.ck-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.6;font-weight:500}
+.ck-submit-m{display:none}
+.ck-overlay{position:fixed;inset:0;z-index:1000;background:rgba(255,255,255,.85);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+.ck-overlay .big{width:38px;height:38px;border-width:3px}
+@media (max-width:1024px){
+  .ck-layout{grid-template-columns:1fr;gap:28px}
+  .ck-sum{position:static;order:-1}
+  .ck-title{padding:0 0 16px;flex-direction:column;align-items:flex-start;gap:8px}
+  .ck-title h1{font-size:24px}
+  .ck-row2{grid-template-columns:1fr}
+  .ck-submit-d{display:none}
+  .ck-submit-m{display:flex;flex-direction:column;gap:10px}
 }
-.gauge-fill {
-  position: absolute; top: 0; bottom: 0; left: 0; background: var(--green);
-  transition: width .45s cubic-bezier(.3,.8,.4,1);
-}
-.gauge-ticks { position: absolute; inset: 0; display: flex; pointer-events: none; }
-.gauge-ticks i { flex: 1; border-right: 1px solid rgba(0,0,0,.18); }
-.gauge-ticks i:last-child { border-right: 0; }
-.gauge-cap {
-  position: absolute; top: 0; bottom: 0; right: 0; display: flex; align-items: center;
-  padding: 0 9px; font-size: 0.75rem; font-weight: 700; color: var(--ink);
-}
-@media (prefers-reduced-motion: reduce) { .gauge-fill { transition: none; } }
-
-@keyframes co-spin { to { transform: rotate(360deg); } }
-.opt-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.opt-card {
-  display: flex; align-items: flex-start; gap: 0.75rem;
-  padding: 0.875rem; border: 1.5px solid var(--line); border-radius: 10px;
-  background: var(--surface); cursor: pointer; position: relative;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-.opt-card:hover { border-color: #d8d3ae; }
-.opt-card-on { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(11,93,59,.1); }
-.opt-card:has(.opt-radio:focus-visible) { outline: 2px solid var(--green); outline-offset: 2px; }
-.opt-radio { position: absolute; opacity: 0; width: 0; height: 0; }
-.opt-icon {
-  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-.opt-dot {
-  width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d8d3ae;
-  flex-shrink: 0; margin-top: 10px; position: relative; transition: border-color .15s ease;
-}
-.opt-card-on .opt-dot { border-color: var(--ink); }
-.opt-card-on .opt-dot::after {
-  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--ink);
-}
-@media (prefers-reduced-motion: reduce) { .opt-card, .opt-dot { transition: none; } }
-
-.ck-form { display: flex; flex-direction: column; gap: 1.25rem; }
-.ck-form input:focus, .ck-form select:focus, .ck-form textarea:focus {
-  outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(11,93,59,.12);
-}
-/* 商品列 */
-.ck-row { display: flex; gap: 0.75rem; padding: 0.875rem 0; border-bottom: 1px solid var(--line-soft); }
-.ck-row:first-of-type { padding-top: 0; }
-.ck-row:last-of-type { border-bottom: 0; }
-.ck-thumb {
-  width: 56px; height: 56px; border-radius: 8px; object-fit: cover;
-  background: var(--line-soft); flex-shrink: 0; border: 1px solid var(--line);
-}
-.ck-qty {
-  display: inline-flex; align-items: center; background: var(--surface);
-  border: 1.5px solid var(--line); border-radius: 8px; overflow: hidden;
-}
-.ck-qty button {
-  width: 32px; height: 32px; border: 0; background: transparent; color: var(--ink);
-  font-size: 16px; line-height: 1; cursor: pointer;
-}
-.ck-qty button:hover { background: var(--line-soft); }
-.ck-remove {
-  width: 28px; height: 28px; border: 0; background: none; color: #c9c6ab;
-  font-size: 17px; line-height: 1; border-radius: 7px; cursor: pointer; flex-shrink: 0;
-}
-.ck-remove:hover { background: #fdecea; color: var(--alert); }
-/* 送出 */
-.ck-submit {
-  padding: 1rem; background: var(--ink); color: #fff; border: 0; border-radius: 10px;
-  font-size: 1rem; font-weight: 700; font-family: inherit; cursor: pointer;
-}
-.ck-submit:disabled { background: #9c9a86; cursor: not-allowed; }
+@media (prefers-reduced-motion:reduce){.ck-bar div{transition:none}}
 `;
 
-function OptionCard({
-  name,
-  value,
-  checked,
-  onSelect,
-  icon,
-  accent,
-  title,
-  desc,
-  trailing,
-}: {
-  name: string;
-  value: string;
-  checked: boolean;
-  onSelect: () => void;
-  icon: React.ReactNode;
-  accent: string;
-  title: string;
-  desc?: React.ReactNode;
-  trailing?: React.ReactNode;
-}) {
-  return (
-    <label className={checked ? 'opt-card opt-card-on' : 'opt-card'}>
-      <input
-        className="opt-radio"
-        type="radio"
-        name={name}
-        value={value}
-        checked={checked}
-        onChange={onSelect}
-        // 2026-10-16:刻意不加 required — 原生必填會在表單送出前就擋下,
-        // 自訂提示反而跑不到,且提示氣泡常落在畫面外 = 看起來沒反應。
-        // 改由 handleSubmit 自己檢查並捲到該區塊顯示紅字。
-      />
-      <span className="opt-icon" style={{ background: `${accent}1a`, color: accent }}>
-        {icon}
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#111827' }}>{title}</span>
-          {trailing}
-        </span>
-        {desc && (
-          <span style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginTop: 3, lineHeight: 1.55 }}>
-            {desc}
-          </span>
-        )}
-      </span>
-      <span className="opt-dot" aria-hidden />
-    </label>
-  );
-}
-
+/**
+ * 結帳頁(2026-10-23 改版,照 Phase 24 原型):
+ * 電腦版左邊表單(配送 / 付款 / 收件)、右邊 sticky 摘要(明細可改數量、滿額贈進度、合計、送出);
+ * 手機版摘要在上、表單在下、送出鈕在最底。所有流程(分階價、滿額贈、LINE Pay / 綠界跳轉、會員預填)跟改版前相同。
+ */
 export default function CheckoutPage({ params }: Props) {
   const { slug } = use(params);
   const router = useRouter();
@@ -210,7 +92,7 @@ export default function CheckoutPage({ params }: Props) {
   const [shipOptions, setShipOptions] = useState<ShippingOption[]>([]);
   const [shipKey, setShipKey] = useState('');
   const [shipError, setShipError] = useState(false); // 2026-10-16:沒選配送方式的提示
-  // 2026-10-06:滿額贈進度橫幅(蝦皮式)
+  // 2026-10-06:滿額贈進度
   const [giftCfg, setGiftCfg] = useState<GiftConfigPublic>({ mode: 'stack', rules: [] });
   // 2026-10-15:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
   const [linePayOn, setLinePayOn] = useState(false);
@@ -244,7 +126,6 @@ export default function CheckoutPage({ params }: Props) {
   const isOnlinePay = isLinePayPay || isEcpayPay;
 
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
-  // 原本這頁照加入當下的原價顯示,後端實收卻有套分階 → 畫面 540 實收 500 對不上
   const [pricing, setPricing] = useState<CartPricingInfo>({});
   const productIdsKey = [...new Set(items.map((i) => i.productId))].sort().join(',');
   useEffect(() => {
@@ -270,25 +151,34 @@ export default function CheckoutPage({ params }: Props) {
 
   // 折後商品小計(運費免運門檻、總計都用這個,跟後端實收一致)
   const subtotal = items.reduce((s, i) => s + unitPriceOf(i) * i.qty, 0);
-
   const shipOption = shipOptions.find((o) => o.key === shipKey) ?? null;
-  const shipFee = shipOption
-    ? shipOption.free_over && subtotal >= shipOption.free_over
-      ? 0
-      : shipOption.fee
-    : 0;
+  const shipFee = shipOption ? (shipOption.free_over && subtotal >= shipOption.free_over ? 0 : shipOption.fee) : 0;
   const grandTotal = subtotal + shipFee;
+
+  // 滿額贈:擇高式只算最高那條;可重複的規則會一直有下一個倍數可拿
+  const gift = (() => {
+    if (giftCfg.rules.length === 0) return null;
+    const reached = giftCfg.rules.filter((g) => subtotal >= g.threshold_twd);
+    const met = giftCfg.mode === 'highest' && reached.length > 0 ? [reached.reduce((b, g) => (g.threshold_twd > b.threshold_twd ? g : b))] : reached;
+    const earned = met.map((g) => ({ ...g, times: g.repeat ? Math.max(1, Math.floor(subtotal / g.threshold_twd)) : 1 }));
+    const targets = giftCfg.rules
+      .map((g) => (subtotal < g.threshold_twd ? { g, at: g.threshold_twd } : g.repeat ? { g, at: (Math.floor(subtotal / g.threshold_twd) + 1) * g.threshold_twd } : null))
+      .filter((x): x is { g: (typeof giftCfg.rules)[number]; at: number } => x !== null)
+      .sort((a, b) => a.at - b.at);
+    const nextTarget = targets[0] ?? null;
+    const pct = nextTarget ? Math.min(100, Math.round((subtotal / nextTarget.at) * 100)) : 100;
+    return { earned, next: nextTarget?.g ?? null, gap: nextTarget ? nextTarget.at - subtotal : 0, pct };
+  })();
 
   // 已成立 → 顯 loading 直到 router.push 真的跳完(避免閃空車畫面 / 空表單)
   if (redirecting) {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#374151', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-        <style>{`@keyframes ck-spin { to { transform: rotate(360deg); } }`}</style>
-        <span style={{ width: 38, height: 38, border: '3px solid #e4e4e7', borderTopColor: '#18181b', borderRadius: '50%', animation: 'ck-spin 0.8s linear infinite' }} />
-        <p style={{ fontSize: '1.125rem', margin: 0, fontWeight: 600 }}>
+      <div style={{ textAlign: 'center', padding: '4rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <span className="ui-spin" style={{ width: 38, height: 38, borderWidth: 3 }} />
+        <p style={{ fontSize: 17, margin: 0, fontWeight: 600 }}>
           {isLinePayPay ? '訂單已成立,正在前往 LINE Pay…' : isEcpayPay ? '訂單已成立,正在前往付款頁…' : '訂單已成立,跳轉中…'}
         </p>
-        <p style={{ fontSize: '0.8125rem', margin: 0, color: '#9ca3af' }}>請不要重複操作或關閉畫面</p>
+        <p className="ui-muted" style={{ fontSize: 13, margin: 0 }}>請不要重複操作或關閉畫面</p>
       </div>
     );
   }
@@ -296,30 +186,19 @@ export default function CheckoutPage({ params }: Props) {
   // 送出中 cart 被 clear() 清空時不要 flash 空車畫面(router.push 還沒導航完)
   if (items.length === 0 && !submitting) {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#6b7280' }}>
-        <p style={{ fontSize: '1.125rem', margin: 0 }}>購物車是空的</p>
-        <a
-          href={`/${slug}`}
-          style={{
-            display: 'inline-block',
-            marginTop: '1.5rem',
-            padding: '0.75rem 1.5rem',
-            background: '#1f2937',
-            color: '#fff',
-            textDecoration: 'none',
-            borderRadius: 6,
-            fontSize: '0.9375rem',
-          }}
-        >
-          繼續購物
-        </a>
+      <div className="ui-card ui-enter" style={{ maxWidth: 520, margin: '24px auto 0', padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+        <div style={{ color: '#d4d4d8' }}><IconPackage size={40} /></div>
+        <div>
+          <p style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>購物車是空的</p>
+          <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14 }}>挑幾樣喜歡的商品再回來。</p>
+        </div>
+        <ButtonLink href={`/${slug}`} variant="primary" size="md">繼續購物</ButtonLink>
       </div>
     );
   }
 
   async function handleSubmit(formData: FormData) {
-    // 2026-10-16:沒選配送方式時瀏覽器的必填提示會跑到畫面外(配送區在上、送出鈕在下),
-    // 看起來像「按了沒反應」— 自己擋下並捲回該區塊
+    // 2026-10-16:沒選配送方式時瀏覽器的必填提示會跑到畫面外,看起來像「按了沒反應」— 自己擋下並捲回該區塊
     if (shipOptions.length > 0 && !shipKey) {
       setShipError(true);
       document.getElementById('ship-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -340,8 +219,7 @@ export default function CheckoutPage({ params }: Props) {
     clear();
     // Phase 22:訂單頁連結要帶存取碼,沒帶的話個資會被遮蔽、也不能付款 / 回報
     const kq = result.accessKey ? `k=${result.accessKey}` : '';
-    // 2026-10-15:選 LINE Pay → 導去付款頁。
-    // 發動失敗不擋單(訂單已成立),退回訂單頁讓客人重按一次付款。
+    // 2026-10-15:選 LINE Pay → 導去付款頁。發動失敗不擋單(訂單已成立),退回訂單頁讓客人重按一次付款。
     if (isLinePayPay) {
       const pay = await startLinePay(slug, result.orderNo, result.accessKey ?? '');
       if (pay.ok) {
@@ -360,463 +238,221 @@ export default function CheckoutPage({ params }: Props) {
     router.push(`/${slug}/order/${result.orderNo}${kq ? `?${kq}` : ''}`);
   }
 
+  // 地址元件吃 inline style,給它一組跟 .ui-input 一樣的樣式
   const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '0.7rem 0.8rem',
-    border: '1.5px solid #e5e7eb',
-    borderRadius: 10,
-    fontSize: '0.9375rem',
-    fontFamily: 'inherit',
-    boxSizing: 'border-box',
-    background: '#fff',
-    color: '#111827',
+    height: 40, padding: '0 12px', border: '1px solid var(--ui-line)', borderRadius: 6, fontSize: 14, fontFamily: 'inherit',
+    background: 'var(--ui-surface)', color: 'var(--ui-ink)', width: '100%', boxSizing: 'border-box',
   };
 
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: '#374151',
-    marginBottom: '0.375rem',
-  };
+  const submitLabel = `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '送出訂單'} · NT$ ${money(grandTotal)}`;
+  const fine = isOnlinePay ? '付款完成後訂單會自動更新,不用回報帳號後 5 碼' : '下單後賣家會私訊匯款方式';
+  const submitBtn = (cls: string) => (
+    <div className={cls}>
+      <Button type="submit" form="ck-form" variant="primary" size="lg" className="ui-num" style={{ width: '100%' }} disabled={submitting}>
+        {submitting ? '處理中,訂單建立中…' : submitLabel}
+      </Button>
+      <p className="ck-fine">{fine}</p>
+    </div>
+  );
 
   return (
-    // 2026-10-15:結帳是單欄表單,960 寬會讓欄位拉得又長又空 — 收到 620
-    <div className="ck">
-      <style dangerouslySetInnerHTML={{ __html: checkoutCss }} />
-      {/* 2026-09-12:改成跟商品詳情/結帳同款的膠囊返回鍵 */}
-      <a href={`/${slug}`} className="ck-back">
-        <IconChevronLeft size={16} /> 返回
-      </a>
+    <div className="ui-enter">
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <div className="ck-head">
-        <h2>購物車</h2>
-        <span>
-          <span className="num">{totalQty}</span> 件商品
-        </span>
-      </div>
-
-      {/* 2026-10-15:滿額贈做成量杯刻度 — 這頁唯一放膽的地方。
-          精油講分量,進度用刻度表示比圓角進度條更貼這家店。 */}
-      {giftCfg.rules.length > 0 && (() => {
-        // Phase 18:擇高式只算最高那條;可重複的規則會一直有下一個倍數可拿
-        const reached = giftCfg.rules.filter((g) => subtotal >= g.threshold_twd);
-        const met =
-          giftCfg.mode === 'highest' && reached.length > 0
-            ? [reached.reduce((b, g) => (g.threshold_twd > b.threshold_twd ? g : b))]
-            : reached;
-        const earned = met.map((g) => ({
-          ...g,
-          times: g.repeat ? Math.max(1, Math.floor(subtotal / g.threshold_twd)) : 1,
-        }));
-        // 下一個目標:還沒到的最低門檻,或可重複規則的下一個倍數,取最近的
-        const targets = giftCfg.rules
-          .map((g) =>
-            subtotal < g.threshold_twd
-              ? { g, at: g.threshold_twd }
-              : g.repeat
-                ? { g, at: (Math.floor(subtotal / g.threshold_twd) + 1) * g.threshold_twd }
-                : null,
-          )
-          .filter((x): x is { g: (typeof giftCfg.rules)[number]; at: number } => x !== null)
-          .sort((a, b) => a.at - b.at);
-        const nextTarget = targets[0] ?? null;
-        const next = nextTarget?.g ?? null;
-        const pct = nextTarget ? Math.min(100, Math.round((subtotal / nextTarget.at) * 100)) : 100;
-        const gap = nextTarget ? nextTarget.at - subtotal : 0;
-        return (
-          <div style={{ marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.5rem' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', fontWeight: 700, color: '#000' }}>
-                <IconGift size={15} /> 滿額贈
-              </span>
-              <span style={{ fontSize: '0.8125rem', color: next ? '#6b6a58' : '#0b5d3b', fontWeight: next ? 400 : 700 }}>
-                {next ? (
-                  <>
-                    還差 <span className="num" style={{ fontWeight: 700, color: '#000' }}>NT$ {gap.toLocaleString()}</span>
-                  </>
-                ) : (
-                  '已達最高門檻'
-                )}
-              </span>
-            </div>
-            <div className="gauge-track">
-              <div className="gauge-fill" style={{ width: `${pct}%` }} />
-              <div className="gauge-ticks">
-                {Array.from({ length: 10 }, (_, i) => <i key={i} />)}
-              </div>
-              <span className="gauge-cap num" style={{ color: pct > 92 ? '#fff' : '#000' }}>{pct}%</span>
-            </div>
-            <div style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: 1.6 }}>
-              {next && (
-                <div style={{ color: '#6b6a58' }}>
-                  {next.repeat ? '每滿' : '滿'}{' '}
-                  <span className="num">NT$ {next.threshold_twd.toLocaleString()}</span> 送 {next.product_name}
-                  {next.qty > 1 ? ` ×${next.qty}` : ''}
-                </div>
-              )}
-              {earned.length > 0 && (
-                <div style={{ color: '#0b5d3b', fontWeight: 700 }}>
-                  已獲得:
-                  {earned
-                    .map((g) => {
-                      const total = g.qty * g.times;
-                      return `${g.product_name}${total > 1 ? ` ×${total}` : ''}`;
-                    })
-                    .join('、')}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      <div className="ck-panel" style={{ marginBottom: '1.25rem' }}>
-        <h3 className="ck-label">商品明細</h3>
-        {items.map((item) => (
-          // 2026-10-15:加商品縮圖,數量與金額移到第二行 — 原本全擠同一行又窄又亂
-          <div key={item.variantId} className="ck-row">
-            {item.imageUrl ? (
-              <img className="ck-thumb" src={item.imageUrl} alt="" />
-            ) : (
-              <span className="ck-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d4d4d8' }}>
-                <IconPackage size={20} />
-              </span>
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* 2026-09-12:商品名不截斷(可換行),品項(規格)一律顯示 */}
-                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#000', lineHeight: 1.45 }}>
-                    {item.productName}
-                  </div>
-                  {item.variantName && item.variantName !== 'default' && (
-                    <div style={{ fontSize: '0.75rem', color: '#6b6a58', marginTop: 2 }}>{item.variantName}</div>
-                  )}
-                  {unitPriceOf(item) < item.priceTwd && (
-                    <div style={{ fontSize: '0.75rem', color: '#0b5d3b', marginTop: 2, fontWeight: 600 }}>
-                      量購價 <span className="num">NT$ {unitPriceOf(item).toLocaleString()}</span> /件
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="ck-remove"
-                  onClick={() => removeItem(item.variantId)}
-                  aria-label={`移除 ${item.productName}`}
-                >
-                  ×
-                </button>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginTop: '0.625rem' }}>
-                <div className="ck-qty">
-                  <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)}>−</button>
-                  <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
-                  <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)}>+</button>
-                </div>
-                <span className="num" style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#000', whiteSpace: 'nowrap' }}>
-                  NT$ {(unitPriceOf(item) * item.qty).toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
-        <div
-          style={{
-            borderTop: '1px solid #e7e3c6',
-            marginTop: '0.875rem',
-            paddingTop: '0.875rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.4375rem',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#6b6a58' }}>
-            <span>商品小計</span>
-            <span className="num" style={{ color: '#000' }}>NT$ {subtotal.toLocaleString()}</span>
-          </div>
-          {shipOptions.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#6b6a58' }}>
-              <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
-              {shipOption ? (
-                <span className="num" style={{ color: shipFee === 0 ? '#0b5d3b' : '#000' }}>
-                  {shipFee === 0 ? '免運' : `NT$ ${shipFee.toLocaleString()}`}
-                </span>
-              ) : (
-                <span>請選配送方式</span>
-              )}
-            </div>
-          )}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              marginTop: '0.4375rem',
-              paddingTop: '0.75rem',
-              borderTop: '1.5px solid #000',
-            }}
-          >
-            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#000' }}>合計</span>
-            <span className="num" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#000' }}>
-              NT$ {grandTotal.toLocaleString()}
-            </span>
-          </div>
-        </div>
+      <div className="ck-title">
+        <h1>結帳</h1>
+        <div className="ck-steps" aria-label="步驟"><b>1 填寫資料</b><i /><span>2 付款</span><i /><span>3 完成</span></div>
       </div>
 
       {/* 2026-10-22:建立訂單期間蓋住整個畫面,按不到別的東西(建好後換成上面的跳轉畫面) */}
       {submitting && (
-        <div
-          aria-busy="true"
-          aria-live="polite"
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
-          }}
-        >
-          <style>{`@keyframes ck-spin { to { transform: rotate(360deg); } }`}</style>
-          <span style={{ width: 38, height: 38, border: '3px solid #e4e4e7', borderTopColor: '#18181b', borderRadius: '50%', animation: 'ck-spin 0.8s linear infinite' }} />
-          <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#18181b' }}>訂單建立中,請稍候…</div>
-          <div style={{ fontSize: '0.75rem', color: '#71717a' }}>請不要重複按送出或關閉畫面</div>
+        <div className="ck-overlay" aria-busy="true" aria-live="polite">
+          <span className="ui-spin big" />
+          <div style={{ fontSize: 15, fontWeight: 600 }}>訂單建立中,請稍候…</div>
+          <div className="ui-muted" style={{ fontSize: 12 }}>請不要重複按送出或關閉畫面</div>
         </div>
       )}
-      <form className="ck-form" action={handleSubmit}>
-        {/* D#13:配送方式(攤位有設運費規則才顯示)
-            2026-10-15:選項本身已經是「面」了,不再包一層卡 — 免得整頁變成一堆同款方框 */}
-        {shipOptions.length > 0 && (
-          <div id="ship-section" style={{ scrollMarginTop: 16 }}>
-            <h3 className="ck-label">
-              配送方式 <span className="ck-req">*</span>
-            </h3>
-            {shipError && (
-              <div
-                style={{
-                  marginBottom: '0.5rem',
-                  padding: '0.625rem 0.875rem',
-                  background: '#fdecea',
-                  border: '1px solid #f3c6c2',
-                  borderRadius: 10,
-                  color: '#b3261e',
-                  fontSize: '0.8125rem',
-                  fontWeight: 700,
-                }}
-              >
-                請先選擇配送方式才能送出訂單
+
+      <div className="ck-layout">
+        {/* ---------- 左:表單 ---------- */}
+        <form id="ck-form" className="ck-form" action={handleSubmit}>
+          {/* D#13:配送方式(攤位有設運費規則才顯示) */}
+          {shipOptions.length > 0 && (
+            <section id="ship-section" className="ck-sec" aria-labelledby="ship-h">
+              <div className="ck-sec-h"><h2 id="ship-h">配送方式</h2><span>必選</span></div>
+              {shipError && <div className="ck-alert">請先選擇配送方式才能送出訂單</div>}
+              <div className="ck-opts" role="radiogroup" aria-label="配送方式">
+                {shipOptions.map((opt) => {
+                  const isFree = !!opt.free_over && subtotal >= opt.free_over;
+                  const isPickupOpt = opt.key === 'pickup';
+                  return (
+                    <OptionCard
+                      key={opt.key}
+                      name="shipping_method"
+                      value={opt.key}
+                      on={shipKey === opt.key}
+                      onSelect={() => { setShipKey(opt.key); setShipError(false); }}
+                      icon={isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
+                      title={opt.label}
+                      trailing={
+                        <span className="ui-num" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
+                          {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${money(opt.fee)}`}
+                        </span>
+                      }
+                      desc={
+                        opt.free_over
+                          ? isFree
+                            ? `已滿 NT$ ${money(opt.free_over)},免運`
+                            : `滿 NT$ ${money(opt.free_over)} 免運(還差 NT$ ${money(opt.free_over - subtotal)})`
+                          : undefined
+                      }
+                      note={opt.note ? `※ ${opt.note}` : undefined}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* 2026-10-15:付款方式(攤位有開 LINE Pay 或綠界才顯示;都沒開一律匯款)
+              2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳) */}
+          {(linePayOn || ecpayOn) && (
+            <section className="ck-sec" aria-labelledby="pay-h">
+              <div className="ck-sec-h"><h2 id="pay-h">付款方式</h2><span>必選</span></div>
+              <div className="ck-opts" role="radiogroup" aria-label="付款方式">
+                {ecpayOn && (
+                  <OptionCard name="payment_method" value="ecpay_credit" on={payMethod === 'ecpay_credit'} onSelect={() => setPayMethod('ecpay_credit')} icon={<IconCreditCard size={16} />} title="信用卡" trailing={<Badge>立即付款</Badge>} desc="送出後前往綠界刷卡,付款完成訂單自動更新" />
+                )}
+                {linePayOn && (
+                  <OptionCard name="payment_method" value="line_pay" on={payMethod === 'line_pay'} onSelect={() => setPayMethod('line_pay')} icon={<IconWallet size={16} />} title="LINE Pay" trailing={<Badge>立即付款</Badge>} desc="送出後直接前往 LINE Pay 付款,不用回報後 5 碼" />
+                )}
+                {ecpayAtmOn && (
+                  <OptionCard name="payment_method" value="ecpay_atm" on={payMethod === 'ecpay_atm'} onSelect={() => setPayMethod('ecpay_atm')} icon={<IconBank size={16} />} title="ATM 轉帳" trailing={<Badge>免回報</Badge>} desc="送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳" />
+                )}
+                <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳" />
+              </div>
+            </section>
+          )}
+
+          <section className="ck-sec" aria-labelledby="addr-h">
+            <div className="ck-sec-h"><h2 id="addr-h">收件資訊</h2></div>
+            <div className="ck-row2">
+              <div className="ck-field">
+                <label className="ui-label" htmlFor="recipient" style={{ marginBottom: 0 }}>收件人姓名 <i>*</i></label>
+                {/* key 跟著會員資料換:資料載進來時重掛一次,把預設值填進去 */}
+                <input key={member ? 'm' : 'g'} id="recipient" name="recipient" type="text" required defaultValue={member?.name ?? ''} className="ui-input" placeholder="王小明" autoComplete="name" />
+              </div>
+              <div className="ck-field">
+                <label className="ui-label" htmlFor="phone" style={{ marginBottom: 0 }}>聯絡電話 <i>*</i></label>
+                <input key={member ? 'm' : 'g'} id="phone" name="phone" type="tel" required defaultValue={member?.phone ?? ''} className="ui-input" placeholder="0912 345 678" autoComplete="tel" />
+              </div>
+            </div>
+            {member?.email && <input type="hidden" name="guestEmail" value={member.email} />}
+            <div className="ck-field">
+              <span className="ui-label" style={{ marginBottom: 0 }}>寄送地址 <i>*</i></span>
+              {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
+              <TwAddressFields required inputStyle={inputStyle} />
+            </div>
+            <div className="ck-field">
+              <label className="ui-label" htmlFor="note" style={{ marginBottom: 0 }}>備註(選填)</label>
+              {/* 需要統編直接寫在備註 */}
+              <Textarea id="note" name="note" rows={3} placeholder="如需統編發票或有其他需求,請填寫在這裡" />
+            </div>
+          </section>
+
+          {error && <div className="ck-alert" role="alert">{error}</div>}
+
+          {submitBtn('ck-submit-m')}
+        </form>
+
+        {/* ---------- 右:摘要 ---------- */}
+        <Card className="ck-sum">
+          <h2>商品明細 <span className="ui-num">{totalQty} 件</span></h2>
+          {items.map((item) => (
+            <div key={item.variantId} className="ck-item">
+              <div className="ck-th">
+                {item.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.imageUrl} alt="" />
+                ) : (
+                  <IconPackage size={20} />
+                )}
+              </div>
+              <div className="ck-it">
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="ck-it-n">{item.productName}</div>
+                    {item.variantName && item.variantName !== 'default' && <div className="ck-it-v">{item.variantName}</div>}
+                    {unitPriceOf(item) < item.priceTwd && (
+                      <div className="ck-it-v ui-num" style={{ color: '#15803d', fontWeight: 500 }}>量購價 NT$ {money(unitPriceOf(item))}/件</div>
+                    )}
+                  </div>
+                  <button type="button" className="ck-rm" onClick={() => removeItem(item.variantId)} aria-label={`移除 ${item.productName}`}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M18 6 6 18M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="ck-it-row">
+                  <div className="ck-qty">
+                    <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)} aria-label="減少">−</button>
+                    <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
+                    <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)} aria-label="增加">+</button>
+                  </div>
+                  <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unitPriceOf(item) * item.qty)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {gift && (
+            <div className="ck-gift">
+              <div className="ck-gift-t">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconGift size={14} /> 滿額贈</span>
+                <span className="ui-num" style={{ color: gift.next ? 'var(--ui-ink)' : '#15803d' }}>{gift.next ? `還差 NT$ ${money(gift.gap)}` : '已達最高門檻'}</span>
+              </div>
+              <div className="ck-bar"><div style={{ width: `${gift.pct}%` }} /></div>
+              <span className="ui-muted" style={{ lineHeight: 1.6 }}>
+                {gift.next && <>{gift.next.repeat ? '每滿' : '滿'} NT$ {money(gift.next.threshold_twd)} 送 {gift.next.product_name}{gift.next.qty > 1 ? ` ×${gift.next.qty}` : ''}</>}
+                {gift.earned.length > 0 && (
+                  <span style={{ display: 'block', color: '#15803d', fontWeight: 500 }}>
+                    已獲得:{gift.earned.map((g) => `${g.product_name}${g.qty * g.times > 1 ? ` ×${g.qty * g.times}` : ''}`).join('、')},會一起出貨
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          <div className="ck-tot">
+            <div className="r"><span>商品小計</span><span className="ui-num" style={{ color: 'var(--ui-ink)' }}>NT$ {money(subtotal)}</span></div>
+            {shipOptions.length > 0 && (
+              <div className="r">
+                <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
+                {shipOption ? (
+                  <span className="ui-num" style={{ color: shipFee === 0 ? '#15803d' : 'var(--ui-ink)' }}>{shipFee === 0 ? '免運' : `NT$ ${money(shipFee)}`}</span>
+                ) : (
+                  <span>請選配送方式</span>
+                )}
               </div>
             )}
-            <div className="opt-list">
-              {shipOptions.map((opt) => {
-                const isFree = !!opt.free_over && subtotal >= opt.free_over;
-                const isPickupOpt = opt.key === 'pickup';
-                return (
-                  <OptionCard
-                    key={opt.key}
-                    name="shipping_method"
-                    value={opt.key}
-                    checked={shipKey === opt.key}
-                    onSelect={() => setShipKey(opt.key)}
-                    accent={isPickupOpt ? '#b45309' : '#475569'}
-                    icon={isPickupOpt ? <IconPackage size={19} /> : <IconTruck size={19} />}
-                    title={opt.label}
-                    trailing={
-                      <span style={{ fontSize: '0.875rem', fontWeight: 700, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : '#111827' }}>
-                        {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${opt.fee}`}
-                      </span>
-                    }
-                    desc={
-                      <>
-                        {opt.free_over ? (
-                          <span style={{ display: 'block', color: isFree ? '#15803d' : '#6b7280' }}>
-                            {isFree
-                              ? `已滿 NT$ ${opt.free_over.toLocaleString()},免運`
-                              : `滿 NT$ ${opt.free_over.toLocaleString()} 免運(還差 NT$ ${(opt.free_over - subtotal).toLocaleString()})`}
-                          </span>
-                        ) : null}
-                        {opt.note && <span style={{ display: 'block', color: '#b45309' }}>※ {opt.note}</span>}
-                      </>
-                    }
-                  />
-                );
-              })}
-            </div>
+            <div className="g"><span>合計</span><span className="ui-num">NT$ {money(grandTotal)}</span></div>
           </div>
-        )}
-        {/* 2026-10-15:付款方式(攤位有開 LINE Pay 或綠界才顯示;都沒開一律匯款)
-            2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳) */}
-        {(linePayOn || ecpayOn) && (
-          <div>
-            <h3 className="ck-label">
-              付款方式 <span className="ck-req">*</span>
-            </h3>
-            <div className="opt-list">
-              {ecpayOn && (
-                <OptionCard
-                  name="payment_method"
-                  value="ecpay_credit"
-                  checked={payMethod === 'ecpay_credit'}
-                  onSelect={() => setPayMethod('ecpay_credit')}
-                  accent="#1d4ed8"
-                  icon={<IconCreditCard size={19} />}
-                  title="信用卡"
-                  trailing={
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                      立即付款
-                    </span>
-                  }
-                  desc="送出後前往綠界刷卡,付款完成訂單自動更新"
-                />
-              )}
-              {linePayOn && (
-                <OptionCard
-                  name="payment_method"
-                  value="line_pay"
-                  checked={payMethod === 'line_pay'}
-                  onSelect={() => setPayMethod('line_pay')}
-                  accent="#06c755"
-                  icon={<IconWallet size={19} />}
-                  title="LINE Pay"
-                  trailing={
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                      立即付款
-                    </span>
-                  }
-                  desc="送出後直接前往 LINE Pay 付款,不用回報後 5 碼"
-                />
-              )}
-              {ecpayAtmOn && (
-                <OptionCard
-                  name="payment_method"
-                  value="ecpay_atm"
-                  checked={payMethod === 'ecpay_atm'}
-                  onSelect={() => setPayMethod('ecpay_atm')}
-                  accent="#0f766e"
-                  icon={<IconBank size={19} />}
-                  title="ATM 轉帳"
-                  trailing={
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#0f766e', background: '#ccfbf1', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                      免回報
-                    </span>
-                  }
-                  desc="送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳"
-                />
-              )}
-              <OptionCard
-                name="payment_method"
-                value="bank"
-                checked={payMethod === 'bank'}
-                onSelect={() => setPayMethod('bank')}
-                accent="#475569"
-                icon={<IconBank size={19} />}
-                title="匯款至店家帳戶"
-                desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳"
-              />
-            </div>
-          </div>
-        )}
-        {/* 2026-10-15:收件資訊收進同一張卡,不再一欄一欄散在底色上 */}
-        <div className="ck-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-          <h3 className="ck-label" style={{ marginBottom: 0 }}>收件資訊</h3>
-          <div>
-            <label htmlFor="recipient" style={labelStyle}>
-              收件人姓名 <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            {/* key 跟著會員資料換:資料載進來時重掛一次,把預設值填進去 */}
-            <input key={member ? 'm' : 'g'} id="recipient" name="recipient" type="text" required defaultValue={member?.name ?? ''} style={inputStyle} />
-          </div>
-          <div>
-            <label htmlFor="phone" style={labelStyle}>
-              聯絡電話 <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input key={member ? 'm' : 'g'} id="phone" name="phone" type="tel" required defaultValue={member?.phone ?? ''} style={inputStyle} />
-          </div>
-          {member?.email && <input type="hidden" name="guestEmail" value={member.email} />}
-          <div>
-            <label style={labelStyle}>
-              寄送地址 <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
-            <TwAddressFields required inputStyle={inputStyle} />
-          </div>
-          {/* 2026-09-11:Email 欄位移除(訪客查單用電話即可,訂單通知走 LINE) */}
-          <div>
-            <label htmlFor="note" style={labelStyle}>
-              備註(選填)
-            </label>
-            {/* 2026-09-11 v2:統編專用欄位移除 — 需要統編直接寫在備註 */}
-            <textarea
-              id="note"
-              name="note"
-              rows={3}
-              style={{ ...inputStyle, resize: 'vertical' }}
-              placeholder="如需統編發票或有其他需求,請填寫在這裡"
-            />
-          </div>
-        </div>
 
-        {error && (
-          <div
-            style={{
-              padding: '0.75rem 1rem',
-              background: '#fdecea',
-              border: '1px solid #f3c6c2',
-              borderRadius: 10,
-              color: '#b3261e',
-              fontSize: '0.875rem',
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <button type="submit" className="ck-submit" disabled={submitting}>
-          {submitting ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <span
-                aria-hidden
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  border: '2px solid rgba(255,255,255,0.35)',
-                  borderTopColor: '#fff',
-                  animation: 'co-spin 0.7s linear infinite',
-                  display: 'inline-block',
-                }}
-              />
-              處理中,訂單建立中…
-            </span>
-          ) : (
-            `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '送出訂單'} · NT$ ${grandTotal.toLocaleString()}`
-          )}
-        </button>
-        <p
-          style={{
-            margin: 0,
-            textAlign: 'center',
-            color: '#9ca3af',
-            fontSize: '0.75rem',
-          }}
-        >
-          {isOnlinePay ? '付款完成後訂單會自動更新,不用回報帳號後 5 碼' : '下單後賣家會私訊匯款方式'}
-        </p>
-      </form>
+          {submitBtn('ck-submit-d')}
+        </Card>
+      </div>
     </div>
   );
 }
 
 /**
- * 購物車數量輸入框(2026-09-11 併頁時從 /cart 移入):可直接打字改;
- * 打字過程允許清空,離開欄位時空值/0 恢復原數量(整列刪除用 × 按鈕)。
+ * 購物車數量輸入框:可直接打字改;打字過程允許清空,離開欄位時空值/0 恢復原數量(整列刪除用 × 按鈕)。
  */
 function QtyInput({ qty, onCommit }: { qty: number; onCommit: (n: number) => void }) {
   const [text, setText] = useState<string | null>(null); // null = 顯示外部 qty
-
   return (
     <input
       inputMode="numeric"
       aria-label="數量"
+      className="ui-num"
       value={text ?? String(qty)}
       onFocus={() => setText(String(qty))}
       onChange={(e) => {
@@ -829,19 +465,6 @@ function QtyInput({ qty, onCommit }: { qty: number; onCommit: (n: number) => voi
         const n = parseInt(text ?? '', 10);
         if (Number.isFinite(n) && n > 0) onCommit(n);
         setText(null);
-      }}
-      style={{
-        width: 40,
-        height: 30,
-        textAlign: 'center',
-        fontSize: '0.875rem',
-        fontWeight: 500,
-        border: 'none',
-        borderLeft: '1px solid #e5e7eb',
-        borderRight: '1px solid #e5e7eb',
-        fontFamily: 'inherit',
-        boxSizing: 'border-box',
-        background: '#fff',
       }}
     />
   );

@@ -4,9 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import liff from '@line/liff';
 import { BannerHero } from '../../[slug]/banner-hero';
 import { CopyButton } from '../../[slug]/order/[order_no]/copy-button';
+import { PD_CSS } from '../../[slug]/p/[product]/variant-selector';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { OtpInput } from '@/lib/otp-input';
-import { IconBank, IconCheck, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPencil, IconWallet } from '@/lib/icons';
+import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
+import { IconBank, IconCheck, IconCheckCircle, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPackage, IconPencil, IconTruck, IconWallet } from '@/lib/icons';
+import { Badge, Button, Card, OptionCard, Textarea, UI_CSS } from '@/lib/ui';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   ecpayPayUrlLiff,
@@ -25,11 +28,90 @@ import {
 } from './actions';
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID_SHOP!;
+const money = (n: number) => n.toLocaleString('en-US');
 
+const CSS = `
+.ls{max-width:520px;margin:0 auto;padding:12px 16px 40px;min-height:100vh;color:var(--ui-ink);font-family:Inter,"Noto Sans TC",ui-sans-serif,system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;-webkit-font-smoothing:antialiased;box-sizing:border-box}
+.ls *{box-sizing:border-box}
+.ls-brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.ls-logo{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--ui-line);flex-shrink:0;background:var(--ui-accent);color:var(--ui-on-accent);display:grid;place-items:center;font-size:16px;font-weight:600}
+.ls-brand h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ls-brand p{margin:2px 0 0;font-size:12px;color:var(--ui-muted);display:flex;align-items:center;gap:6px}
+.ls-brand p img{width:16px;height:16px;border-radius:50%;border:1px solid var(--ui-line)}
+.ls-note{margin:0 0 12px;padding:10px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:12.5px;line-height:1.7;color:#52525b;display:flex;gap:8px;align-items:flex-start}
+.ls-note svg{flex-shrink:0;margin-top:3px;color:var(--ui-muted)}
+.ls-pills{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.ls-pills::-webkit-scrollbar{display:none}
+.ls-pill{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:13px;font-weight:500;color:var(--ui-ink);cursor:pointer;white-space:nowrap}
+.ls-pill[data-on="true"]{background:var(--ui-accent);color:var(--ui-on-accent);border-color:var(--ui-accent)}
+.ls-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:2px 0 12px;font-size:14px;font-weight:500}
+.ls-sec span{font-size:12px;color:var(--ui-muted);font-weight:400}
+.ls-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px}
+.ls-card{display:flex;flex-direction:column;gap:8px;text-align:left;background:none;border:0;padding:0;font:inherit;color:var(--ui-ink);cursor:pointer;animation:ui-swap .3s ease backwards;-webkit-tap-highlight-color:transparent}
+.ls-card:active .ls-ph{transform:scale(.98)}
+.ls-ph{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--ui-line-soft);border:1px solid var(--ui-line);display:flex;align-items:center;justify-content:center;color:#d4d4d8;transition:transform .15s}
+.ls-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ls-ph img[data-dim="true"]{opacity:.6}
+.ls-on{position:absolute;top:8px;left:8px;z-index:2;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.ls-out{position:absolute;left:8px;bottom:8px;z-index:2;background:rgba(255,255,255,.88)}
+.ls-name{font-size:13px;font-weight:500;line-height:1.4;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ls-price{font-size:14px;font-weight:600;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.ls-old{font-size:12px;color:var(--ui-muted);text-decoration:line-through;font-weight:400}
+.ls-hint{font-size:11.5px;color:var(--ui-muted)}
+.ls-cartbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));width:calc(100% - 32px);max-width:488px;z-index:50}
+.ls-cartbar .ui-btn{width:100%;justify-content:space-between;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.ls-foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--ui-line);font-size:12.5px;color:var(--ui-muted);white-space:pre-wrap;line-height:1.7}
+.ls-foot b{display:block;font-size:12px;color:var(--ui-ink);margin-bottom:4px;font-weight:500}
+.ls-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.ls-head h2{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.ls-cardb{padding:16px;margin-bottom:12px}
+.ls-cardb h3{margin:0 0 12px;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ls-cardb h3 span{font-size:12px;color:var(--ui-muted);font-weight:400}
+.ls-item{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--ui-line-soft)}
+.ls-item:first-of-type{border-top:0;padding-top:0}
+.ls-th{width:56px;height:70px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-line-soft);overflow:hidden;position:relative;flex-shrink:0;display:grid;place-items:center;color:#d4d4d8}
+.ls-th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ls-it{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ls-it-n{font-size:14px;font-weight:500;line-height:1.4}
+.ls-it-v{font-size:12px;color:var(--ui-muted)}
+.ls-it-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+.ls-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:32px;overflow:hidden;background:var(--ui-surface)}
+.ls-qty button{width:32px;height:32px;border:0;background:transparent;font:inherit;font-size:16px;cursor:pointer;color:var(--ui-ink);padding:0}
+.ls-qty input{width:40px;height:32px;text-align:center;font:inherit;font-size:13px;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;outline:none}
+.ls-tot{margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px;font-size:14px}
+.ls-tot .r{display:flex;justify-content:space-between;gap:12px;color:#52525b}
+.ls-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;margin-top:2px;border-top:1px solid var(--ui-line);font-weight:600}
+.ls-tot .g span:last-child{font-size:22px}
+.ls-gift{padding:12px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:13px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.ls-gift-t{display:flex;justify-content:space-between;gap:12px;font-weight:500;align-items:center}
+.ls-bar{height:6px;border-radius:999px;background:var(--ui-line);overflow:hidden}
+.ls-bar div{height:100%;border-radius:999px;background:var(--ui-accent);transition:width .45s cubic-bezier(.3,.8,.4,1)}
+.ls-opts{display:flex;flex-direction:column;gap:10px}
+.ls-field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.ls-field:last-child{margin-bottom:0}
+.ls-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.6;font-weight:500;margin-bottom:12px}
+.ls-fine{font-size:12px;color:var(--ui-muted);text-align:center;margin:12px 0 0;line-height:1.6}
+.ls-overlay{position:fixed;inset:0;z-index:1000;background:rgba(255,255,255,.85);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+.ls-status{padding:18px 20px;border-radius:10px;border:1px solid;display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.ls-status .ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.ls-status h1{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em}
+.ls-status p{margin:4px 0 0;font-size:13px;line-height:1.5}
+.ls-status .no{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:13px;flex-wrap:wrap}
+.ls-next{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.ls-next .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;flex-shrink:0}
+.ls-next b{display:block;font-size:15px;font-weight:600}
+.ls-next small{display:block;font-size:12px;color:var(--ui-muted);margin-top:1px}
+.ls-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.9;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);white-space:pre-wrap;overflow-wrap:anywhere}
+.ls-report{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ls-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:70vh;text-align:center}
+`;
+
+/**
+ * LIFF 商品專區(2026-10-23 樣式改成跟網頁版同一套設計系統:顏色由攤位品牌色算、共用 lib/ui 元件;
+ * 流程不變:會員資料 gate → 商品列表 / 商品詳情 / 確認訂單 → 訂單成立(匯款資訊 + 回報後 5 碼))
+ */
 export default function ShopPage() {
-  const [status, setStatus] = useState<
-    'loading' | 'need-profile' | 'shop' | 'submitting' | 'done' | 'error'
-  >('loading');
+  const [status, setStatus] = useState<'loading' | 'need-profile' | 'shop' | 'submitting' | 'done' | 'error'>('loading');
   const [error, setError] = useState('');
   const [idToken, setIdToken] = useState('');
   const [lineName, setLineName] = useState('');
@@ -43,37 +125,40 @@ export default function ShopPage() {
     payment_info: null,
     contact_info: null,
     shop_bg_color: null,
+    brand_color: null,
     category_order: [],
     shipping_options: [],
     gift_mode: 'stack',
     gift_rules: [],
   });
   const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
-  const [shipError, setShipError] = useState(false); // 2026-10-16:沒選配送方式的提示
-  // 2026-10-16:LINE Pay 線上付款(攤位有開才顯示付款方式選擇)
+  const [shipError, setShipError] = useState(false); // 沒選配送方式的提示
   const [linePayOn, setLinePayOn] = useState(false);
-  // 2026-10-22:綠界(信用卡 / ATM 虛擬帳號);有開的話預設選信用卡
   const [ecpayOn, setEcpayOn] = useState(false);
-  // ATM 虛擬帳號另有開關(ecpay_atm flag);2026-10-22 起預設關,只開信用卡
   const [ecpayAtmOn, setEcpayAtmOn] = useState(false);
   const [payMethod, setPayMethod] = useState<'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit'>('bank');
-  // 2026-10-22:訂單建好、正在跳去付款頁的那幾秒也要蓋住畫面(跟 submitting 一起顯示遮罩),
-  // 不然客人以為沒反應會亂按
+  // 訂單建好、正在跳去付款頁的那幾秒也要蓋住畫面
   const [leaving, setLeaving] = useState(false);
   const isLinePayPay = linePayOn && payMethod === 'line_pay';
   const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
-  // 2026-09-11(回饋 #10):上一筆訂單的收件資訊,結帳預填
+  // 上一筆訂單的收件資訊,結帳預填
   const [lastShip, setLastShip] = useState<{ recipient: string | null; phone: string | null; address: string | null } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [filter, setFilter] = useState<string>(''); // '' = 全部 / 'latest' / category name
+  const [filter, setFilter] = useState<string>(''); // '' = 全部 / 'latest' / 'sale' / category name
   const [detailId, setDetailId] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
-  // 2026-09-08:訂單成立畫面直接回報後 5 碼
+  // 訂單成立畫面直接回報後 5 碼
   const [last5, setLast5] = useState('');
   const [reportState, setReportState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [reportErr, setReportErr] = useState('');
+
+  // 整套配色由攤位品牌色算出來(跟網頁版 layout 同一個算法)
+  const vars = useMemo(
+    () => paletteCssVars(derivePalette(tenant.brand_color, bgStyleFromLegacy(tenant.shop_bg_color))),
+    [tenant.brand_color, tenant.shop_bg_color],
+  );
 
   async function onReportLast5() {
     if (!/^\d{5}$/.test(last5)) {
@@ -116,7 +201,6 @@ export default function ShopPage() {
         setMember(data.member);
         setTenant(data.tenant);
         setLastShip(data.lastShipping);
-        // 2026-10-16:LINE Pay 開關(失敗就當沒開,不影響進場)
         isLinePayAvailableLiff().then(setLinePayOn).catch(() => {});
         isEcpayAvailableLiff()
           .then((on) => {
@@ -125,8 +209,7 @@ export default function ShopPage() {
           })
           .catch(() => {});
         isEcpayAtmAvailableLiff().then(setEcpayAtmOn).catch(() => {});
-        // 2026-09-11:關鍵圖片(banner / logo / 首屏商品圖)預載完才進頁,
-        // 不再一張張蹦出來;最多等 3 秒,網路慢也不卡死
+        // 關鍵圖片(banner / logo / 首屏商品圖)預載完才進頁;最多等 3 秒
         const preloadUrls: string[] = [];
         if (data.tenant.logo_url) preloadUrls.push(data.tenant.logo_url);
         for (const b of data.tenant.banners) {
@@ -137,7 +220,7 @@ export default function ShopPage() {
           if (img) preloadUrls.push(img);
         }
         await preloadImages(preloadUrls, 3000);
-        // Profile gate:沒填 full_name / phone 不能逛(同 /m/checkin pattern)
+        // Profile gate:沒填 full_name / phone 不能逛
         const hasProfile = !!(data.member?.full_name && data.member?.phone);
         setStatus(hasProfile ? 'shop' : 'need-profile');
       } catch (e: unknown) {
@@ -147,19 +230,17 @@ export default function ShopPage() {
     })();
   }, []);
 
-  // 2026-09-11(回饋 #7):切畫面(商品詳情 / 結帳 / 完成)一律從頁頂開始看
-  // v2:送出中不要跳頁頂 — 會把「處理中」按鈕捲出視野,看起來像當掉
+  // 切畫面(商品詳情 / 結帳 / 完成)一律從頁頂開始看;送出中不要跳頁頂
   useEffect(() => {
     if (status === 'submitting') return;
     window.scrollTo({ top: 0 });
   }, [detailId, showCheckout, status]);
 
-  // 2026-09-11:內容欄有 maxWidth,底色只塗在欄上的話,iPad 等寬螢幕左右會露出
-  // body 的白邊(載入畫面就看得到)。把攤位底色直接塗到 body。
+  // 底色直接塗到 body,iPad 等寬螢幕左右不會露白邊
   useEffect(() => {
     document.body.style.margin = '0';
-    document.body.style.background = tenant.shop_bg_color ?? '#fafafa';
-  }, [tenant.shop_bg_color]);
+    document.body.style.background = vars['--ui-bg'] ?? '#fafafa';
+  }, [vars]);
 
   async function onSubmitProfile(formData: FormData) {
     setSavingProfile(true);
@@ -177,30 +258,20 @@ export default function ShopPage() {
     }
   }
 
-  const productMap = useMemo(
-    () => new Map(products.map((p) => [p.id, p])),
-    [products],
-  );
+  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
-  // chip filter:全部 / 最新 / 各 category
-  // C#8:tenant.category_order 有列的照設定順序排前面,沒列的照筆劃排後面
+  // chip filter:全部 / 最新 / 特價中 / 各 category(照 tenant.category_order,沒列的照筆劃排後面)
   const categories = useMemo(() => {
     const found = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))];
     const ordered = tenant.category_order.filter((c) => found.includes(c));
-    const rest = found
-      .filter((c) => !tenant.category_order.includes(c))
-      .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    const rest = found.filter((c) => !tenant.category_order.includes(c)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
     return [...ordered, ...rest];
   }, [products, tenant.category_order]);
-  const hasSale = useMemo(
-    () => products.some((p) => saleActiveOf(p, Date.now())),
-    [products],
-  );
+  const hasSale = useMemo(() => products.some((p) => saleActiveOf(p, Date.now())), [products]);
   const visibleProducts = useMemo(() => {
     const nowMs = Date.now();
     const isCat = !!filter && categories.includes(filter);
     if (filter === 'latest') {
-      // 2026-09-18:角標寫「新品」的優先置頂,其餘照上架時間新→舊
       const isNewBadge = (p: ShopProduct) => !!p.badge && p.badge.includes('新品');
       return [...products].sort((a, b) => {
         const na = isNewBadge(a) ? 0 : 1;
@@ -209,20 +280,11 @@ export default function ShopPage() {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     }
-    if (filter === 'sale') {
-      // 2026-09-03:「特價中」chip — 只列限時優惠生效中的商品
-      return products.filter((p) => saleActiveOf(p, nowMs));
-    }
-    // Phase 16.2(2026-09-18):同分類內照後台拖曳的手動排序(null 排最後再照筆劃)
+    if (filter === 'sale') return products.filter((p) => saleActiveOf(p, nowMs));
     const bySortOrder = (a: ShopProduct, b: ShopProduct) =>
-      (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) ||
-      a.name.localeCompare(b.name, 'zh-Hant');
-    if (isCat) {
-      return products
-        .filter((p) => p.category === filter)
-        .sort(bySortOrder);
-    }
-    // 2026-09-21:同文字的角標聚成一群;角標群的先後 = 群內最小 sort_order
+      (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name, 'zh-Hant');
+    if (isCat) return products.filter((p) => p.category === filter).sort(bySortOrder);
+    // 同文字的角標聚成一群;角標群的先後 = 群內最小 sort_order
     const badgeRank = new Map<string, number>();
     for (const p of products) {
       if (!p.badge) continue;
@@ -231,7 +293,7 @@ export default function ShopPage() {
       if (cur === undefined || r < cur) badgeRank.set(p.badge, r);
     }
     return [...products].sort((a, b) => {
-      // 2026-09-03:「全部」特價優先 → 有角標次之 → 其餘照分類設定順序分組
+      // 「全部」特價優先 → 有角標次之 → 其餘照分類設定順序分組
       const pa = saleActiveOf(a, nowMs) ? 0 : a.badge ? 1 : 2;
       const pb = saleActiveOf(b, nowMs) ? 0 : b.badge ? 1 : 2;
       if (pa !== pb) return pa - pb;
@@ -248,30 +310,26 @@ export default function ShopPage() {
       return bySortOrder(a, b);
     });
   }, [products, filter, categories]);
-  // Phase 11:variantId → variant info(含 product 反查)
-  // 2026-09-03:price_twd 存「折後價」(sale 生效時打折),購物車/結帳顯示與計算全走這裡
+
+  // variantId → variant info(含 product 反查);price_twd 存「折後價」
   const variantMap = useMemo(() => {
     const nowMs = Date.now();
     const m = new Map<string, { variant_name: string; price_twd: number; stock: number; product_id: string; product_name: string; is_bundle: boolean }>();
     for (const p of products) {
       const onSale = saleActiveOf(p, nowMs);
       for (const v of p.variants) {
-        const eff = onSale
-          ? Math.round((v.price_twd * (100 - p.sale_discount_pct!)) / 100)
-          : v.price_twd;
+        const eff = onSale ? Math.round((v.price_twd * (100 - p.sale_discount_pct!)) / 100) : v.price_twd;
         m.set(v.id, { variant_name: v.variant_name, price_twd: eff, stock: v.stock, product_id: p.id, product_name: p.name, is_bundle: v.is_bundle });
       }
     }
     return m;
   }, [products]);
 
-  // 2026-09-11(回饋 #9):購物車顯示也套分階價(與後端 placeOrder 同邏輯 —
-  // sale 生效 variantMap 已是折後價、分階暫停;否則以「同商品整單數量」找分階單價)
+  // 購物車顯示也套分階價(與後端 placeOrder 同邏輯)
   const cartQtyByProduct = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of cart) {
       const v = variantMap.get(c.variant_id);
-      // Phase 16.4:組合品數量不計入分階門檻
       if (v && !v.is_bundle) m.set(v.product_id, (m.get(v.product_id) ?? 0) + c.qty);
     }
     return m;
@@ -280,7 +338,7 @@ export default function ShopPage() {
   function unitPriceOf(variantId: string): number {
     const v = variantMap.get(variantId);
     if (!v) return 0;
-    if (v.is_bundle) return v.price_twd; // Phase 16.4:組合品固定價
+    if (v.is_bundle) return v.price_twd;
     const p = productMap.get(v.product_id);
     if (!p || p.tiers.length === 0 || saleActiveOf(p, Date.now())) return v.price_twd;
     const totalQty = cartQtyByProduct.get(v.product_id) ?? 0;
@@ -292,59 +350,49 @@ export default function ShopPage() {
   }
 
   const cartTotal = useMemo(
-    () =>
-      cart.reduce((sum, c) => sum + unitPriceOf(c.variant_id) * c.qty, 0),
+    () => cart.reduce((sum, c) => sum + unitPriceOf(c.variant_id) * c.qty, 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cart, variantMap, productMap, cartQtyByProduct],
   );
-
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
-  // D#13:運費(有設定 shipping_options 的攤位才有;滿額免運)
+  // 運費(有設定 shipping_options 的攤位才有;滿額免運)
   const shipOption = tenant.shipping_options.find((o) => o.key === shipKey) ?? null;
-  const shipFee = shipOption
-    ? shipOption.free_over && cartTotal >= shipOption.free_over
-      ? 0
-      : shipOption.fee
-    : 0;
+  const shipFee = shipOption ? (shipOption.free_over && cartTotal >= shipOption.free_over ? 0 : shipOption.fee) : 0;
   const grandTotal = cartTotal + shipFee;
   const needShipping = tenant.shipping_options.length > 0;
+
+  // 滿額贈:擇高式只算最高那條;可重複的規則算倍數、也一直有下一個目標
+  const gift = useMemo(() => {
+    if (tenant.gift_rules.length === 0) return null;
+    const reached = tenant.gift_rules.filter((g) => cartTotal >= g.threshold_twd);
+    const met = tenant.gift_mode === 'highest' && reached.length > 0 ? [reached.reduce((b, g) => (g.threshold_twd > b.threshold_twd ? g : b))] : reached;
+    const earned = met.map((g) => ({ ...g, times: g.repeat ? Math.max(1, Math.floor(cartTotal / g.threshold_twd)) : 1 }));
+    const targets = tenant.gift_rules
+      .map((g) => (cartTotal < g.threshold_twd ? { g, at: g.threshold_twd } : g.repeat ? { g, at: (Math.floor(cartTotal / g.threshold_twd) + 1) * g.threshold_twd } : null))
+      .filter((x): x is { g: (typeof tenant.gift_rules)[number]; at: number } => x !== null)
+      .sort((a, b) => a.at - b.at);
+    const nextTarget = targets[0] ?? null;
+    return { earned, next: nextTarget?.g ?? null, gap: nextTarget ? nextTarget.at - cartTotal : 0, pct: nextTarget ? Math.min(100, Math.round((cartTotal / nextTarget.at) * 100)) : 100 };
+  }, [tenant.gift_rules, tenant.gift_mode, cartTotal]);
 
   function addToCart(productId: string, variantId: string, qty: number = 1) {
     setCart((prev) => {
       const existing = prev.find((c) => c.variant_id === variantId);
-      if (existing) {
-        return prev.map((c) =>
-          c.variant_id === variantId ? { ...c, qty: c.qty + qty } : c,
-        );
-      }
+      if (existing) return prev.map((c) => (c.variant_id === variantId ? { ...c, qty: c.qty + qty } : c));
       return [...prev, { product_id: productId, variant_id: variantId, qty }];
     });
   }
-
   function changeQty(variantId: string, delta: number) {
-    setCart((prev) =>
-      prev
-        .map((c) =>
-          c.variant_id === variantId ? { ...c, qty: c.qty + delta } : c,
-        )
-        .filter((c) => c.qty > 0),
-    );
+    setCart((prev) => prev.map((c) => (c.variant_id === variantId ? { ...c, qty: c.qty + delta } : c)).filter((c) => c.qty > 0));
   }
-
-  // 2026-09-11(回饋 #2):購物車數量可直接打字改
   function setQtyExact(variantId: string, qty: number) {
-    setCart((prev) =>
-      prev
-        .map((c) => (c.variant_id === variantId ? { ...c, qty } : c))
-        .filter((c) => c.qty > 0),
-    );
+    setCart((prev) => prev.map((c) => (c.variant_id === variantId ? { ...c, qty } : c)).filter((c) => c.qty > 0));
   }
 
   async function onSubmitOrder(formData: FormData) {
     setError('');
-    // 2026-10-16:沒選配送方式時,瀏覽器的必填提示會跑到畫面外(配送區在上面、
-    // 送出鈕在最下面),看起來像「按了沒反應」— 改成自己擋下並捲回該區塊。
+    // 沒選配送方式時自己擋下並捲回該區塊(LIFF 不顯示原生必填氣泡,看起來像沒反應)
     if (needShipping && !shipKey) {
       setShipError(true);
       document.getElementById('ship-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -356,8 +404,7 @@ export default function ShopPage() {
       formData.set('idToken', idToken);
       formData.set('cart', JSON.stringify(cart));
       const { order_no } = await placeOrder(formData);
-      // 2026-10-16:選 LINE Pay → 直接跳付款頁(付完由 LINE Pay 導回訂單頁)。
-      // 發動失敗不擋單 — 訂單已成立,退回完成畫面,客人可從訂單頁再付一次。
+      // 選 LINE Pay → 直接跳付款頁。發動失敗不擋單,退回完成畫面,客人可從訂單頁再付一次。
       if (isLinePayPay) {
         setLeaving(true);
         const pay = await startLinePayLiff(idToken, order_no);
@@ -368,7 +415,7 @@ export default function ShopPage() {
         setLeaving(false);
         setError('無法前往 LINE Pay,訂單已保留,可從訂單頁再付一次');
       }
-      // 2026-10-22:選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay,它會把瀏覽器送到綠界付款頁
+      // 選綠界(信用卡 / ATM)→ 導到 /api/ecpay/pay
       if (isEcpayPay) {
         setLeaving(true);
         const url = await ecpayPayUrlLiff(idToken, order_no, payMethod === 'ecpay_atm' ? 'atm' : 'credit');
@@ -387,1272 +434,453 @@ export default function ShopPage() {
     }
   }
 
-  // 2026-09-11:載入畫面改霧面玻璃 + 動畫(原本一行「載入中…」太陽春)
+  const shell = (children: React.ReactNode) => (
+    <main className="ls" style={vars as React.CSSProperties}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" />
+      <style dangerouslySetInnerHTML={{ __html: UI_CSS + PD_CSS + CSS }} />
+      {children}
+    </main>
+  );
+
+  // 地址元件吃 inline style,給它一組跟 .ui-input 一樣的樣式
+  const inputStyle: React.CSSProperties = {
+    height: 44, padding: '0 12px', border: '1px solid var(--ui-line)', borderRadius: 6, fontSize: 16, fontFamily: 'inherit',
+    background: 'var(--ui-surface)', color: 'var(--ui-ink)', width: '100%', boxSizing: 'border-box',
+  };
+
   if (status === 'loading') {
-    return (
-      <main
-        style={{
-          ...page,
-          position: 'relative',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '100vh',
-        }}
-      >
-        <style dangerouslySetInnerHTML={{ __html: loadingKeyframes }} />
-        {/* 背景暖色光暈(霧的來源) */}
-        <div
-          aria-hidden
-          style={{
-            position: 'absolute', width: 280, height: 280, borderRadius: '50%',
-            background: '#f0e2d0', filter: 'blur(70px)', top: '14%', left: -60,
-            animation: 'shopload-blob 4.5s ease-in-out infinite alternate',
-          }}
-        />
-        <div
-          aria-hidden
-          style={{
-            position: 'absolute', width: 320, height: 320, borderRadius: '50%',
-            background: '#e3ede3', filter: 'blur(80px)', bottom: '10%', right: -80,
-            animation: 'shopload-blob 5.5s ease-in-out infinite alternate-reverse',
-          }}
-        />
-        {/* 霧面玻璃卡 */}
-        <div
-          style={{
-            position: 'relative',
-            padding: '38px 46px',
-            borderRadius: 22,
-            background: 'rgba(255,255,255,0.55)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255,255,255,0.75)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 14,
-          }}
-        >
-          <span
-            aria-hidden
-            style={{
-              width: 42, height: 42, borderRadius: '50%',
-              border: '3px solid #e7d9c7', borderTopColor: '#8a6d4f',
-              animation: 'shopload-spin 0.8s linear infinite', display: 'inline-block',
-            }}
-          />
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#57534e', animation: 'shopload-pulse 1.6s ease-in-out infinite' }}>
-            商品專區載入中
-          </div>
-          <div style={{ fontSize: 12, color: '#a8a29e' }}>正在準備商品與圖片…</div>
-        </div>
-      </main>
+    return shell(
+      <div className="ls-center">
+        <span className="ui-spin" style={{ width: 38, height: 38, borderWidth: 3 }} />
+        <div style={{ fontSize: 15, fontWeight: 600 }}>商品專區載入中</div>
+        <div className="ui-muted" style={{ fontSize: 12 }}>正在準備商品與圖片…</div>
+      </div>,
     );
   }
-  if (status === 'error') return <Centered>錯誤:{error}</Centered>;
+  if (status === 'error') return shell(<div className="ls-alert" style={{ marginTop: 24 }}>錯誤:{error}</div>);
 
   // Profile gate:沒填會員資料的學員看不到商品,先填 mini-form
   if (status === 'need-profile') {
-    return (
-      <main style={page}>
-        <header style={{ ...topBar, textAlign: 'center' }}>
+    return shell(
+      <>
+        <header style={{ textAlign: 'center', padding: '16px 0 20px' }}>
           {linePic && (
-            <img
-              src={linePic}
-              alt=""
-              style={{
-                width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
-                border: '1px solid #e4e4e7', margin: '0 auto 10px', display: 'block',
-              }}
-            />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={linePic} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--ui-line)', margin: '0 auto 10px', display: 'block' }} />
           )}
-          <h1 style={{ fontSize: 22, margin: 0 }}>歡迎 {lineName}!</h1>
-          <p style={{ fontSize: 14, color: '#71717a', marginTop: 8 }}>
-            第一次來?先填一下基本資料就能開始逛 🌿
-          </p>
+          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600, letterSpacing: '-.02em' }}>歡迎,{lineName}</h1>
+          <p className="ui-muted" style={{ fontSize: 14, margin: '8px 0 0' }}>第一次來?先填一下基本資料就能開始逛。</p>
         </header>
-
-        <form
-          action={onSubmitProfile}
-          style={{
-            background: '#fff',
-            border: '1px solid #e4e4e7',
-            borderRadius: 12,
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 14,
-          }}
-        >
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>真實姓名 *</span>
-            <input
-              name="full_name"
-              required
-              autoFocus
-              defaultValue={member?.full_name ?? ''}
-              placeholder="您的真實姓名"
-              style={shopInput}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>電話 *</span>
-            <input
-              name="phone"
-              type="tel"
-              required
-              defaultValue={member?.phone ?? ''}
-              placeholder="0900-000-000"
-              style={shopInput}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>地址(出貨用,選填)</span>
-            <input
-              name="address"
-              defaultValue={member?.address ?? ''}
-              placeholder="出貨 / 通訊地址"
-              style={shopInput}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>ID(會員編號,選填)</span>
-            <input
-              name="member_id"
-              placeholder="例:1234567"
-              style={shopInput}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>介紹人 ID(選填)</span>
-            <input
-              name="referrer_member_id"
-              placeholder="介紹你來的人的 ID"
-              style={shopInput}
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={savingProfile}
-            style={{
-              marginTop: 6,
-              padding: 14,
-              background: savingProfile ? '#a1a1aa' : '#18181b',
-              color: '#fff',
-              border: 0,
-              borderRadius: 8,
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: savingProfile ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            {savingProfile ? '儲存中…' : '建立會員資料 + 開始逛'}
-          </button>
-
-          {error && (
-            <div style={{ fontSize: 13, color: '#dc2626' }}>{error}</div>
-          )}
-        </form>
-      </main>
+        <Card style={{ padding: 20 }}>
+          <form action={onSubmitProfile}>
+            <div className="ls-field">
+              <label className="ui-label" htmlFor="pf-name" style={{ marginBottom: 0 }}>真實姓名 <i>*</i></label>
+              <input id="pf-name" name="full_name" required autoFocus defaultValue={member?.full_name ?? ''} placeholder="您的真實姓名" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+            </div>
+            <div className="ls-field">
+              <label className="ui-label" htmlFor="pf-phone" style={{ marginBottom: 0 }}>電話 <i>*</i></label>
+              <input id="pf-phone" name="phone" type="tel" required defaultValue={member?.phone ?? ''} placeholder="0900-000-000" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+            </div>
+            <div className="ls-field">
+              <label className="ui-label" htmlFor="pf-addr" style={{ marginBottom: 0 }}>地址(出貨用,選填)</label>
+              <input id="pf-addr" name="address" defaultValue={member?.address ?? ''} placeholder="出貨 / 通訊地址" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+            </div>
+            <div className="ls-field">
+              <label className="ui-label" htmlFor="pf-mid" style={{ marginBottom: 0 }}>ID(會員編號,選填)</label>
+              <input id="pf-mid" name="member_id" placeholder="例:1234567" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+            </div>
+            <div className="ls-field">
+              <label className="ui-label" htmlFor="pf-ref" style={{ marginBottom: 0 }}>介紹人 ID(選填)</label>
+              <input id="pf-ref" name="referrer_member_id" placeholder="介紹你來的人的 ID" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+            </div>
+            <Button type="submit" variant="primary" size="lg" disabled={savingProfile} style={{ width: '100%', marginTop: 16 }}>
+              {savingProfile ? '儲存中…' : '建立會員資料,開始逛'}
+            </Button>
+            {error && <div className="ls-alert" style={{ marginTop: 12, marginBottom: 0 }}>{error}</div>}
+          </form>
+        </Card>
+      </>,
     );
   }
 
   if (status === 'done') {
-    return (
-      <main style={page}>
-        <style dangerouslySetInnerHTML={{ __html: doneKeyframes }} />
-        <div style={{
-          padding: '1.75rem 1.25rem',
-          background: '#f0fdf4',
-          border: '1px solid #bbf7d0',
-          borderRadius: 12,
-          marginBottom: 16,
-          textAlign: 'center',
-        }}>
-          {/* 2026-09-11(reactbits 改版):打勾畫線動畫 + 線條噴發 */}
-          <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden style={{ display: 'block', margin: '0 auto 10px' }}>
-            {[...Array(8)].map((_, i) => (
-              <g key={i} transform={`rotate(${i * 45} 36 36)`}>
-                <line
-                  x1="36" y1="2" x2="36" y2="9"
-                  stroke="#86efac" strokeWidth="3" strokeLinecap="round"
-                  style={{ opacity: 0, animation: `shopdone-spark 0.6s ease-out ${0.85 + i * 0.03}s` }}
-                />
-              </g>
-            ))}
-            <circle
-              cx="36" cy="36" r="26" fill="none"
-              stroke="#16a34a" strokeWidth="4" strokeLinecap="round"
-              style={{
-                strokeDasharray: 164, strokeDashoffset: 164,
-                animation: 'shopdone-circle 0.55s ease-out 0.1s forwards',
-                transform: 'rotate(-90deg)', transformOrigin: '36px 36px',
-              }}
-            />
-            <path
-              d="M25 37.5 L33 45 L48 29" fill="none"
-              stroke="#16a34a" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"
-              style={{ strokeDasharray: 34, strokeDashoffset: 34, animation: 'shopdone-check 0.3s ease-out 0.6s forwards' }}
-            />
-          </svg>
-          <h1 style={{ fontSize: 20, margin: 0, color: '#166534', fontWeight: 700 }}>訂單已建立</h1>
-          <p style={{ marginTop: 10, marginBottom: 0, fontSize: 14, color: '#15803d' }}>
-            訂單編號 <strong style={{ fontFamily: 'ui-monospace, monospace' }}>{orderNo}</strong>
-          </p>
+    const acct = extractBankAccount(tenant.payment_info);
+    return shell(
+      <>
+        <div className="ls-status ui-swap" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', marginTop: 8 }}>
+          <span className="ic" style={{ background: '#dcfce7' }}><IconCheckCircle size={20} /></span>
+          <div style={{ minWidth: 0 }}>
+            <h1>訂單已建立</h1>
+            <p>{tenant.payment_info ? '匯款後回報帳號後 5 碼,賣家核帳後就會安排出貨' : '客服會盡快聯繫您確認付款與出貨'}</p>
+            <div className="no"><em style={{ fontStyle: 'normal', whiteSpace: 'nowrap' }}>訂單編號</em> <strong className="ui-num">{orderNo}</strong><CopyButton text={orderNo} /></div>
+          </div>
         </div>
 
-        {tenant.payment_info ? (
-          <div style={{
-            padding: '1.25rem',
-            background: '#fffbeb',
-            border: '1px solid #fde68a',
-            borderRadius: 12,
-            marginBottom: 14,
-          }}>
-            <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 10, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <IconBank size={17} /> 下一步:匯款
-            </div>
-            <div style={{
-              padding: '12px 14px',
-              background: '#fff',
-              border: '1px solid #fde68a',
-              borderRadius: 8,
-              color: '#78350f',
-              fontSize: 14,
-              lineHeight: 1.7,
-              whiteSpace: 'pre-wrap',
-              fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-            }}>
-              {tenant.payment_info}
-            </div>
-            {/* 2026-09-11(回饋 #14):一鍵複製帳號 */}
-            {(() => {
-              const acct = extractBankAccount(tenant.payment_info);
-              return acct ? (
-                <div style={{ marginTop: 10 }}>
-                  <CopyButton big text={acct} label={`複製帳號 ${acct}`} />
-                </div>
-              ) : null;
-            })()}
-            <div style={{ marginTop: 12, color: '#92400e', fontSize: 12, lineHeight: 1.5 }}>
-              匯款完成後,直接在下方填帳號<strong>後 5 碼</strong>;晚點匯也沒關係,LINE 通知裡的按鈕隨時可以填。
-            </div>
+        <Card className="ls-cardb">
+          <div className="ls-next">
+            <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconBank size={17} /></span>
+            <div><b>{tenant.payment_info ? '下一步:匯款' : '下一步:等候聯繫'}</b><small>{tenant.payment_info ? '匯款後填帳號後 5 碼,賣家核帳後轉已付款' : '請保留訂單編號,客服會主動聯繫您'}</small></div>
           </div>
-        ) : (
-          <div style={{
-            padding: '1rem 1.25rem',
-            background: '#f4f4f5',
-            border: '1px solid #e4e4e7',
-            borderRadius: 12,
-            marginBottom: 14,
-            fontSize: 13,
-            color: '#52525b',
-            lineHeight: 1.6,
-          }}>
-            客服會盡快聯繫您確認付款與出貨。
-          </div>
-        )}
+          {tenant.payment_info && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="ls-mono">{tenant.payment_info}</div>
+              {acct && <CopyButton big text={acct} label={`複製帳號 ${acct}`} />}
+              <p className="ui-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>晚點匯也沒關係,LINE 通知裡的按鈕隨時可以回報。</p>
+            </div>
+          )}
+        </Card>
 
-        {/* 2026-09-08:成立畫面直接回報後 5 碼(v2 白底簡潔卡) */}
-        {reportState === 'done' ? (
-          <div style={{ padding: '1.25rem', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <span style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <IconCheck size={17} />
-            </span>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>已回報後 5 碼</div>
-              <div style={{ fontSize: 12, color: '#9ca3af' }}>等待賣家核帳</div>
+        <Card className="ls-cardb">
+          {reportState === 'done' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+              <span style={{ color: '#16a34a', display: 'inline-flex' }}><IconCheck size={16} /></span>
+              <span style={{ fontWeight: 500 }}>已回報後 5 碼</span>
+              <span className="ui-muted" style={{ fontSize: 12 }}>等待賣家核帳</span>
+              <span className="ui-num" style={{ marginLeft: 'auto', fontSize: 20, fontWeight: 600, letterSpacing: '.2em', color: '#15803d' }}>{last5}</span>
             </div>
-            <span style={{ marginLeft: 'auto', fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace', fontSize: 22, fontWeight: 700, letterSpacing: '0.25em', color: '#15803d' }}>
-              {last5}
-            </span>
-          </div>
-        ) : (
-          <div
-            style={{
-              padding: '1.25rem',
-              background: '#fff',
-              border: '1px solid #e5e7eb',
-              borderRadius: 12,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ width: 36, height: 36, borderRadius: 10, background: '#fef3c7', color: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <IconPencil size={17} />
-              </span>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>回報匯款後 5 碼</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 1 }}>匯款完成後填寫,賣家核帳後訂單即轉為已付款</div>
+          ) : (
+            <>
+              <div className="ls-next" style={{ marginBottom: 14 }}>
+                <span className="ic" style={{ background: 'var(--ui-line-soft)', color: '#52525b' }}><IconPencil size={16} /></span>
+                <div><b>回報匯款後 5 碼</b><small>匯款完成後填寫,賣家核帳後訂單即轉為已付款</small></div>
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
-              {/* 2026-09-11:改 5 格 OTP 輸入(shadcn Input OTP 風格) */}
-              <OtpInput value={last5} onChange={setLast5} />
-              <button
-                type="button"
-                onClick={onReportLast5}
-                disabled={reportState === 'saving'}
-                style={{
-                  flex: '1 0 auto',
-                  minHeight: 48,
-                  padding: '0 24px',
-                  background: reportState === 'saving' ? '#a1a1aa' : '#111827',
-                  color: '#fff',
-                  border: 0,
-                  borderRadius: 10,
-                  fontSize: 15,
-                  fontWeight: 700,
-                  cursor: reportState === 'saving' ? 'wait' : 'pointer',
-                  whiteSpace: 'nowrap',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {reportState === 'saving' ? '送出中…' : '送出'}
-              </button>
-            </div>
-            {reportState === 'error' && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#dc2626', fontWeight: 600 }}>{reportErr}</div>
-            )}
-          </div>
-        )}
-      </main>
+              <div className="ls-report">
+                <OtpInput value={last5} onChange={setLast5} />
+                <Button type="button" variant="primary" size="lg" onClick={onReportLast5} disabled={reportState === 'saving'} style={{ flex: '1 0 auto' }}>
+                  {reportState === 'saving' ? '送出中…' : '送出回報'}
+                </Button>
+              </div>
+              {reportState === 'error' && <div className="ls-alert" style={{ marginTop: 10, marginBottom: 0 }}>{reportErr}</div>}
+            </>
+          )}
+        </Card>
+      </>,
     );
   }
 
-  // shop view(含 cart drawer + checkout form)
-  // C#7:攤位有設商城底色就套用
-  return (
-    <main style={{ ...page, ...(tenant.shop_bg_color ? { background: tenant.shop_bg_color } : {}) }}>
-      {/* 2026-10-22:送出訂單到跳去付款頁之間蓋住整個畫面,按不到別的東西 */}
+  // ---------- shop view(列表 / 詳情 / 確認訂單) ----------
+  return shell(
+    <>
       {(status === 'submitting' || leaving) && (
-        <div
-          aria-busy="true"
-          aria-live="polite"
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
-          }}
-        >
-          <span style={{ width: 38, height: 38, border: '3px solid #e4e4e7', borderTopColor: '#18181b', borderRadius: '50%', animation: 'shop-spin 0.8s linear infinite' }} />
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#18181b' }}>
-            {leaving ? '訂單已成立,正在前往付款…' : '訂單建立中,請稍候…'}
-          </div>
-          <div style={{ fontSize: 12, color: '#71717a' }}>請不要重複按送出或關閉畫面</div>
+        <div className="ls-overlay" aria-busy="true" aria-live="polite">
+          <span className="ui-spin" style={{ width: 38, height: 38, borderWidth: 3 }} />
+          <div style={{ fontSize: 15, fontWeight: 600 }}>{leaving ? '訂單已成立,正在前往付款…' : '訂單建立中,請稍候…'}</div>
+          <div className="ui-muted" style={{ fontSize: 12 }}>請不要重複按送出或關閉畫面</div>
         </div>
       )}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-.shop-card {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s, border-color 0.2s;
-}
-.shop-card:active {
-  transform: scale(0.98);
-}
-.shop-add-btn:active {
-  transform: scale(0.96);
-}
-@keyframes shop-spin { to { transform: rotate(360deg); } }
-@keyframes shop-fadein {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes shop-spin { to { transform: rotate(360deg); } }
-          `,
-        }}
-      />
 
-      {/* Hero:Tenant Logo + 名 + 招呼 + Banner — detail view 跟 checkout 時不顯示 */}
-      {!detailId && !showCheckout && <header style={{ marginBottom: 18 }}>
-        {/* 第一列:Tenant logo + name(主視覺) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-          {tenant.logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={tenant.logo_url}
-              alt={tenant.name}
-              style={{
-                width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
-                border: '1.5px solid #e4e4e7', flexShrink: 0,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              }}
-            />
-          ) : (
-            <div
-              aria-hidden
-              style={{
-                width: 56, height: 56, borderRadius: '50%',
-                background: '#e4e4e7', border: '1px solid #e4e4e7', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#71717a', fontSize: 22, fontWeight: 700,
-              }}
-            >
-              {tenant.name.slice(0, 1).toUpperCase()}
-            </div>
-          )}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 19,
-                fontWeight: 700,
-                color: '#18181b',
-                letterSpacing: '-0.01em',
-                lineHeight: 1.25,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {tenant.name}
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-              {linePic && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={linePic}
-                  alt=""
-                  style={{
-                    width: 18, height: 18, borderRadius: '50%', objectFit: 'cover',
-                    border: '1px solid #e4e4e7', flexShrink: 0,
-                  }}
-                />
-              )}
-              <span style={{ fontSize: 13, color: '#71717a' }}>
-                嗨,{lineName || member?.full_name} 👋
-              </span>
+      {/* 頁首:攤位 logo + 名 + 招呼 + banner — 詳情跟結帳時不顯示 */}
+      {!detailId && !showCheckout && (
+        <header style={{ marginBottom: 16 }}>
+          <div className="ls-brand">
+            {tenant.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="ls-logo" src={tenant.logo_url} alt={tenant.name} />
+            ) : (
+              <span className="ls-logo" aria-hidden>{tenant.name.slice(0, 1)}</span>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1>{tenant.name}</h1>
+              <p>
+                {linePic && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={linePic} alt="" />
+                )}
+                嗨,{lineName || member?.full_name}
+              </p>
             </div>
           </div>
-        </div>
+          {tenant.banners.length > 0 && <BannerHero banners={tenant.banners} tenantName={tenant.name} />}
+        </header>
+      )}
 
-        {tenant.banners.length > 0 && (
-          <div style={{ animation: 'shop-fadein 0.4s ease' }}>
-            <BannerHero banners={tenant.banners} tenantName={tenant.name} />
-          </div>
-        )}
-      </header>}
-
-      {error && <div style={errorBanner}>{error}</div>}
+      {error && <div className="ls-alert">{error}</div>}
 
       {!showCheckout && !detailId && (
         <>
-          {/* Phase 16(#12):滿額贈提示條 */}
           {tenant.gift_rules.length > 0 && (
-            <div
-              style={{
-                marginBottom: 12,
-                padding: '10px 14px',
-                background: '#fffbeb',
-                border: '1px solid #fde68a',
-                borderRadius: 10,
-                fontSize: 12.5,
-                color: '#92400e',
-                lineHeight: 1.7,
-              }}
-            >
-              {tenant.gift_rules.map((g) => (
-                <div key={`${g.threshold_twd}-${g.product_name}`}>
-                  滿 NT$ {g.threshold_twd.toLocaleString()} 送 <strong>{g.product_name}</strong>
-                  {g.qty > 1 ? ` ×${g.qty}` : ''}
-                </div>
+            <div className="ls-note">
+              <IconGift size={15} />
+              <span>
+                {tenant.gift_rules.map((g) => (
+                  <span key={`${g.threshold_twd}-${g.product_name}`} style={{ display: 'block' }}>
+                    {g.repeat ? '每滿' : '滿'} NT$ {money(g.threshold_twd)} 送 <strong style={{ fontWeight: 600, color: 'var(--ui-ink)' }}>{g.product_name}</strong>{g.qty > 1 ? ` ×${g.qty}` : ''}
+                  </span>
+                ))}
+              </span>
+            </div>
+          )}
+
+          {products.length > 0 && categories.length > 0 && (
+            <div className="ls-pills" aria-label="分類">
+              {[
+                { key: '', label: '全部' as React.ReactNode },
+                { key: 'latest', label: '最新' as React.ReactNode },
+                ...(hasSale ? [{ key: 'sale', label: (<><IconFlame size={12} />特價中</>) as React.ReactNode }] : []),
+                ...categories.map((c) => ({ key: c, label: c as React.ReactNode })),
+              ].map((c) => (
+                <button key={c.key || 'all'} type="button" className="ls-pill" data-on={filter === c.key ? 'true' : 'false'} onClick={() => setFilter(c.key)}>
+                  {c.label}
+                </button>
               ))}
             </div>
           )}
 
-          {/* Chip filter row(橫滑) */}
-          {products.length > 0 && categories.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                gap: 6,
-                overflowX: 'auto',
-                marginBottom: 10,
-                paddingBottom: 2,
-                scrollbarWidth: 'none',
-                WebkitOverflowScrolling: 'touch',
-              }}
-            >
-              {[
-                { key: '', label: '全部' },
-                { key: 'latest', label: '最新' },
-                // 2026-09-03:有生效中的限時優惠才出現「特價中」chip
-                ...(hasSale
-                  ? [{
-                      key: 'sale',
-                      label: (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                          <IconFlame size={12} />特價中
-                        </span>
-                      ) as React.ReactNode,
-                    }]
-                  : []),
-                ...categories.map((c) => ({ key: c, label: c })),
-              ].map((c) => {
-                const isActive = filter === c.key;
-                return (
-                  <button
-                    key={c.key || 'all'}
-                    type="button"
-                    onClick={() => setFilter(c.key)}
-                    style={{
-                      padding: '5px 12px',
-                      background: isActive ? '#18181b' : '#fff',
-                      color: isActive ? '#fff' : '#52525b',
-                      border: `1px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
-                      borderRadius: 999,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Section title */}
-          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#18181b' }}>
-              {filter === 'latest' ? '最新商品' : filter === 'sale' ? '特價中' : filter || '所有商品'}
-            </h2>
-            <span style={{ fontSize: 12, color: '#a1a1aa' }}>
-              {visibleProducts.length} 件
-            </span>
+          <div className="ls-sec">
+            <span style={{ fontSize: 14, color: 'var(--ui-ink)', fontWeight: 500 }}>{filter === 'latest' ? '最新商品' : filter === 'sale' ? '特價中' : filter || '所有商品'}</span>
+            <span className="ui-num">{visibleProducts.length} 件</span>
           </div>
 
           {products.length === 0 ? (
-            <div style={{
-              textAlign: 'center', padding: '3rem 1.5rem', color: '#71717a',
-              background: '#fff', border: '1px solid #e4e4e7', borderRadius: 10,
-            }}>
-              <div style={{ marginBottom: 10, color: '#d4d4d8' }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
-              <p style={{ fontSize: 15, margin: 0, fontWeight: 500, color: '#18181b' }}>
-                商品建置中
-              </p>
-            </div>
+            <Card style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ marginBottom: 10, color: '#d4d4d8' }}><IconPackage size={40} /></div>
+              <p style={{ fontSize: 15, margin: 0, fontWeight: 500 }}>商品建置中</p>
+            </Card>
           ) : (
-            <section
-              // 2026-09-11(reactbits 改版):key 換 filter → 切分類重新觸發逐張進場動畫
-              key={filter || 'all'}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 10,
-                paddingBottom: cart.length > 0 ? 80 : 0,
-              }}
-            >
-              {visibleProducts.map((p, cardIdx) => (
-                <article
-                  key={p.id}
-                  className="shop-card"
-                  onClick={() => setDetailId(p.id)}
-                  style={{
-                    background: '#fff',
-                    border: '1px solid #e4e4e7',
-                    borderRadius: 10,
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    // 逐張錯落淡入(前 12 張錯開,之後同步 — 捲下去的不用等)
-                    animation: 'shop-fadein 0.4s ease both',
-                    animationDelay: `${Math.min(cardIdx, 11) * 45}ms`,
-                  }}
-                >
-                  {/* C#9 角標 + 2026-09-03 限時優惠自動折扣標(疊直排,特價在上) */}
-                  <span style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                    {saleActiveOf(p, Date.now()) && (
-                      <span
-                        style={{
-                          padding: '3px 9px',
-                          background: '#dc2626',
-                          color: '#fff',
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 800,
-                          letterSpacing: '0.03em',
-                          boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3,
-                        }}
-                      >
-                        <IconFlame size={11} />{pctToZhe(p.sale_discount_pct!)}
+            <section key={filter || 'all'} className="ls-grid" style={{ paddingBottom: cart.length > 0 ? 80 : 0 }}>
+              {visibleProducts.map((p, cardIdx) => {
+                const img = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? null;
+                const nowMs = Date.now();
+                const onSale = saleActiveOf(p, nowMs);
+                const prices = p.variants.length > 0 ? p.variants.map((v) => v.price_twd) : [p.price_twd];
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const salePrice = onSale ? Math.round((minPrice * (100 - p.sale_discount_pct!)) / 100) : null;
+                const allOut = p.variants.length > 0 && p.variants.every((v) => v.stock === 0);
+                return (
+                  <button key={p.id} type="button" className="ls-card" onClick={() => setDetailId(p.id)} style={{ animationDelay: `${Math.min(cardIdx, 11) * 45}ms` }}>
+                    <div className="ls-ph">
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt="" data-dim={allOut ? 'true' : 'false'} loading={cardIdx < 6 ? 'eager' : 'lazy'} />
+                      ) : (
+                        <IconPackage size={28} />
+                      )}
+                      <span className="ls-on">
+                        {p.badge && <Badge style={{ background: p.badge_color ?? '#18181b', color: badgeFg(p.badge_color ?? '#18181b'), borderColor: 'transparent' }}>{p.badge}</Badge>}
                       </span>
-                    )}
-                    {p.badge && (
-                      <span
-                        style={{
-                          padding: '3px 9px',
-                          // Phase 15.2:自選角標色,亮色底自動配深字
-                          background: p.badge_color ?? '#b45309',
-                          color: badgeFg(p.badge_color ?? '#b45309'),
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 800,
-                          letterSpacing: '0.03em',
-                          boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-                        }}
-                      >
-                        {p.badge}
-                      </span>
-                    )}
-                  </span>
-                  {(() => {
-                    // Phase 9.6:縮圖優先 media 第一張 image,fallback image_url
-                    const firstImg = (p.media ?? []).find((m) => m.type === 'image');
-                    return firstImg?.url ?? p.image_url;
-                  })() ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={(p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? ''}
-                      alt={p.name}
-                      style={{
-                        width: '100%',
-                        aspectRatio: '3 / 4',
-                        objectFit: 'cover',
-                        display: 'block',
-                      }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '100%',
-                      aspectRatio: '3 / 4',
-                      background: '#f4f4f5',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#a1a1aa',
-                      fontSize: 12,
-                    }}>
-                      無圖
+                      {allOut ? (
+                        <Badge className="ls-out">售完</Badge>
+                      ) : onSale ? (
+                        <Badge className="ls-out">限時{pctToZhe(p.sale_discount_pct!)}</Badge>
+                      ) : null}
                     </div>
-                  )}
-                  <div style={{ padding: '10px 10px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    <div
-                      style={{
-                        fontWeight: 500,
-                        fontSize: 13,
-                        lineHeight: 1.3,
-                        color: '#18181b',
-                        overflow: 'hidden',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        minHeight: '2.4em',
-                      }}
-                    >
-                      {p.name}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <h3 className="ls-name">{p.name}</h3>
+                      <div className="ls-price ui-num">
+                        {salePrice !== null ? (
+                          <>
+                            <span style={{ color: '#b91c1c' }}>NT$ {money(salePrice)}</span>
+                            <span className="ls-old">NT$ {money(minPrice)}</span>
+                          </>
+                        ) : (
+                          <span>NT$ {money(minPrice)}{maxPrice > minPrice ? ' 起' : ''}</span>
+                        )}
+                      </div>
+                      {!onSale && p.tiers.length > 0 && <span className="ls-hint ui-num">{p.tiers[0].min_qty} 件起 NT$ {money(p.tiers[0].price_twd)}/件</span>}
                     </div>
-                    {(() => {
-                      // 顯示最低 variant 價(沒 variant 就 fallback product.price_twd)
-                      // 2026-09-03:特價生效 → 折後紅字 + 劃線原價
-                      const minPrice = p.variants.length > 0
-                        ? Math.min(...p.variants.map((v) => v.price_twd))
-                        : p.price_twd;
-                      const onSale = saleActiveOf(p, Date.now());
-                      const salePrice = onSale
-                        ? Math.round((minPrice * (100 - p.sale_discount_pct!)) / 100)
-                        : null;
-                      const allOut = p.variants.length > 0 && p.variants.every((v) => v.stock === 0);
-                      return (
-                        <div style={{ marginTop: 6 }}>
-                          {salePrice !== null ? (
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                              <span
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: 14,
-                                  color: '#dc2626',
-                                  fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                                  letterSpacing: '-0.01em',
-                                }}
-                              >
-                                NT$ {salePrice.toLocaleString()}
-                              </span>
-                              <span style={{ fontSize: 11, color: '#a1a1aa', textDecoration: 'line-through' }}>
-                                {minPrice.toLocaleString()}
-                              </span>
-                            </div>
-                          ) : (
-                            <div
-                              style={{
-                                fontWeight: 700,
-                                fontSize: 14,
-                                color: '#18181b',
-                                fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                                letterSpacing: '-0.01em',
-                              }}
-                            >
-                              NT$ {minPrice.toLocaleString()}
-                              {/* 2026-09-11(回饋 #9):有分階價 → 併排顯示分階總價(如 100 / 450) */}
-                              {p.tiers.length > 0 && (
-                                <span style={{ color: '#b45309' }}>
-                                  {' / '}
-                                  {(p.tiers[0].min_qty * p.tiers[0].price_twd).toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {allOut && (
-                            <div style={{ fontSize: 10, color: '#dc2626', marginTop: 2 }}>缺貨</div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </article>
-              ))}
+                  </button>
+                );
+              })}
             </section>
           )}
 
-          {/* 2026-09-11(回饋 #13):商城底部顯示攤位聯絡資訊 */}
           {tenant.contact_info && (
-            <footer
-              style={{
-                marginTop: 24,
-                padding: '14px 16px',
-                background: '#fff',
-                border: '1px solid #e4e4e7',
-                borderRadius: 10,
-                fontSize: 12.5,
-                color: '#52525b',
-                whiteSpace: 'pre-wrap',
-                lineHeight: 1.7,
-              }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#a1a1aa', letterSpacing: '0.08em', marginBottom: 6 }}>
-                聯絡我們
-              </div>
+            <footer className="ls-foot">
+              <b>聯絡我們</b>
               {tenant.contact_info}
             </footer>
           )}
         </>
       )}
 
-      {/* Bottom-fixed 購物車按鈕(有東西才出現)— detail view 時隱藏(detail 有自己的 sticky CTA) */}
+      {/* 底部固定購物車鈕(有東西才出現;詳情頁有自己的底列) */}
       {!showCheckout && !detailId && cart.length > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 16,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 'calc(100% - 32px)',
-            maxWidth: 448,
-            zIndex: 50,
-            animation: 'shop-fadein 0.25s ease',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setShowCheckout(true)}
-            style={{
-              width: '100%',
-              padding: '14px 18px',
-              background: '#18181b',
-              color: '#fff',
-              border: 0,
-              borderRadius: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontFamily: 'inherit',
-            }}
-          >
+        <div className="ls-cartbar ui-swap">
+          <Button type="button" variant="primary" size="lg" onClick={() => setShowCheckout(true)}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              {/* 線條購物袋 icon,同公開頁 CartLink 造型 */}
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-                <path d="M3 6h18" />
-                <path d="M16 10a4 4 0 0 1-8 0" />
-              </svg>
-              購物車 {cartCount} 件
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
+              購物車 <span className="ui-num">{cartCount}</span> 件
             </span>
-            <span>NT$ <CountUp value={cartTotal} /> →</span>
-          </button>
+            <span className="ui-num" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              NT$ <CountUp value={cartTotal} />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 18 6-6-6-6" /></svg>
+            </span>
+          </Button>
         </div>
       )}
 
+      {/* ---------- 確認訂單 ---------- */}
       {showCheckout && cart.length > 0 && (
-        <section style={{ animation: 'shop-fadein 0.25s ease' }}>
-          {/* 上方:返回按鈕 + 標題(2026-09-08:膠囊型 + chevron icon) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <button
-              type="button"
-              onClick={() => setShowCheckout(false)}
-              aria-label="返回"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '9px 16px 9px 12px',
-                minHeight: 40,
-                background: '#fff',
-                border: '1px solid #e4e4e7',
-                borderRadius: 999,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                color: '#374151',
-                fontFamily: 'inherit',
-                touchAction: 'manipulation',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-            >
+        <section className="ui-swap">
+          <div className="ls-head">
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowCheckout(false)} aria-label="返回">
               <IconChevronLeft size={16} /> 返回
-            </button>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>確認訂單</h2>
+            </Button>
+            <h2>確認訂單</h2>
           </div>
 
-          {/* 2026-10-06:滿額贈進度橫幅(蝦皮式)— 沒達標顯示還差多少,達標變綠 */}
-          {tenant.gift_rules.length > 0 && (() => {
-            // Phase 18:擇高式只算最高那條;可重複的規則算倍數、也一直有下一個目標
-            const reached = tenant.gift_rules.filter((g) => cartTotal >= g.threshold_twd);
-            const met =
-              tenant.gift_mode === 'highest' && reached.length > 0
-                ? [reached.reduce((b, g) => (g.threshold_twd > b.threshold_twd ? g : b))]
-                : reached;
-            const targets = tenant.gift_rules
-              .map((g) =>
-                cartTotal < g.threshold_twd
-                  ? { g, at: g.threshold_twd }
-                  : g.repeat
-                    ? { g, at: (Math.floor(cartTotal / g.threshold_twd) + 1) * g.threshold_twd }
-                    : null,
-              )
-              .filter((x): x is { g: (typeof tenant.gift_rules)[number]; at: number } => x !== null)
-              .sort((a, b) => a.at - b.at);
-            const nextTarget = targets[0] ?? null;
-            const next = nextTarget?.g ?? null;
-            return (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: '12px 14px',
-                  background: met.length > 0 ? '#f0fdf4' : '#fff7ed',
-                  border: `1px solid ${met.length > 0 ? '#bbf7d0' : '#fed7aa'}`,
-                  borderRadius: 10,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                }}
-              >
-                {met.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: '#15803d' }}>
-                    <IconGift size={16} />
-                    <span>
-                      已獲得免費贈品:
-                      {met
-                        .map((g) => {
-                          const total = g.qty * (g.repeat ? Math.max(1, Math.floor(cartTotal / g.threshold_twd)) : 1);
-                          return `${g.product_name}${total > 1 ? ` ×${total}` : ''}`;
-                        })
-                        .join('、')}
-                    </span>
-                  </div>
-                )}
-                {next && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: met.length > 0 ? 500 : 700, color: '#9a3412' }}>
-                    {met.length === 0 && <IconGift size={16} />}
-                    <span>
-                      再消費 NT$ {(nextTarget!.at - cartTotal).toLocaleString()} 即可獲得免費贈品({next.product_name}
-                      {next.qty > 1 ? ` ×${next.qty}` : ''})
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* 購物車明細 */}
-          <div style={cardStyle}>
-            <div style={cardTitle}>商品明細</div>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {cart.map((c) => {
-                const v = variantMap.get(c.variant_id);
-                const p = productMap.get(c.product_id);
-                if (!v || !p) return null;
-                const unit = unitPriceOf(c.variant_id);
-                const subtotal = unit * c.qty;
-                const showVariantName = p.variants.length > 1;
-                return (
-                  <li
-                    key={c.variant_id}
-                    style={{
-                      display: 'flex',
-                      gap: 12,
-                      alignItems: 'center',
-                      paddingBottom: 12,
-                      borderBottom: '1px solid #f4f4f5',
-                    }}
-                  >
-                    {(() => {
-                      const firstImg = (p.media ?? []).find((m) => m.type === 'image');
-                      return firstImg?.url ?? p.image_url;
-                    })() ? (
+          <Card className="ls-cardb">
+            <h3>商品明細 <span className="ui-num">{cartCount} 件</span></h3>
+            {cart.map((c) => {
+              const v = variantMap.get(c.variant_id);
+              const p = productMap.get(c.product_id);
+              if (!v || !p) return null;
+              const unit = unitPriceOf(c.variant_id);
+              const img = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? null;
+              return (
+                <div key={c.variant_id} className="ls-item">
+                  <div className="ls-th">
+                    {img ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={(p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? ''}
-                        alt={p.name}
-                        style={{
-                          width: 56, height: 70, borderRadius: 6,
-                          objectFit: 'cover', flexShrink: 0,
-                          border: '1px solid #f4f4f5',
-                        }}
-                      />
+                      <img src={img} alt="" />
                     ) : (
-                      <div style={{
-                        width: 56, height: 70, borderRadius: 6,
-                        background: '#f4f4f5', flexShrink: 0,
-                      }} />
+                      <IconPackage size={20} />
                     )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: 14, color: '#18181b', lineHeight: 1.3, marginBottom: 2 }}>
-                        {p.name}
+                  </div>
+                  <div className="ls-it">
+                    <div className="ls-it-n">{p.name}</div>
+                    {p.variants.length > 1 && <div className="ls-it-v">{v.variant_name}</div>}
+                    {unit < v.price_twd && <div className="ls-it-v ui-num" style={{ color: '#15803d', fontWeight: 500 }}>量購價 NT$ {money(unit)}/件</div>}
+                    <div className="ls-it-row">
+                      <div className="ls-qty">
+                        <button type="button" onClick={() => changeQty(c.variant_id, -1)} aria-label="減少">−</button>
+                        <CartQtyInput qty={c.qty} max={v.stock > 0 ? v.stock : 9999} onCommit={(n) => setQtyExact(c.variant_id, n)} />
+                        <button type="button" onClick={() => changeQty(c.variant_id, 1)} aria-label="增加">+</button>
                       </div>
-                      {showVariantName && (
-                        <div style={{ fontSize: 11, color: '#52525b', marginBottom: 2 }}>
-                          {v.variant_name}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 12, color: '#71717a', fontFamily: 'ui-monospace, monospace' }}>
-                        NT$ {unit.toLocaleString()} × {c.qty}
-                        {unit < v.price_twd && (
-                          <span style={{ color: '#16a34a', fontFamily: 'inherit', marginLeft: 4 }}>量購價</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 13, color: '#18181b', fontWeight: 600, fontFamily: 'ui-monospace, monospace', marginTop: 2 }}>
-                        NT$ {subtotal.toLocaleString()}
-                      </div>
+                      <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unit * c.qty)}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <button type="button" onClick={() => changeQty(c.variant_id, -1)} style={qtyBtnNew}>−</button>
-                      <CartQtyInput
-                        qty={c.qty}
-                        max={v.stock > 0 ? v.stock : 9999}
-                        onCommit={(n) => setQtyExact(c.variant_id, n)}
-                      />
-                      <button type="button" onClick={() => changeQty(c.variant_id, 1)} style={qtyBtnNew}>+</button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '2px solid #18181b', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="ls-tot">
+              <div className="r"><span>商品小計</span><span className="ui-num" style={{ color: 'var(--ui-ink)' }}>NT$ <CountUp value={cartTotal} /></span></div>
               {needShipping && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#52525b' }}>
-                    <span>商品小計</span>
-                    <span style={{ fontFamily: 'ui-monospace, monospace' }}>NT$ <CountUp value={cartTotal} /></span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#52525b' }}>
-                    <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
-                    <span style={{ fontFamily: 'ui-monospace, monospace', color: shipOption && shipFee === 0 ? '#16a34a' : undefined }}>
-                      {shipOption ? (shipFee === 0 ? '免運' : `NT$ ${shipFee.toLocaleString()}`) : '請選配送方式'}
-                    </span>
-                  </div>
-                </>
+                <div className="r">
+                  <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
+                  {shipOption ? (
+                    <span className="ui-num" style={{ color: shipFee === 0 ? '#15803d' : 'var(--ui-ink)' }}>{shipFee === 0 ? '免運' : `NT$ ${money(shipFee)}`}</span>
+                  ) : (
+                    <span>請選配送方式</span>
+                  )}
+                </div>
               )}
-              {/* 滿額贈進度移到明細卡上方的橫幅(2026-10-06),這裡不再重複列 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: 14, color: '#71717a' }}>總計</span>
-                <span style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: '#b45309',
-                  fontFamily: 'ui-monospace, monospace',
-                  letterSpacing: '-0.01em',
-                }}>
-                  NT$ <CountUp value={grandTotal} />
-                </span>
-              </div>
+              <div className="g"><span>合計</span><span className="ui-num">NT$ <CountUp value={grandTotal} /></span></div>
             </div>
-          </div>
+          </Card>
 
-          {/* 結帳資訊 form */}
-          <form action={onSubmitOrder} style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* D#13:配送方式(攤位有設運費規則才顯示) */}
-            {needShipping && (
-              <div id="ship-section" style={{ scrollMarginTop: 16 }}>
-                <div style={cardTitle}>配送方式 *</div>
-                {shipError && (
-                  <div
-                    style={{
-                      marginBottom: 8,
-                      padding: '9px 12px',
-                      background: '#fef2f2',
-                      border: '1px solid #fecaca',
-                      borderRadius: 8,
-                      color: '#b91c1c',
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    請先選擇配送方式才能送出訂單
-                  </div>
+          {gift && (
+            <div className="ls-gift">
+              <div className="ls-gift-t">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconGift size={14} /> 滿額贈</span>
+                <span className="ui-num" style={{ color: gift.next ? 'var(--ui-ink)' : '#15803d' }}>{gift.next ? `還差 NT$ ${money(gift.gap)}` : '已達最高門檻'}</span>
+              </div>
+              <div className="ls-bar"><div style={{ width: `${gift.pct}%` }} /></div>
+              <span className="ui-muted" style={{ lineHeight: 1.6 }}>
+                {gift.next && <>{gift.next.repeat ? '每滿' : '滿'} NT$ {money(gift.next.threshold_twd)} 送 {gift.next.product_name}{gift.next.qty > 1 ? ` ×${gift.next.qty}` : ''}</>}
+                {gift.earned.length > 0 && (
+                  <span style={{ display: 'block', color: '#15803d', fontWeight: 500 }}>
+                    已獲得:{gift.earned.map((g) => `${g.product_name}${g.qty * g.times > 1 ? ` ×${g.qty * g.times}` : ''}`).join('、')},會一起出貨
+                  </span>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              </span>
+            </div>
+          )}
+
+          <form action={onSubmitOrder}>
+            {needShipping && (
+              <div id="ship-section" className="ui-card ls-cardb" style={{ scrollMarginTop: 16 }}>
+                <h3>配送方式 <span>必選</span></h3>
+                {shipError && <div className="ls-alert">請先選擇配送方式才能送出訂單</div>}
+                <div className="ls-opts" role="radiogroup" aria-label="配送方式">
                   {tenant.shipping_options.map((opt) => {
                     const isFree = !!opt.free_over && cartTotal >= opt.free_over;
-                    const isActive = shipKey === opt.key;
+                    const isPickupOpt = opt.key === 'pickup';
                     return (
-                      <label
+                      <OptionCard
                         key={opt.key}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 10,
-                          padding: '12px 14px',
-                          border: `1.5px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
-                          borderRadius: 10,
-                          background: isActive ? '#fafafa' : '#fff',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="shipping_method"
-                          value={opt.key}
-                          // 2026-10-16:刻意不加 required — 原生必填會在表單送出前就擋下,
-                          // 我們自己的提示反而沒機會跑,LIFF 又不顯示原生氣泡 = 看起來沒反應
-                          checked={isActive}
-                          onChange={() => setShipKey(opt.key)}
-                          style={{ marginTop: 3 }}
-                        />
-                        <span style={{ flex: 1 }}>
-                          <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: '#18181b' }}>
-                            <span>{opt.label}</span>
-                            <span style={{ fontFamily: 'ui-monospace, monospace', color: isFree || opt.fee === 0 ? '#16a34a' : '#18181b' }}>
-                              {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${opt.fee}`}
-                            </span>
+                        name="shipping_method"
+                        value={opt.key}
+                        on={shipKey === opt.key}
+                        onSelect={() => { setShipKey(opt.key); setShipError(false); }}
+                        icon={isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
+                        title={opt.label}
+                        trailing={
+                          <span className="ui-num" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
+                            {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${money(opt.fee)}`}
                           </span>
-                          {opt.free_over ? (
-                            <span style={{ display: 'block', fontSize: 11.5, color: isFree ? '#16a34a' : '#71717a', marginTop: 3 }}>
-                              {isFree
-                                ? `已滿 NT$ ${opt.free_over.toLocaleString()},免運`
-                                : `滿 NT$ ${opt.free_over.toLocaleString()} 免運(還差 NT$ ${(opt.free_over - cartTotal).toLocaleString()})`}
-                            </span>
-                          ) : null}
-                          {opt.note && (
-                            <span style={{ display: 'block', fontSize: 11.5, color: '#b45309', marginTop: 3, lineHeight: 1.5 }}>
-                              ※ {opt.note}
-                            </span>
-                          )}
-                        </span>
-                      </label>
+                        }
+                        desc={opt.free_over ? (isFree ? `已滿 NT$ ${money(opt.free_over)},免運` : `滿 NT$ ${money(opt.free_over)} 免運(還差 NT$ ${money(opt.free_over - cartTotal)})`) : undefined}
+                        note={opt.note ? `※ ${opt.note}` : undefined}
+                      />
                     );
                   })}
                 </div>
               </div>
             )}
 
-            {/* 2026-10-16:付款方式(攤位有開 LINE Pay 或綠界才顯示;都沒開一律匯款)
-                2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳) */}
             {(linePayOn || ecpayOn) && (
-              <div>
-                <div style={cardTitle}>付款方式 *</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[
-                    ...(ecpayOn
-                      ? [{ key: 'ecpay_credit' as const, title: '信用卡', icon: <IconCreditCard size={18} />, accent: '#1d4ed8', desc: '送出後前往綠界刷卡,付款完成訂單自動更新' }]
-                      : []),
-                    ...(linePayOn
-                      ? [{ key: 'line_pay' as const, title: 'LINE Pay', icon: <IconWallet size={18} />, accent: '#06c755', desc: '送出後直接付款,不用回報後 5 碼' }]
-                      : []),
-                    ...(ecpayAtmOn
-                      ? [{ key: 'ecpay_atm' as const, title: 'ATM 轉帳', icon: <IconBank size={18} />, accent: '#0f766e', desc: '送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳' }]
-                      : []),
-                    { key: 'bank' as const, title: '匯款至店家帳戶', icon: <IconBank size={18} />, accent: '#52525b', desc: '匯款後回報帳號後 5 碼,等待人工核帳' },
-                  ].map((opt) => {
-                    const isActive = payMethod === opt.key;
-                    return (
-                      <label
-                        key={opt.key}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          padding: '12px 14px',
-                          border: `1.5px solid ${isActive ? '#18181b' : '#e4e4e7'}`,
-                          borderRadius: 10,
-                          background: isActive ? '#fafafa' : '#fff',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="payment_method"
-                          value={opt.key}
-                          checked={isActive}
-                          onChange={() => setPayMethod(opt.key)}
-                          style={{ flexShrink: 0 }}
-                        />
-                        <span
-                          style={{
-                            width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: `${opt.accent}1a`, color: opt.accent,
-                          }}
-                        >
-                          {opt.icon}
-                        </span>
-                        <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#18181b' }}>
-                            {opt.title}
-                          </span>
-                          <span style={{ display: 'block', fontSize: 11.5, color: '#71717a', marginTop: 2, lineHeight: 1.5 }}>
-                            {opt.desc}
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })}
+              <Card className="ls-cardb">
+                <h3>付款方式 <span>必選</span></h3>
+                <div className="ls-opts" role="radiogroup" aria-label="付款方式">
+                  {ecpayOn && (
+                    <OptionCard name="payment_method" value="ecpay_credit" on={payMethod === 'ecpay_credit'} onSelect={() => setPayMethod('ecpay_credit')} icon={<IconCreditCard size={16} />} title="信用卡" trailing={<Badge>立即付款</Badge>} desc="送出後前往綠界刷卡,付款完成訂單自動更新" />
+                  )}
+                  {linePayOn && (
+                    <OptionCard name="payment_method" value="line_pay" on={payMethod === 'line_pay'} onSelect={() => setPayMethod('line_pay')} icon={<IconWallet size={16} />} title="LINE Pay" trailing={<Badge>立即付款</Badge>} desc="送出後直接付款,不用回報後 5 碼" />
+                  )}
+                  {ecpayAtmOn && (
+                    <OptionCard name="payment_method" value="ecpay_atm" on={payMethod === 'ecpay_atm'} onSelect={() => setPayMethod('ecpay_atm')} icon={<IconBank size={16} />} title="ATM 轉帳" trailing={<Badge>免回報</Badge>} desc="送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳" />
+                  )}
+                  <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後回報帳號後 5 碼,等待人工核帳" />
                 </div>
-              </div>
+              </Card>
             )}
 
-            <div style={cardTitle}>收件資訊</div>
+            <Card className="ls-cardb">
+              <h3>收件資訊</h3>
+              {/* 預填上一筆訂單的收件資訊(沒有才 fallback 會員資料),可自由改掉 */}
+              <div className="ls-field">
+                <label className="ui-label" htmlFor="ck-recipient" style={{ marginBottom: 0 }}>收件人姓名 <i>*</i></label>
+                <input id="ck-recipient" name="recipient" defaultValue={lastShip?.recipient ?? member?.full_name ?? ''} required className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="收件人姓名" autoComplete="name" />
+              </div>
+              <div className="ls-field">
+                <label className="ui-label" htmlFor="ck-phone" style={{ marginBottom: 0 }}>電話 <i>*</i></label>
+                <input id="ck-phone" name="phone" type="tel" defaultValue={lastShip?.phone ?? member?.phone ?? ''} required className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="0900-000-000" autoComplete="tel" />
+              </div>
+              <div className="ls-field">
+                <span className="ui-label" style={{ marginBottom: 0 }}>地址 <i>*</i></span>
+                <TwAddressFields required initial={lastShip?.address ?? member?.address ?? ''} inputStyle={inputStyle} />
+              </div>
+              <div className="ls-field">
+                <label className="ui-label" htmlFor="ck-note" style={{ marginBottom: 0 }}>備註(選填)</label>
+                <Textarea id="ck-note" name="note" rows={2} style={{ fontSize: 16 }} placeholder="如需統編發票或有其他需求,請填寫在這裡" />
+              </div>
+            </Card>
 
-            {/* 2026-09-11(回饋 #10):預填上一筆訂單的收件資訊(沒有才 fallback 會員資料),可自由改掉 */}
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>收件人姓名 *</span>
-              <input
-                name="recipient"
-                defaultValue={lastShip?.recipient ?? member?.full_name ?? ''}
-                required
-                style={shopInput}
-                placeholder="收件人姓名"
-              />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>電話 *</span>
-              <input
-                name="phone"
-                type="tel"
-                defaultValue={lastShip?.phone ?? member?.phone ?? ''}
-                required
-                style={shopInput}
-                placeholder="0900-000-000"
-              />
-            </label>
-            {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>地址 *</span>
-              <TwAddressFields
-                required
-                initial={lastShip?.address ?? member?.address ?? ''}
-                inputStyle={{ fontSize: 15 }}
-              />
-            </div>
-            {/* 2026-09-11 v2:統編專用欄位移除 — 需要統編直接寫在備註 */}
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#18181b' }}>備註(選填)</span>
-              <textarea
-                name="note"
-                rows={2}
-                style={{ ...shopInput, fontFamily: 'inherit', resize: 'vertical' }}
-                placeholder="如需統編發票或有其他需求,請填寫在這裡"
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={status === 'submitting'}
-              style={{
-                marginTop: 6,
-                padding: 16,
-                background: status === 'submitting' ? '#a1a1aa' : '#18181b',
-                color: '#fff',
-                border: 0,
-                borderRadius: 10,
-                fontSize: 16,
-                fontWeight: 600,
-                cursor: status === 'submitting' ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit',
-                boxShadow: status === 'submitting' ? 'none' : '0 2px 8px rgba(0,0,0,0.12)',
-              }}
-            >
-              {status === 'submitting' ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: '50%',
-                      border: '2px solid rgba(255,255,255,0.35)',
-                      borderTopColor: '#fff',
-                      animation: 'shop-spin 0.7s linear infinite',
-                      display: 'inline-block',
-                    }}
-                  />
-                  處理中,訂單建立中…
-                </span>
-              ) : (
-                `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '確認送出'} · NT$ ${grandTotal.toLocaleString()}`
-              )}
-            </button>
+            <Button type="submit" variant="primary" size="lg" className="ui-num" disabled={status === 'submitting'} style={{ width: '100%' }}>
+              {status === 'submitting' ? '處理中,訂單建立中…' : `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '確認送出'} · NT$ ${money(grandTotal)}`}
+            </Button>
           </form>
 
-          <p style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#a1a1aa', lineHeight: 1.6 }}>
-            {isLinePayPay
-              ? '送出後會跳到 LINE Pay 完成付款,付款成功訂單會自動更新。'
-              : isEcpayPay
-                ? '送出後會前往綠界完成付款,付款成功訂單會自動更新。'
-                : '送出後客服會盡快聯繫您確認付款與出貨。'}
+          <p className="ls-fine">
+            {isLinePayPay ? '送出後會跳到 LINE Pay 完成付款,付款成功訂單會自動更新。' : isEcpayPay ? '送出後會前往綠界完成付款,付款成功訂單會自動更新。' : '送出後客服會盡快聯繫您確認付款與出貨。'}
           </p>
         </section>
       )}
 
-      {/* 商品詳情 modal */}
+      {/* 商品詳情 */}
       {detailId && (() => {
         const dp = productMap.get(detailId);
         if (!dp) return null;
-        return (
-          <ProductDetailModal
-            product={dp}
-            onClose={() => setDetailId(null)}
-            onAdd={addToCart}
-          />
-        );
+        return <ProductDetailModal product={dp} onClose={() => setDetailId(null)} onAdd={addToCart} />;
       })()}
-    </main>
+    </>,
   );
 }
 
-/**
- * 從自由文字的匯款資訊抓銀行帳號(2026-09-11 一鍵複製用):
- * 「帳號:xxx」格式優先;沒有就取最長的連續數字(≥6 碼,避開銀行代碼)。
- * (與 /[slug]/order 頁的同名 helper 同邏輯;server / client 各留一份)
- */
+/** 從自由文字的匯款資訊抓銀行帳號(一鍵複製用):「帳號:xxx」格式優先;沒有就取最長的連續數字(≥6 碼) */
 function extractBankAccount(text: string | null): string | null {
   if (!text) return null;
   const labeled = text.match(/帳號[^0-9]{0,4}([0-9][0-9\- ]{4,})/);
@@ -1664,26 +892,14 @@ function extractBankAccount(text: string | null): string | null {
   return best || null;
 }
 
-/**
- * 購物車數量輸入框(2026-09-11 回饋 #2):
- * 可直接打字改數量;打字過程允許清空,離開欄位時空值/0 恢復原數量
- * (刪掉整列交給 − 按鈕,避免誤刪)。
- */
-function CartQtyInput({
-  qty,
-  max,
-  onCommit,
-}: {
-  qty: number;
-  max: number;
-  onCommit: (n: number) => void;
-}) {
+/** 購物車數量輸入框:可直接打字改數量;打字過程允許清空,離開欄位時空值/0 恢復原數量 */
+function CartQtyInput({ qty, max, onCommit }: { qty: number; max: number; onCommit: (n: number) => void }) {
   const [text, setText] = useState<string | null>(null); // null = 顯示外部 qty
-
   return (
     <input
       inputMode="numeric"
       aria-label="數量"
+      className="ui-num"
       value={text ?? String(qty)}
       onFocus={() => setText(String(qty))}
       onChange={(e) => {
@@ -1697,36 +913,14 @@ function CartQtyInput({
         if (Number.isFinite(n) && n > 0) onCommit(Math.min(n, max));
         setText(null);
       }}
-      style={{
-        width: 48,
-        textAlign: 'center',
-        fontSize: 14,
-        fontWeight: 600,
-        padding: '6px 0',
-        border: '1px solid #e4e4e7',
-        borderRadius: 8,
-        fontFamily: 'inherit',
-        boxSizing: 'border-box',
-        background: '#fff',
-      }}
     />
   );
 }
 
-const doneKeyframes = `
-@keyframes shopdone-circle { to { stroke-dashoffset: 0; } }
-@keyframes shopdone-check { to { stroke-dashoffset: 0; } }
-@keyframes shopdone-spark { 0% { opacity: 0; } 40% { opacity: 1; } 100% { opacity: 0; } }
-`;
-
-/**
- * 金額滾動動畫(reactbits Count Up 的輕量版):
- * value 變動時從舊值補間到新值(350ms ease-out),不硬跳。
- */
+/** 金額滾動動畫:value 變動時從舊值補間到新值(350ms ease-out),不硬跳 */
 function CountUp({ value }: { value: number }) {
   const [shown, setShown] = useState(value);
   const prevRef = useRef(value);
-
   useEffect(() => {
     const from = prevRef.current;
     const to = value;
@@ -1744,20 +938,10 @@ function CountUp({ value }: { value: number }) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [value]);
-
-  return <>{shown.toLocaleString()}</>;
+  return <>{shown.toLocaleString('en-US')}</>;
 }
 
-const loadingKeyframes = `
-@keyframes shopload-spin { to { transform: rotate(360deg); } }
-@keyframes shopload-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-@keyframes shopload-blob { from { transform: translate(0, 0) scale(1); } to { transform: translate(34px, -24px) scale(1.18); } }
-`;
-
-/**
- * 預載一批圖片,全載完或超過 timeoutMs 就放行(壞圖 / 慢網路不卡死)。
- * 進場畫面用:圖都好了才顯示頁面,不再逐張蹦出。
- */
+/** 預載一批圖片,全載完或超過 timeoutMs 就放行(壞圖 / 慢網路不卡死) */
 function preloadImages(urls: string[], timeoutMs: number): Promise<void> {
   if (urls.length === 0) return Promise.resolve();
   const jobs = urls.map(
@@ -1769,175 +953,5 @@ function preloadImages(urls: string[], timeoutMs: number): Promise<void> {
         img.src = u;
       }),
   );
-  return Promise.race([
-    Promise.all(jobs).then(() => undefined),
-    new Promise<void>((resolve) => window.setTimeout(resolve, timeoutMs)),
-  ]);
+  return Promise.race([Promise.all(jobs).then(() => undefined), new Promise<void>((resolve) => window.setTimeout(resolve, timeoutMs))]);
 }
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <main style={{ ...page, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '70vh' }}>
-      <p style={{ color: '#666' }}>{children}</p>
-    </main>
-  );
-}
-
-const page: React.CSSProperties = {
-  fontFamily: 'system-ui, sans-serif',
-  maxWidth: 480,
-  margin: '0 auto',
-  padding: 16,
-};
-const topBar: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 20,
-};
-const h1: React.CSSProperties = { fontSize: 22, margin: 0, flex: 1 };
-const h2: React.CSSProperties = { fontSize: 16, marginBottom: 12 };
-const cartBtn: React.CSSProperties = {
-  padding: '8px 14px',
-  background: '#06c755',
-  color: '#fff',
-  border: 0,
-  borderRadius: 6,
-  fontSize: 14,
-  cursor: 'pointer',
-};
-const productCard: React.CSSProperties = {
-  display: 'flex',
-  gap: 12,
-  padding: 12,
-  border: '1px solid #e5e5e5',
-  borderRadius: 8,
-  background: '#fff',
-  alignItems: 'center',
-};
-const categoryTag: React.CSSProperties = {
-  display: 'inline-block',
-  fontSize: 11,
-  padding: '2px 6px',
-  background: '#f0f0f0',
-  borderRadius: 3,
-  marginTop: 2,
-};
-const addBtn: React.CSSProperties = {
-  padding: '8px 12px',
-  background: '#06c755',
-  color: '#fff',
-  border: 0,
-  borderRadius: 6,
-  fontSize: 13,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-};
-const cartItem: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '10px 0',
-  borderBottom: '1px solid #f0f0f0',
-};
-const shopInput: React.CSSProperties = {
-  padding: '12px 14px',
-  fontSize: 16,
-  border: '1px solid #e4e4e7',
-  borderRadius: 8,
-  width: '100%',
-  boxSizing: 'border-box',
-  background: '#fff',
-  color: '#18181b',
-  fontFamily: 'inherit',
-  outline: 'none',
-};
-const cardStyle: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #e4e4e7',
-  borderRadius: 12,
-  padding: '18px 16px',
-  marginBottom: 14,
-  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-};
-const cardTitle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#71717a',
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  marginBottom: 14,
-};
-const qtyBtnNew: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  border: '1px solid #e4e4e7',
-  background: '#fff',
-  borderRadius: 6,
-  fontSize: 16,
-  color: '#18181b',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-};
-const qtyBtn: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  border: '1px solid #ccc',
-  background: '#fff',
-  borderRadius: 4,
-  fontSize: 16,
-  cursor: 'pointer',
-};
-const totalBox: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '12px 0',
-  borderTop: '2px solid #000',
-  borderBottom: '1px solid #ddd',
-  marginBottom: 20,
-};
-const label: React.CSSProperties = { display: 'flex', flexDirection: 'column' };
-const labelText: React.CSSProperties = {
-  fontSize: 13,
-  color: '#444',
-  marginBottom: 6,
-};
-const input: React.CSSProperties = {
-  padding: 10,
-  fontSize: 16,
-  border: '1px solid #ccc',
-  borderRadius: 6,
-  width: '100%',
-  boxSizing: 'border-box',
-};
-const btn: React.CSSProperties = {
-  padding: 14,
-  background: '#000',
-  color: '#fff',
-  border: 0,
-  borderRadius: 8,
-  fontSize: 15,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-const errorBanner: React.CSSProperties = {
-  background: '#fee',
-  color: '#a00',
-  padding: '8px 12px',
-  borderRadius: 6,
-  marginBottom: 12,
-  fontSize: 13,
-};
-const doneBanner: React.CSSProperties = {
-  textAlign: 'center',
-  padding: 32,
-  background: '#e6f7ed',
-  border: '1px solid #6cc28d',
-  borderRadius: 8,
-  marginTop: 40,
-};

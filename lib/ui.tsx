@@ -65,8 +65,10 @@ select.ui-input{appearance:none;-webkit-appearance:none;padding-right:32px;backg
 .ui-sheet-head p{margin:0;font-size:14px;color:var(--ui-muted)}
 .ui-sheet-foot{display:flex;gap:8px;position:sticky;bottom:0;background:var(--ui-surface);padding:16px 0 20px;border-top:1px solid var(--ui-line)}
 .ui-spin{display:inline-block;width:16px;height:16px;border:2px solid var(--ui-line);border-top-color:var(--ui-ink);border-radius:50%;animation:ui-spin .8s linear infinite}
-.ui-enter{animation:ui-enter .5s cubic-bezier(.22,1,.36,1) both}
-.ui-swap{animation:ui-swap .25s cubic-bezier(.22,1,.36,1) both}
+/* fill-mode 用 backwards 不用 both:both 會在動畫結束後留一個單位矩陣的 transform,
+   讓這層變成底下 position:fixed 元素(手機底列、全畫面遮罩、toast)的定位基準,整個釘錯地方 */
+.ui-enter{animation:ui-enter .5s cubic-bezier(.22,1,.36,1) backwards}
+.ui-swap{animation:ui-swap .25s cubic-bezier(.22,1,.36,1) backwards}
 .ui-hide-mobile{display:initial}
 .ui-only-mobile{display:none}
 @media (max-width:1024px){.ui-hide-mobile{display:none !important}.ui-only-mobile{display:initial}}

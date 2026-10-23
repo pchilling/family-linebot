@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { IconChevronLeft, IconClock, IconFlame } from '@/lib/icons';
+import { IconChevronLeft, IconClock, IconFlame, IconZap } from '@/lib/icons';
+import { Badge, Button } from '@/lib/ui';
 import type { ShopProduct } from './actions';
 
 // 2026-09-03:限時優惠接進 LIFF —— 判斷是否生效 + % off 轉台灣「折」講法
@@ -44,6 +45,8 @@ function formatCountdown(ms: number): string {
   return `${mins} 分 ${secs} 秒`;
 }
 
+const money = (n: number) => n.toLocaleString('en-US');
+
 type Props = {
   product: ShopProduct;
   onClose: () => void; // 「返回」按鈕觸發
@@ -51,21 +54,18 @@ type Props = {
 };
 
 /**
- * LIFF 商品 inline detail view(SPA 內切 full-page,不開 modal)。
+ * LIFF 商品 inline detail view(SPA 內切 full-page,不開 modal;2026-10-23 樣式改成跟網頁版商品頁同一套)。
  * 父層 /m/shop 在有 detailId 時隱藏 list,渲染此元件。
- *  - 多張圖橫滑(media image,fallback image_url)
- *  - 名稱 + 類別 + 描述
- *  - 多 variant 時顯示 chip 選擇
- *  - 數量 stepper
- *  - 加入購物車 CTA(成功後 onClose 自動回列表)
+ *  - 多張圖橫滑(media image + 各規格圖,fallback image_url)
+ *  - 名稱 + 類別 + 價格 + 限時優惠 + 量購 + 規格膠囊 + 數量 + 說明
+ *  - 底部固定「加入購物車」(成功後 onClose 自動回列表)
  */
 export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   const variants = product.variants;
   const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
   const [selectedId, setSelectedId] = useState(firstInStock?.id ?? '');
   const [qty, setQty] = useState(1);
-  // 2026-09-08:輸入框允許暫時清空(原本刪不掉預設的 1,打 200 會變 1200)
-  const [qtyText, setQtyText] = useState('1');
+  const [qtyText, setQtyText] = useState('1'); // 輸入框允許暫時清空
   const [imgIdx, setImgIdx] = useState(0);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +74,7 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   const maxQty = selected?.stock ?? 1;
   const hasMulti = variants.length > 1;
 
-  // 2026-09-03:限時優惠 — 每秒 tick 更新倒數,單價 / 總價用折後價
+  // 限時優惠 — 每秒 tick 更新倒數,單價 / 總價用折後價
   const [nowMs, setNowMs] = useState(() => Date.now());
   const onSale = saleActiveOf(product, nowMs);
   useEffect(() => {
@@ -83,7 +83,7 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
     return () => window.clearInterval(t);
   }, [product.sale_end_at]);
 
-  // C#5(2026-09-02):media 圖 + 各規格圖聯集(去重,media 在前),可滑動
+  // media 圖 + 各規格圖聯集(去重,media 在前),可滑動
   const images = useMemo(() => {
     const arr: string[] = [];
     for (const m of product.media ?? []) {
@@ -112,16 +112,13 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   }, [selectedId]);
 
   const price = selected?.price_twd ?? 0;
-  // 2026-09-11(回饋 #9):分階單價 — 本次數量達門檻就套分階價(與後端 placeOrder 同邏輯;sale 生效時分階暫停)
-  // Phase 16.4:組合規格(3本組這種)固定價,不參與分階
-  const tierUnit = !onSale && product.tiers.length > 0 && !selected?.is_bundle
-    ? product.tiers.reduce((u, t) => (qty >= t.min_qty ? t.price_twd : u), price)
-    : price;
-  const effPrice = onSale
-    ? Math.round((price * (100 - product.sale_discount_pct!)) / 100)
-    : tierUnit;
+  // 分階單價 — 本次數量達門檻就套分階價(與後端 placeOrder 同邏輯;sale 生效時分階暫停);組合規格固定價
+  const showTiers = !onSale && product.tiers.length > 0 && !selected?.is_bundle;
+  const tierUnit = showTiers ? product.tiers.reduce((u, t) => (qty >= t.min_qty ? t.price_twd : u), price) : price;
+  const effPrice = onSale ? Math.round((price * (100 - product.sale_discount_pct!)) / 100) : tierUnit;
   const total = effPrice * qty;
-  const originalTotal = price * qty;
+  const saved = price - effPrice;
+  const nextTier = showTiers ? product.tiers.find((t) => qty < t.min_qty) : undefined;
 
   // 進 detail view 時滾到頂
   useEffect(() => {
@@ -149,385 +146,165 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
     onClose();
   }
 
+  const stockHint = selected && selected.stock > 0 && selected.stock <= 10 ? `剩 ${selected.stock} 件` : '';
+
   return (
-    <section style={{ animation: 'shop-fadein 0.25s ease', paddingBottom: 100 }}>
-      {/* 返回鈕(2026-09-08 改版:膠囊型 + chevron icon) */}
+    <section className="ui-swap" style={{ paddingBottom: 96 }}>
       <div style={{ marginBottom: 14 }}>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="返回商品列表"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '9px 16px 9px 12px',
-            minHeight: 40,
-            background: '#fff',
-            border: '1px solid #e4e4e7',
-            borderRadius: 999,
-            cursor: 'pointer',
-            fontSize: 14,
-            fontWeight: 600,
-            color: '#374151',
-            fontFamily: 'inherit',
-            touchAction: 'manipulation',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-          }}
-        >
+        <Button type="button" variant="outline" size="sm" onClick={onClose} aria-label="返回商品列表">
           <IconChevronLeft size={16} /> 返回
-        </button>
+        </Button>
       </div>
 
-      {/* Image carousel — C#5:scroll-snap 手指左右滑 */}
-      {images.length > 0 ? (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ position: 'relative' }}>
-            <div
-              ref={scrollerRef}
-              onScroll={() => {
-                const el = scrollerRef.current;
-                if (!el || el.clientWidth === 0) return;
-                const i = Math.round(el.scrollLeft / el.clientWidth);
-                setImgIdx(Math.max(0, Math.min(images.length - 1, i)));
-              }}
-              style={{
-                display: 'flex',
-                overflowX: 'auto',
-                scrollSnapType: 'x mandatory',
-                WebkitOverflowScrolling: 'touch',
-                borderRadius: 10,
-                scrollbarWidth: 'none',
-              }}
-            >
-              {images.map((url, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={`${url}-${i}`}
-                  src={url}
-                  alt={`${product.name} ${i + 1}`}
-                  style={{
-                    flexShrink: 0,
-                    width: '100%',
-                    aspectRatio: '3 / 4',
-                    objectFit: 'cover',
-                    scrollSnapAlign: 'start',
-                    display: 'block',
-                    background: '#f4f4f5',
-                  }}
-                />
-              ))}
-            </div>
-            {images.length > 1 && (
-              <div
-                style={{
-                  position: 'absolute', top: 10, right: 10,
-                  padding: '3px 10px', background: 'rgba(0,0,0,0.55)', color: '#fff',
-                  borderRadius: 999, fontSize: 12, fontWeight: 600, pointerEvents: 'none',
-                }}
-              >
-                {imgIdx + 1} / {images.length}
-              </div>
-            )}
-          </div>
-          {images.length > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
-              {images.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  aria-label={`切到第 ${i + 1} 張`}
-                  onClick={() => scrollToImg(i)}
-                  style={{
-                    width: i === imgIdx ? 18 : 7, height: 7, borderRadius: 4, padding: 0,
-                    background: i === imgIdx ? '#18181b' : '#d4d4d8',
-                    border: 0, cursor: 'pointer',
-                    transition: 'width 0.2s, background 0.2s',
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div
-          style={{
-            width: '100%',
-            aspectRatio: '3 / 4',
-            background: '#f4f4f5',
-            borderRadius: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#a1a1aa',
-            fontSize: 13,
-            marginBottom: 16,
-          }}
-        >
-          無圖
-        </div>
-      )}
-
-      {/* Name + Category + Description */}
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#18181b', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
-        {product.name}
-      </h1>
-      {product.category && (
-        <div style={{ fontSize: 13, color: '#a1a1aa', marginTop: 6 }}>{product.category}</div>
-      )}
-
-      {/* 2026-09-03:限時優惠橫幅(生效中才顯示) */}
-      {onSale && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: '10px 14px',
-            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
-            border: '1px solid #fecaca',
-            borderRadius: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-          }}
-        >
-          <span style={{ fontSize: 14, fontWeight: 800, color: '#dc2626', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <IconFlame size={14} /> 限時{pctToZhe(product.sale_discount_pct!)}
-          </span>
-          <span style={{ fontSize: 12, color: '#991b1b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <IconClock size={12} /> 剩餘 {formatCountdown(new Date(product.sale_end_at!).getTime() - nowMs)}
-          </span>
-        </div>
-      )}
-      {/* 2026-09-11(回饋 #9):分階定價表(特價生效時分階暫停,不顯示) */}
-      {!onSale && product.tiers.length > 0 && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: '10px 14px',
-            background: '#fffbeb',
-            border: '1px solid #fde68a',
-            borderRadius: 10,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
-            量購優惠
-            {product.variants.some((v) => v.is_bundle) && (
-              <span style={{ fontWeight: 400, fontSize: 11, marginLeft: 6 }}>(組合規格為固定價,不再折)</span>
-            )}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {product.tiers.map((t) => (
-              <div key={t.min_qty} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#78350f' }}>
-                <span>滿 {t.min_qty} 件</span>
-                <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700 }}>
-                  NT$ {t.price_twd.toLocaleString()} /件(共 NT$ {(t.min_qty * t.price_twd).toLocaleString()})
-                </span>
-              </div>
+      {/* 相簿:scroll-snap 手指左右滑 */}
+      <div className="pd-main" style={{ marginBottom: 12 }}>
+        {images.length > 0 ? (
+          <div
+            ref={scrollerRef}
+            onScroll={() => {
+              const el = scrollerRef.current;
+              if (!el || el.clientWidth === 0) return;
+              const i = Math.round(el.scrollLeft / el.clientWidth);
+              setImgIdx(Math.max(0, Math.min(images.length - 1, i)));
+            }}
+            style={{ position: 'absolute', inset: 0, display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+          >
+            {images.map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={`${url}-${i}`} src={url} alt={`${product.name} ${i + 1}`} style={{ position: 'static', flexShrink: 0, width: '100%', height: '100%', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block' }} />
             ))}
           </div>
+        ) : (
+          <span className="empty">尚無圖片</span>
+        )}
+        {images.length > 1 && <span className="pd-count"><Badge className="ui-num">{imgIdx + 1} / {images.length}</Badge></span>}
+      </div>
+      {images.length > 1 && (
+        <div className="pd-thumbs" aria-label="商品圖片" style={{ marginBottom: 20 }}>
+          {images.map((url, i) => (
+            <button key={`${url}-${i}`} type="button" className="pd-thumb" data-on={i === imgIdx ? 'true' : 'false'} onClick={() => scrollToImg(i)} aria-label={`第 ${i + 1} 張`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" />
+            </button>
+          ))}
         </div>
       )}
-      {product.description && (
-        <p
-          style={{
-            marginTop: 14, marginBottom: 0,
-            fontSize: 14, color: '#52525b', lineHeight: 1.7,
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {product.description}
-        </p>
-      )}
 
-      {/* Variant chips(多 variant 才顯示) */}
-      {hasMulti && (
-        <div style={{ marginTop: 22 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#18181b', marginBottom: 10 }}>規格</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {variants.map((v) => {
-              const isOut = v.stock === 0;
-              const isActive = selectedId === v.id;
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => !isOut && setSelectedId(v.id)}
-                  disabled={isOut}
-                  style={{
-                    // 放大好按(2026-09-02):至少 44px 高的觸控目標
-                    padding: '12px 20px',
-                    minHeight: 44,
-                    border: `1.5px solid ${isActive ? '#18181b' : '#d4d4d8'}`,
-                    background: isActive ? '#18181b' : '#fff',
-                    color: isActive ? '#fff' : isOut ? '#a1a1aa' : '#18181b',
-                    borderRadius: 10,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    cursor: isOut ? 'not-allowed' : 'pointer',
-                    textDecoration: isOut ? 'line-through' : 'none',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {v.variant_name}{isOut ? ' (缺貨)' : ''}
-                </button>
-              );
-            })}
+      <div className="pd-info">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {product.category && <Badge>{product.category}</Badge>}
+            {onSale && <Badge variant="solid" style={{ background: '#dc2626', borderColor: '#dc2626' }}>限時{pctToZhe(product.sale_discount_pct!)}</Badge>}
+          </div>
+          <h1 className="pd-h1">{product.name}</h1>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+            <span className="pd-price ui-num" style={onSale ? { color: '#b91c1c' } : undefined}>NT$ {money(effPrice)}</span>
+            {saved > 0 && <span className="pd-old ui-num">NT$ {money(price)}</span>}
+            {hasMulti && selected && <span className="ui-muted" style={{ fontSize: 14 }}>{selected.variant_name}</span>}
+            {!onSale && saved > 0 && <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>量購價,省 NT$ {money(saved)}/件</span>}
           </div>
         </div>
-      )}
 
-      {/* Quantity stepper */}
-      {inStock && (
-        <div
-          style={{
-            marginTop: 22,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 0',
-          }}
-        >
-          <span style={{ fontSize: 14, color: '#18181b', fontWeight: 500 }}>數量</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => updateQty(qty - 1)}
-              disabled={qty <= 1}
-              style={qtyBtnStyle}
-            >
-              −
-            </button>
-            {/* 可直接輸入數量(2026-09-02):買大量不用狂點 +
-                2026-09-08:允許暫時清空,失焦才補回有效值 */}
-            <input
-              type="text"
-              inputMode="numeric"
-              value={qtyText}
-              onChange={(ev) => {
-                const digits = ev.target.value.replace(/\D/g, '').slice(0, 5);
-                setQtyText(digits);
-                if (digits !== '') {
-                  const n = parseInt(digits, 10);
-                  if (n >= 1) {
-                    const c = Math.min(maxQty || 1, n);
-                    setQty(c);
-                    if (n > (maxQty || 1)) setQtyText(String(c)); // 超過庫存直接夾回
+        {onSale && (
+          <div className="pd-sale">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}><IconFlame size={14} /> 限時{pctToZhe(product.sale_discount_pct!)},全規格適用</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconClock size={13} /> 剩餘 <strong className="ui-num">{formatCountdown(new Date(product.sale_end_at!).getTime() - nowMs)}</strong></span>
+          </div>
+        )}
+
+        {hasMulti && (
+          <div>
+            <div className="pd-lbl">規格 {selected && <span>已選:{selected.variant_name}</span>}</div>
+            <div className="pd-pills" role="radiogroup" aria-label="規格">
+              {variants.map((v) => {
+                const isOut = v.stock === 0;
+                const on = selectedId === v.id;
+                return (
+                  <button key={v.id} type="button" className="pd-pill" data-on={on ? 'true' : 'false'} disabled={isOut} aria-pressed={on} onClick={() => { setSelectedId(v.id); updateQty(1); }}>
+                    {v.variant_name}
+                    <span className="pp ui-num">{isOut ? '售完' : `NT$ ${money(v.price_twd)}`}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {showTiers && (
+          <div>
+            <div className="pd-lbl">
+              <span style={{ color: 'var(--ui-ink)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconZap size={13} /> 一次買多更便宜</span>
+              {nextTier && <span>再買 {nextTier.min_qty - qty} 件,每件 NT$ {money(nextTier.price_twd)}</span>}
+            </div>
+            <div className="pd-tiers">
+              {product.tiers.map((t) => {
+                const on = qty >= t.min_qty && effPrice === t.price_twd;
+                return (
+                  <button key={t.min_qty} type="button" className="pd-tier" data-on={on ? 'true' : 'false'} onClick={() => updateQty(Math.min(t.min_qty, maxQty || t.min_qty))}>
+                    <b className="ui-num">{t.min_qty}+ 件</b>
+                    <span className="ui-num">NT$ {money(t.price_twd)}/件</span>
+                  </button>
+                );
+              })}
+            </div>
+            {product.variants.some((v) => v.is_bundle) && <p className="ui-muted" style={{ margin: '8px 0 0', fontSize: 12 }}>組合規格為固定價,不再折。</p>}
+          </div>
+        )}
+
+        {inStock && (
+          <div>
+            <div className="pd-lbl">數量 {stockHint && <span className="ui-num">{stockHint}</span>}</div>
+            <div className="pd-qty" aria-label="數量">
+              <button type="button" onClick={() => updateQty(qty - 1)} disabled={qty <= 1} aria-label="減少">−</button>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="ui-num"
+                value={qtyText}
+                aria-label="數量"
+                onChange={(ev) => {
+                  const digits = ev.target.value.replace(/\D/g, '').slice(0, 5);
+                  setQtyText(digits);
+                  if (digits !== '') {
+                    const n = parseInt(digits, 10);
+                    if (n >= 1) {
+                      const c = Math.min(maxQty || 1, n);
+                      setQty(c);
+                      if (n > (maxQty || 1)) setQtyText(String(c)); // 超過庫存直接夾回
+                    }
                   }
-                }
-              }}
-              onBlur={() => {
-                const n = parseInt(qtyText, 10);
-                if (!qtyText || isNaN(n) || n < 1) updateQty(1);
-                else updateQty(n);
-              }}
-              style={{
-                width: 64,
-                textAlign: 'center',
-                fontSize: 16,
-                fontWeight: 600,
-                border: '1px solid #e4e4e7',
-                borderRadius: 8,
-                padding: '8px 4px',
-                fontFamily: 'inherit',
-                outline: 'none',
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => updateQty(qty + 1)}
-              disabled={qty >= maxQty}
-              style={qtyBtnStyle}
-            >
-              +
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Sticky 底部:總價 + 加入購物車 */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '12px 16px',
-          background: '#fff',
-          borderTop: '1px solid #e4e4e7',
-          boxShadow: '0 -2px 8px rgba(0,0,0,0.04)',
-          zIndex: 40,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 480,
-            margin: '0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: '#71717a' }}>
-              總計{onSale ? `(${pctToZhe(product.sale_discount_pct!)})` : ''}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-              <span
-                style={{
-                  fontSize: 20,
-                  fontWeight: 700,
-                  // 特價紅 / 平常暖棕(2026-09-02)
-                  color: onSale ? '#dc2626' : '#b45309',
-                  fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-                  letterSpacing: '-0.01em',
                 }}
-              >
-                NT$ {total.toLocaleString()}
-              </span>
-              {onSale && (
-                <span style={{ fontSize: 12, color: '#a1a1aa', textDecoration: 'line-through' }}>
-                  {originalTotal.toLocaleString()}
-                </span>
-              )}
+                onBlur={() => {
+                  const n = parseInt(qtyText, 10);
+                  if (!qtyText || isNaN(n) || n < 1) updateQty(1);
+                  else updateQty(n);
+                }}
+              />
+              <button type="button" onClick={() => updateQty(qty + 1)} disabled={qty >= maxQty} aria-label="增加">+</button>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={!inStock}
-            style={{
-              flex: 1.6,
-              padding: '14px 20px',
-              background: inStock ? '#18181b' : '#e4e4e7',
-              color: inStock ? '#fff' : '#a1a1aa',
-              border: 0,
-              borderRadius: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: inStock ? 'pointer' : 'not-allowed',
-              fontFamily: 'inherit',
-            }}
-          >
-            {inStock ? '加入購物車' : '缺貨'}
-          </button>
+        )}
+
+        {product.description && (
+          <div>
+            <div className="pd-lbl">商品說明</div>
+            <p style={{ margin: 0, fontSize: 14, color: '#3f3f46', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{product.description}</p>
+          </div>
+        )}
+      </div>
+
+      {/* 底部固定:總價 + 加入購物車 */}
+      <div className="pd-sticky" style={{ display: 'flex' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <span className="ui-muted" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {hasMulti && selected ? `${selected.variant_name} × ${qty}` : `× ${qty}`}
+          </span>
+          <span className="ui-num" style={{ fontSize: 18, fontWeight: 600, color: onSale ? '#b91c1c' : undefined }}>NT$ {money(total)}</span>
         </div>
+        <Button type="button" variant="primary" size="lg" onClick={handleAdd} disabled={!inStock}>
+          {inStock ? '加入購物車' : '已售完'}
+        </Button>
       </div>
     </section>
   );
 }
-
-const qtyBtnStyle: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  border: '1px solid #e4e4e7',
-  background: '#fff',
-  borderRadius: 8,
-  fontSize: 18,
-  color: '#18181b',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  fontFamily: 'inherit',
-};

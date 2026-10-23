@@ -5,9 +5,10 @@ import { useState } from 'react';
 type Props = {
   text: string;
   label?: string; // 按鈕文字,預設「複製」
-  big?: boolean; // 2026-09-11:匯款帳號用整排大按鈕
+  big?: boolean; // 匯款帳號用整排按鈕
 };
 
+/** 一鍵複製(2026-10-23 樣式對齊共用元件:小的是 xs outline,大的是 md outline 滿版) */
 export function CopyButton({ text, label, big }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -17,7 +18,6 @@ export function CopyButton({ text, label, big }: Props) {
       if (navigator.clipboard) {
         await navigator.clipboard.writeText(text);
       } else {
-        // fallback:某些舊瀏覽器
         const ta = document.createElement('textarea');
         ta.value = text;
         document.body.appendChild(ta);
@@ -32,40 +32,24 @@ export function CopyButton({ text, label, big }: Props) {
     }
   }
 
-  const style: React.CSSProperties = big
-    ? {
-        display: 'block',
-        width: '100%',
-        boxSizing: 'border-box',
-        padding: '0.7rem 1rem',
-        background: copied ? '#10b981' : '#111827',
-        color: '#fff',
-        border: 0,
-        borderRadius: 8,
-        fontSize: '0.9375rem',
-        fontWeight: 700,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        transition: 'background 0.15s',
-      }
-    : {
-        marginLeft: 8,
-        padding: '3px 9px',
-        background: copied ? '#10b981' : '#ffffff',
-        color: copied ? '#ffffff' : '#166534',
-        border: `1px solid ${copied ? '#10b981' : '#bbf7d0'}`,
-        borderRadius: 4,
-        fontSize: '0.75rem',
-        fontWeight: 500,
-        cursor: 'pointer',
-        verticalAlign: 'baseline',
-        fontFamily: 'inherit',
-        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-      };
-
   return (
-    <button type="button" onClick={handleCopy} style={style}>
-      {copied ? '✓ 已複製' : (label ?? '複製')}
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={big ? 'ui-btn ui-btn-outline ui-btn-md ui-num' : 'ui-btn ui-btn-outline ui-btn-xs ui-num'}
+      style={big ? { width: '100%' } : { marginLeft: 8, verticalAlign: 'middle' }}
+    >
+      {copied ? (
+        <>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
+          已複製
+        </>
+      ) : (
+        <>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+          {label ?? '複製'}
+        </>
+      )}
     </button>
   );
 }

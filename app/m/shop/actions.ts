@@ -83,6 +83,7 @@ export type ShopTenant = {
   payment_info: string | null;
   contact_info: string | null; // 2026-09-11(回饋 #13):商城底部顯示聯絡資訊
   shop_bg_color: string | null; // 批次 C #7:商城底色
+  brand_color: string | null; // 2026-10-23:品牌色,LIFF 也用 lib/theme 算整套配色
   category_order: string[]; // 批次 C #8:分類顯示順序
   shipping_options: ShippingOption[]; // 空陣列 = 不收運費
   // Phase 16(#12):滿額贈(product_name 已解析好給前端直接顯示)
@@ -153,7 +154,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, banners, payment_info, contact_info, shop_bg_color, category_order, shipping_rules, gift_rules')
+      .select('name, logo_url, og_image_url, banners, payment_info, contact_info, shop_bg_color, brand_color, category_order, shipping_rules, gift_rules')
       .eq('id', TENANT_ID)
       .maybeSingle(),
     // 2026-09-11(回饋 #9):一次撈整攤的分階定價(量小,免 per-product 查)
@@ -209,6 +210,7 @@ export async function loadShopData(
     payment_info: string | null;
     contact_info: string | null;
     shop_bg_color: string | null;
+    brand_color: string | null;
     category_order: string[] | null;
     shipping_rules: { options?: ShippingOption[] } | null;
     gift_rules: {
@@ -259,6 +261,7 @@ export async function loadShopData(
       payment_info: t?.payment_info ?? null,
       contact_info: t?.contact_info ?? null,
       shop_bg_color: t?.shop_bg_color ?? null,
+      brand_color: t?.brand_color ?? null,
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],
       shipping_options: Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : [],
       gift_mode: (t?.gift_rules?.mode === 'highest' ? 'highest' : 'stack') as 'stack' | 'highest',
