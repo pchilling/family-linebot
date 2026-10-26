@@ -31,17 +31,25 @@ export function slugFromPath(path: string): string | null {
   return s;
 }
 
-/** 組攤位登入頁網址:/[slug]/login?return_to=<站內路徑> */
+/**
+ * 要人登入的網址(2026-10-24 起登入是頁首彈出的視窗):回攤位首頁並帶 ?login=1 自動打開視窗,
+ * return_to 是登入完要回的站內路徑。
+ */
 export function loginHref(slug: string, returnTo: string): string {
   const safe = safeReturnTo(returnTo, `/${slug}`);
-  return `/${slug}/login?return_to=${encodeURIComponent(safe)}`;
+  return `/${slug}?login=1&return_to=${encodeURIComponent(safe)}`;
 }
 
-/** 組登入失敗網址:/[slug]/login?error=<key>&return_to=<站內路徑> */
+/** 登入失敗導回:回原本那一頁並自動打開登入視窗顯示錯誤(?login=1&error=<key>) */
 export function loginErrorHref(slug: string | null, error: string, returnTo: string): string {
   if (!slug) return '/';
   const safe = safeReturnTo(returnTo, `/${slug}`);
-  return `/${slug}/login?error=${encodeURIComponent(error)}&return_to=${encodeURIComponent(safe)}`;
+  const [path, query = ''] = safe.split('?');
+  const q = new URLSearchParams(query);
+  q.set('login', '1');
+  q.set('error', error);
+  q.set('return_to', safe);
+  return `${path}?${q.toString()}`;
 }
 
 /**

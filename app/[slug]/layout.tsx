@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
 import { UI_CSS } from '@/lib/ui';
+import { hasEmailEnv } from '@/lib/login-email';
+import { hasSessionSecret } from '@/lib/member-auth';
 import { AccountMenu } from './account-menu';
 import { CartLink } from './cart-state';
 
@@ -105,7 +107,7 @@ export default async function TenantLayout({ children, params }: Props) {
           {/* Phase 26:購物車 icon + 帳號(未登入「登入」/ 登入後頭像選單) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <CartLink tenantSlug={slug} />
-            <AccountMenu slug={slug} />
+            <AccountMenu slug={slug} tenantName={tenant.name} logoUrl={tenant.logo_url} ready={hasSessionSecret()} emailOn={hasEmailEnv()} />
           </div>
         </div>
       </header>

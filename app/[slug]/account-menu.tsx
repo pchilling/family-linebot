@@ -2,7 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { SIGNOUT_URL } from '@/lib/return-to';
+import { SIGNOUT_URL, safeReturnTo } from '@/lib/return-to';
+import { LoginModal } from './login-modal';
 
 type Me = { id: string; name: string | null; avatarUrl: string | null; email: string | null; phone: string | null };
 
@@ -11,7 +12,7 @@ const CSS = `
 .am-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--ui-line);background:var(--ui-surface);padding:0;cursor:pointer;display:grid;place-items:center;overflow:hidden}
 .am-btn img{width:100%;height:100%;object-fit:cover;display:block}
 .am-ini{width:100%;height:100%;display:grid;place-items:center;background:var(--ui-accent);color:var(--ui-on-accent);font-size:13px;font-weight:600}
-.am-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:60;width:min(260px,calc(100vw - 32px));background:#fff;border:1px solid var(--ui-line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.14);padding:8px;text-align:left;animation:ui-swap .18s ease both}
+.am-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:60;width:min(260px,calc(100vw - 32px));background:#fff;border:1px solid var(--ui-line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.14);padding:8px;text-align:left;animation:ui-swap .18s ease backwards}
 .am-head{display:flex;align-items:center;gap:10px;padding:8px 10px 12px;border-bottom:1px solid var(--ui-line);margin-bottom:6px}
 .am-head .am-btn{width:40px;height:40px;cursor:default}
 .am-head b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -22,24 +23,52 @@ const CSS = `
 .am-sep{border-top:1px solid var(--ui-line);margin:6px 0}
 `;
 
+type Props = {
+  slug: string;
+  tenantName: string;
+  logoUrl: string | null;
+  /** 有設 SESSION_SECRET 才能登入 */
+  ready: boolean;
+  /** 有設 RESEND_API_KEY 才顯示信箱登入 */
+  emailOn: boolean;
+};
+
 /**
- * 頁首右上角的帳號區(Phase 26):未登入顯示「登入」,登入後顯示頭像,點開下拉(我的訂單、我的收藏、登出)。
+ * 頁首右上角的帳號區(Phase 26):未登入顯示「登入」(按了彈出登入視窗),登入後顯示頭像,點開下拉(我的訂單、我的收藏、登出)。
  * 會員資料用 /api/auth/me 在瀏覽器端問,頁面本身不讀 cookie(商品頁才能維持快取)。
- * Esc、點外面、換頁都會關。登出走固定網址的一般表單(app/api/auth/signout),部署前開著的舊分頁也能登出。
+ * 網址帶 ?login=1 會自動打開登入視窗(登入失敗導回、或要登入才能看的頁面導過來時用),
+ * 可再帶 error=<代碼>、return_to=<站內路徑>;讀完就把這幾個參數從網址拿掉。
  */
-export function AccountMenu({ slug }: { slug: string }) {
+export function AccountMenu({ slug, tenantName, logoUrl, ready, emailOn }: Props) {
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null | undefined>(undefined); // undefined = 還在問
   const [open, setOpen] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // 登入視窗:null = 關著;開著時記住要回哪一頁與錯誤代碼
+  const [login, setLogin] = useState<{ returnTo: string; error: string | null } | null>(null);
+  const pendingRef = useRef<{ returnTo: string; error: string | null } | null>(null);
 
   useEffect(() => {
+    // 網址帶 ?login=1 → 等會員狀態問回來、確定沒登入再開視窗
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('login') === '1') {
+      const here = window.location.pathname;
+      pendingRef.current = { returnTo: safeReturnTo(sp.get('return_to'), here), error: sp.get('error') };
+      sp.delete('login');
+      sp.delete('error');
+      sp.delete('return_to');
+      const clean = `${here}${sp.toString() ? `?${sp}` : ''}${window.location.hash}`;
+      window.history.replaceState(null, '', clean);
+    }
     let alive = true;
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((r) => r.json())
       .then((d: { member: Me | null }) => {
-        if (alive) setMe(d.member ?? null);
+        if (!alive) return;
+        setMe(d.member ?? null);
+        if (!d.member && pendingRef.current) setLogin(pendingRef.current);
+        pendingRef.current = null;
       })
       .catch(() => {
         if (alive) setMe(null);
@@ -72,13 +101,25 @@ export function AccountMenu({ slug }: { slug: string }) {
     };
   }, [open]);
 
+  function openLogin() {
+    // 登入完回到現在這一頁(含查詢字串)
+    setLogin({ returnTo: safeReturnTo(window.location.pathname + window.location.search, `/${slug}`), error: null });
+  }
+
+  const modal = login ? (
+    <LoginModal slug={slug} tenantName={tenantName} logoUrl={logoUrl} returnTo={login.returnTo} error={login.error} ready={ready} emailOn={emailOn} onClose={() => setLogin(null)} />
+  ) : null;
+
   if (me === undefined) return <span aria-hidden style={{ width: 36, height: 36, display: 'inline-block' }} />;
 
   if (!me) {
     return (
-      <a href={`/${slug}/login?return_to=${encodeURIComponent(pathname || `/${slug}`)}`} className="ui-btn ui-btn-ghost ui-btn-sm">
-        登入
-      </a>
+      <>
+        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={openLogin}>
+          登入
+        </button>
+        {modal}
+      </>
     );
   }
 
