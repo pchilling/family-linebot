@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { BG_STYLE_HEX, type BgStyle } from '@/lib/theme';
 
 export type SettingsState =
   | { status: 'idle' }
@@ -11,8 +12,13 @@ export type SettingsState =
 
 /**
  * Tenant owner 改攤位設定。
- * 只開放安全欄位:name / description / brand_color / og_image_url / contact_info。
+ * 只開放安全欄位:name / description / brand_color / 底色風格 / contact_info / payment_info。
  * plan / features / slug / order_prefix 不在這裡改(需 NEO 介入)。
+ *
+ * 2026-11-01 設定頁拆成分頁後,基本資料 / 外觀 / 收款三個分頁共用這支:
+ * 只更新 formData 裡有出現的欄位,沒帶的欄位不動,各分頁才不會互相蓋掉。
+ * 以前的 shop_bg_color / header_bg_color 自選色不再開放:公開頁早就只吃品牌色 + 底色風格
+ * (lib/theme.ts),底色風格存對應的 hex 進 shop_bg_color,不另開欄位。
  *
  * Signature 給 React 19 useActionState 用:(prev, formData) => newState
  *
@@ -23,52 +29,46 @@ export async function updateTenantSettings(
   formData: FormData,
 ): Promise<SettingsState> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
-  const name = String(formData.get('name') ?? '').trim();
-  const description = String(formData.get('description') ?? '').trim();
-  const brandColor = String(formData.get('brand_color') ?? '').trim();
-  const shopBgColor = String(formData.get('shop_bg_color') ?? '').trim(); // C#7 商城底色
-  const headerBgColor = String(formData.get('header_bg_color') ?? '').trim(); // Phase 15.1 頂部列底色
-  // og_image_url 不再由這個表單管理(2026-09-05):改由「連結分享預覽圖」上傳區獨佔,
-  // 避免兩處互蓋。這裡不碰該欄位。
-  // contact_info 是 free text(多行),頭尾空白 trim,內部換行保留
-  const contactInfo = String(formData.get('contact_info') ?? '').replace(/^\s+|\s+$/g, '');
-  const paymentInfo = String(formData.get('payment_info') ?? '').replace(/^\s+|\s+$/g, '');
-
   if (!slug) return { status: 'error', error: '無攤位資訊' };
-  if (!name) return { status: 'error', error: '店名不能空白' };
 
-  if (brandColor && !/^#[0-9a-fA-F]{6}$/.test(brandColor)) {
-    return { status: 'error', error: '主題色需為 #RRGGBB 格式' };
+  // free text(多行)頭尾空白 trim,內部換行保留
+  const text = (key: string) => String(formData.get(key) ?? '').replace(/^\s+|\s+$/g, '');
+  const patch: Record<string, string | null> = {};
+
+  if (formData.has('name')) {
+    const name = text('name');
+    if (!name) return { status: 'error', error: '店名不能空白' };
+    patch.name = name.slice(0, 40);
   }
-  if (shopBgColor && !/^#[0-9a-fA-F]{6}$/.test(shopBgColor)) {
-    return { status: 'error', error: '商城底色需為 #RRGGBB 格式' };
+  if (formData.has('description')) patch.description = text('description').slice(0, 160) || null;
+  if (formData.has('brand_color')) {
+    const brandColor = text('brand_color');
+    if (brandColor && !/^#[0-9a-fA-F]{6}$/.test(brandColor)) {
+      return { status: 'error', error: '品牌色需為 #RRGGBB 格式' };
+    }
+    patch.brand_color = brandColor ? brandColor.toLowerCase() : null;
   }
-  if (headerBgColor && !/^#[0-9a-fA-F]{6}$/.test(headerBgColor)) {
-    return { status: 'error', error: '頂部列底色需為 #RRGGBB 格式' };
+  if (formData.has('bg_style')) {
+    const style = text('bg_style') as BgStyle;
+    if (!(style in BG_STYLE_HEX)) return { status: 'error', error: '底色風格不正確' };
+    patch.shop_bg_color = BG_STYLE_HEX[style];
   }
+  if (formData.has('contact_info')) patch.contact_info = text('contact_info') || null;
+  if (formData.has('payment_info')) patch.payment_info = text('payment_info') || null;
+
+  if (Object.keys(patch).length === 0) return { status: 'error', error: '沒有要儲存的內容' };
 
   const tenant = await getTenantBySlug(slug);
   if (!tenant) return { status: 'error', error: '攤位不存在' };
 
-  const { error } = await supabaseAdmin
-    .from('tenants')
-    .update({
-      name,
-      description: description || null,
-      brand_color: brandColor || null,
-      shop_bg_color: shopBgColor || null,
-      header_bg_color: headerBgColor || null,
-      contact_info: contactInfo || null,
-      payment_info: paymentInfo || null,
-    })
-    .eq('id', tenant.id);
-
+  const { error } = await supabaseAdmin.from('tenants').update(patch).eq('id', tenant.id);
   if (error) {
     console.error('[updateTenantSettings]', error);
     return { status: 'error', error: '儲存失敗,請稍後再試' };
   }
 
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  revalidatePath(`/admin/${slug}`); // 左側欄的店名
   revalidatePath(`/${slug}`);
 
   return { status: 'success', ts: Date.now() };
@@ -121,7 +121,7 @@ export async function setGiftMode(formData: FormData): Promise<void> {
     console.error('[setGiftMode]', error);
     throw new Error('儲存失敗:' + error.message);
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
 }
 
 export async function addGiftRule(formData: FormData): Promise<void> {
@@ -158,7 +158,7 @@ export async function addGiftRule(formData: FormData): Promise<void> {
     console.error('[addGiftRule]', error);
     throw new Error('儲存失敗:' + error.message);
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
 }
 
 export async function deleteGiftRule(formData: FormData): Promise<void> {
@@ -182,7 +182,7 @@ export async function deleteGiftRule(formData: FormData): Promise<void> {
     console.error('[deleteGiftRule]', error);
     throw new Error('刪除失敗:' + error.message);
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
 }
 
 // ========================
@@ -234,7 +234,7 @@ export async function uploadLogo(formData: FormData): Promise<UploadLogoResult> 
     return { ok: false, error: '儲存連結失敗' };
   }
 
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   revalidatePath(`/admin/${slug}`);
 
@@ -283,7 +283,7 @@ export async function uploadQrPayment(formData: FormData): Promise<UploadLogoRes
     console.error('[uploadQrPayment update]', updErr);
     return { ok: false, error: '儲存失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   return { ok: true, url: publicUrl };
 }
 
@@ -309,7 +309,7 @@ export async function saveQrPayment(formData: FormData): Promise<UploadLogoResul
     console.error('[saveQrPayment]', error);
     return { ok: false, error: '儲存失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   return { ok: true, url: current.image_url ?? '' };
 }
 
@@ -322,7 +322,7 @@ export async function removeQrPayment(slug: string): Promise<UploadLogoResult> {
     console.error('[removeQrPayment]', error);
     return { ok: false, error: '移除失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   return { ok: true, url: '' };
 }
 
@@ -343,7 +343,7 @@ export async function removeLogo(slug: string): Promise<UploadLogoResult> {
     console.error('[removeLogo]', error);
     return { ok: false, error: '移除失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   revalidatePath(`/admin/${slug}`);
   return { ok: true, url: '' };
@@ -389,7 +389,7 @@ export async function uploadBanner(formData: FormData): Promise<UploadLogoResult
     return { ok: false, error: '儲存連結失敗' };
   }
 
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   revalidatePath(`/admin/${slug}`);
 
@@ -412,7 +412,7 @@ export async function removeBanner(slug: string): Promise<UploadLogoResult> {
     console.error('[removeBanner]', error);
     return { ok: false, error: '移除失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   revalidatePath(`/admin/${slug}`);
   return { ok: true, url: '' };
@@ -457,7 +457,8 @@ async function setTenantBanners(tenantId: string, banners: BannerItem[]) {
 }
 
 function bannerRedirect(slug: string) {
-  if (slug) redirect(`/admin/${slug}/settings`);
+  // 2026-11-01:輪播圖搬到「設定 → 外觀」分頁
+  if (slug) redirect(`/admin/${slug}/settings/look`);
 }
 
 export async function addTenantBanner(formData: FormData): Promise<void> {
@@ -471,7 +472,7 @@ export async function addTenantBanner(formData: FormData): Promise<void> {
   }
   const current = await getTenantBanners(tenant.id);
   await setTenantBanners(tenant.id, [...current, { type, url }]);
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   bannerRedirect(slug);
 }
@@ -486,7 +487,7 @@ export async function removeTenantBanner(formData: FormData): Promise<void> {
   }
   const current = await getTenantBanners(tenant.id);
   await setTenantBanners(tenant.id, current.filter((_, i) => i !== index));
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   bannerRedirect(slug);
 }
@@ -507,7 +508,7 @@ export async function reorderTenantBanner(formData: FormData): Promise<void> {
   const next = [...current];
   [next[index], next[targetIdx]] = [next[targetIdx], next[index]];
   await setTenantBanners(tenant.id, next);
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   bannerRedirect(slug);
 }
@@ -540,7 +541,7 @@ export async function uploadTenantBannerImage(formData: FormData): Promise<Uploa
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '儲存 banner 失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   return { ok: true, url: publicUrl };
 }
@@ -569,7 +570,7 @@ export async function uploadTenantBannerVideo(formData: FormData): Promise<Uploa
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '儲存 banner 失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   return { ok: true, url: publicUrl };
 }
@@ -629,7 +630,72 @@ export async function finalizeBannerUpload(formData: FormData): Promise<UploadLo
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '儲存 banner 失敗' };
   }
-  revalidatePath(`/admin/${slug}/settings`);
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/${slug}`);
   return { ok: true, url: publicUrl };
+}
+
+// ====================
+// 2026-11-01:運費規則後台(設定 → 配送)
+// tenants.shipping_rules = { options: [{ key, label, fee, free_over?, note? }] }
+// 以前只能請 NEOP 改 SQL;現在攤主在後台整份編輯,一次存整個陣列。
+// key 是結帳與訂單記的配送方式代號,既有的不給改(舊訂單還指著它),新的由前端產生。
+// ====================
+type ShippingOptionRow = { key: string; label: string; fee: number; free_over?: number; note?: string };
+
+export async function saveShippingRules(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  if (!slug) return { status: 'error', error: '無攤位資訊' };
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get('options') ?? '[]'));
+  } catch {
+    return { status: 'error', error: '資料格式錯誤,請重新整理再試一次' };
+  }
+  if (!Array.isArray(raw)) return { status: 'error', error: '資料格式錯誤,請重新整理再試一次' };
+  if (raw.length > 12) return { status: 'error', error: '配送方式最多 12 種' };
+
+  const options: ShippingOptionRow[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < raw.length; i++) {
+    const o = (raw[i] ?? {}) as Record<string, unknown>;
+    const key = String(o.key ?? '').trim();
+    const label = String(o.label ?? '').trim();
+    const fee = Number(o.fee);
+    const freeOver = o.free_over === '' || o.free_over == null ? null : Number(o.free_over);
+    const note = String(o.note ?? '').trim();
+    if (!/^[a-z0-9_-]{1,32}$/.test(key)) return { status: 'error', error: `第 ${i + 1} 種配送方式的代號不正確` };
+    if (seen.has(key)) return { status: 'error', error: `第 ${i + 1} 種配送方式的代號重複` };
+    seen.add(key);
+    if (!label) return { status: 'error', error: `第 ${i + 1} 種配送方式要填名稱` };
+    if (!Number.isInteger(fee) || fee < 0 || fee > 99999) {
+      return { status: 'error', error: `「${label}」的運費要是 0 到 99999 的整數` };
+    }
+    if (freeOver != null && (!Number.isInteger(freeOver) || freeOver <= 0 || freeOver > 9999999)) {
+      return { status: 'error', error: `「${label}」的免運門檻要是正整數,不要就留空` };
+    }
+    options.push({
+      key,
+      label: label.slice(0, 40),
+      fee,
+      ...(freeOver != null ? { free_over: freeOver } : {}),
+      ...(note ? { note: note.slice(0, 120) } : {}),
+    });
+  }
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { status: 'error', error: '攤位不存在' };
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ shipping_rules: { options } })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[saveShippingRules]', error);
+    return { status: 'error', error: '儲存失敗,請稍後再試' };
+  }
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  revalidatePath(`/${slug}/checkout`);
+  return { status: 'success', ts: Date.now() };
 }

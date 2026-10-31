@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ReactCrop, {
   type Crop,
   type PixelCrop,
@@ -8,6 +9,9 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import { Button } from '@/lib/ui';
+import { IconUpload } from '@/lib/icons';
+import { FlashToast } from '../../../_components/toast';
 import { uploadBanner, removeBanner } from './actions';
 
 type Props = {
@@ -15,7 +19,7 @@ type Props = {
   currentBannerUrl: string | null;
 };
 
-const ASPECT = 1200 / 630; // OG / hero banner 通用比例 ≈ 1.905
+const ASPECT = 1200 / 630; // og:image 比例 ≈ 1.905
 const OUTPUT_W = 1200;
 const OUTPUT_H = 630;
 
@@ -27,17 +31,24 @@ function centerInitial(imgW: number, imgH: number): Crop {
   );
 }
 
+/**
+ * 連結分享預覽圖(og:image)上傳(Phase 7.3;2026-11-01 換成設定頁新版面)。
+ * 選圖 → 裁成 1200×630 → 上傳即生效。輪播圖是空的時候公開頁開頭也用這張。
+ */
 export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
+  const router = useRouter();
+  const [url, setUrl] = useState(currentBannerUrl);
   const [imgSrc, setImgSrc] = useState('');
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
-  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ ts: number; text: string } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setError('只支援圖片');
@@ -48,7 +59,6 @@ export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
       return;
     }
     setError(null);
-    setSuccess(null);
     setCrop(undefined);
     setCompletedCrop(undefined);
     const reader = new FileReader();
@@ -73,7 +83,7 @@ export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
       setError('請先選圖');
       return;
     }
-    setUploading(true);
+    setBusy(true);
     setError(null);
     try {
       const canvas = document.createElement('canvas');
@@ -96,13 +106,8 @@ export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
         OUTPUT_W,
         OUTPUT_H,
       );
-
       const blob: Blob = await new Promise((resolve, reject) => {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error('裁切失敗'))),
-          'image/jpeg',
-          0.88,
-        );
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('裁切失敗'))), 'image/jpeg', 0.88);
       });
 
       const formData = new FormData();
@@ -110,182 +115,64 @@ export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
       formData.append('file', blob, 'banner.jpg');
       const result = await uploadBanner(formData);
       if (result.ok) {
-        setSuccess('已上傳');
-        setTimeout(() => window.location.reload(), 600);
+        setUrl(result.url);
+        setImgSrc('');
+        setToast({ ts: Date.now(), text: '分享預覽圖已更新' });
+        router.refresh();
       } else {
         setError(result.error);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setUploading(false);
+      setBusy(false);
     }
   }
 
   async function handleRemove() {
-    if (!confirm('確定移除 banner 嗎?移除後公開頁就不會顯示 hero 圖,可以隨時再上傳。')) return;
-    setUploading(true);
+    if (!window.confirm('確定移除分享預覽圖?貼網址到 LINE、FB 時就不會有縮圖,可以隨時再上傳。')) return;
+    setBusy(true);
     setError(null);
-    try {
-      const r = await removeBanner(tenantSlug);
-      if (r.ok) {
-        setSuccess('已移除');
-        setTimeout(() => window.location.reload(), 500);
-      } else {
-        setError(r.error);
-      }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setUploading(false);
+    const r = await removeBanner(tenantSlug);
+    setBusy(false);
+    if (r.ok) {
+      setUrl(null);
+      setToast({ ts: Date.now(), text: '已移除分享預覽圖' });
+      router.refresh();
+    } else {
+      setError(r.error);
     }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {!imgSrc && currentBannerUrl && (
-        <div
-          style={{
-            position: 'relative',
-            background: '#fafafa',
-            border: '1px solid #e4e4e7',
-            borderRadius: 12,
-            padding: 14,
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              color: '#71717a',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              marginBottom: 10,
-            }}
-          >
-            目前 banner · 1200×630
-          </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={currentBannerUrl}
-            alt="banner 預覽"
-            style={{
-              width: '100%',
-              aspectRatio: '1200 / 630',
-              objectFit: 'cover',
-              borderRadius: 8,
-              display: 'block',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-            }}
-          />
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <label
-              style={{
-                flex: 1,
-                padding: '9px 14px',
-                background: '#18181b',
-                color: '#fff',
-                borderRadius: 7,
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                textAlign: 'center',
-                fontFamily: 'inherit',
-              }}
-            >
-              📷 換新圖
-              <input
-                type="file"
-                accept="image/*"
-                onChange={onFileChange}
-                style={{ display: 'none' }}
-              />
+    <div className="sx-group">
+      {!imgSrc && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt="目前的分享預覽圖" className="sx-og" />
+          ) : (
+            <div className="sx-og">還沒上傳</div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label className="ui-btn ui-btn-outline ui-btn-sm sx-filebtn">
+              <IconUpload size={14} />
+              {url ? '更換' : '上傳'}
+              <input type="file" accept="image/*" onChange={onFileChange} disabled={busy} />
             </label>
-            <button
-              type="button"
-              onClick={handleRemove}
-              disabled={uploading}
-              style={{
-                padding: '9px 14px',
-                background: '#fff',
-                color: '#dc2626',
-                border: '1px solid #fecaca',
-                borderRadius: 7,
-                cursor: uploading ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 500,
-                fontFamily: 'inherit',
-              }}
-            >
-              🗑️ 移除
-            </button>
+            {url && (
+              <Button type="button" variant="ghost" size="sm" onClick={handleRemove} disabled={busy} style={{ color: '#b91c1c' }}>
+                移除
+              </Button>
+            )}
           </div>
-        </div>
-      )}
-
-      {!imgSrc && !currentBannerUrl && (
-        <div
-          style={{
-            background: '#fafafa',
-            border: '2px dashed #d4d4d8',
-            borderRadius: 12,
-            padding: '32px 20px',
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 36, marginBottom: 10 }}>🖼️</div>
-          <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 500, color: '#18181b' }}>
-            還沒上傳 banner
-          </p>
-          <p style={{ margin: '0 0 16px', fontSize: 12, color: '#71717a', lineHeight: 1.5 }}>
-            橫式圖,顯示在公開頁頂部當 hero<br />
-            同時用作 LINE / IG / FB 分享預覽圖(og:image)
-          </p>
-          <label
-            style={{
-              display: 'inline-block',
-              padding: '10px 18px',
-              background: '#18181b',
-              color: '#fff',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: 'inherit',
-            }}
-          >
-            📷 上傳 banner
-            <input
-              type="file"
-              accept="image/*"
-              onChange={onFileChange}
-              style={{ display: 'none' }}
-            />
-          </label>
-          <p style={{ fontSize: 11, color: '#a1a1aa', margin: '12px 0 0' }}>
-            建議比例 1200×630,JPG / PNG / WebP 都可
-          </p>
         </div>
       )}
 
       {imgSrc && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 12, color: '#52525b' }}>
-            拖曳裁切框(鎖定 1200×630 比例)
-          </div>
-          <div
-            style={{
-              padding: 12,
-              background: '#fafafa',
-              border: '1px solid #e4e4e7',
-              borderRadius: 8,
-              display: 'flex',
-              justifyContent: 'center',
-              maxHeight: 480,
-              overflow: 'auto',
-            }}
-          >
+        <>
+          <span className="sx-hint">拖曳裁切框,比例固定 1200 × 630。</span>
+          <div className="sx-crop">
             <ReactCrop
               crop={crop}
               onChange={(_, p) => setCrop(p)}
@@ -295,85 +182,22 @@ export function BannerUploader({ tenantSlug, currentBannerUrl }: Props) {
               minWidth={120}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                ref={imgRef}
-                src={imgSrc}
-                alt="待裁切"
-                onLoad={onImageLoad}
-                style={{ maxWidth: '100%', maxHeight: 400, display: 'block' }}
-              />
+              <img ref={imgRef} src={imgSrc} alt="待裁切" onLoad={onImageLoad} style={{ maxWidth: '100%', maxHeight: 400, display: 'block' }} />
             </ReactCrop>
           </div>
-
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={handleUpload}
-              disabled={uploading || !completedCrop}
-              style={{
-                padding: '8px 16px',
-                background: uploading ? '#a1a1aa' : '#18181b',
-                color: '#fff',
-                border: 0,
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: uploading ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {uploading ? '上傳中…' : '套用'}
-            </button>
-            <button
-              type="button"
-              onClick={cancel}
-              disabled={uploading}
-              style={{
-                padding: '8px 16px',
-                background: '#fff',
-                color: '#52525b',
-                border: '1px solid #e4e4e7',
-                borderRadius: 6,
-                fontSize: 13,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
+            <Button type="button" size="sm" onClick={handleUpload} disabled={busy || !completedCrop}>
+              {busy ? '上傳中…' : '套用'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={cancel} disabled={busy}>
               取消
-            </button>
+            </Button>
           </div>
-        </div>
+        </>
       )}
 
-      {error && (
-        <div
-          style={{
-            padding: '8px 12px',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#991b1b',
-            fontSize: 12,
-            borderRadius: 5,
-          }}
-        >
-          {error}
-        </div>
-      )}
-      {success && (
-        <div
-          style={{
-            padding: '8px 12px',
-            background: '#dcfce7',
-            border: '1px solid #bbf7d0',
-            color: '#15803d',
-            fontSize: 12,
-            borderRadius: 5,
-            fontWeight: 500,
-          }}
-        >
-          ✓ {success}
-        </div>
-      )}
+      {error && <div className="sx-err">{error}</div>}
+      {toast && <FlashToast key={toast.ts} message={toast.text} />}
     </div>
   );
 }

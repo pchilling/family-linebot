@@ -193,3 +193,119 @@ export function IconHeart({ size = 16, color = 'currentColor', style, filled = f
     </svg>
   );
 }
+
+// ── 2026-11-01:後台「設定」頁改版用 ──
+
+export function IconStore({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M3.5 9 5 4h14l1.5 5" />
+      <path d="M3.5 9h17v1.5a3 3 0 0 1-5.7 1.3A3 3 0 0 1 12 13a3 3 0 0 1-2.8-1.2A3 3 0 0 1 3.5 10.5Z" />
+      <path d="M5 13.5V20h14v-6.5" />
+      <path d="M10 20v-4h4v4" />
+    </svg>
+  );
+}
+
+export function IconPalette({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M12 3a9 9 0 1 0 0 18c1.4 0 2.3-1 2.3-2.2 0-.7-.3-1.2-.7-1.7-.4-.5-.6-.9-.6-1.5 0-1.1.9-2 2-2h1.9A4 4 0 0 0 21 9.7C20.4 5.9 16.6 3 12 3Z" />
+      <circle cx="7.5" cy="11" r="1" fill={color} stroke="none" />
+      <circle cx="10" cy="7.3" r="1" fill={color} stroke="none" />
+      <circle cx="14.5" cy="7" r="1" fill={color} stroke="none" />
+    </svg>
+  );
+}
+
+export function IconInfo({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5" />
+      <circle cx="12" cy="7.8" r=".9" fill={color} stroke="none" />
+    </svg>
+  );
+}
+
+export function IconCopy({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </svg>
+  );
+}
+
+export function IconExternal({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M14 4h6v6" />
+      <path d="m20 4-9 9" />
+      <path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+    </svg>
+  );
+}
+
+export function IconPlus({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function IconTrash({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="m6 7 1 13h10l1-13" />
+    </svg>
+  );
+}
+
+export function IconChevronUp({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="m6 15 6-6 6 6" />
+    </svg>
+  );
+}
+
+export function IconChevronDown({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+export function IconUpload({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M12 16V4" />
+      <path d="m7 9 5-5 5 5" />
+      <path d="M4 20h16" />
+    </svg>
+  );
+}
+
+export function IconImage({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="8.5" cy="10" r="1.5" />
+      <path d="m21 16-5-5-9 8" />
+    </svg>
+  );
+}
+
+export function IconVideo({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
+    </svg>
+  );
+}

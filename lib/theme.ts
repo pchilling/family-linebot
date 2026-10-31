@@ -101,6 +101,18 @@ const BG_MAP: Record<BgStyle, Oklch> = {
 };
 
 /**
+ * 四種底色風格各自的 hex(2026-11-01,後台設定頁改版)。
+ * 後台存的是這個 hex(寫進 tenants.shop_bg_color,不另開欄位),
+ * 公開頁用 bgStyleFromLegacy 精準比對認回風格;舊的自選色照原本的規則推。
+ */
+export const BG_STYLE_HEX: Record<BgStyle, string> = {
+  white: oklchToHex(BG_MAP.white.L, BG_MAP.white.C, BG_MAP.white.H),
+  warm: oklchToHex(BG_MAP.warm.L, BG_MAP.warm.C, BG_MAP.warm.H),
+  cream: oklchToHex(BG_MAP.cream.L, BG_MAP.cream.C, BG_MAP.cream.H),
+  cool: oklchToHex(BG_MAP.cool.L, BG_MAP.cool.C, BG_MAP.cool.H),
+};
+
+/**
  * 從品牌色算整組色票。品牌色沒設或讀不懂 → 用 zinc-900(#18181b),就是 shadcn 預設那種黑。
  */
 export function derivePalette(brandHex: string | null | undefined, bgStyle: BgStyle = 'white'): Palette {
@@ -153,7 +165,12 @@ export function paletteCssVars(p: Palette): Record<string, string> {
  * 以前自選的背景色若是黃色系就當「奶油」,其他一律純白。
  */
 export function bgStyleFromLegacy(shopBgColor: string | null | undefined): BgStyle {
-  const rgb = shopBgColor ? hexToRgb(shopBgColor) : null;
+  const raw = shopBgColor?.trim().toLowerCase();
+  if (!raw) return 'white';
+  // 新版後台直接存四種風格的 hex,先精準比對
+  const exact = (Object.keys(BG_STYLE_HEX) as BgStyle[]).find((k) => BG_STYLE_HEX[k] === raw);
+  if (exact) return exact;
+  const rgb = hexToRgb(raw);
   if (!rgb) return 'white';
   const o = rgbToOklch(rgb);
   if (o.L > 0.97 && o.C > 0.01 && o.H > 70 && o.H < 120) return 'cream';

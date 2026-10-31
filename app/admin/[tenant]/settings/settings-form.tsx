@@ -1,218 +1,189 @@
 'use client';
 
-import { useActionState } from 'react';
-import { updateTenantSettings, type SettingsState } from './actions';
-import { FlashToast } from '../../../_components/toast';
-
 /**
- * 攤位設定主表單。
- * 2026-09-05 重整版面:欄位分三組(基本資料 / 商城外觀 / 聯絡與金流),
- * 三個顏色選擇器併一排;分享圖(og_image_url)改由頁面上的「連結分享預覽圖」
- * 上傳區獨佔管理,不再放表單欄位(原本兩處管同一值,容易互蓋)。
+ * 設定頁的兩個文字表單(2026-11-01 改版):
+ * - BasicForm:基本資料分頁(店名、簡介、聯絡資訊)
+ * - LookForm:外觀分頁最下面的品牌色 + 底色風格,附即時預覽
+ * 兩個都打 updateTenantSettings,它只更新表單有帶的欄位。
  */
-type Props = {
-  tenantSlug: string;
-  defaults: {
-    name: string;
-    description: string;
-    brand_color: string;
-    shop_bg_color: string;
-    header_bg_color: string;
-    contact_info: string;
-    payment_info: string;
-  };
-};
+import { useActionState, useMemo, useState } from 'react';
+import { Button, Input, Textarea } from '@/lib/ui';
+import { BG_STYLES, derivePalette, type BgStyle } from '@/lib/theme';
+import { FlashToast } from '../../../_components/toast';
+import { Field, GroupHead, PanelTitle } from './settings-ui';
+import { CopyButton } from './settings-client';
+import { updateTenantSettings, type SettingsState } from './actions';
 
 const initial: SettingsState = { status: 'idle' };
 
-const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 };
-const labelText: React.CSSProperties = { fontSize: 13, color: '#444', fontWeight: 500 };
-const hint: React.CSSProperties = { fontSize: 12, color: '#888', marginTop: 2 };
-const input: React.CSSProperties = {
-  padding: 9,
-  fontSize: 14,
-  border: '1px solid #ccc',
-  borderRadius: 4,
-  width: '100%',
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-};
-const btn: React.CSSProperties = {
-  padding: '10px 18px',
-  background: '#000',
-  color: '#fff',
-  border: 0,
-  borderRadius: 4,
-  fontSize: 14,
-  fontWeight: 500,
-  cursor: 'pointer',
-};
-const groupTitle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: '#71717a',
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  paddingBottom: 6,
-  borderBottom: '1px solid #eee',
-  marginTop: 8,
-};
-
-function ColorField({
-  name,
-  title,
-  current,
-  fallback,
-  fallbackLabel,
+export function BasicForm({
+  tenantSlug,
+  publicHost,
+  publicUrl,
+  defaults,
 }: {
-  name: string;
-  title: string;
-  current: string;
-  fallback: string;
-  fallbackLabel: string;
+  tenantSlug: string;
+  publicHost: string;
+  publicUrl: string;
+  defaults: { name: string; description: string; contact_info: string };
 }) {
-  return (
-    <label style={{ ...label, flex: '1 1 140px' }}>
-      <span style={labelText}>{title}</span>
-      <input
-        type="color"
-        name={name}
-        defaultValue={current || fallback}
-        style={{
-          width: '100%',
-          height: 38,
-          padding: 2,
-          border: '1px solid #ccc',
-          borderRadius: 4,
-          cursor: 'pointer',
-        }}
-      />
-      <span style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>
-        {current || fallbackLabel}
-      </span>
-    </label>
-  );
-}
-
-export function SettingsForm({ tenantSlug, defaults }: Props) {
   const [state, formAction, pending] = useActionState(updateTenantSettings, initial);
 
   return (
-    <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form action={formAction} className="sx-form">
       <input type="hidden" name="tenant_slug" value={tenantSlug} />
+      <div className="sx-body">
+        <PanelTitle title="基本資料" desc="店名、簡介與聯絡方式。公開頁和訂單頁都會用到。" />
 
-      {/* ── 基本資料 ── */}
-      <div style={{ ...groupTitle, marginTop: 0 }}>🏪 基本資料</div>
-
-      <label style={label}>
-        <span style={labelText}>店名</span>
-        <input
-          name="name"
-          defaultValue={defaults.name}
-          required
-          style={input}
-          placeholder="例:Cyndi 童裝代購"
-        />
-      </label>
-
-      <label style={label}>
-        <span style={labelText}>簡介 / Tagline</span>
-        <input
-          name="description"
-          defaultValue={defaults.description}
-          style={input}
-          placeholder="會出現在公開網站 header 下方 + SEO 描述"
-        />
-        <span style={hint}>留空則公開頁不顯示</span>
-      </label>
-
-      {/* ── 商城外觀 ── */}
-      <div style={groupTitle}>🎨 商城外觀</div>
-
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <ColorField
-          name="brand_color"
-          title="主題色"
-          current={defaults.brand_color}
-          fallback="#1f2937"
-          fallbackLabel="未設(#1f2937)"
-        />
-        <ColorField
-          name="shop_bg_color"
-          title="商城底色"
-          current={defaults.shop_bg_color}
-          fallback="#fafafa"
-          fallbackLabel="未設(淺灰)"
-        />
-        <ColorField
-          name="header_bg_color"
-          title="頂部列底色"
-          current={defaults.header_bg_color}
-          fallback="#ffffff"
-          fallbackLabel="未設(白色)"
-        />
-      </div>
-      <span style={{ ...hint, marginTop: -6 }}>
-        主題色 = 店名文字色;底色建議淺色(深色會看不清文字);頂部列是公開商城最上面放 logo / 購物車的那條
-      </span>
-
-      {/* ── 聯絡與金流 ── */}
-      <div style={groupTitle}>💬 聯絡與金流</div>
-
-      <label style={label}>
-        <span style={labelText}>對外聯絡資訊</span>
-        <textarea
-          name="contact_info"
-          defaultValue={defaults.contact_info}
-          rows={4}
-          style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
-          placeholder={
-            'LINE: @yourshop\n電話: 0900-000-000\nEmail: hello@yourshop.com\nIG: @yourshop'
-          }
-        />
-        <span style={hint}>
-          客人下單成立頁會看到這段,知道怎麼聯絡你匯款 / 對帳 / 詢問商品。多行 free text,你愛怎麼寫就怎麼寫
-        </span>
-      </label>
-
-      <label style={label}>
-        <span style={labelText}>匯款資訊</span>
-        <textarea
-          name="payment_info"
-          defaultValue={defaults.payment_info}
-          rows={5}
-          style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
-          placeholder={
-            '【匯款資訊】\n銀行：玉山銀行 (808)\n帳號：1234-5678-9012-345\n戶名：王小明\n\n匯款後請告知後 5 碼,我們會盡快對帳'
-          }
-        />
-        <span style={hint}>
-          訂單成立後客人會立刻在「訂單成立頁」看到這段。建議寫清楚銀行 / 帳號 / 戶名 / 後續流程
-        </span>
-      </label>
-
-      {/* 2026-09-11:儲存回饋改頂部滑入通知(key=ts 讓每次儲存重播) */}
-      {state.status === 'success' && <FlashToast key={state.ts} message="已儲存攤位設定" />}
-
-      {state.status === 'error' && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            borderRadius: 6,
-            color: '#991b1b',
-            fontSize: 14,
-          }}
-        >
-          {state.error}
+        <div className="sx-group">
+          <div className="sx-grid2">
+            <Field label="店名" htmlFor="f-name">
+              <Input id="f-name" name="name" defaultValue={defaults.name} required maxLength={40} placeholder="例:Cyndi 童裝代購" />
+            </Field>
+            <Field label="公開網址" hint="網址不能自己改,需要改請聯繫 NEOP。">
+              <div className="sx-ro">
+                {publicHost}/<b>{tenantSlug}</b>
+                <CopyButton text={publicUrl} title="複製網址" />
+              </div>
+            </Field>
+          </div>
+          <Field label="簡介" optional htmlFor="f-desc" hint="顯示在公開頁店名下方,也會當成搜尋結果和分享連結的說明。">
+            <Input id="f-desc" name="description" defaultValue={defaults.description} maxLength={160} placeholder="例:一瓶油,三種用法。" />
+          </Field>
         </div>
-      )}
 
-      <div>
-        <button type="submit" disabled={pending} style={{ ...btn, opacity: pending ? 0.6 : 1 }}>
-          {pending ? '儲存中…' : '儲存'}
-        </button>
+        <hr className="sx-sep" />
+
+        <div className="sx-group">
+          <GroupHead title="對外聯絡資訊" desc="客人下單完成後會看到這段,用來詢問商品或對帳。一行一項。" />
+          <Textarea
+            name="contact_info"
+            rows={4}
+            defaultValue={defaults.contact_info}
+            placeholder={'LINE:@yourshop\n電話:0900-000-000\nEmail:hello@yourshop.com'}
+            aria-label="對外聯絡資訊"
+          />
+        </div>
+
+        {state.status === 'error' && <div className="sx-err" style={{ marginTop: 16 }}>{state.error}</div>}
+      </div>
+
+      {state.status === 'success' && <FlashToast key={state.ts} message="已儲存基本資料" />}
+
+      <div className="sx-foot">
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? '儲存中…' : '儲存變更'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+export function LookForm({
+  tenantSlug,
+  tenantName,
+  brandColor,
+  bgStyle,
+}: {
+  tenantSlug: string;
+  tenantName: string;
+  brandColor: string | null;
+  bgStyle: BgStyle;
+}) {
+  const [state, formAction, pending] = useActionState(updateTenantSettings, initial);
+  const [color, setColor] = useState(brandColor ?? '#18181b');
+  const [bg, setBg] = useState<BgStyle>(bgStyle);
+  const valid = HEX.test(color);
+  const palette = useMemo(() => derivePalette(valid ? color : '#18181b', bg), [color, bg, valid]);
+
+  return (
+    <form action={formAction} className="sx-form">
+      <input type="hidden" name="tenant_slug" value={tenantSlug} />
+      <input type="hidden" name="brand_color" value={valid ? color : ''} />
+      <input type="hidden" name="bg_style" value={bg} />
+
+      <div className="sx-body sx-body-cont">
+        <hr className="sx-sep" style={{ marginTop: 0 }} />
+        <div className="sx-group">
+          <GroupHead
+            title="品牌色與底色"
+            desc="只選一個品牌色和一種底色風格,按鈕、標籤、連結的顏色會自動算出來,整站都協調。"
+          />
+          <div className="sx-grid2">
+            <Field label="品牌色" hint={valid ? '用在按鈕、選中狀態這些小面積。' : '色碼要像 #1F2937 這樣六碼。'}>
+              <div className="sx-color">
+                <input
+                  type="color"
+                  value={valid ? color : '#18181b'}
+                  onChange={(e) => setColor(e.target.value)}
+                  aria-label="挑選品牌色"
+                />
+                <input
+                  type="text"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value.trim())}
+                  maxLength={7}
+                  spellCheck={false}
+                  aria-label="品牌色色碼"
+                />
+              </div>
+            </Field>
+            <Field label="底色風格">
+              <div className="sx-grid4">
+                {BG_STYLES.map((s) => {
+                  const p = derivePalette('#18181b', s.key);
+                  const on = bg === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      type="button"
+                      className="sx-opt"
+                      data-on={on ? 'true' : 'false'}
+                      aria-pressed={on}
+                      onClick={() => setBg(s.key)}
+                    >
+                      <span className="sw" style={{ background: p.bg }} />
+                      <span className="lb">
+                        {s.label}
+                        <span className="dot" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          </div>
+
+          <div className="sx-preview" style={{ background: palette.bg }}>
+            <div className="ph" style={{ background: palette.header, borderColor: palette.line, color: palette.ink }}>
+              {tenantName}
+              <span>預覽</span>
+            </div>
+            <div className="pb">
+              <span className="pc" style={{ background: palette.surface, borderColor: palette.line }} />
+              <span className="pc" style={{ background: palette.surface, borderColor: palette.line }} />
+              <span className="pbtn" style={{ background: palette.accent, color: palette.onAccent }}>
+                加入購物車
+              </span>
+              <span className="ptag" style={{ background: palette.wash, color: palette.accentInk, borderColor: palette.washLine }}>
+                已選 250ml
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {state.status === 'error' && <div className="sx-err" style={{ marginTop: 16 }}>{state.error}</div>}
+      </div>
+
+      {state.status === 'success' && <FlashToast key={state.ts} message="已儲存外觀" />}
+
+      <div className="sx-foot">
+        <span className="sx-note">品牌色與底色要按儲存才會生效;圖片上傳後立即生效。</span>
+        <Button type="submit" size="sm" disabled={pending || !valid}>
+          {pending ? '儲存中…' : '儲存變更'}
+        </Button>
       </div>
     </form>
   );

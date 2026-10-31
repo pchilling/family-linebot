@@ -2,6 +2,8 @@
 
 import { useOptimistic, useRef, useState } from 'react';
 import { createSupabaseBrowser } from '@/lib/supabase-browser';
+import { Button, Input } from '@/lib/ui';
+import { IconChevronDown, IconChevronUp, IconPlus, IconTrash, IconVideo } from '@/lib/icons';
 import {
   addTenantBanner,
   createBannerUploadUrl,
@@ -12,10 +14,16 @@ import {
 
 type BannerItem = { type: 'image' | 'video'; url: string };
 
+function youtubeId(url: string): string | null {
+  const m = url.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
 /**
- * 攤位 Banner 多媒體管理(Phase 9.8,2026-06-02):
- * 跟商品 MediaManager 同 pattern,target 是 tenants.banners 而非 products.media。
- * Banner 預設比例 1200×630(16:9 寬),公開頁 hero 用。
+ * 公開頁輪播管理(Phase 9.8;2026-11-01 換成設定頁新版面:4:3 縮圖格)。
+ * 跟商品 MediaManager 同 pattern,target 是 tenants.banners。
+ * 檔案不走 Server Action(Vercel body 4.5MB 硬限制),改瀏覽器直傳 Supabase Storage:
+ * createBannerUploadUrl 拿簽名上傳連結 → 直傳 → finalizeBannerUpload 記進 banners。
  */
 export function BannerManager({
   tenantSlug,
@@ -28,6 +36,7 @@ export function BannerManager({
 }) {
   const [uploading, setUploading] = useState<'image' | 'video' | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [ytUrl, setYtUrl] = useState('');
   const imgInputRef = useRef<HTMLInputElement>(null);
   const vidInputRef = useRef<HTMLInputElement>(null);
@@ -52,15 +61,13 @@ export function BannerManager({
     },
   );
 
-  // 檔案不走 Server Action(Vercel body 4.5MB 硬限制),改瀏覽器直傳 Supabase Storage:
-  // 1. createBannerUploadUrl 拿簽名上傳連結 → 2. 直傳 → 3. finalizeBannerUpload 記進 banners
   async function handleUpload(type: 'image' | 'video', file: File) {
     setErr(null);
     setUploading(type);
     try {
       const maxMb = type === 'image' ? 5 : 50;
       if (file.size > maxMb * 1024 * 1024) {
-        setErr(`${type === 'image' ? '圖檔' : '影片'}應 < ${maxMb}MB`);
+        setErr(`${type === 'image' ? '圖片' : '影片'}要在 ${maxMb}MB 以內`);
         return;
       }
       const signFd = new FormData();
@@ -75,9 +82,7 @@ export function BannerManager({
       const supabase = createSupabaseBrowser();
       const { error: upErr } = await supabase.storage
         .from('tenant-assets')
-        .uploadToSignedUrl(sign.path, sign.token, file, {
-          contentType: file.type || undefined,
-        });
+        .uploadToSignedUrl(sign.path, sign.token, file, { contentType: file.type || undefined });
       if (upErr) {
         setErr('上傳失敗:' + upErr.message);
         return;
@@ -88,6 +93,7 @@ export function BannerManager({
       finFd.append('path', sign.path);
       const res = await finalizeBannerUpload(finFd);
       if (!res.ok) setErr(res.error);
+      else setAdding(false);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -98,129 +104,62 @@ export function BannerManager({
   }
 
   async function handleYouTube() {
-    if (!ytUrl.trim()) return;
+    const url = ytUrl.trim();
+    if (!url) return;
+    if (!youtubeId(url)) {
+      setErr('看不出這是 YouTube 影片連結,要像 https://youtu.be/xxxxxxxxxxx');
+      return;
+    }
     setErr(null);
     const fd = new FormData();
     fd.append('tenant_slug', tenantSlug);
     fd.append('type', 'video');
-    fd.append('url', ytUrl.trim());
+    fd.append('url', url);
     await addTenantBanner(fd);
     setYtUrl('');
+    setAdding(false);
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="sx-group">
       {optimisticBanners.length === 0 && legacyOgImageUrl && (
-        <div
-          style={{
-            padding: '8px 10px',
-            background: '#fffbeb',
-            border: '1px solid #fde68a',
-            borderRadius: 6,
-            fontSize: 11,
-            color: '#92400e',
-            lineHeight: 1.5,
-          }}
-        >
-          目前用舊欄位 og_image_url。新增 banner 後改用多媒體陣列。
-        </div>
+        <div className="sx-callout">還沒有輪播圖,公開頁開頭暫時用下面的「連結分享預覽圖」。加了輪播圖之後就改用輪播。</div>
       )}
 
-      {optimisticBanners.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {optimisticBanners.map((b, i) => (
-            <div
-              key={`${b.url}-${i}`}
-              style={{
-                display: 'flex',
-                gap: 10,
-                alignItems: 'center',
-                padding: 8,
-                background: i === 0 ? '#f0fdf4' : '#fafafa',
-                border: `1px solid ${i === 0 ? '#bbf7d0' : '#e4e4e7'}`,
-                borderRadius: 6,
-              }}
-            >
-              <div
-                style={{
-                  width: 96,
-                  height: 50,
-                  background: '#000',
-                  borderRadius: 4,
-                  overflow: 'hidden',
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {b.type === 'image' ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={b.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ color: '#fff', fontSize: 18 }}>▶</div>
-                )}
-              </div>
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                  <span
-                    style={{
-                      padding: '2px 6px',
-                      background: b.type === 'video' ? '#dbeafe' : '#dcfce7',
-                      color: b.type === 'video' ? '#1d4ed8' : '#15803d',
-                      borderRadius: 3,
-                      fontSize: 10,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {b.type === 'video' ? '影片' : '圖片'}
-                  </span>
-                  {i === 0 && (
-                    <span style={{ fontSize: 10, color: '#15803d', fontWeight: 600 }}>★ 首格</span>
-                  )}
-                </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: '#71717a',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                  title={b.url}
-                >
-                  {b.url}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+      <div className="sx-media">
+        {optimisticBanners.map((b, i) => {
+          const yt = b.type === 'video' ? youtubeId(b.url) : null;
+          const last = i === optimisticBanners.length - 1;
+          return (
+            <div key={`${b.url}-${i}`} className="sx-thumb">
+              {b.type === 'image' ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={b.url} alt={`輪播第 ${i + 1} 格`} />
+              ) : yt ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`https://i.ytimg.com/vi/${yt}/hqdefault.jpg`} alt={`輪播第 ${i + 1} 格(YouTube)`} />
+              ) : (
+                <video src={b.url} muted playsInline preload="metadata" />
+              )}
+              <span className="no">{i + 1}</span>
+              {b.type === 'video' && (
+                <span className="ui-badge sx-badge-off tag">
+                  <IconVideo size={12} />
+                  {yt ? 'YouTube' : '影片'}
+                </span>
+              )}
+              <div className="ops">
                 <form
                   action={async (fd) => {
                     applyOptimistic({ type: 'reorder', index: i, direction: 'up' });
                     await reorderTenantBanner(fd);
                   }}
-                  style={{ display: 'inline-block' }}
                 >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="index" value={i} />
                   <input type="hidden" name="direction" value="up" />
-                  <button
-                    type="submit"
-                    disabled={i === 0}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      padding: 0,
-                      background: '#fff',
-                      border: '1px solid #e4e4e7',
-                      borderRadius: 4,
-                      cursor: i === 0 ? 'not-allowed' : 'pointer',
-                      opacity: i === 0 ? 0.4 : 1,
-                    }}
-                    title="往上"
-                  >
-                    ↑
+                  <button type="submit" className="sx-ib" disabled={i === 0} title="往前" aria-label="往前">
+                    <IconChevronUp size={14} />
                   </button>
                 </form>
                 <form
@@ -228,27 +167,12 @@ export function BannerManager({
                     applyOptimistic({ type: 'reorder', index: i, direction: 'down' });
                     await reorderTenantBanner(fd);
                   }}
-                  style={{ display: 'inline-block' }}
                 >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="index" value={i} />
                   <input type="hidden" name="direction" value="down" />
-                  <button
-                    type="submit"
-                    disabled={i === optimisticBanners.length - 1}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      padding: 0,
-                      background: '#fff',
-                      border: '1px solid #e4e4e7',
-                      borderRadius: 4,
-                      cursor: i === optimisticBanners.length - 1 ? 'not-allowed' : 'pointer',
-                      opacity: i === optimisticBanners.length - 1 ? 0.4 : 1,
-                    }}
-                    title="往下"
-                  >
-                    ↓
+                  <button type="submit" className="sx-ib" disabled={last} title="往後" aria-label="往後">
+                    <IconChevronDown size={14} />
                   </button>
                 </form>
                 <form
@@ -256,135 +180,80 @@ export function BannerManager({
                     applyOptimistic({ type: 'remove', index: i });
                     await removeTenantBanner(fd);
                   }}
-                  style={{ display: 'inline-block' }}
                 >
                   <input type="hidden" name="tenant_slug" value={tenantSlug} />
                   <input type="hidden" name="index" value={i} />
                   <button
                     type="submit"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      padding: 0,
-                      background: '#fff',
-                      border: '1px solid #fecaca',
-                      borderRadius: 4,
-                      color: '#dc2626',
-                      cursor: 'pointer',
-                    }}
+                    className="sx-ib danger"
                     title="刪除"
+                    aria-label="刪除"
+                    onClick={(e) => {
+                      if (!window.confirm('刪除這一格?')) e.preventDefault();
+                    }}
                   >
-                    ✕
+                    <IconTrash size={14} />
                   </button>
                 </form>
               </div>
             </div>
-          ))}
+          );
+        })}
+
+        <button type="button" className="sx-thumb-add" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>
+          <IconPlus size={20} />
+          新增圖片、影片或 YouTube
+        </button>
+      </div>
+
+      {adding && (
+        <div className="sx-dash">
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <label className="ui-btn ui-btn-outline ui-btn-sm sx-filebtn">
+              {uploading === 'image' ? '上傳中…' : '上傳圖片'}
+              <input
+                ref={imgInputRef}
+                type="file"
+                accept="image/*"
+                disabled={!!uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload('image', f);
+                }}
+              />
+            </label>
+            <label className="ui-btn ui-btn-outline ui-btn-sm sx-filebtn">
+              {uploading === 'video' ? '上傳中…' : '上傳影片'}
+              <input
+                ref={vidInputRef}
+                type="file"
+                accept="video/*"
+                disabled={!!uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload('video', f);
+                }}
+              />
+            </label>
+          </div>
+          <span className="sx-hint">圖片 5MB 以內、影片 50MB 以內,比例都建議 4:3。</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Input
+              className="ui-input-sm"
+              type="url"
+              value={ytUrl}
+              onChange={(e) => setYtUrl(e.target.value)}
+              placeholder="或貼 YouTube 連結,例如 https://youtu.be/…"
+              aria-label="YouTube 連結"
+            />
+            <Button type="button" variant="outline" size="sm" onClick={handleYouTube} disabled={!ytUrl.trim()}>
+              加入
+            </Button>
+          </div>
         </div>
       )}
 
-      <div
-        style={{
-          padding: 12,
-          background: '#fafafa',
-          border: '1px solid #e4e4e7',
-          borderRadius: 6,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-        }}
-      >
-        <div style={{ fontSize: 12, fontWeight: 500, color: '#374151' }}>+ 加圖 / 影片</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <label
-            style={{
-              display: 'inline-block',
-              padding: '6px 12px',
-              background: uploading === 'image' ? '#9ca3af' : '#fff',
-              color: uploading === 'image' ? '#fff' : '#374151',
-              border: '1px solid #d4d4d8',
-              borderRadius: 4,
-              cursor: uploading ? 'wait' : 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            {uploading === 'image' ? '上傳中…' : '上傳圖片 (≤ 5MB)'}
-            <input
-              ref={imgInputRef}
-              type="file"
-              accept="image/*"
-              disabled={!!uploading}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUpload('image', f);
-              }}
-              style={{ display: 'none' }}
-            />
-          </label>
-          <label
-            style={{
-              display: 'inline-block',
-              padding: '6px 12px',
-              background: uploading === 'video' ? '#9ca3af' : '#fff',
-              color: uploading === 'video' ? '#fff' : '#374151',
-              border: '1px solid #d4d4d8',
-              borderRadius: 4,
-              cursor: uploading ? 'wait' : 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            {uploading === 'video' ? '上傳中…' : '上傳影片 (≤ 50MB)'}
-            <input
-              ref={vidInputRef}
-              type="file"
-              accept="video/*"
-              disabled={!!uploading}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUpload('video', f);
-              }}
-              style={{ display: 'none' }}
-            />
-          </label>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            type="url"
-            value={ytUrl}
-            onChange={(e) => setYtUrl(e.target.value)}
-            placeholder="或貼 YouTube URL (https://youtu.be/...)"
-            style={{
-              flex: 1,
-              padding: '6px 10px',
-              border: '1px solid #d4d4d8',
-              borderRadius: 4,
-              fontSize: 12,
-              fontFamily: 'inherit',
-            }}
-          />
-          <button
-            type="button"
-            onClick={handleYouTube}
-            disabled={!ytUrl.trim()}
-            style={{
-              padding: '6px 12px',
-              background: !ytUrl.trim() ? '#e4e4e7' : '#18181b',
-              color: !ytUrl.trim() ? '#9ca3af' : '#fff',
-              border: 0,
-              borderRadius: 4,
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: !ytUrl.trim() ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            加 YouTube
-          </button>
-        </div>
-        {err && <div style={{ fontSize: 11, color: '#dc2626' }}>⚠️ {err}</div>}
-      </div>
+      {err && <div className="sx-err">{err}</div>}
     </div>
   );
 }
