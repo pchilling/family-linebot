@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SettingsForm } from './settings-form';
+import { QrPaymentSettings } from './qr-payment-settings';
 import { LogoUploader } from './logo-uploader';
 import { BannerUploader } from './banner-uploader';
 import { BannerManager } from './banner-manager';
@@ -29,6 +30,7 @@ type TenantFull = {
   banners: BannerItem[] | null;
   contact_info: string | null;
   payment_info: string | null;
+  qr_payment: { enabled?: boolean; image_url?: string; label?: string; note?: string; link_url?: string } | null; // Phase 27
   gift_rules: { mode?: string; rules?: GiftRule[] } | null; // Phase 16(#12) / Phase 18
   plan: string;
   slug: string;
@@ -41,7 +43,7 @@ async function getTenantFull(slug: string): Promise<TenantFull | null> {
   const { data } = await supabaseAdmin
     .from('tenants')
     .select(
-      'id, name, description, brand_color, shop_bg_color, header_bg_color, og_image_url, logo_url, banners, contact_info, payment_info, gift_rules, plan, slug, order_prefix, features, status',
+      'id, name, description, brand_color, shop_bg_color, header_bg_color, og_image_url, logo_url, banners, contact_info, payment_info, qr_payment, gift_rules, plan, slug, order_prefix, features, status',
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -127,6 +129,25 @@ export default async function SettingsPage({ params }: { params: Promise<{ tenan
             header_bg_color: tenant.header_bg_color ?? '',
             contact_info: tenant.contact_info ?? '',
             payment_info: tenant.payment_info ?? '',
+          }}
+        />
+      </section>
+
+      {/* Phase 27(2026-11-01):掃碼付款 — 個人賣家不用金流帳號也能收款 */}
+      <section style={section}>
+        <h2 style={h2}>掃碼付款</h2>
+        <p style={{ fontSize: 12, color: '#71717a', margin: '0 0 14px', lineHeight: 1.6 }}>
+          上傳你的收款 QR(LINE Pay 轉帳碼、街口、全支付都可以),結帳就會多一個「掃碼付款」選項。
+          客人到訂單頁掃碼付款後按「我已付款」,你在訂單頁看到「待核帳」,到 App 核對入帳再按確認收款,流程跟匯款一樣。
+        </p>
+        <QrPaymentSettings
+          tenantSlug={tenant.slug}
+          current={{
+            enabled: tenant.qr_payment?.enabled ?? false,
+            image_url: tenant.qr_payment?.image_url ?? null,
+            label: tenant.qr_payment?.label ?? '',
+            note: tenant.qr_payment?.note ?? '',
+            link_url: tenant.qr_payment?.link_url ?? '',
           }}
         />
       </section>

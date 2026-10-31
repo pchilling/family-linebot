@@ -1337,3 +1337,39 @@ create table if not exists login_emails (
 create index if not exists login_emails_email_sent on login_emails(email, sent_at desc);
 create index if not exists login_emails_ip_sent on login_emails(ip, sent_at desc);
 alter table login_emails enable row level security;
+
+
+-- ====================
+-- RE:K 攤位(2026-11-01):Peter 朋友的市集品牌,第一個「個人賣家」攤位
+-- 沒公司、沒金流帳號、沒 LINE Bot:收款走匯款 + 掃碼(人工核帳),出貨走超商店到店。
+-- 先掛 Peter 當 owner,朋友的 Google 帳號之後在後台「成員」加進去。
+-- ====================
+insert into tenants (slug, name, owner_user_id, plan, features, status, order_prefix)
+  values (
+    'rek',
+    'RE:K',
+    (select id from platform_users where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924'),
+    'free',
+    '{}'::jsonb,
+    'active',
+    'RK'
+  )
+  on conflict (slug) do nothing;
+
+insert into tenant_members (tenant_id, user_id, role)
+  select t.id, t.owner_user_id, 'owner'
+    from tenants t
+    where t.slug = 'rek' and t.owner_user_id is not null
+  on conflict (tenant_id, user_id) do nothing;
+
+
+-- ====================
+-- Phase 27(2026-11-01):掃碼付款 — 個人賣家零門檻收款
+-- 攤主上傳自己的收款 QR(LINE Pay 轉帳碼、街口、全支付…都行),結帳多一種「掃碼付款」,
+-- 訂單頁顯示 QR 與金額,客人付完按「我已付款」(可留備註),後台「待核帳」人工確認,流程同匯款。
+-- payment_method 新值 'qr'(欄位是 text,沒有 check)。
+-- ====================
+-- {"enabled": true, "image_url": "...", "label": "LINE Pay 轉帳", "note": "轉帳備註請填訂單編號", "link_url": "https://..."}
+alter table tenants add column if not exists qr_payment jsonb;
+-- 客人回報掃碼付款時的備註(轉帳後 5 碼、時間、暱稱都行);匯款仍用 payment_last5
+alter table orders add column if not exists payment_note text;

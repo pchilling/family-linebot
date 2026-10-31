@@ -363,7 +363,7 @@ export default async function OrdersListPage({
                   {o.payment_status === 'pending' && o.payment_reported_at && (
                     <div style={{ marginTop: 3 }}>
                       <span style={{ display: 'inline-block', padding: '1px 7px', background: '#fef3c7', color: '#92400e', borderRadius: 3, fontSize: 11, fontWeight: 700 }}>
-                        💬 回報 {o.payment_last5}
+                        💬 {o.payment_method === 'qr' ? '已回報掃碼付款' : `回報 ${o.payment_last5}`}
                       </span>
                     </div>
                   )}

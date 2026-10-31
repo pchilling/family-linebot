@@ -6,10 +6,11 @@ import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconCreditCard, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
 import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getShippingOptions, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type ShippingOption } from './actions';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getQrPaymentPublic, getShippingOptions, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type QrPaymentPublic, type ShippingOption } from './actions';
 
 // 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
-type PayMethod = 'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit';
+// Phase 27(2026-11-01):加 'qr' 掃碼付款(攤主自己的收款 QR,人工核帳)
+type PayMethod = 'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit' | 'qr';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -101,6 +102,8 @@ export default function CheckoutPage({ params }: Props) {
   // ATM 虛擬帳號另有開關(ecpay_atm flag);2026-10-22 起預設關,只開信用卡
   const [ecpayAtmOn, setEcpayAtmOn] = useState(false);
   const [payMethod, setPayMethod] = useState<PayMethod>('bank');
+  // Phase 27:掃碼付款設定(攤位有開 + 有上傳 QR 才會有)
+  const [qrCfg, setQrCfg] = useState<QrPaymentPublic | null>(null);
   // Phase 26:已登入就預填收件人與電話,並把信箱帶進訂單(查單、對帳號用);沒登入照舊
   const [member, setMember] = useState<{ name: string | null; email: string | null; phone: string | null } | null>(null);
   useEffect(() => {
@@ -116,10 +119,18 @@ export default function CheckoutPage({ params }: Props) {
     isEcpayAvailable(slug)
       .then((on) => {
         setEcpayOn(on);
-        if (on) setPayMethod((m) => (m === 'bank' ? 'ecpay_credit' : m));
+        // 有綠界就預設刷卡(掃碼、匯款都是人工核帳,排後面)
+        if (on) setPayMethod((m) => (m === 'bank' || m === 'qr' ? 'ecpay_credit' : m));
       })
       .catch(() => {});
     isEcpayAtmAvailable(slug).then(setEcpayAtmOn).catch(() => {});
+    getQrPaymentPublic(slug)
+      .then((q) => {
+        setQrCfg(q);
+        // 攤主開了掃碼付款,代表他偏好這個勝過匯款 → 預設選它(綠界若有開仍以刷卡優先)
+        if (q) setPayMethod((m) => (m === 'bank' ? 'qr' : m));
+      })
+      .catch(() => {});
   }, [slug]);
   const isLinePayPay = linePayOn && payMethod === 'line_pay';
   const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
@@ -245,7 +256,11 @@ export default function CheckoutPage({ params }: Props) {
   };
 
   const submitLabel = `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '送出訂單'} · NT$ ${money(grandTotal)}`;
-  const fine = isOnlinePay ? '付款完成後訂單會自動更新,不用回報帳號後 5 碼' : '下單後賣家會私訊匯款方式';
+  const fine = isOnlinePay
+    ? '付款完成後訂單會自動更新,不用回報帳號後 5 碼'
+    : payMethod === 'qr'
+      ? '下單後到訂單頁掃碼付款,付完按「我已付款」,賣家核帳後出貨'
+      : '下單後賣家會私訊匯款方式';
   const submitBtn = (cls: string) => (
     <div className={cls}>
       <Button type="submit" form="ck-form" variant="primary" size="lg" className="ui-num" style={{ width: '100%' }} disabled={submitting}>
@@ -316,7 +331,7 @@ export default function CheckoutPage({ params }: Props) {
 
           {/* 2026-10-15:付款方式(攤位有開 LINE Pay 或綠界才顯示;都沒開一律匯款)
               2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳) */}
-          {(linePayOn || ecpayOn) && (
+          {(linePayOn || ecpayOn || qrCfg) && (
             <section className="ck-sec" aria-labelledby="pay-h">
               <div className="ck-sec-h"><h2 id="pay-h">付款方式</h2><span>必選</span></div>
               <div className="ck-opts" role="radiogroup" aria-label="付款方式">
@@ -328,6 +343,9 @@ export default function CheckoutPage({ params }: Props) {
                 )}
                 {ecpayAtmOn && (
                   <OptionCard name="payment_method" value="ecpay_atm" on={payMethod === 'ecpay_atm'} onSelect={() => setPayMethod('ecpay_atm')} icon={<IconBank size={16} />} title="ATM 轉帳" trailing={<Badge>免回報</Badge>} desc="送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳" />
+                )}
+                {qrCfg && (
+                  <OptionCard name="payment_method" value="qr" on={payMethod === 'qr'} onSelect={() => setPayMethod('qr')} icon={<IconWallet size={16} />} title={`掃碼付款(${qrCfg.label})`} desc="下單後到訂單頁掃 QR 付款,付完按「我已付款」,賣家核帳後出貨" />
                 )}
                 <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳" />
               </div>

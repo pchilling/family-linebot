@@ -40,6 +40,7 @@ const EXPIRE_DAYS: Record<string, number> = {
   ecpay_credit: 1,
   ecpay_atm: 4,
   bank: 3,
+  qr: 3, // Phase 27:掃碼付款也是人工核帳,跟匯款一樣給 3 天
 };
 const DEFAULT_EXPIRE_DAYS = 3;
 

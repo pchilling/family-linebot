@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
-import { reportPaymentLast5 } from './actions';
+import { reportPaymentLast5, reportQrPaid } from './actions';
 import { startLinePayAndRedirect } from '../../checkout/actions';
 import { IconBank, IconCheck, IconCheckCircle, IconClock, IconCreditCard, IconPackage, IconPencil, IconTruck, IconUndo, IconWallet, IconX } from '@/lib/icons';
 import { OtpInput } from '@/lib/otp-input';
@@ -39,6 +39,7 @@ type OrderDetail = {
   shipping_fee_twd: number;
   payment_last5: string | null;
   payment_reported_at: string | null;
+  payment_note: string | null; // Phase 27:掃碼付款回報的備註
   invoice_tax_id: string | null;
   invoice_title: string | null;
   shipping_recipient: string | null;
@@ -85,7 +86,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
+      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -131,6 +132,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     shipping_fee_twd: row.shipping_fee_twd ?? 0,
     payment_last5: row.payment_last5 ?? null,
     payment_reported_at: row.payment_reported_at ?? null,
+    payment_note: row.payment_note ?? null,
     invoice_tax_id: row.invoice_tax_id ?? null,
     invoice_title: row.invoice_title ?? null,
     shipping_recipient: row.shipping_recipient,
@@ -165,6 +167,7 @@ const METHOD_LABEL: Record<string, string> = {
   line_pay: 'LINE Pay',
   ecpay_credit: '信用卡',
   ecpay_atm: 'ATM 轉帳',
+  qr: '掃碼付款',
 };
 
 const money = (n: number) => n.toLocaleString('en-US');
@@ -251,16 +254,22 @@ export default async function OrderPage({ params, searchParams }: Props) {
   // 額外拉 tenant.contact_info + payment_info + shipping_rules(沒在 getTenantPublic)
   const { data: tenantExtra } = await supabaseAdmin
     .from('tenants')
-    .select('contact_info, payment_info, shipping_rules')
+    .select('contact_info, payment_info, shipping_rules, qr_payment')
     .eq('id', tenant.id)
     .maybeSingle();
   type ExtraRow = {
     contact_info: string | null;
     payment_info: string | null;
     shipping_rules: { options?: { key: string; label: string }[] } | null;
+    qr_payment: { enabled?: boolean; image_url?: string; label?: string; note?: string; link_url?: string } | null;
   } | null;
   const contactInfo = (tenantExtra as ExtraRow)?.contact_info ?? null;
   const paymentInfo = (tenantExtra as ExtraRow)?.payment_info ?? null;
+  // Phase 27:掃碼付款設定(訂單已經選了 qr 就算攤主後來關掉也要顯示 QR,不然客人付不了)
+  const qrRaw = (tenantExtra as ExtraRow)?.qr_payment ?? null;
+  const qrCfg = qrRaw?.image_url
+    ? { image_url: qrRaw.image_url, label: (qrRaw.label ?? '').trim() || '掃碼付款', note: (qrRaw.note ?? '').trim() || null, link_url: (qrRaw.link_url ?? '').trim() || null }
+    : null;
   const bankAccount = extractBankAccount(paymentInfo);
   const shipLabel = ((tenantExtra as ExtraRow)?.shipping_rules?.options ?? []).find((o) => o.key === order.shipping_method)?.label ?? null;
   const grandTotal = order.total_twd + order.shipping_fee_twd;
@@ -274,6 +283,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const isEcpayAtm = order.payment_method === 'ecpay_atm';
   const isEcpayCredit = order.payment_method === 'ecpay_credit';
   const isOnlinePayOrder = isLinePayOrder || isEcpayAtm || isEcpayCredit;
+  // Phase 27:掃碼付款 — 人工核帳,流程同匯款,但回報的是「我已付款」而不是後 5 碼
+  const isQrOrder = order.payment_method === 'qr';
   const atmExpired = !!order.atm_expire_at && new Date(order.atm_expire_at).getTime() < Date.now();
   const atmReady = isEcpayAtm && !!order.atm_vaccount && !atmExpired;
   const atmExpireLabel = order.atm_expire_at
@@ -311,12 +322,14 @@ export default async function OrderPage({ params, searchParams }: Props) {
               ? '訂單成立,請完成信用卡付款'
               : isEcpayAtm
                 ? (atmReady ? '訂單成立,請在期限內完成 ATM 轉帳' : '訂單成立,請取得 ATM 轉帳帳號')
-                : '訂單成立,請匯款後回報後 5 碼',
+                : isQrOrder
+                  ? '訂單成立,請掃碼付款後回報'
+                  : '訂單成立,請匯款後回報後 5 碼',
           desc: isLinePayOrder || isEcpayCredit ? '請在 24 小時內完成付款,逾期訂單會自動取消' : isEcpayAtm ? '請在繳費期限內轉帳,系統會自動確認' : '3 天內未付款訂單會自動取消',
           ...tone.amber,
         }
       : stage === 1
-        ? { icon: <IconClock size={20} />, title: '已回報後 5 碼,等待賣家核帳', desc: '賣家核帳後會轉為已付款', ...tone.amber }
+        ? { icon: <IconClock size={20} />, title: isQrOrder ? '已回報付款,等待賣家核帳' : '已回報後 5 碼,等待賣家核帳', desc: '賣家核帳後會轉為已付款', ...tone.amber }
         : stage === 2
           ? { icon: <IconCheckCircle size={20} />, title: '已收款,商品準備中', desc: isPickup ? '備貨完成會通知您取貨' : '出貨後會再通知您', ...tone.green }
           : stage === 3
@@ -324,7 +337,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             : { icon: <IconCheckCircle size={20} />, title: isPickup ? '已取貨,感謝您的訂購' : '已送達,感謝您的訂購', desc: '有任何問題歡迎聯絡我們', ...tone.green };
   const steps = [
     '下單',
-    isLinePayOrder ? 'LINE Pay' : isEcpayCredit ? '刷卡' : isEcpayAtm ? 'ATM 轉帳' : '回報五碼',
+    isLinePayOrder ? 'LINE Pay' : isEcpayCredit ? '刷卡' : isEcpayAtm ? 'ATM 轉帳' : isQrOrder ? '掃碼付款' : '回報五碼',
     '已收款',
     isPickup ? '備貨' : '出貨',
     isPickup ? '取貨' : '送達',
@@ -426,8 +439,69 @@ export default async function OrderPage({ params, searchParams }: Props) {
         </Card>
       )}
 
+      {/* ---------- 下一步:掃碼付款(Phase 27)---------- */}
+      {isQrOrder && stage <= 1 && !isCancelled && (
+        <Card className="od-card">
+          <div className="od-next">
+            <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconWallet size={17} /></span>
+            <div><b>下一步:掃碼付款</b><small>{qrCfg ? `用 ${qrCfg.label} 掃碼付款,付完按「我已付款」,賣家核帳後出貨` : '賣家會主動聯繫您付款方式'}</small></div>
+          </div>
+          {!unlocked ? lockedHint : (
+            <div className="od-pay">
+              {qrCfg && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '16px 12px', borderRadius: 8, background: '#fafafa', border: '1px solid var(--ui-line)' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrCfg.image_url} alt={`${qrCfg.label} 收款 QR`} style={{ width: 'min(240px, 70vw)', height: 'auto', borderRadius: 8, background: '#fff', display: 'block' }} />
+                  <div className="ui-num" style={{ fontSize: 15 }}>應付 <strong style={{ fontSize: 20 }}>NT$ {money(grandTotal)}</strong></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}><em style={{ fontStyle: 'normal', whiteSpace: 'nowrap' }}>訂單編號</em> <strong className="ui-num">{order.order_no}</strong><CopyButton text={order.order_no} /></div>
+                  {qrCfg.link_url && <ButtonLink href={qrCfg.link_url} target="_blank" rel="noreferrer" variant="primary" size="md" style={{ width: '100%' }}>開啟 {qrCfg.label}</ButtonLink>}
+                  <p className="ui-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, textAlign: 'center' }}>
+                    {qrCfg.note ?? '金額請自行輸入,轉帳備註填訂單編號。'}
+                    <br />
+                    手機掃不到自己的螢幕:長按 QR 儲存圖片,再到 App 用「掃描相簿圖片」讀取。
+                  </p>
+                </div>
+              )}
+              {order.payment_reported_at ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#16a34a', display: 'inline-flex' }}><IconCheck size={16} /></span>
+                    <span style={{ fontWeight: 500 }}>已回報付款</span>
+                    <span className="ui-muted" style={{ fontSize: 12 }}>
+                      {new Date(order.payment_reported_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 送出 · 等待賣家核帳
+                    </span>
+                    {order.payment_note && <span className="ui-muted" style={{ fontSize: 13, width: '100%' }}>備註:{order.payment_note}</span>}
+                  </div>
+                  <details style={{ marginTop: 10 }}>
+                    <summary className="ui-muted" style={{ fontSize: 13, cursor: 'pointer' }}>要補充備註?重新回報</summary>
+                    <form id="report" action={reportQrPaid} className="od-report" style={{ marginTop: 10 }}>
+                      <input type="hidden" name="tenant_slug" value={slug} />
+                      <input type="hidden" name="order_no" value={order.order_no} />
+                      <input type="hidden" name="k" value={order.access_key ?? ''} />
+                      <input name="note" className="ui-input" maxLength={100} placeholder="例:LINE Pay 轉帳 14:32,暱稱小明" style={{ flex: '1 1 200px' }} />
+                      <Button type="submit" variant="outline" size="md">更新</Button>
+                    </form>
+                  </details>
+                </div>
+              ) : (
+                <div id="report" style={{ scrollMarginTop: 80 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><IconPencil size={14} /> 付完款按這裡回報</div>
+                  <form action={reportQrPaid} className="od-report">
+                    <input type="hidden" name="tenant_slug" value={slug} />
+                    <input type="hidden" name="order_no" value={order.order_no} />
+                    <input type="hidden" name="k" value={order.access_key ?? ''} />
+                    <input name="note" className="ui-input" maxLength={100} placeholder="備註(選填):轉帳時間、暱稱或後幾碼" style={{ flex: '1 1 200px' }} />
+                    <Button type="submit" variant="primary" size="lg" style={{ flex: '1 0 auto' }}>我已付款</Button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* ---------- 下一步:匯款 + 回報後 5 碼 ---------- */}
-      {!isOnlinePayOrder && stage <= 1 && !isCancelled && (
+      {!isOnlinePayOrder && !isQrOrder && stage <= 1 && !isCancelled && (
         <Card className="od-card">
           <div className="od-next">
             <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconBank size={17} /></span>

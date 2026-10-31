@@ -241,6 +241,91 @@ export async function uploadLogo(formData: FormData): Promise<UploadLogoResult> 
   return { ok: true, url: publicUrl };
 }
 
+// ========================
+// Phase 27(2026-11-01):掃碼付款設定
+// 攤主上傳自己的收款 QR(LINE Pay 轉帳碼、街口、全支付…),存 tenants.qr_payment jsonb:
+// { enabled, image_url, label, note, link_url }。圖存 tenant-assets/{tenant}/qr-{ts}.{ext}
+// ========================
+type QrPaymentRow = { enabled?: boolean; image_url?: string; label?: string; note?: string; link_url?: string } | null;
+
+async function readQrPayment(tenantId: string): Promise<NonNullable<QrPaymentRow>> {
+  const { data } = await supabaseAdmin.from('tenants').select('qr_payment').eq('id', tenantId).maybeSingle();
+  return ((data as { qr_payment?: QrPaymentRow } | null)?.qr_payment ?? {}) as NonNullable<QrPaymentRow>;
+}
+
+export async function uploadQrPayment(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const file = formData.get('file');
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  if (!(file instanceof Blob) || file.size === 0) return { ok: false, error: '請選一張 QR 圖片' };
+  if (file.size > 3 * 1024 * 1024) return { ok: false, error: '檔案太大(應 < 3MB)' };
+  const type = file.type || 'image/png';
+  if (!/^image\/(png|jpe?g|webp)$/.test(type)) return { ok: false, error: '只接受 PNG、JPG、WebP' };
+
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const ext = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${tenant.id}/qr-${Date.now()}.${ext}`;
+  const { error: upErr } = await supabaseAdmin.storage.from('tenant-assets').upload(path, file, { contentType: type, upsert: false });
+  if (upErr) {
+    console.error('[uploadQrPayment upload]', upErr);
+    return { ok: false, error: '上傳失敗:' + upErr.message };
+  }
+  const { data: { publicUrl } } = supabaseAdmin.storage.from('tenant-assets').getPublicUrl(path);
+
+  const current = await readQrPayment(tenant.id);
+  const { error: updErr } = await supabaseAdmin
+    .from('tenants')
+    .update({ qr_payment: { ...current, image_url: publicUrl, enabled: current.enabled ?? true } })
+    .eq('id', tenant.id);
+  if (updErr) {
+    console.error('[uploadQrPayment update]', updErr);
+    return { ok: false, error: '儲存失敗' };
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+  return { ok: true, url: publicUrl };
+}
+
+export async function saveQrPayment(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const label = String(formData.get('label') ?? '').trim().slice(0, 30);
+  const note = String(formData.get('note') ?? '').trim().slice(0, 120);
+  const linkUrl = String(formData.get('link_url') ?? '').trim().slice(0, 500);
+  const enabled = formData.get('enabled') === 'on';
+  if (linkUrl && !/^https?:\/\//.test(linkUrl)) return { ok: false, error: '付款連結要以 http:// 或 https:// 開頭' };
+
+  const current = await readQrPayment(tenant.id);
+  if (enabled && !current.image_url) return { ok: false, error: '要先上傳 QR 圖片才能開啟' };
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ qr_payment: { ...current, enabled, label: label || null, note: note || null, link_url: linkUrl || null } })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[saveQrPayment]', error);
+    return { ok: false, error: '儲存失敗' };
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+  return { ok: true, url: current.image_url ?? '' };
+}
+
+export async function removeQrPayment(slug: string): Promise<UploadLogoResult> {
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  const tenant = await getTenantBySlug(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+  const { error } = await supabaseAdmin.from('tenants').update({ qr_payment: null }).eq('id', tenant.id);
+  if (error) {
+    console.error('[removeQrPayment]', error);
+    return { ok: false, error: '移除失敗' };
+  }
+  revalidatePath(`/admin/${slug}/settings`);
+  return { ok: true, url: '' };
+}
+
 /**
  * 移除 logo:把 tenants.logo_url 設 null。
  * 不刪 Storage 內舊圖(保留歷史,不影響成本因 free tier 量小)。

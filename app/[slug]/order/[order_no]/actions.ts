@@ -73,3 +73,62 @@ export async function reportPaymentLast5(formData: FormData): Promise<void> {
   revalidatePath(`/${slug}/order/${orderNo}`);
   redirect(`/${slug}/order/${orderNo}?reported=1&k=${accessKey}`);
 }
+
+/**
+ * Phase 27(2026-11-01):掃碼付款的客人按「我已付款」回報。
+ * 沒有後 5 碼可填(LINE Pay 轉帳、街口都沒有),改成選填備註(轉帳時間、暱稱、後幾碼都行),
+ * 寫 payment_reported_at + payment_note,後台「待核帳」人工確認,其餘規則同回報後 5 碼。
+ */
+export async function reportQrPaid(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const orderNo = String(formData.get('order_no') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim().slice(0, 100);
+  if (!slug || !orderNo) throw new Error('缺訂單資訊');
+
+  const tenant = await getTenantPublic(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const k = String(formData.get('k') ?? '').trim();
+  const { data: keyRow } = await supabaseAdmin
+    .from('orders')
+    .select('access_key, payment_method')
+    .eq('tenant_id', tenant.id)
+    .eq('order_no', orderNo)
+    .maybeSingle();
+  const row = keyRow as { access_key: string | null; payment_method: string | null } | null;
+  const accessKey = row?.access_key ?? null;
+  if (!accessKey || k !== accessKey) throw new Error('連結無效,請從下單完成頁的連結開啟這張訂單');
+  if (row?.payment_method !== 'qr') throw new Error('這筆訂單不是掃碼付款');
+
+  const { data: updated, error } = await supabaseAdmin
+    .from('orders')
+    .update({ payment_note: note || null, payment_reported_at: new Date().toISOString() })
+    .eq('tenant_id', tenant.id)
+    .eq('order_no', orderNo)
+    .eq('payment_status', 'pending')
+    .select('user_id');
+  if (error) {
+    console.error('[reportQrPaid]', error);
+    throw new Error('回報失敗,請稍後再試');
+  }
+
+  // LIFF / LINE 身分的訂單推一則確認
+  const userId = (updated as { user_id: string | null }[] | null)?.[0]?.user_id ?? null;
+  if (userId) {
+    try {
+      const { data: u } = await supabaseAdmin.from('users').select('line_user_id').eq('id', userId).maybeSingle();
+      const lineUserId = (u as { line_user_id: string | null } | null)?.line_user_id;
+      if (lineUserId) {
+        await lineClient.pushMessage({
+          to: lineUserId,
+          messages: [{ type: 'text', text: `✓ 已收到您的付款回報\n訂單 ${orderNo} 等待賣家核帳中。` }],
+        });
+      }
+    } catch (e) {
+      console.warn('[reportQrPaid push]', e);
+    }
+  }
+
+  revalidatePath(`/${slug}/order/${orderNo}`);
+  redirect(`/${slug}/order/${orderNo}?reported=1&k=${accessKey}`);
+}

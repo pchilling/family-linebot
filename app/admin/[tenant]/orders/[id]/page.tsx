@@ -22,6 +22,7 @@ type OrderDetail = {
   payment_method: string | null;
   payment_last5: string | null;
   payment_reported_at: string | null; // D#14:客人自助回報時間
+  payment_note: string | null; // Phase 27:掃碼付款回報的備註
   linepay_transaction_id: string | null; // Phase 17:LINE Pay 交易序號(退款要用)
   linepay_refunded_twd: number | null; // Phase 17:已退款金額(部分退款累計)
   ecpay_merchant_trade_no: string | null; // Phase 21:我們送給綠界的特店交易編號(退款要一起帶)
@@ -61,7 +62,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
     .from('orders')
     .select(
       // payment_last5 / payment_reported_at / shipping_*:Phase 14-15 SQL(2026-09-02)已加
-      `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at,
+      `id, order_no, status, payment_status, payment_method, payment_last5, payment_reported_at, payment_note,
        linepay_transaction_id, linepay_refunded_twd,
        ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, refund_note, atm_bank_code, atm_vaccount, atm_expire_at,
        invoice_tax_id, invoice_title,
@@ -91,7 +92,7 @@ const REFUND_REASONS = [
 
 // 2026-09-08:付款方式代碼 → 中文(原本直接顯示 'bank' 讓人看不懂)
 function payMethodLabel(s: string): string {
-  return ({ bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay', ecpay_credit: '信用卡(綠界)', ecpay_atm: 'ATM 轉帳(綠界)' }[s]) ?? s;
+  return ({ bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay', ecpay_credit: '信用卡(綠界)', ecpay_atm: 'ATM 轉帳(綠界)', qr: '掃碼付款' }[s]) ?? s;
 }
 function sourceColor(s: string): string {
   return ({ web: '#7c3aed', liff: '#06c755', manual: '#9ca3af', line_chat: '#f59e0b' }[s]) ?? '#666';
@@ -275,7 +276,9 @@ export default async function OrderDetailPage({
             {/* D#14:客人在訂單頁自助回報的後五碼直接帶入 */}
             {o.payment_reported_at && (
               <div style={{ padding: '8px 12px', background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 6, fontSize: 13, color: '#92400e', marginBottom: 10, fontWeight: 600 }}>
-                💬 客人已回報後 5 碼「{o.payment_last5}」({formatTw(o.payment_reported_at)}),核對入帳後按下方確認。
+                {o.payment_method === 'qr'
+                  ? <>💬 客人已回報掃碼付款({formatTw(o.payment_reported_at)}){o.payment_note ? <>,備註「{o.payment_note}」</> : null},到收款 App 核對入帳後按下方確認。</>
+                  : <>💬 客人已回報後 5 碼「{o.payment_last5}」({formatTw(o.payment_reported_at)}),核對入帳後按下方確認。</>}
               </div>
             )}
             <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 14px', lineHeight: 1.6 }}>
@@ -307,6 +310,7 @@ export default async function OrderDetailPage({
                   <option value="line_pay">LINE Pay</option>
                   <option value="ecpay_credit">信用卡(綠界)</option>
                   <option value="ecpay_atm">ATM 轉帳(綠界)</option>
+                  <option value="qr">掃碼付款</option>
                 </select>
               </label>
               <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已收款」?">✓ 確認已收款</SubmitButton>

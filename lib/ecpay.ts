@@ -404,6 +404,8 @@ export function paymentMethodLabel(method: string | null | undefined): string {
       return 'ATM 轉帳';
     case 'ecpay_credit':
       return '信用卡';
+    case 'qr':
+      return '掃碼付款';
     case 'bank':
       return '匯款';
     default:

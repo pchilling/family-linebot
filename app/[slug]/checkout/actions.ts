@@ -135,6 +135,24 @@ export async function getGiftRulesPublic(tenantSlug: string): Promise<GiftConfig
   };
 }
 
+/**
+ * Phase 27(2026-11-01):攤位的掃碼付款設定(給結帳頁與訂單頁用)。
+ * 有開、有上傳 QR 圖才算可用;回 null 代表結帳不顯示這個選項。
+ */
+export type QrPaymentPublic = { image_url: string; label: string; note: string | null; link_url: string | null };
+
+export async function getQrPaymentPublic(tenantSlug: string): Promise<QrPaymentPublic | null> {
+  const { data } = await supabaseAdmin.from('tenants').select('qr_payment').eq('slug', tenantSlug).maybeSingle();
+  const q = (data as { qr_payment?: { enabled?: boolean; image_url?: string; label?: string; note?: string; link_url?: string } | null } | null)?.qr_payment;
+  if (!q || !q.enabled || !q.image_url) return null;
+  return {
+    image_url: q.image_url,
+    label: (q.label ?? '').trim() || '掃碼付款',
+    note: (q.note ?? '').trim() || null,
+    link_url: (q.link_url ?? '').trim() || null,
+  };
+}
+
 export async function getShippingOptions(tenantSlug: string): Promise<ShippingOption[]> {
   const { data } = await supabaseAdmin
     .from('tenants')
@@ -157,6 +175,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   // 2026-10-15:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
   // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款,不信任前端
   const rawPayment = String(formData.get('payment_method') ?? '').trim();
+  // Phase 27:'qr' 掃碼付款(攤位有開才收,不信任前端)
   const paymentMethod =
     rawPayment === 'line_pay'
       ? 'line_pay'
@@ -164,7 +183,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
         ? 'ecpay_credit'
         : rawPayment === 'ecpay_atm' && (await isEcpayAtmAvailable(tenantSlug))
           ? 'ecpay_atm'
-          : 'bank';
+          : rawPayment === 'qr' && (await getQrPaymentPublic(tenantSlug))
+            ? 'qr'
+            : 'bank';
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
 
