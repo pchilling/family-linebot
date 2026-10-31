@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
-import { planBadge } from '@/lib/admin-theme';
+import { planBadge, planLabel } from '@/lib/admin-theme';
 import { Badge } from '@/lib/ui';
 import { IconCheck, IconInfo } from '@/lib/icons';
 import { PanelTitle } from '../settings-ui';
@@ -58,7 +58,7 @@ export default async function AboutSettingsPage({ params }: { params: Promise<{ 
         <dd className="sx-mono">{t.slug}</dd>
         <dt>方案</dt>
         <dd>
-          <span style={planBadge(t.plan)}>{t.plan}</span>
+          <span style={planBadge(t.plan)}>{planLabel(t.plan)}</span>
         </dd>
         <dt>狀態</dt>
         <dd>
@@ -95,7 +95,7 @@ export default async function AboutSettingsPage({ params }: { params: Promise<{ 
 
       <div className="sx-callout">
         <IconInfo size={16} />
-        <span>想升級方案、開 LINE Bot 或 LIFF、換攤位代號,請直接聯繫 NEOP。成員與權限在左側「成員」管理。</span>
+        <span>想升級方案、開 LINE Bot 或 LIFF、換攤位代號,請直接聯繫 NEOP。誰能登後台在左側「管理員」設定。</span>
       </div>
     </div>
   );

@@ -76,7 +76,7 @@ export default async function ReviewsAdminPage({ params, searchParams }: Props) 
       />
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>商品評價</h1>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>評價</h1>
           <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
             顯示中 {visibleCount ?? 0} 則 · 隱藏 {hiddenCount ?? 0} 則{avg !== null && <> · 平均 {avg.toFixed(1)} 星</>}
           </div>

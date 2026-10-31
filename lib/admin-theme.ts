@@ -187,6 +187,11 @@ export function planBadge(plan: string): React.CSSProperties {
   };
 }
 
+/** 方案代號 → 中文(2026-11-01;以前直接顯示 pro / free) */
+export function planLabel(plan: string): string {
+  return ({ free: '免費版', pro: '專業版', enterprise: '企業版' } as Record<string, string>)[plan] ?? plan;
+}
+
 // Sidebar 尺寸
 export const sidebarWidth = 248;
 export const contentMaxWidth = 1120;

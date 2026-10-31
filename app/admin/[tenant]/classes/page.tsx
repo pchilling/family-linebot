@@ -4,6 +4,7 @@ import { createClass, deleteClass, updateClass } from '../../actions';
 import { ProductImageUploader } from '../products/image-uploader';
 import { SubmitButton } from '../../_components/submit-button';
 import { UploadImageField } from '../../_components/upload-image-field';
+import { IconAlert, IconCalendar, IconCheck, IconClock, IconPin, IconUser } from '@/lib/icons';
 
 type Region = { id: string; name: string };
 type ClassRow = {
@@ -219,12 +220,12 @@ details[open] .chev { transform: rotate(90deg); }
             animation: 'fadein 0.25s ease',
           }}
         >
-          ✓ 已儲存活動
+          <IconCheck size={14} /> 已儲存活動
         </div>
       )}
 
       <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600 }}>{tenant.name} · 活動管理</h1>
+        <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600 }}>活動</h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: c.textMuted }}>
           共 {classes.length} 個活動 · 今天 {today.length} · 未來 {upcoming.length} · 已結束 {past.length}
         </p>
@@ -242,7 +243,7 @@ details[open] .chev { transform: rotate(90deg); }
             marginBottom: 16,
           }}
         >
-          ⚠️ 此攤位沒有地點(regions),新增活動前要先 DB 加 regions 資料
+          <IconAlert size={14} /> 這個攤位還沒有上課地點,請先請 NEOP 加地點資料,再新增活動。
         </div>
       )}
 
@@ -284,15 +285,15 @@ details[open] .chev { transform: rotate(90deg); }
               收費課程
             </label>
             <label style={{ ...label, gridColumn: '1 / -1' }}>
-              <span style={labelText}>課程介紹(可換行 / 加 emoji)</span>
+              <span style={labelText}>課程介紹(可換行)</span>
               <textarea
                 name="description"
                 rows={4}
                 style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
-                placeholder={'例:\n🌿 帶你認識芳療基礎,從精油功效到日常應用\n📌 適合:芳療新手 / 想學自我保健\n⏱ 時長 90 分鐘,現場提供精油試聞\n📍 名額限 12 人,先報先得'}
+                placeholder={'例:\n帶你認識芳療基礎,從精油功效到日常應用\n適合:芳療新手、想學自我保健\n時長 90 分鐘,現場提供精油試聞\n名額限 12 人,先報先得'}
               />
               <span style={{ fontSize: 11, color: c.textMuted, marginTop: 4, display: 'block' }}>
-                Rich Menu「📅 本月課程」+ LIFF 報名頁都會顯示這段。建議用換行 + emoji 讓視覺更生動,150 字以內。
+                LINE 選單「本月課程」和報名頁都會顯示這段。一行一點,150 字以內。
               </span>
             </label>
             {/* 2026-09-08:建立時就能傳活動圖(原本要先建立才能傳) */}
@@ -314,7 +315,10 @@ details[open] .chev { transform: rotate(90deg); }
       {/* Today */}
       {today.length > 0 && (
         <section style={{ marginBottom: 24 }}>
-          <div style={sectionTitle}>🔴 今天進行</div>
+          <div style={sectionTitle}>
+            <span aria-hidden style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: c.danger, marginRight: 6, verticalAlign: 'middle' }} />
+            今天進行
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {today.map((cls) => (
               <ClassCard key={cls.id} cls={cls} tenant={tenant} regions={regions} stats={stats.get(cls.id)} savedId={savedId} accent="today" />
@@ -352,7 +356,7 @@ details[open] .chev { transform: rotate(90deg); }
 
       {classes.length === 0 && (
         <div style={{ textAlign: 'center', padding: '4rem 1.5rem', background: c.card, border: `1px solid ${c.border}`, borderRadius: 12 }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>📅</div>
+          <div style={{ marginBottom: 10, color: c.textDisabled }}><IconCalendar size={40} /></div>
           <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500 }}>還沒有活動</p>
           <p style={{ margin: 0, fontSize: 12, color: c.textMuted }}>點上方「+ 新增活動」開始</p>
         </div>
@@ -455,20 +459,20 @@ function ClassCard({
             )}
           </div>
           <div style={{ fontSize: 12, color: c.textMuted, marginBottom: 4 }}>
-            🕒 {dt.time}
-            {cls.regions?.name && <> · 📍 {cls.regions.name}</>}
-            {cls.instructor && <> · 👤 {cls.instructor}</>}
+            <IconClock size={12} /> {dt.time}
+            {cls.regions?.name && <> · <IconPin size={12} /> {cls.regions.name}</>}
+            {cls.instructor && <> · <IconUser size={12} /> {cls.instructor}</>}
           </div>
           {/* 報名 / 簽到 stats */}
           <div style={{ display: 'flex', gap: 10, fontSize: 11, flexWrap: 'wrap' }}>
             <span style={{ color: isFull ? c.danger : c.success, fontWeight: 600 }}>
-              📝 報名 {confirmed}{cap !== null && <>/{cap}</>}
+              報名 {confirmed}{cap !== null && <>/{cap}</>}
             </span>
             {waitlist > 0 && (
-              <span style={{ color: c.warning, fontWeight: 600 }}>⏳ 候補 {waitlist}</span>
+              <span style={{ color: c.warning, fontWeight: 600 }}>候補 {waitlist}</span>
             )}
-            <span style={{ color: c.info, fontWeight: 600 }}>✓ 簽到 {attended}</span>
-            {isFull && <span style={{ color: c.danger, fontWeight: 600 }}>🔴 已滿</span>}
+            <span style={{ color: c.info, fontWeight: 600 }}><IconCheck size={12} /> 簽到 {attended}</span>
+            {isFull && <span style={{ color: c.danger, fontWeight: 600 }}>已滿</span>}
           </div>
         </div>
 
@@ -489,7 +493,7 @@ function ClassCard({
             flexShrink: 0,
           }}
         >
-          📱 QR
+          簽到 QR
         </a>
       </summary>
 
@@ -528,16 +532,16 @@ function ClassCard({
             收費
           </label>
           <label style={{ ...label, gridColumn: '1 / -1' }}>
-            <span style={labelText}>課程介紹(可換行 / 加 emoji,顯示在 Rich Menu「📅 本月課程」+ LIFF)</span>
+            <span style={labelText}>課程介紹(可換行,顯示在 LINE 選單「本月課程」和報名頁)</span>
             <textarea
               name="description"
               defaultValue={cls.description ?? ''}
               rows={5}
               style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
-              placeholder={'例:\n🌿 帶你認識芳療基礎\n📌 適合芳療新手\n⏱ 時長 90 分鐘\n📍 名額限 12 人'}
+              placeholder={'例:\n帶你認識芳療基礎\n適合芳療新手\n時長 90 分鐘\n名額限 12 人'}
             />
             <span style={{ fontSize: 11, color: c.textMuted, marginTop: 4, display: 'block' }}>
-              建議:emoji icon 開頭 + 1 行 1 點。150 字以內(超過會截斷)
+              一行一點,150 字以內,超過會截斷。
             </span>
           </label>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -554,7 +558,7 @@ function ClassCard({
                 fontWeight: 500,
               }}
             >
-              看出席紀錄 →
+              看出席紀錄
             </a>
             <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
           </div>

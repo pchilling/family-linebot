@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { MarkReadOnMount } from './mark-read-client';
+import { IconSearch } from '@/lib/icons';
 
 type MessageRow = {
   id: string;
@@ -174,7 +175,7 @@ details[open] .chevron { transform: rotate(90deg); }
       />
 
       <h1 style={{ fontSize: 22, marginBottom: 6 }}>
-        {tenant.name} · 客戶訊息{' '}
+        訊息{' '}
         <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>
           ({groups.length} 位用戶, {messages.length} 則
           {messages.length >= 200 ? '+,只顯示最近 200' : ''})
@@ -250,7 +251,7 @@ details[open] .chevron { transform: rotate(90deg); }
           }}
         >
           <span style={{ fontSize: 11, color: '#71717a' }}>▶</span>
-          🔍 篩選 / 搜尋
+          <IconSearch size={14} /> 篩選 / 搜尋
           {hasAnyFilter && (
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#0070f3', fontWeight: 500 }}>
               · 條件啟用中
@@ -313,7 +314,7 @@ details[open] .chevron { transform: rotate(90deg); }
 
       {groups.length === 0 && (
         <p style={{ color: '#71717a', padding: 32, textAlign: 'center', fontSize: 14 }}>
-          {hasAnyFilter ? '(條件下無訊息)' : '(尚無客戶訊息)'}
+          {hasAnyFilter ? '(條件下無訊息)' : '(尚無訊息)'}
         </p>
       )}
 

@@ -105,7 +105,7 @@ export function NewsImageField({
               onClick={() => { setUrl(''); setRatio(''); }}
               style={{ padding: '5px 10px', background: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 4, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              ✕ 移除圖片
+              移除圖片
             </button>
           </div>
         </div>
@@ -124,7 +124,7 @@ export function NewsImageField({
             width: 'fit-content',
           }}
         >
-          {uploading ? '上傳中…' : '⬆ 上傳圖片(選填,≤ 5MB,任意比例)'}
+          {uploading ? '上傳中…' : '上傳圖片(選填,5MB 以內,任意比例)'}
           <input
             type="file"
             accept="image/*"
@@ -138,7 +138,7 @@ export function NewsImageField({
           />
         </label>
       )}
-      {err && <span style={{ fontSize: 11, color: '#dc2626' }}>⚠️ {err}</span>}
+      {err && <span style={{ fontSize: 11, color: '#dc2626' }}>{err}</span>}
     </div>
   );
 }

@@ -144,7 +144,7 @@ export function SortBoard({
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           }}
         >
-          {saveState === 'saving' ? '儲存中…' : saveState === 'saved' ? '✓ 已儲存' : '儲存失敗,請再拖一次'}
+          {saveState === 'saving' ? '儲存中…' : saveState === 'saved' ? '已儲存' : '儲存失敗,請再拖一次'}
         </div>
       )}
 

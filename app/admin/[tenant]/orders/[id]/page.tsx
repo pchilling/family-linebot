@@ -4,6 +4,7 @@ import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { updateOrder, markOrderPaid, markOrderShipped, refundEcpayOrder, refundLinePayOrder } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
+import { IconCheck, IconMessage, IconPrinter, IconReceipt, IconWallet } from '@/lib/icons';
 
 type OrderItem = {
   id: string;
@@ -161,7 +162,7 @@ export default async function OrderDetailPage({
           rel="noopener"
           style={{ marginLeft: 'auto', padding: '6px 14px', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
         >
-          🖨 列印出貨單(A4)
+          <IconPrinter size={14} /> 列印出貨單(A4)
         </a>
       </h1>
       <p style={{ color: '#666', fontSize: 13, marginBottom: o.invoice_tax_id ? 8 : 24 }}>
@@ -170,7 +171,7 @@ export default async function OrderDetailPage({
       {/* Phase 15.4:客人要求開統編發票 → 醒目提示 */}
       {o.invoice_tax_id && (
         <div style={{ marginBottom: 24, padding: '8px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
-          🧾 需開發票 — 統編 <span style={{ fontFamily: 'ui-monospace, monospace' }}>{o.invoice_tax_id}</span>
+          <IconReceipt size={14} /> 需開發票 — 統編 <span style={{ fontFamily: 'ui-monospace, monospace' }}>{o.invoice_tax_id}</span>
           {o.invoice_title && <> · 抬頭「{o.invoice_title}」</>}
         </div>
       )}
@@ -272,13 +273,13 @@ export default async function OrderDetailPage({
       >
         {!isPaid ? (
           <>
-            <h2 style={{ fontSize: 15, marginBottom: 4, color: '#92400e' }}>💰 確認收款</h2>
+            <h2 style={{ fontSize: 15, marginBottom: 4, color: '#92400e' }}><IconWallet size={15} /> 確認收款</h2>
             {/* D#14:客人在訂單頁自助回報的後五碼直接帶入 */}
             {o.payment_reported_at && (
               <div style={{ padding: '8px 12px', background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 6, fontSize: 13, color: '#92400e', marginBottom: 10, fontWeight: 600 }}>
                 {o.payment_method === 'qr'
-                  ? <>💬 客人已回報掃碼付款({formatTw(o.payment_reported_at)}){o.payment_note ? <>,備註「{o.payment_note}」</> : null},到收款 App 核對入帳後按下方確認。</>
-                  : <>💬 客人已回報後 5 碼「{o.payment_last5}」({formatTw(o.payment_reported_at)}),核對入帳後按下方確認。</>}
+                  ? <><IconMessage size={13} /> 客人已回報掃碼付款({formatTw(o.payment_reported_at)}){o.payment_note ? <>,備註「{o.payment_note}」</> : null},到收款 App 核對入帳後按下方確認。</>
+                  : <><IconMessage size={13} /> 客人已回報後 5 碼「{o.payment_last5}」({formatTw(o.payment_reported_at)}),核對入帳後按下方確認。</>}
               </div>
             )}
             <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 14px', lineHeight: 1.6 }}>
@@ -313,13 +314,13 @@ export default async function OrderDetailPage({
                   <option value="qr">掃碼付款</option>
                 </select>
               </label>
-              <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已收款」?">✓ 確認已收款</SubmitButton>
+              <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已收款」?">確認已收款</SubmitButton>
             </form>
           </>
         ) : (
           <>
             <h2 style={{ fontSize: 15, marginBottom: 8, color: '#15803d' }}>
-              ✓ 已收款
+              <IconCheck size={15} /> 已收款
               {o.payment_last5 && (
                 <code style={{ marginLeft: 10, padding: '2px 8px', background: '#fff', border: '1px solid #bbf7d0', borderRadius: 4, fontSize: 13, fontFamily: 'ui-monospace, monospace' }}>
                   後 5 碼: {o.payment_last5}

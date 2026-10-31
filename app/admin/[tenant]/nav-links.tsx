@@ -102,11 +102,11 @@ export function NavLinks({
       : []),
     {
       key: 'messages',
-      label: '客戶訊息',
+      label: '訊息',
       href: `/admin/${tenantSlug}/messages`,
       badge: unreadMessages,
     },
-    { key: 'members', label: '成員', href: `/admin/${tenantSlug}/members` },
+    { key: 'members', label: '管理員', href: `/admin/${tenantSlug}/members` },
     { key: 'settings', label: '設定', href: `/admin/${tenantSlug}/settings` },
   ];
 

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { markOrderPaid, markOrderShipped } from '../../actions';
 import { ConfirmButton } from '../../_components/confirm-button';
+import { IconCheck, IconMessage, IconPackage, IconSearch } from '@/lib/icons';
 
 type OrderRow = {
   id: string;
@@ -131,11 +132,11 @@ export default async function OrdersListPage({
             marginBottom: 14,
           }}
         >
-          ✓ 已更新訂單狀態
+          <IconCheck size={14} /> 已更新訂單狀態
         </div>
       )}
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>
-        {tenant.name} · 訂單管理{' '}
+        訂單{' '}
         <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>
           ({orders.length}
           {orders.length >= 200 ? '+,只顯示最近 200 筆' : ''})
@@ -167,7 +168,7 @@ export default async function OrdersListPage({
           }}
         >
           <span style={{ fontSize: 11, color: '#71717a' }}>▶</span>
-          🔍 篩選 / 搜尋
+          <IconSearch size={14} /> 篩選 / 搜尋
           {hasAnyFilter && (
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#0070f3', fontWeight: 500 }}>
               · 條件啟用中
@@ -363,7 +364,7 @@ export default async function OrdersListPage({
                   {o.payment_status === 'pending' && o.payment_reported_at && (
                     <div style={{ marginTop: 3 }}>
                       <span style={{ display: 'inline-block', padding: '1px 7px', background: '#fef3c7', color: '#92400e', borderRadius: 3, fontSize: 11, fontWeight: 700 }}>
-                        💬 {o.payment_method === 'qr' ? '已回報掃碼付款' : `回報 ${o.payment_last5}`}
+                        <IconMessage size={11} /> {o.payment_method === 'qr' ? '已回報掃碼付款' : `回報 ${o.payment_last5}`}
                       </span>
                     </div>
                   )}
@@ -432,7 +433,7 @@ function QuickAction({
         <input type="hidden" name="tenant_slug" value={tenantSlug} />
         <input type="hidden" name="return_to" value="list" />
         <ConfirmButton bg="#16a34a" confirmText={`確定把訂單 ${order.order_no} 標記為「已收款」?`}>
-          ✓ 已收款
+          <IconCheck size={13} /> 已收款
         </ConfirmButton>
         {linkBtn}
       </form>
@@ -448,7 +449,7 @@ function QuickAction({
         <input type="hidden" name="tenant_slug" value={tenantSlug} />
         <input type="hidden" name="return_to" value="list" />
         <ConfirmButton bg="#0070f3" confirmText={`確定把訂單 ${order.order_no} 標記為「${isPickup ? '已備貨(待自取)' : '已出貨'}」?`}>
-          📦 {isPickup ? '已備貨' : '已出貨'}
+          <IconPackage size={13} /> {isPickup ? '已備貨' : '已出貨'}
         </ConfirmButton>
         {linkBtn}
       </form>

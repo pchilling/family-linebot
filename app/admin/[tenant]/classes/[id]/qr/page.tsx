@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { IconPin } from '@/lib/icons';
 
 type ClassDetail = {
   id: string;
@@ -114,7 +115,7 @@ export default async function ClassQrPage({
 
         {c.regions?.name && (
           <p style={{ margin: '0 0 28px', fontSize: 14, color: '#71717a' }}>
-            📍 {c.regions.name}
+            <IconPin size={14} /> {c.regions.name}
             {c.instructor && <span style={{ marginLeft: 12 }}>· 講師 {c.instructor}</span>}
           </p>
         )}

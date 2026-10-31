@@ -4,6 +4,7 @@ import { createNews, deleteNews, pushNews, updateNews } from './actions';
 import { NewsImageField } from './image-field';
 import { ZoneFields } from './zone-fields';
 import { SubmitButton } from '../../_components/submit-button';
+import { IconCheck } from '@/lib/icons';
 
 type NewsRow = {
   id: string;
@@ -83,7 +84,7 @@ export default async function NewsPage({
 
   return (
     <main style={{ padding: 24, maxWidth: 820, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 6 }}>{tenant.name} · 最新消息</h1>
+      <h1 style={{ fontSize: 22, marginBottom: 6 }}>最新消息</h1>
       {savedId && (
         <div
           style={{
@@ -97,7 +98,7 @@ export default async function NewsPage({
             marginBottom: 12,
           }}
         >
-          ✓ 已儲存
+          <IconCheck size={14} /> 已儲存
         </div>
       )}
       <div
@@ -114,11 +115,11 @@ export default async function NewsPage({
       >
         <strong>運作方式:公告板 + 可選推播。</strong>
         <br />
-        已發佈的消息會在用戶點選單「📰 最新消息」時顯示(最近 5 則)。
-        勾「同步推播」或按消息上的「📣 推播」才會主動發給所有好友——
+        已發佈的消息會在用戶點選單「最新消息」時顯示(最近 5 則)。
+        勾「同步推播」或按消息上的「推播」才會主動發給所有好友——
         <strong>每次推播吃 LINE 免費額度(好友數 × 1 則,每月 500 則)</strong>,請斟酌使用。
         <br />
-        📐 <strong>公告一律建議做成圖卡:直式 3:4(如 1080×1440),詳細內容放連結。</strong>
+        <strong>公告一律建議做成圖卡:直式 3:4(如 1080×1440),詳細內容放連結。</strong>
         輪播卡片強制等高,比例統一才不會有卡片下方補白;沒圖的會退回文字卡。
       </div>
 
@@ -141,7 +142,7 @@ export default async function NewsPage({
             />
           </label>
           <label style={label}>
-            🔗 連結 URL(選填;有圖時點圖開此連結,沒圖時 Flex 多一顆「開啟連結」button)
+            連結(選填;有圖時點圖開這個連結,沒圖時卡片多一顆「開啟連結」按鈕)
             <input
               name="link_url"
               type="url"
@@ -151,11 +152,11 @@ export default async function NewsPage({
           </label>
           {/* Phase 16 v3(2026-09-12):按鈕功能收掉,只留海報熱區(即時分區示意圖) */}
           <div style={label}>
-            🎯 海報熱區(選填):海報上不同商品各給一條連結,客人<strong>點圖上那一區就直接開那條連結</strong>,卡片是乾淨海報。
+            海報熱區(選填):海報上不同商品各給一條連結,客人<strong>點圖上那一區就直接開那條連結</strong>,卡片是乾淨海報。
             <ZoneFields />
           </div>
           <div style={label}>
-            🖼 圖片(選填;有圖 → 整張圖卡,像海報)
+            圖片(選填;有圖就是整張圖卡,像海報)
             <NewsImageField tenantSlug={tenant.slug} />
           </div>
           <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8, color: '#18181b', fontSize: 13 }}>
@@ -164,7 +165,7 @@ export default async function NewsPage({
           </label>
           <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontSize: 13 }}>
             <input name="push" type="checkbox" />
-            📣 發布後同步推播給所有好友(吃 LINE 免費額度,需同時勾上面的公開)
+            發布後同步推播給所有好友(吃 LINE 免費額度,需同時勾上面的公開)
           </label>
           <div>
             <SubmitButton size="sm" pendingText="新增中…">新增</SubmitButton>
@@ -181,7 +182,7 @@ export default async function NewsPage({
           <>
             {/* 已發佈 — 全展開 */}
             <h2 style={{ fontSize: 16, marginBottom: 12, marginTop: 32, color: '#16a34a' }}>
-              ✓ 已發佈 ({published.length})
+              已發佈({published.length})
             </h2>
             {published.length === 0 && (
               <p style={{ color: '#71717a', fontSize: 13, marginBottom: 16 }}>(尚無已發佈消息)</p>
@@ -192,7 +193,7 @@ export default async function NewsPage({
             {draft.length > 0 && (
               <details style={{ marginTop: 24, marginBottom: 8 }}>
                 <summary style={{ fontSize: 14, color: '#52525b', cursor: 'pointer', padding: '8px 0', fontWeight: 500 }}>
-                  📝 草稿 ({draft.length}) — 點開展開
+                  草稿({draft.length})
                 </summary>
                 <div style={{ marginTop: 12 }}>
                   {draft.map((n) => renderNewsCard(n, tenant.slug, savedId))}
@@ -204,7 +205,7 @@ export default async function NewsPage({
             {archived.length > 0 && (
               <details style={{ marginTop: 8 }}>
                 <summary style={{ fontSize: 14, color: '#71717a', cursor: 'pointer', padding: '8px 0', fontWeight: 500 }}>
-                  🗄 已下架 ({archived.length}) — 點開展開
+                  已下架({archived.length})
                 </summary>
                 <div style={{ marginTop: 12 }}>
                   {archived.map((n) => renderNewsCard(n, tenant.slug, savedId))}
@@ -269,7 +270,7 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
               />
             </label>
             <label style={label}>
-              🔗 連結 URL(選填)
+              連結(選填)
               <input
                 name="link_url"
                 type="url"
@@ -280,11 +281,11 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
             </label>
             {/* Phase 16 v3(2026-09-12):按鈕功能收掉,只留海報熱區 */}
             <div style={label}>
-              🎯 海報熱區(選填):點圖上那一區直接開那條連結
+              海報熱區(選填):點圖上那一區直接開那條連結
               <ZoneFields defaults={zoneUrls} />
             </div>
             <div style={label}>
-              🖼 圖片(選填;有圖 → 整張圖卡,照原始比例顯示)
+              圖片(選填;有圖就是整張圖卡,照原始比例顯示)
               <NewsImageField tenantSlug={slug} defaultUrl={n.image_url} defaultRatio={n.image_ratio} />
             </div>
             <label style={label}>
@@ -311,7 +312,7 @@ function renderNewsCard(n: NewsRow, slug: string, savedId: string | undefined) {
                 pendingText="推播中…"
                 confirmText="確定把這則消息推播給「所有」LINE 好友?會吃免費額度(好友數 × 1 則)。"
               >
-                📣 推播這則給所有好友
+                推播這則給所有好友
               </SubmitButton>
             </form>
           )}

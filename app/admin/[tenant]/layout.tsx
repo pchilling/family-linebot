@@ -10,6 +10,7 @@ import {
   fontSize,
   fontWeight,
   planBadge,
+  planLabel,
   radius,
   sectionLabel,
   sidebarWidth,
@@ -359,7 +360,7 @@ button:disabled { cursor: progress; }
                   flexWrap: 'wrap',
                 }}
               >
-                <span style={planBadge(tenant.plan)}>{tenant.plan}</span>
+                <span style={planBadge(tenant.plan)}>{planLabel(tenant.plan)}</span>
               </div>
               <div
                 style={{
@@ -456,7 +457,7 @@ button:disabled { cursor: progress; }
                   >
                     {t.name}
                   </span>
-                  <span style={planBadge(t.plan)}>{t.plan}</span>
+                  <span style={planBadge(t.plan)}>{planLabel(t.plan)}</span>
                 </Link>
               ))}
             </div>
@@ -510,7 +511,7 @@ button:disabled { cursor: progress; }
                 transition: 'color 100ms',
               }}
             >
-              <span>📋 申請審核</span>
+              <span>申請審核</span>
               {pendingApps > 0 && (
                 <span
                   style={{
@@ -627,9 +628,9 @@ button:disabled { cursor: progress; }
               lineHeight: 1.6,
             }}
           >
-            <strong>⏳ 申請審核中</strong>
+            <strong>申請審核中</strong>
             <br />
-            你可以先設定後台(商品 / 活動 / 設定),但**公開頁面尚未對客戶開啟**。
+            你可以先設定後台(商品 / 活動 / 設定),但<strong>公開頁面尚未對客戶開啟</strong>。
             審核通過(平台會用你登記的手機聯繫)後,LINE Bot 與商店連結才會正常運作。
           </div>
         )}
@@ -646,7 +647,7 @@ button:disabled { cursor: progress; }
               lineHeight: 1.6,
             }}
           >
-            <strong>❌ 申請未通過</strong>
+            <strong>申請未通過</strong>
             <br />
             若需重新申請或了解原因,請聯繫平台管理員。
           </div>

@@ -179,7 +179,7 @@ export default async function LoginPage({
               lineHeight: 1.6,
             }}
           >
-            ✓ <strong>確認信已寄到 {sentEmail}</strong>
+            <strong>確認信已寄到 {sentEmail}</strong>
             <br />
             請點信中連結完成驗證後即可登入。
           </div>

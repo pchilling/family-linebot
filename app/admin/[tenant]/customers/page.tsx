@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { IconSearch } from '@/lib/icons';
 
 type UserRow = {
   id: string;
@@ -131,7 +132,7 @@ export default async function CustomersPage({
   return (
     <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>
-        {tenant.name} · 客戶名單{' '}
+        客戶{' '}
         <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>
           ({customers.length}
           {allCustomers.length >= 300 ? '+,只顯示最近 300 筆' : ''})
@@ -163,7 +164,7 @@ export default async function CustomersPage({
           }}
         >
           <span style={{ fontSize: 11, color: '#71717a' }}>▶</span>
-          🔍 篩選 / 搜尋
+          <IconSearch size={14} /> 篩選 / 搜尋
           {hasAnyFilter && (
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#0070f3', fontWeight: 500 }}>
               · 條件啟用中

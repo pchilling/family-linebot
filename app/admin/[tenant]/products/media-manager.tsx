@@ -4,6 +4,7 @@ import { useOptimistic, useRef, useState } from 'react';
 import { addProductMedia, removeProductMedia, reorderProductMedia } from '../../actions';
 import { uploadProductMediaVideo } from './image-actions';
 import { ProductImageUploader } from './image-uploader';
+import { IconX } from '@/lib/icons';
 
 type MediaItem = { type: 'image' | 'video'; url: string };
 
@@ -165,7 +166,7 @@ export function MediaManager({
                   </span>
                   {i === 0 && (
                     <span style={{ fontSize: 10, color: '#15803d', fontWeight: 600 }}>
-                      ★ 首格(列表縮圖)
+                      首格(列表縮圖)
                     </span>
                   )}
                 </div>
@@ -272,8 +273,9 @@ export function MediaManager({
                       cursor: 'pointer',
                     }}
                     title="刪除"
+                    aria-label="刪除"
                   >
-                    ✕
+                    <IconX size={14} />
                   </button>
                 </form>
               </div>
@@ -384,7 +386,7 @@ export function MediaManager({
           </button>
         </div>
         {err && (
-          <div style={{ fontSize: 11, color: '#dc2626' }}>⚠️ {err}</div>
+          <div style={{ fontSize: 11, color: '#dc2626' }}>{err}</div>
         )}
       </div>
     </div>

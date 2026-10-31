@@ -70,8 +70,8 @@ export function CategoryOrderManager({
       ))}
       <div style={{ fontSize: 12, minHeight: 18, color: state === 'error' ? '#dc2626' : '#16a34a' }}>
         {state === 'saving' && <span style={{ color: '#71717a' }}>儲存中…</span>}
-        {state === 'saved' && '✓ 已儲存'}
-        {state === 'error' && '⚠️ 儲存失敗,請重新整理後再試'}
+        {state === 'saved' && '已儲存'}
+        {state === 'error' && '儲存失敗,請重新整理後再試'}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import ReactCrop, {
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { uploadDraftImage, uploadProductImage, uploadProductMediaImage, uploadVariantImage, uploadClassImage } from './image-actions';
+import { IconCheck } from '@/lib/icons';
 
 type Props = {
   /**
@@ -360,7 +361,7 @@ export function ProductImageUploader({
             fontWeight: 500,
           }}
         >
-          ✓ {success}
+          <IconCheck size={13} /> {success}
         </div>
       )}
     </div>

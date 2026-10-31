@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { IconMenu } from '@/lib/icons';
 
 const TOGGLE_CLASS = 'sidebar-open';
 
@@ -47,7 +48,7 @@ export function MobileToggle() {
       }}
       className="admin-mobile-hamburger"
     >
-      ☰
+      <IconMenu size={20} />
     </button>
   );
 }

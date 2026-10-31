@@ -166,7 +166,7 @@ export default async function ApplyPage({
               lineHeight: 1.5,
             }}
           >
-            ⚠️ {decodeURIComponent(err)}
+            {decodeURIComponent(err)}
           </div>
         )}
 

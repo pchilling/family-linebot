@@ -309,3 +309,79 @@ export function IconVideo({ size = 16, color = 'currentColor', style }: IconProp
     </svg>
   );
 }
+
+// ── 2026-11-01:後台全面去 emoji 用 ──
+
+export function IconAlert({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4.5" />
+      <circle cx="12" cy="16.8" r=".9" fill={color} stroke="none" />
+    </svg>
+  );
+}
+
+export function IconSearch({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </svg>
+  );
+}
+
+export function IconMenu({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </svg>
+  );
+}
+
+export function IconPin({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
+  );
+}
+
+export function IconUser({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
+    </svg>
+  );
+}
+
+export function IconLock({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <rect x="4" y="10.5" width="16" height="10.5" rx="2" />
+      <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+    </svg>
+  );
+}
+
+export function IconPrinter({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M6 9V3h12v6" />
+      <rect x="3" y="9" width="18" height="8" rx="2" />
+      <path d="M6 14h12v7H6z" />
+    </svg>
+  );
+}
+
+export function IconMessage({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2Z" />
+    </svg>
+  );
+}

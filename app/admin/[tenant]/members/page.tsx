@@ -11,10 +11,11 @@ import { inviteMember, removeMember, updateMemberRole } from './actions';
  * 但目前 code 沒任何地方真檢 role,僅作未來 RLS 預埋。
  */
 
+// 2026-11-01:角色改中文(以前直接顯示 Owner / Admin / Staff)
 const ROLE_LABEL: Record<string, { text: string; bg: string; fg: string }> = {
-  owner: { text: 'Owner', bg: '#fae8ff', fg: '#86198f' },
-  admin: { text: 'Admin', bg: '#dbeafe', fg: '#1d4ed8' },
-  staff: { text: 'Staff', bg: '#f3f4f6', fg: '#4b5563' },
+  owner: { text: '擁有者', bg: '#fae8ff', fg: '#86198f' },
+  admin: { text: '管理者', bg: '#dbeafe', fg: '#1d4ed8' },
+  staff: { text: '工作人員', bg: '#f3f4f6', fg: '#4b5563' },
 };
 
 type Row = {
@@ -65,10 +66,10 @@ export default async function MembersPage({
             letterSpacing: '-0.01em',
           }}
         >
-          成員
+          管理員
         </h1>
         <p style={{ margin: `${space['1']}px 0 0`, fontSize: fontSize.sm, color: colors.textMuted, lineHeight: 1.5 }}>
-          管理 {tenant.name} 的後台存取權限。邀請後對方需用同 email 註冊 / 登入即可進來。
+          誰能登入 {tenant.name} 的後台。邀請後對方用同一個 email 註冊或登入就能進來。
         </p>
       </header>
 
@@ -109,7 +110,7 @@ export default async function MembersPage({
             color: colors.textPrimary,
           }}
         >
-          邀請成員
+          邀請管理員
         </h2>
         <form action={inviteMember} style={{ display: 'flex', flexDirection: 'column', gap: space['4'] }}>
           <input type="hidden" name="tenant_slug" value={tenant.slug} />
@@ -147,9 +148,9 @@ export default async function MembersPage({
                 cursor: 'pointer',
               }}
             >
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
-              <option value="owner">Owner</option>
+              <option value="staff">工作人員</option>
+              <option value="admin">管理者</option>
+              <option value="owner">擁有者</option>
             </select>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -157,7 +158,7 @@ export default async function MembersPage({
           </div>
         </form>
         <p style={{ marginTop: space['3'], marginBottom: 0, fontSize: fontSize.xs, color: colors.textMuted, lineHeight: 1.6 }}>
-          ⚠️ 目前 code 沒檢查 role 等級,3 個 role 實際權限相同(預埋給未來 RLS 用)。
+          三種角色目前權限相同,之後才會分開。
         </p>
       </section>
 
@@ -180,18 +181,18 @@ export default async function MembersPage({
           }}
         >
           <h2 style={{ margin: 0, fontSize: fontSize.lg, fontWeight: 600, color: colors.textPrimary }}>
-            目前成員
+            目前管理員
           </h2>
           <span style={{ fontSize: fontSize.sm, color: colors.textMuted }}>
-            {members.length} 人 · {ownerCount} owner
+            {members.length} 人 · 擁有者 {ownerCount} 人
           </span>
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: fontSize.sm }}>
           <thead>
             <tr style={{ background: '#fafafa' }}>
-              <th style={thStyle}>Email / 顯示名</th>
-              <th style={thStyle}>Role</th>
+              <th style={thStyle}>Email / 名稱</th>
+              <th style={thStyle}>角色</th>
               <th style={thStyle}>狀態</th>
               <th style={thStyle}>加入</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>動作</th>
@@ -253,9 +254,9 @@ export default async function MembersPage({
                           cursor: isLastOwner ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        <option value="staff">Staff</option>
-                        <option value="admin">Admin</option>
-                        <option value="owner">Owner</option>
+                        <option value="staff">工作人員</option>
+                        <option value="admin">管理者</option>
+                        <option value="owner">擁有者</option>
                       </select>
                       {!isLastOwner && (
                         <button
@@ -317,7 +318,7 @@ export default async function MembersPage({
             {members.length === 0 && (
               <tr>
                 <td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: colors.textMuted, padding: space['8'] }}>
-                  尚無成員
+                  還沒有管理員
                 </td>
               </tr>
             )}

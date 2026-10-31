@@ -73,7 +73,7 @@ export function UploadImageField({
             onClick={() => setUrl('')}
             style={{ padding: '5px 10px', background: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 4, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            ✕ 移除
+            移除
           </button>
         </div>
       ) : (
@@ -91,7 +91,7 @@ export function UploadImageField({
             width: 'fit-content',
           }}
         >
-          {uploading ? '上傳中…' : '⬆ 上傳圖片(選填,≤ 5MB)'}
+          {uploading ? '上傳中…' : '上傳圖片(選填,5MB 以內)'}
           <input
             type="file"
             accept="image/*"

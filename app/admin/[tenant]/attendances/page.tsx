@@ -93,7 +93,9 @@ async function ListView({ tenantId, slug, tenantName }: { tenantId: string; slug
 
   return (
     <main style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 20 }}>{tenantName} · 出席紀錄(本週)</h1>
+      <h1 style={{ fontSize: 22, marginBottom: 20 }}>
+        出席 <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>本週</span>
+      </h1>
 
       {rows.length === 0 && (
         <p style={{ color: '#666', padding: 32, textAlign: 'center' }}>本週無課程</p>

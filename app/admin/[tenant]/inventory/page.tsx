@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { IconAlert, IconLock } from '@/lib/icons';
 
 type VariantStock = {
   id: string;
@@ -130,7 +131,7 @@ export default async function InventoryPage({
   if (tenant.plan === 'free') {
     return (
       <main style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, marginBottom: 20 }}>{tenant.name} · 庫存追蹤</h1>
+        <h1 style={{ fontSize: 22, marginBottom: 20 }}>庫存</h1>
         <div
           style={{
             padding: '3rem 1.5rem',
@@ -140,15 +141,15 @@ export default async function InventoryPage({
             textAlign: 'center',
           }}
         >
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
+          <div style={{ marginBottom: 8, color: '#b45309' }}><IconLock size={32} /></div>
           <h2 style={{ fontSize: 18, marginBottom: 12, color: '#92400e' }}>
-            庫存追蹤是 Pro / Enterprise 功能
+            庫存是專業版以上的功能
           </h2>
           <p style={{ color: '#78350f', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-            升級即可解鎖:variant 級庫存、低庫存警告、進出貨歷史。<br />
-            目前方案 <strong>Free</strong>,適合個人 / 二手 / 偶爾代購。
+            升級後可以用:每個規格的庫存、低庫存提醒、進出貨紀錄。<br />
+            目前是<strong>免費版</strong>,適合個人、二手、偶爾代購。
           </p>
-          <p style={{ color: '#9a7400', fontSize: 13 }}>需要升級請聯繫 Peter / NEO。</p>
+          <p style={{ color: '#9a7400', fontSize: 13 }}>需要升級請聯繫 NEOP。</p>
         </div>
       </main>
     );
@@ -170,11 +171,11 @@ export default async function InventoryPage({
 
   return (
     <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 20 }}>{tenant.name} · 庫存追蹤</h1>
+      <h1 style={{ fontSize: 22, marginBottom: 20 }}>庫存</h1>
 
       {lowStock.length > 0 && (
         <section style={{ ...section, padding: 16, background: '#fff8e1', border: '1px solid #ffd54f', borderRadius: 6 }}>
-          <h2 style={{ ...h2, color: '#9a7400' }}>⚠️ 低庫存警告 ({lowStock.length} 個 variant 庫存 ≤ 3)</h2>
+          <h2 style={{ ...h2, color: '#9a7400' }}><IconAlert size={15} /> 低庫存({lowStock.length} 個規格庫存 ≤ 3)</h2>
           <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
             {lowStock.map((v) => (
               <li key={v.id} style={{ marginBottom: 4 }}>

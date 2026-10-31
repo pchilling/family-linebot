@@ -117,7 +117,7 @@ export default async function ApplicationsPage() {
               color: '#d97706',
             }}
           >
-            ⏳ 待審 ({pending.length})
+            待審({pending.length})
           </h2>
           {pending.length === 0 ? (
             <p style={{ color: colors.textMuted, fontSize: fontSize.sm }}>(沒有待審申請)</p>
@@ -142,7 +142,7 @@ export default async function ApplicationsPage() {
                 color: '#991b1b',
               }}
             >
-              ❌ 已拒絕 ({rejected.length}) — 點開展開
+              已拒絕({rejected.length})
             </summary>
             <div style={{ display: 'flex', flexDirection: 'column', gap: space['4'], marginTop: space['4'] }}>
               {rejected.map((a) => (
@@ -243,7 +243,7 @@ function ApplicationCard({ a, email }: { a: ApplicationRow; email: string | unde
           <>
             <form action={approveApplication} style={{ flex: 1, minWidth: 120 }}>
               <input type="hidden" name="tenant_id" value={a.id} />
-              <SubmitButton fullWidth size="sm" pendingText="核准中…">✓ 核准</SubmitButton>
+              <SubmitButton fullWidth size="sm" pendingText="核准中…">核准</SubmitButton>
             </form>
             <details style={{ flex: 1, minWidth: 120 }}>
               <summary
@@ -260,7 +260,7 @@ function ApplicationCard({ a, email }: { a: ApplicationRow; email: string | unde
                   listStyle: 'none',
                 }}
               >
-                ✗ 拒絕
+                拒絕
               </summary>
               <form
                 action={rejectApplication}
