@@ -64,8 +64,8 @@ export function ReviewForm({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<number | null>(null);
   const alreadyReviewed = items.some((i) => i.rating);
-  // 2026-11-01 Peter:學 Google — 用 LINE 名稱、自己打暱稱、或匿名,三選一
-  const [nameMode, setNameMode] = useState<'line' | 'nick' | 'anon'>(defaultName ? 'line' : 'nick');
+  // 2026-11-01 Peter:不給匿名 — 用自己的名字(預設帶暱稱 / LINE 名稱),或另外打一個暱稱
+  const [useDefault, setUseDefault] = useState(!!defaultName);
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -119,25 +119,28 @@ export function ReviewForm({
 
       <div className="ui-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span className="ui-label" style={{ marginBottom: 0 }}>評價用什麼名字顯示</span>
-        {defaultName && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
-            <input type="radio" className="ui-radio" name="name_mode" checked={nameMode === 'line'} onChange={() => setNameMode('line')} />
-            用我的 LINE 名稱 <b>{defaultName}</b>
-          </label>
+        {defaultName ? (
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+              <input type="radio" className="ui-radio" name="name_mode" checked={useDefault} onChange={() => setUseDefault(true)} />
+              用 <b>{defaultName}</b>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+              <input type="radio" className="ui-radio" name="name_mode" checked={!useDefault} onChange={() => setUseDefault(false)} />
+              另外打一個暱稱
+            </label>
+          </>
+        ) : (
+          <span className="ui-muted" style={{ fontSize: 13 }}>打一個暱稱,會跟評價一起顯示在商品頁。</span>
         )}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
-          <input type="radio" className="ui-radio" name="name_mode" checked={nameMode === 'nick'} onChange={() => setNameMode('nick')} />
-          用暱稱
-        </label>
-        {nameMode === 'nick' && (
-          <Input name="display_name" maxLength={30} placeholder="例:小美" autoFocus style={{ marginLeft: 26, width: 'calc(100% - 26px)' }} />
+        {useDefault ? (
+          <input type="hidden" name="display_name" value={defaultName} />
+        ) : (
+          <Input name="display_name" required maxLength={30} placeholder="例:小美" autoFocus={!!defaultName} style={defaultName ? { marginLeft: 26, width: 'calc(100% - 26px)' } : undefined} />
         )}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
-          <input type="radio" className="ui-radio" name="name_mode" checked={nameMode === 'anon'} onChange={() => setNameMode('anon')} />
-          匿名<span className="ui-muted" style={{ fontSize: 12 }}>(商品頁顯示「匿名」)</span>
-        </label>
-        {nameMode !== 'nick' && <input type="hidden" name="display_name" value={nameMode === 'line' ? defaultName : ''} />}
-        <p className="ui-muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>會跟評價一起顯示在商品頁,之後修改評價時可以再改。</p>
+        <p className="ui-muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
+          想換預設的名字,到<a href={`/${slug}/account`} style={{ color: 'var(--ui-accent-ink)', fontWeight: 500 }}>我的訂單</a>改暱稱。
+        </p>
       </div>
 
       {error && (

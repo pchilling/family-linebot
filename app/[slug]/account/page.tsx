@@ -1,11 +1,33 @@
 import type { Metadata } from 'next';
+import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
 import { getCurrentMember } from '@/lib/member-auth';
 import { SIGNOUT_URL, loginHref } from '@/lib/return-to';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { Badge, ButtonLink } from '@/lib/ui';
+import { FlashToast } from '../../_components/toast';
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ saved?: string }> };
+
+/**
+ * 個人設定 → 暱稱(2026-11-01 Peter):存在 platform_users.display_name,
+ * 評價頁、頁首帳號選單都用這個名字。登入時從 LINE / Google 帶進來的名字只在空白時寫入,改過就不會被蓋掉。
+ */
+async function saveNickname(formData: FormData) {
+  'use server';
+  const slug = String(formData.get('slug') ?? '').trim();
+  const nickname = String(formData.get('nickname') ?? '').trim().slice(0, 30);
+  const member = await getCurrentMember();
+  if (!member) redirect(loginHref(slug, `/${slug}/account`));
+  if (!nickname) redirect(`/${slug}/account?saved=0`);
+  const { error } = await supabaseAdmin.from('platform_users').update({ display_name: nickname }).eq('id', member.id);
+  if (error) {
+    console.error('[saveNickname]', error);
+    redirect(`/${slug}/account?saved=0`);
+  }
+  revalidatePath(`/${slug}/account`);
+  redirect(`/${slug}/account?saved=1`);
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -45,8 +67,9 @@ const ORDER_SELECT = 'id, order_no, status, payment_status, payment_method, tota
  * 3. LINE 好友在 LIFF 下的單(orders.user_id → users.line_user_id 跟會員的 LINE 相同)
  * 連結都帶訂單存取碼,點進去就是完整訂單頁。
  */
-export default async function AccountPage({ params }: Props) {
+export default async function AccountPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const saved = (searchParams ? await searchParams : undefined)?.saved;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
   const member = await getCurrentMember();
@@ -93,6 +116,20 @@ export default async function AccountPage({ params }: Props) {
         <form action={SIGNOUT_URL} method="post">
           <input type="hidden" name="return_to" value={`/${slug}`} />
           <button type="submit" className="ui-btn ui-btn-ghost ui-btn-sm">登出</button>
+        </form>
+      </div>
+
+      {saved === '1' && <FlashToast message="已儲存暱稱" />}
+      {saved === '0' && <FlashToast tone="error" message="暱稱沒存成功,請再試一次" />}
+
+      {/* 2026-11-01:個人設定 — 暱稱(評價和頁首都用這個名字) */}
+      <div className="ui-card" style={{ padding: 18, marginBottom: 16 }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>個人設定</h2>
+        <p className="ui-muted" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6 }}>暱稱會顯示在你的評價上,不想用本名就改這裡。</p>
+        <form action={saveNickname} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input type="hidden" name="slug" value={slug} />
+          <input name="nickname" defaultValue={member.display_name ?? ''} maxLength={30} required className="ui-input" style={{ flex: '1 1 200px', maxWidth: 320 }} placeholder="例:小美" aria-label="暱稱" />
+          <button type="submit" className="ui-btn ui-btn-primary ui-btn-md">儲存</button>
         </form>
       </div>
 

@@ -16,6 +16,8 @@ export async function submitReviews(formData: FormData): Promise<SubmitReviewsRe
   const k = String(formData.get('k') ?? '').trim();
   const displayName = String(formData.get('display_name') ?? '').trim().slice(0, 30) || null;
   if (!slug || !orderNo || !k) return { ok: false, error: '缺少訂單資訊' };
+  // 2026-11-01 Peter:評價一定要有名字(自己的或暱稱),不給匿名
+  if (!displayName) return { ok: false, error: '請填評價要顯示的名字' };
 
   const tenant = await getTenantPublic(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };

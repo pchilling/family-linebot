@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin, type MediaItem } from '@/lib/supabase';
+import { getCurrentMember } from '@/lib/member-auth';
 import { ReviewForm, type ReviewItem } from './review-form';
 
 type Props = {
@@ -27,7 +28,7 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
 
   const { data } = await supabaseAdmin
     .from('orders')
-    .select('id, status, access_key, users(display_name), order_items(product_id, price_at_purchase, products(id, name, image_url, media))')
+    .select('id, status, access_key, platform_user_id, users(display_name), order_items(product_id, price_at_purchase, products(id, name, image_url, media))')
     .eq('tenant_id', tenant.id)
     .eq('order_no', order_no)
     .maybeSingle();
@@ -35,6 +36,7 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
     id: string;
     status: string;
     access_key: string | null;
+    platform_user_id: string | null;
     users: { display_name: string | null } | null;
     order_items: { product_id: string; price_at_purchase: number; products: { id: string; name: string; image_url: string | null; media: MediaItem[] | null } | null }[] | null;
   } | null;
@@ -75,7 +77,15 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
     const ex = existingByProduct.get(i.product_id);
     items.push({ productId: i.product_id, name: i.products.name, image: img, rating: ex?.rating ?? null, comment: ex?.comment ?? null });
   }
-  const defaultName = existingByProduct.values().next().value?.display_name ?? order!.users?.display_name ?? '';
+  // 預設名稱(2026-11-01 Peter:不給匿名,用自己的名字或另外打暱稱):
+  // 上次評價用的名字 → 登入會員的暱稱(個人設定)→ 下單會員的暱稱 → LINE 名稱 → 空(只能打暱稱)
+  const member = await getCurrentMember().catch(() => null);
+  let accountName: string | null = member?.display_name ?? null;
+  if (!accountName && order!.platform_user_id) {
+    const { data: pu } = await supabaseAdmin.from('platform_users').select('display_name').eq('id', order!.platform_user_id).maybeSingle();
+    accountName = (pu as { display_name: string | null } | null)?.display_name ?? null;
+  }
+  const defaultName = existingByProduct.values().next().value?.display_name ?? accountName ?? order!.users?.display_name ?? '';
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
