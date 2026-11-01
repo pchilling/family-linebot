@@ -81,7 +81,7 @@ export default async function ProductSortPage({
       <p style={{ color: '#71717a', fontSize: 13, marginBottom: 20, lineHeight: 1.7 }}>
         按住卡片直接拖到想要的位置,放開自動儲存(手機 / iPad 請<strong>長按半秒</strong>再拖)。
         只能在同一分類內移動;分類之間的先後請到「商品 → 分類顯示順序」調整。
-        特價中與有角標的商品在商城仍會優先置頂。
+        特價中與有角標的商品在商店仍會優先置頂。
       </p>
       <SortBoard tenantSlug={tenant.slug} initialGroups={groups} />
     </main>

@@ -123,7 +123,7 @@ export function BannerManager({
   return (
     <div className="sx-group">
       {optimisticBanners.length === 0 && legacyOgImageUrl && (
-        <div className="sx-callout">還沒有輪播圖,公開頁開頭暫時用下面的「連結分享預覽圖」。加了輪播圖之後就改用輪播。</div>
+        <div className="sx-callout">還沒有輪播圖,商店開頭暫時用下面的「連結分享預覽圖」。加了輪播圖之後就改用輪播。</div>
       )}
 
       <div className="sx-media">

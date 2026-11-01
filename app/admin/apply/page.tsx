@@ -127,7 +127,7 @@ export default async function ApplyPage({
           <p style={{ margin: `${space['2']}px 0 0`, color: colors.textMuted, fontSize: fontSize.base, lineHeight: 1.6 }}>
             送出後立即進入後台,可以開始建商品 / 活動。
             <br />
-            公開頁面會在審核通過後對客戶開啟。
+            商店會在審核通過後才對客人開放。
           </p>
         </header>
 

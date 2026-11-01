@@ -41,7 +41,7 @@ export default async function SettingsLayout({
               <CopyButton text={publicUrl} title="複製網址" />
             </span>
             <a className="ui-btn ui-btn-outline ui-btn-sm" href={publicUrl} target="_blank" rel="noreferrer">
-              開啟公開頁 <IconExternal size={14} />
+              開啟商店 <IconExternal size={14} />
             </a>
           </div>
         </header>

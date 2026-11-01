@@ -41,7 +41,6 @@ export function NavLinks({
   inventoryGated,
   hasActivities,
   hasNews,
-  hasLinePay,
   ordersPending,
   lowStock,
 }: Props) {
@@ -77,12 +76,11 @@ export function NavLinks({
     { key: 'dashboard', label: '總覽', href: `/admin/${tenantSlug}` },
     { key: 'products', label: '商品', href: `/admin/${tenantSlug}/products` },
     { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders`, badge: ordersPending },
+    // 2026-11-01:「LINE Pay 對帳」改成「對帳」:匯款 / 掃碼待核帳每個攤位都有,
+    // LINE Pay 撥款對帳的區塊頁面內自己依 feature 顯示
+    { key: 'linepay', label: '對帳', href: `/admin/${tenantSlug}/linepay` },
     { key: 'customers', label: '客戶', href: `/admin/${tenantSlug}/customers` },
     { key: 'reviews', label: '評價', href: `/admin/${tenantSlug}/reviews` },
-    // LINE Pay 對帳:只給有開 line_pay 的攤位
-    ...(hasLinePay
-      ? [{ key: 'linepay', label: 'LINE Pay 對帳', href: `/admin/${tenantSlug}/linepay` }]
-      : []),
     {
       key: 'inventory',
       label: '庫存',

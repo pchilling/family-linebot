@@ -167,23 +167,23 @@ button:disabled { cursor: progress; }
   .admin-content { padding: 68px 12px 32px !important; }
   .admin-content main { padding: 0 !important; max-width: 100% !important; }
 
-  /* === Tables → 卡片化(每列變一張卡)=== */
-  .admin-content table {
+  /* === 表格 → 卡片(2026-11-01 起只套用在還用 <table> 的頁面:商品列表、規格表,要自己掛 .rtable)=== */
+  .admin-content table.rtable {
     display: block;
     background: transparent;
     border: 0;
     border-collapse: separate;
     width: 100%;
   }
-  .admin-content table thead {
+  .admin-content table.rtable thead {
     display: none;  /* 隱藏標題列 */
   }
-  .admin-content table tbody {
+  .admin-content table.rtable tbody {
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
-  .admin-content table tr {
+  .admin-content table.rtable tr {
     display: block;
     background: #ffffff;
     border: 1px solid #e4e4e7;
@@ -191,7 +191,7 @@ button:disabled { cursor: progress; }
     padding: 12px 14px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
   }
-  .admin-content table td {
+  .admin-content table.rtable td {
     display: block;
     padding: 3px 0;
     border: 0;
@@ -199,50 +199,16 @@ button:disabled { cursor: progress; }
     color: #52525b;
     text-align: left !important;
   }
-  /* 第一個 cell(通常是 主鍵 / 名字)當卡片標題 */
-  .admin-content table td:first-child {
+  .admin-content table.rtable td:first-child {
     font-weight: 600;
     font-size: 15px;
     color: #18181b;
     margin-bottom: 4px;
   }
-  /* 最後 cell(通常是時間 / 動作)淡化 */
-  .admin-content table td:last-child {
+  .admin-content table.rtable td:last-child {
     font-size: 11px;
     color: #a1a1aa;
     margin-top: 4px;
-  }
-
-  /* === 所有 grid → 1 col(包山包海)=== */
-  .admin-content [style*="grid-template-columns"] {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* === Flex wrap 強化 === */
-  .admin-content form[method="GET"] {
-    flex-direction: column !important;
-    align-items: stretch !important;
-  }
-  .admin-content form[method="GET"] input,
-  .admin-content form[method="GET"] select,
-  .admin-content form[method="GET"] button {
-    flex: 1 1 100% !important;
-    width: 100% !important;
-  }
-
-  /* === 字級縮小防溢出 === */
-  .admin-content h1 { font-size: 18px !important; }
-  .admin-content h2 { font-size: 15px !important; }
-
-  /* === Section / card padding 緊湊 === */
-  .admin-content section,
-  .admin-content article {
-    padding: 14px !important;
-  }
-
-  /* === Toggle button 群組(scope tabs etc.)= 自動 wrap === */
-  .admin-content > div[style*="display: flex"][style*="gap"] {
-    flex-wrap: wrap;
   }
 
   /* === 圖縮小避免破版 === */
@@ -251,15 +217,9 @@ button:disabled { cursor: progress; }
     height: auto;
   }
 
-  /* Filter form 卡片樣式(不 sticky,跟著正常 scroll) */
-  .admin-content form[method="GET"] {
-    background: #fafafa !important;
-    border: 1px solid #e4e4e7 !important;
-    border-radius: 10px !important;
-    padding: 10px !important;
-  }
-
-  /* Dashboard 專屬規則由 dashboard page.tsx 自帶 <style> 處理,避免 catch-all 衝突 */
+  /* 2026-11-01:以前這裡還有「所有 grid 強制一欄、所有 section padding 14px、
+     所有 GET 表單直排、h1 強制 18px」的 !important catch-all;各頁換成新設計系統後
+     都自帶 RWD,已拿掉。Dashboard 專屬規則由 dashboard page.tsx 自帶 <style> 處理。 */
 }
           `,
         }}
@@ -563,7 +523,7 @@ button:disabled { cursor: progress; }
               transition: 'color 100ms',
             }}
           >
-            預覽公開頁
+            看商店
             <span
               aria-hidden
               style={{
@@ -645,7 +605,7 @@ button:disabled { cursor: progress; }
           >
             <strong>申請審核中</strong>
             <br />
-            你可以先設定後台(商品 / 活動 / 設定),但<strong>公開頁面尚未對客戶開啟</strong>。
+            你可以先設定後台(商品 / 活動 / 設定),但<strong>商店還沒對客人開放</strong>。
             審核通過(平台會用你登記的手機聯繫)後,LINE Bot 與商店連結才會正常運作。
           </div>
         )}

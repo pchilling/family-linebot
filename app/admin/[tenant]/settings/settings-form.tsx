@@ -33,21 +33,21 @@ export function BasicForm({
     <form action={formAction} className="sx-form">
       <input type="hidden" name="tenant_slug" value={tenantSlug} />
       <div className="sx-body">
-        <PanelTitle title="基本資料" desc="店名、簡介與聯絡方式。公開頁和訂單頁都會用到。" />
+        <PanelTitle title="基本資料" desc="店名、簡介與聯絡方式。商店和訂單頁都會用到。" />
 
         <div className="sx-group">
           <div className="sx-grid2">
             <Field label="店名" htmlFor="f-name">
               <Input id="f-name" name="name" defaultValue={defaults.name} required maxLength={40} placeholder="例:Cyndi 童裝代購" />
             </Field>
-            <Field label="公開網址" hint="網址不能自己改,需要改請聯繫 NEOP。">
+            <Field label="商店網址" hint="網址不能自己改,需要改請聯繫 NEOP。">
               <div className="sx-ro">
                 {publicHost}/<b>{tenantSlug}</b>
                 <CopyButton text={publicUrl} title="複製網址" />
               </div>
             </Field>
           </div>
-          <Field label="簡介" optional htmlFor="f-desc" hint="顯示在公開頁店名下方,也會當成搜尋結果和分享連結的說明。">
+          <Field label="簡介" optional htmlFor="f-desc" hint="顯示在商店店名下方,也會當成搜尋結果和分享連結的說明。">
             <Input id="f-desc" name="description" defaultValue={defaults.description} maxLength={160} placeholder="例:一瓶油,三種用法。" />
           </Field>
         </div>

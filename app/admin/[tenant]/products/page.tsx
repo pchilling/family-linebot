@@ -338,7 +338,7 @@ details[open] .chev { transform: rotate(90deg); }
           <summary style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600 }}>
             <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11 }}>▶</span>
             分類顯示順序
-            <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>商城前台的分類排法</span>
+            <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>商店的分類順序</span>
           </summary>
           <div style={{ padding: '4px 18px 16px', borderTop: `1px solid ${c.borderSubtle}` }}>
             <CategoryOrderManager tenantId={tenant.id} tenantSlug={tenant.slug} initial={orderedCats} />

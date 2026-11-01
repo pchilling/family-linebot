@@ -35,10 +35,10 @@ export default async function LookSettingsPage({ params }: { params: Promise<{ t
   return (
     <>
       <div className="sx-body sx-body-top">
-        <PanelTitle title="外觀" desc="Logo、品牌色與公開頁的圖片。圖片上傳後立即生效,不用再按儲存。" />
+        <PanelTitle title="外觀" desc="Logo、品牌色與商店的圖片。圖片上傳後立即生效,不用再按儲存。" />
 
         <div className="sx-group">
-          <GroupHead title="Logo" desc="正方形,至少 256 × 256。顯示在公開頁頂部列、後台左上角與分享預覽。" />
+          <GroupHead title="Logo" desc="正方形,至少 256 × 256。顯示在商店頂部列、後台左上角與分享預覽。" />
           <LogoUploader tenantSlug={t.slug} currentLogoUrl={t.logo_url} tenantName={t.name} />
         </div>
 
@@ -46,8 +46,8 @@ export default async function LookSettingsPage({ params }: { params: Promise<{ t
 
         <div className="sx-group">
           <GroupHead
-            title="公開頁輪播"
-            desc="建議 1200 × 900(4:3)。第一格是公開頁開頭。可上傳圖片、影片,或貼 YouTube 連結。"
+            title="商店輪播"
+            desc="建議 1200 × 900(4:3)。第一格是商店開頭。可上傳圖片、影片,或貼 YouTube 連結。"
           />
           <BannerManager tenantSlug={t.slug} banners={banners} legacyOgImageUrl={t.og_image_url} />
         </div>
@@ -57,7 +57,7 @@ export default async function LookSettingsPage({ params }: { params: Promise<{ t
         <div className="sx-group">
           <GroupHead
             title="連結分享預覽圖"
-            desc="把攤位網址貼到 LINE、FB、IG 時對方看到的縮圖。建議 1200 × 630,只能一張。"
+            desc="把商店網址貼到 LINE、FB、IG 時對方看到的縮圖。建議 1200 × 630,只能一張。"
           />
           <BannerUploader tenantSlug={t.slug} currentBannerUrl={t.og_image_url} />
         </div>

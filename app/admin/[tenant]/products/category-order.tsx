@@ -57,7 +57,7 @@ export function CategoryOrderManager({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <p style={{ fontSize: 12, color: '#71717a', margin: '10px 0 4px' }}>
-        商城(LINE 商品專區 + 公開頁)的分類 chip 順序與「全部」的分組順序照這裡排。
+        商店(LINE 商品專區和網站)的分類順序,以及「全部」裡的分組順序,都照這裡排。
         目前:<strong>{order.join(' → ')}</strong>
       </p>
       {order.map((cat, i) => (

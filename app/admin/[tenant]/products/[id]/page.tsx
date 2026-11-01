@@ -273,7 +273,7 @@ details summary::-webkit-details-marker { display: none; }
           <section style={{ ...card, padding: '18px 16px' }}>
             <h2 style={h2}>限時優惠</h2>
             <p style={{ ...sub, margin: '3px 0 14px' }}>
-              全部規格一律打折,商城卡片會自動出現折扣標。生效期間量購價暫停。折扣 % 留空 = 取消優惠。
+              全部規格一律打折,商店的商品卡會自動出現折扣標。生效期間量購價暫停。折扣 % 留空 = 取消優惠。
               {saleState && <><br /><span style={{ color: saleState.color, fontWeight: 600 }}>{saleState.text}</span></>}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px 18px' }}>

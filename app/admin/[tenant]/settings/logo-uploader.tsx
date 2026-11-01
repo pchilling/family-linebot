@@ -131,7 +131,7 @@ export function LogoUploader({ tenantSlug, currentLogoUrl, tenantName }: Props) 
   }
 
   async function handleRemove() {
-    if (!window.confirm('確定移除 Logo?公開頁與後台會改顯示店名首字。')) return;
+    if (!window.confirm('確定移除 Logo?商店與後台會改顯示店名首字。')) return;
     setBusy(true);
     setError(null);
     const r = await removeLogo(tenantSlug);

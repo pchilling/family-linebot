@@ -479,7 +479,7 @@ export default async function TenantDashboardPage({ params, searchParams }: Prop
             <Link href={`${base}/orders?payment=pending`} className="qa">待核帳訂單 <span className={`n${reported > 0 ? ' hot' : ''}`}>{reported}</span></Link>
             <Link href={`${base}/orders?status=paid`} className="qa">待出貨訂單 <span className={`n${pendShip > 0 ? ' hot' : ''}`}>{pendShip}</span></Link>
             <Link href={`${base}/inventory`} className="qa">庫存不足 <span className={`n${lowStock > 0 ? ' hot' : ''}`}>{lowStock}</span></Link>
-            {hasLinePay && <Link href={`${base}/linepay`} className="qa">LINE Pay 對帳</Link>}
+            <Link href={`${base}/linepay`} className="qa">對帳</Link>
             {hasActivities && <Link href={`${base}/classes`} className="qa">活動與簽到</Link>}
           </div>
         </div>
