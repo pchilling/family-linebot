@@ -1383,3 +1383,16 @@ alter table orders add column if not exists payment_note text;
 -- ====================
 -- {"bank_code": "808", "bank_name": "玉山銀行", "account": "1234567890123", "holder": "王小明", "note": "匯款後回訂單頁填後五碼"}
 alter table tenants add column if not exists bank_transfer jsonb;
+
+
+-- ====================
+-- Phase 27 補充(2026-11-01):RE:K 不是新攤位
+-- Peter 說的「做在 RE:K 那邊」是指原本就有的 kim 攤位(slug kim、訂單前綴 KM),
+-- 上面那段 insert 'rek' 是誤會多建的,這裡把它刪掉(有保護:有商品或訂單就不刪)。
+-- ====================
+delete from tenant_members
+  where tenant_id = (select id from tenants where slug = 'rek');
+delete from tenants
+  where slug = 'rek'
+    and id not in (select tenant_id from products where tenant_id is not null)
+    and id not in (select tenant_id from orders where tenant_id is not null);

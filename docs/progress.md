@@ -401,3 +401,9 @@ NOTIFY pgrst, 'reload schema';
 
 -- Phase 28(2026-11-01)— 匯款資訊改分欄(銀行代號 / 名稱 / 帳號 / 戶名 / 說明),payment_info 留作備用
 alter table tenants add column if not exists bank_transfer jsonb;
+
+-- Phase 27 補充(2026-11-01)— RE:K 其實是原本的 kim(KM)攤位,誤建的 rek 刪掉
+delete from tenant_members where tenant_id = (select id from tenants where slug = 'rek');
+delete from tenants where slug = 'rek'
+  and id not in (select tenant_id from products where tenant_id is not null)
+  and id not in (select tenant_id from orders where tenant_id is not null);
