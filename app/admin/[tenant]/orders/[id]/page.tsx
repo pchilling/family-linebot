@@ -4,8 +4,10 @@ import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { updateOrder, markOrderPaid, markOrderShipped, refundEcpayOrder, refundLinePayOrder } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
-import { IconCheck, IconChevronLeft, IconMessage, IconPrinter, IconReceipt, IconStore } from '@/lib/icons';
+import { IconCheck, IconChevronLeft, IconExternal, IconMessage, IconPrinter, IconReceipt, IconStore } from '@/lib/icons';
 import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
+import { siteOrigin } from '@/lib/return-to';
+import { CopyButton } from '../../../../[slug]/order/[order_no]/copy-button';
 
 /**
  * 訂單明細(2026-11-01 換成後台新設計系統:左邊明細 / 客戶 / 訂單資料,右邊收款與出貨、退款)。
@@ -59,6 +61,7 @@ type OrderDetail = {
   shipped_at: string | null;
   created_at: string;
   updated_at: string;
+  access_key: string | null; // Phase 22:訂單存取碼,客人的訂單頁 / 評價頁連結要帶
   users: {
     line_user_id: string;
     display_name: string | null;
@@ -79,7 +82,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
        invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note,
-       guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
+       guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at, access_key,
        users(line_user_id, display_name, full_name, phone),
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
     )
@@ -206,6 +209,11 @@ export default async function OrderDetailPage({
     o.payment_method && !PAY_METHODS.some((m) => m.value === o.payment_method)
       ? [...PAY_METHODS, { value: o.payment_method, label: o.payment_method }]
       : PAY_METHODS;
+  // 客人的連結(帶存取碼):訂單頁隨時能看;評價頁要出貨後才開放
+  const origin = siteOrigin();
+  const k = o.access_key ? `?k=${o.access_key}` : '';
+  const orderUrl = `${origin}/${tenant.slug}/order/${o.order_no}${k}`;
+  const reviewUrl = `${origin}/${tenant.slug}/review/${o.order_no}${k}`;
 
   return (
     <main style={{ padding: '28px 32px 48px' }}>
@@ -517,6 +525,30 @@ export default async function OrderDetailPage({
                   {o.tracking_no && <> · 單號 <span className="odd-code">{o.tracking_no}</span></>}
                 </div>
               )}
+            </div>
+
+            {/* 2026-11-01:客人的連結 — 給客人、或自己開來測;評價邀請平常是出貨 3 天後由排程 LINE 推 */}
+            <div className="odd-card">
+              <h2>客人的連結</h2>
+              <div className="odd-note" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <a href={orderUrl} target="_blank" rel="noreferrer" className="ui-btn ui-btn-outline ui-btn-xs">
+                    訂單頁 <IconExternal size={12} />
+                  </a>
+                  <CopyButton text={orderUrl} label="複製連結" />
+                </div>
+                {isShipped ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <a href={reviewUrl} target="_blank" rel="noreferrer" className="ui-btn ui-btn-outline ui-btn-xs">
+                      評價頁 <IconExternal size={12} />
+                    </a>
+                    <CopyButton text={reviewUrl} label="複製連結" />
+                  </div>
+                ) : (
+                  <span style={{ color: '#a1a1aa' }}>評價頁要標已出貨後才開放。</span>
+                )}
+                <span style={{ color: '#a1a1aa' }}>兩個連結都帶這張訂單的存取碼,有連結的人就能看到個資和評價,只傳給本人。</span>
+              </div>
             </div>
 
             {/* Phase 17(2026-10-15):LINE Pay 退款 — 半自動,要填金額 + 二次確認。
