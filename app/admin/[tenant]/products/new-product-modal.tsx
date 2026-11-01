@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createProduct } from '../../actions';
 import { SubmitButton } from '../../_components/submit-button';
 import { ProductImageUploader } from './image-uploader';
+import { IconPlus } from '@/lib/icons';
 
 const input: React.CSSProperties = {
   width: '100%', minWidth: 0, boxSizing: 'border-box', padding: '8px 10px', fontSize: 13,
@@ -48,15 +49,8 @@ export function NewProductModal({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', border: 0, borderRadius: 8,
-          background: '#18181b', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-        }}
-      >
-        <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>+</span> 新增商品
+      <button type="button" onClick={() => setOpen(true)} className="ui-btn ui-btn-primary ui-btn-sm">
+        <IconPlus size={14} /> 新增商品
       </button>
 
       {open && (

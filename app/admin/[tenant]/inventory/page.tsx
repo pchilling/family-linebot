@@ -1,6 +1,11 @@
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
-import { IconAlert, IconLock } from '@/lib/icons';
+import { IconAlert, IconDownload, IconLock } from '@/lib/icons';
+
+/**
+ * 庫存(2026-11-01 換成後台新設計系統:卡片式清單取代 <table>,篩選與排序用 chip)。
+ * 查詢、篩選、排序邏輯不變。
+ */
 
 type VariantStock = {
   id: string;
@@ -91,9 +96,11 @@ function reasonLabel(r: string): string {
   }[r]) ?? r;
 }
 
-function statusLabel(s: string): string {
-  return ({ active: '上架', inactive: '暫停', discontinued: '下架' }[s]) ?? s;
-}
+const VSTATUS: Record<string, { label: string; cls: string }> = {
+  active: { label: '上架', cls: 'iv-on' },
+  inactive: { label: '暫停', cls: 'iv-off' },
+  discontinued: { label: '下架', cls: 'iv-off' },
+};
 
 function formatTw(iso: string): string {
   return new Date(iso).toLocaleString('zh-TW', {
@@ -106,10 +113,54 @@ function formatTw(iso: string): string {
   });
 }
 
-const section: React.CSSProperties = { marginBottom: 32 };
-const h2: React.CSSProperties = { fontSize: 16, marginBottom: 12 };
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontWeight: 600, fontSize: 13, color: '#444' };
-const td: React.CSSProperties = { padding: '12px 8px', verticalAlign: 'middle', fontSize: 14 };
+const CSS = `
+.iv-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.iv-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.iv-head p{margin:4px 0 0;font-size:13px;color:#71717a}
+.iv-card{background:#fff;border:1px solid #e4e4e7;border-radius:12px;margin-bottom:16px;overflow:hidden}
+.iv-card h2{margin:0;padding:14px 16px;font-size:14px;font-weight:600;border-bottom:1px solid #f4f4f5;display:flex;align-items:center;gap:8px}
+.iv-card h2 .n{font-weight:400;color:#71717a;font-size:13px}
+.iv-low{border-color:#fde68a;background:#fffbeb}
+.iv-low h2{color:#92400e;border-bottom-color:#fde68a}
+.iv-low ul{margin:0;padding:10px 16px 12px 34px;font-size:13.5px;line-height:1.8;color:#78350f}
+.iv-low b{color:#b91c1c}
+.iv-filter{display:flex;flex-direction:column;gap:10px;padding:10px 12px;background:#fff;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:14px}
+.iv-filter form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.iv-filter .q{flex:1 1 200px;max-width:340px}
+.iv-chips{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.iv-chips .lb{font-size:11.5px;color:#a1a1aa;font-weight:500;margin-right:2px}
+.iv-chip{display:inline-flex;align-items:center;height:30px;padding:0 13px;border:1px solid #e4e4e7;border-radius:999px;font-size:12.5px;color:#52525b;background:#fff;text-decoration:none;user-select:none;touch-action:manipulation}
+.iv-chip:hover{background:#fafafa}
+.iv-chip[data-on="true"]{background:#18181b;border-color:#18181b;color:#fff;font-weight:600}
+.iv-row{display:grid;grid-template-columns:1.6fr 150px 120px 110px 80px 90px;gap:12px;align-items:center;padding:11px 16px;border-top:1px solid #f4f4f5;font-size:13.5px}
+.iv-row:first-of-type{border-top:0}
+.iv-row.head{background:#fafafa;font-size:11.5px;color:#71717a;font-weight:500;padding:8px 16px;border-top:0}
+.iv-row .r{text-align:right;font-variant-numeric:tabular-nums}
+.iv-row .muted{color:#71717a;font-size:13px}
+.iv-row .mono{font-family:var(--font-geist-mono),ui-monospace,Menlo,monospace;font-size:12.5px;color:#71717a}
+.iv-row .name{font-weight:500;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.iv-stock{font-weight:700}
+.iv-stock.low{color:#b91c1c}.iv-stock.zero{color:#a1a1aa}
+.iv-on{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.iv-off{background:#f4f4f5;color:#71717a;border-color:transparent}
+.iv-mv{grid-template-columns:120px 1.6fr 90px 110px 1fr}
+.iv-delta{font-weight:700;font-variant-numeric:tabular-nums}
+.iv-delta.up{color:#15803d}.iv-delta.down{color:#b91c1c}
+.iv-empty{padding:28px 16px;text-align:center;color:#71717a;font-size:13.5px}
+@media (max-width:767px){
+  .iv-head{align-items:flex-start;flex-direction:column}
+  .iv-card{border-radius:10px}
+  .iv-row{grid-template-columns:1fr auto;gap:4px 12px;padding:12px 14px}
+  .iv-row.head{display:none}
+  .iv-row > .c-sku,.iv-row > .c-cat{display:none}
+  .iv-row > .c-price{grid-column:1;text-align:left}
+  .iv-row > .c-stock{grid-column:2;grid-row:1}
+  .iv-row > .c-st{grid-column:2;text-align:right}
+  .iv-mv{grid-template-columns:1fr auto}
+  .iv-mv > .c-time{grid-column:1/-1}
+  .iv-mv > .c-note{grid-column:1/-1}
+}
+`;
 
 export default async function InventoryPage({
   params,
@@ -130,26 +181,23 @@ export default async function InventoryPage({
   // Free 不開放 inventory(Pro / Enterprise 才有)
   if (tenant.plan === 'free') {
     return (
-      <main style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, marginBottom: 20 }}>庫存</h1>
-        <div
-          style={{
-            padding: '3rem 1.5rem',
-            background: '#fff8e1',
-            border: '1px solid #ffd54f',
-            borderRadius: 8,
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ marginBottom: 8, color: '#b45309' }}><IconLock size={32} /></div>
-          <h2 style={{ fontSize: 18, marginBottom: 12, color: '#92400e' }}>
-            庫存是專業版以上的功能
-          </h2>
-          <p style={{ color: '#78350f', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-            升級後可以用:每個規格的庫存、低庫存提醒、進出貨紀錄。<br />
-            目前是<strong>免費版</strong>,適合個人、二手、偶爾代購。
-          </p>
-          <p style={{ color: '#9a7400', fontSize: 13 }}>需要升級請聯繫 NEOP。</p>
+      <main style={{ padding: '28px 32px 48px' }}>
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        <div style={{ maxWidth: 720 }}>
+          <header className="iv-head">
+            <div>
+              <h1>庫存</h1>
+            </div>
+          </header>
+          <div className="iv-card iv-low" style={{ padding: '40px 24px', textAlign: 'center' }}>
+            <div style={{ marginBottom: 8, color: '#b45309' }}><IconLock size={32} /></div>
+            <div style={{ fontSize: 17, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>庫存是專業版以上的功能</div>
+            <p style={{ color: '#78350f', fontSize: 14, lineHeight: 1.6, margin: '0 0 16px' }}>
+              升級後可以用:每個規格的庫存、低庫存提醒、進出貨紀錄。<br />
+              目前是<strong>免費版</strong>,適合個人、二手、偶爾代購。
+            </p>
+            <p style={{ color: '#9a7400', fontSize: 13, margin: 0 }}>需要升級請聯繫 NEOP。</p>
+          </div>
         </div>
       </main>
     );
@@ -169,206 +217,184 @@ export default async function InventoryPage({
   ).sort((a, b) => a.localeCompare(b, 'zh-TW'));
   const variants = applyFilters(allVariants, filters);
 
+  const buildHref = (cats: string[], s: string) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    for (const cat of cats) params.append('cat', cat);
+    if (s && s !== 'stock_asc') params.set('sort', s);
+    const str = params.toString();
+    return `/admin/${slug}/inventory${str ? `?${str}` : ''}`;
+  };
+  const toggleCatHref = (cat: string) =>
+    buildHref(selCats.includes(cat) ? selCats.filter((x) => x !== cat) : [...selCats, cat], sort);
+  const sortOptions = [
+    { key: 'stock_asc', label: '庫存少到多' },
+    { key: 'stock_desc', label: '庫存多到少' },
+    { key: 'name', label: '商品名' },
+    { key: 'category', label: '分類' },
+  ];
+  const hasFilter = !!q || selCats.length > 0;
+
   return (
-    <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 20 }}>庫存</h1>
+    <main style={{ padding: '28px 32px 48px' }}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div style={{ maxWidth: 1200 }}>
+        <header className="iv-head">
+          <div>
+            <h1>庫存</h1>
+            <p>
+              {allVariants.length} 個規格
+              {lowStock.length > 0 && <> · <span style={{ color: '#b91c1c', fontWeight: 600 }}>{lowStock.length} 個快沒了</span></>}
+            </p>
+          </div>
+          <a href={`/admin/${slug}/inventory/export`} className="ui-btn ui-btn-outline ui-btn-sm">
+            <IconDownload size={14} />
+            匯出 CSV
+          </a>
+        </header>
 
-      {lowStock.length > 0 && (
-        <section style={{ ...section, padding: 16, background: '#fff8e1', border: '1px solid #ffd54f', borderRadius: 6 }}>
-          <h2 style={{ ...h2, color: '#9a7400' }}><IconAlert size={15} /> 低庫存({lowStock.length} 個規格庫存 ≤ 3)</h2>
-          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
-            {lowStock.map((v) => (
-              <li key={v.id} style={{ marginBottom: 4 }}>
-                <strong>{v.products?.name ?? '(未知)'}</strong>
-                {v.variant_name !== 'default' && (
-                  <span style={{ marginLeft: 6, padding: '1px 6px', background: '#fff', border: '1px solid #ffd54f', borderRadius: 3, fontSize: 12 }}>
-                    {v.variant_name}
-                  </span>
-                )}
-                <span style={{ marginLeft: 6, color: '#999', fontSize: 12 }}>{v.sku}</span>
-                {' — 庫存 '}
-                <strong style={{ color: '#d00' }}>{v.stock}</strong>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* 篩選 + 排序 + 匯出(2026-09-08 v2:分類/排序改點擊即套用 chip,對齊商品管理) */}
-      {(() => {
-        const buildHref = (cats: string[], s: string) => {
-          const params = new URLSearchParams();
-          if (q) params.set('q', q);
-          for (const cat of cats) params.append('cat', cat);
-          if (s && s !== 'stock_asc') params.set('sort', s);
-          const str = params.toString();
-          return `/admin/${slug}/inventory${str ? `?${str}` : ''}`;
-        };
-        const toggleCatHref = (cat: string) =>
-          buildHref(selCats.includes(cat) ? selCats.filter((x) => x !== cat) : [...selCats, cat], sort);
-        const chipStyle = (on: boolean): React.CSSProperties => ({
-          display: 'inline-block',
-          padding: '7px 14px',
-          border: `1px solid ${on ? '#18181b' : '#ddd'}`,
-          borderRadius: 999,
-          fontSize: 12,
-          color: on ? '#fff' : '#52525b',
-          background: on ? '#18181b' : '#fff',
-          fontWeight: on ? 600 : 400,
-          textDecoration: 'none',
-          userSelect: 'none',
-          touchAction: 'manipulation',
-        });
-        const sortOptions = [
-          { key: 'stock_asc', label: '庫存少→多' },
-          { key: 'stock_desc', label: '庫存多→少' },
-          { key: 'name', label: '商品名' },
-          { key: 'category', label: '分類' },
-        ];
-        const hasFilter = !!q || selCats.length > 0;
-        return (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-              marginBottom: 16,
-              padding: 12,
-              background: '#fff',
-              border: '1px solid #eee',
-              borderRadius: 8,
-            }}
-          >
-            <form method="GET" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              {selCats.map((cat) => (
-                <input key={cat} type="hidden" name="cat" value={cat} />
+        {lowStock.length > 0 && (
+          <div className="iv-card iv-low">
+            <h2>
+              <IconAlert size={15} />
+              低庫存
+              <span className="n">{lowStock.length} 個規格庫存 3 以下</span>
+            </h2>
+            <ul>
+              {lowStock.map((v) => (
+                <li key={v.id}>
+                  <strong>{v.products?.name ?? '(未知)'}</strong>
+                  {v.variant_name !== 'default' && <> · {v.variant_name}</>}
+                  <span style={{ marginLeft: 6, color: '#a16207', fontSize: 12 }}>{v.sku}</span>
+                  {' — 剩 '}
+                  <b>{v.stock}</b>
+                </li>
               ))}
-              {sort !== 'stock_asc' && <input type="hidden" name="sort" value={sort} />}
-              <input
-                type="search"
-                name="q"
-                defaultValue={q}
-                placeholder="搜商品名 / 規格 / SKU"
-                style={{ flex: '1 1 180px', maxWidth: 320, padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, fontFamily: 'inherit' }}
-              />
-              <button
-                type="submit"
-                style={{ padding: '8px 16px', background: '#18181b', color: '#fff', border: 0, borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                搜尋
-              </button>
-              {hasFilter && (
-                <a href={`/admin/${slug}/inventory`} style={{ padding: '8px 12px', fontSize: 13, color: '#52525b', textDecoration: 'none', border: '1px solid #ddd', borderRadius: 4, background: '#fff' }}>
-                  清除全部
-                </a>
-              )}
-              <a
-                href={`/admin/${slug}/inventory/export`}
-                style={{ marginLeft: 'auto', padding: '8px 16px', background: '#fff', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 4, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
-              >
-                匯出 Excel(CSV)
-              </a>
-            </form>
-            {categories.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: '#999', fontWeight: 600, marginRight: 2 }}>分類</span>
-                {categories.map((cat) => (
-                  <a key={cat} href={toggleCatHref(cat)} style={chipStyle(selCats.includes(cat))}>
-                    {cat}
-                  </a>
-                ))}
-              </div>
+            </ul>
+          </div>
+        )}
+
+        {/* 篩選 + 排序(2026-09-08 v2:分類 / 排序改點擊即套用 chip,對齊商品管理) */}
+        <div className="iv-filter">
+          <form method="GET">
+            {selCats.map((cat) => (
+              <input key={cat} type="hidden" name="cat" value={cat} />
+            ))}
+            {sort !== 'stock_asc' && <input type="hidden" name="sort" value={sort} />}
+            <input
+              type="search"
+              name="q"
+              className="ui-input ui-input-sm q"
+              defaultValue={q}
+              placeholder="搜尋商品名、規格、SKU"
+              aria-label="搜尋"
+            />
+            <button type="submit" className="ui-btn ui-btn-primary ui-btn-sm">搜尋</button>
+            {hasFilter && (
+              <a href={`/admin/${slug}/inventory`} className="ui-btn ui-btn-ghost ui-btn-sm">清除</a>
             )}
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, color: '#999', fontWeight: 600, marginRight: 2 }}>排序</span>
-              {sortOptions.map((o) => (
-                <a key={o.key} href={buildHref(selCats, o.key)} style={chipStyle(sort === o.key)}>
-                  {o.label}
+          </form>
+          {categories.length > 0 && (
+            <div className="iv-chips">
+              <span className="lb">分類</span>
+              {categories.map((cat) => (
+                <a key={cat} href={toggleCatHref(cat)} className="iv-chip" data-on={selCats.includes(cat) ? 'true' : 'false'}>
+                  {cat}
                 </a>
               ))}
             </div>
-          </div>
-        );
-      })()}
-
-      <section style={section}>
-        <h2 style={h2}>商品規格庫存 ({variants.length}{variants.length !== allVariants.length ? ` / ${allVariants.length}` : ''})</h2>
-        {variants.length === 0 && <p style={{ color: '#666' }}>(沒有符合的規格)</p>}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
-              <th style={th}>商品 / 規格</th>
-              <th style={th}>SKU</th>
-              <th style={th}>分類</th>
-              <th style={{ ...th, textAlign: 'right' }}>單價</th>
-              <th style={{ ...th, textAlign: 'right' }}>庫存</th>
-              <th style={th}>狀態</th>
-            </tr>
-          </thead>
-          <tbody>
-            {variants.map((v) => (
-              <tr key={v.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={td}>
-                  <div style={{ fontWeight: 500 }}>{v.products?.name ?? '(已刪)'}</div>
-                  {v.variant_name !== 'default' && (
-                    <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', background: '#eef2ff', color: '#4338ca', borderRadius: 3, fontSize: 12, fontWeight: 500 }}>
-                      {v.variant_name}
-                    </span>
-                  )}
-                </td>
-                <td style={{ ...td, fontSize: 13, color: '#666' }}>{v.sku}</td>
-                <td style={td}>{v.products?.category ?? '—'}</td>
-                <td style={{ ...td, textAlign: 'right' }}>NT$ {v.price_twd.toLocaleString()}</td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 600, color: v.stock <= 3 ? '#d00' : v.stock === 0 ? '#999' : '#000' }}>
-                  {v.stock}
-                </td>
-                <td style={{ ...td, fontSize: 13 }}>{statusLabel(v.status)}</td>
-              </tr>
+          )}
+          <div className="iv-chips">
+            <span className="lb">排序</span>
+            {sortOptions.map((o) => (
+              <a key={o.key} href={buildHref(selCats, o.key)} className="iv-chip" data-on={sort === o.key ? 'true' : 'false'}>
+                {o.label}
+              </a>
             ))}
-          </tbody>
-        </table>
-      </section>
+          </div>
+        </div>
 
-      <section style={section}>
-        <h2 style={h2}>近 30 筆庫存異動</h2>
-        {movements.length === 0 && <p style={{ color: '#666' }}>(尚無異動)</p>}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
-              <th style={th}>時間</th>
-              <th style={th}>商品 / 規格</th>
-              <th style={{ ...th, textAlign: 'right' }}>數量變動</th>
-              <th style={th}>原因</th>
-              <th style={th}>備註</th>
-            </tr>
-          </thead>
-          <tbody>
-            {movements.map((m) => {
-              const displaySku = m.product_variants?.sku ?? m.products?.sku ?? null;
-              const variantName = m.product_variants?.variant_name;
-              return (
-                <tr key={m.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ ...td, fontSize: 13, color: '#666' }}>{formatTw(m.created_at)}</td>
-                  <td style={td}>
-                    {m.products?.name ?? '(已刪)'}
-                    {variantName && variantName !== 'default' && (
-                      <span style={{ marginLeft: 6, padding: '1px 6px', background: '#eef2ff', color: '#4338ca', borderRadius: 3, fontSize: 12 }}>
-                        {variantName}
-                      </span>
-                    )}
-                    {displaySku && <span style={{ color: '#999', fontSize: 12, marginLeft: 6 }}>{displaySku}</span>}
-                  </td>
-                  <td style={{ ...td, textAlign: 'right', fontWeight: 600, color: m.qty_delta > 0 ? '#0a7038' : '#d00' }}>
-                    {m.qty_delta > 0 ? '+' : ''}{m.qty_delta}
-                  </td>
-                  <td style={{ ...td, fontSize: 13 }}>{reasonLabel(m.reason)}</td>
-                  <td style={{ ...td, fontSize: 12, color: '#666' }}>{m.note ?? '—'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </section>
+        <div className="iv-card">
+          <h2>
+            規格庫存
+            <span className="n">
+              {variants.length}
+              {variants.length !== allVariants.length ? ` / ${allVariants.length}` : ''} 個
+            </span>
+          </h2>
+          {variants.length === 0 ? (
+            <div className="iv-empty">沒有符合的規格。</div>
+          ) : (
+            <>
+              <div className="iv-row head" aria-hidden>
+                <span>商品 / 規格</span>
+                <span>SKU</span>
+                <span>分類</span>
+                <span className="r">單價</span>
+                <span className="r">庫存</span>
+                <span>狀態</span>
+              </div>
+              {variants.map((v) => {
+                const st = VSTATUS[v.status] ?? { label: v.status, cls: 'iv-off' };
+                return (
+                  <div key={v.id} className="iv-row">
+                    <div className="name">
+                      <span>{v.products?.name ?? '(已刪除的商品)'}</span>
+                      {v.variant_name !== 'default' && <span className="ui-badge">{v.variant_name}</span>}
+                    </div>
+                    <div className="c-sku mono">{v.sku}</div>
+                    <div className="c-cat muted">{v.products?.category ?? '—'}</div>
+                    <div className="c-price r">NT$ {v.price_twd.toLocaleString()}</div>
+                    <div className={`c-stock r iv-stock ${v.stock === 0 ? 'zero' : v.stock <= 3 ? 'low' : ''}`}>{v.stock}</div>
+                    <div className="c-st">
+                      <span className={`ui-badge ${st.cls}`}>{st.label}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        <div className="iv-card">
+          <h2>
+            庫存異動
+            <span className="n">最近 30 筆</span>
+          </h2>
+          {movements.length === 0 ? (
+            <div className="iv-empty">還沒有異動紀錄。</div>
+          ) : (
+            <>
+              <div className="iv-row iv-mv head" aria-hidden>
+                <span>時間</span>
+                <span>商品 / 規格</span>
+                <span className="r">變動</span>
+                <span>原因</span>
+                <span>備註</span>
+              </div>
+              {movements.map((m) => {
+                const displaySku = m.product_variants?.sku ?? m.products?.sku ?? null;
+                const variantName = m.product_variants?.variant_name;
+                return (
+                  <div key={m.id} className="iv-row iv-mv">
+                    <div className="c-time muted">{formatTw(m.created_at)}</div>
+                    <div className="name">
+                      <span>{m.products?.name ?? '(已刪除的商品)'}</span>
+                      {variantName && variantName !== 'default' && <span className="ui-badge">{variantName}</span>}
+                      {displaySku && <span className="mono">{displaySku}</span>}
+                    </div>
+                    <div className={`r iv-delta ${m.qty_delta > 0 ? 'up' : 'down'}`}>
+                      {m.qty_delta > 0 ? '+' : ''}{m.qty_delta}
+                    </div>
+                    <div className="muted">{reasonLabel(m.reason)}</div>
+                    <div className="c-note muted" style={{ fontSize: 12.5 }}>{m.note ?? '—'}</div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

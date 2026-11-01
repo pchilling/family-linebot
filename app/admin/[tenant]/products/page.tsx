@@ -185,7 +185,7 @@ export default async function ProductsPage({
 
   return (
     // 2026-10-20:不設寬度上限,螢幕多寬就用多寬(手機版由 layout 的 CSS 另外處理)
-    <main style={{ padding: '24px 32px 48px', color: c.text }}>
+    <main style={{ padding: '28px 32px 48px', color: c.text }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -212,13 +212,13 @@ details[open] .chev { transform: rotate(90deg); }
 
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 700, letterSpacing: '-0.01em' }}>商品</h1>
+          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600, letterSpacing: '-0.02em' }}>商品</h1>
           <span style={{ fontSize: 13, color: c.textMuted, fontVariantNumeric: 'tabular-nums' }}>
             {products.length} 個 · 上架 {activeCount}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a href={`/admin/${tenant.slug}/products/sort`} style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 14px', border: `1px solid ${c.border}`, borderRadius: 8, background: c.card, fontSize: 13, fontWeight: 600, color: c.text, textDecoration: 'none' }}>
+          <a href={`/admin/${tenant.slug}/products/sort`} className="ui-btn ui-btn-outline ui-btn-sm">
             排序商品
           </a>
           <NewProductModal tenantId={tenant.id} tenantSlug={tenant.slug} categories={orderedCats} badgeColors={BADGE_COLORS} />
@@ -231,10 +231,10 @@ details[open] .chev { transform: rotate(90deg); }
           <form method="GET" action={`/admin/${tenant.slug}/products`} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {selCats.map((cat) => <input key={cat} type="hidden" name="cat" value={cat} />)}
             {selFlags.map((fl) => <input key={fl} type="hidden" name="flag" value={fl} />)}
-            <input type="search" name="q" defaultValue={q} placeholder="搜尋商品名稱、SKU、分類" aria-label="搜尋商品" style={{ ...input, width: 'auto', flex: '1 1 220px', maxWidth: 360 }} />
-            <button type="submit" style={{ padding: '8px 16px', background: c.accent, color: '#fff', border: 0, borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>搜尋</button>
+            <input type="search" name="q" defaultValue={q} placeholder="搜尋商品名稱、SKU、分類" aria-label="搜尋商品" className="ui-input ui-input-sm" style={{ width: 'auto', flex: '1 1 220px', maxWidth: 360 }} />
+            <button type="submit" className="ui-btn ui-btn-primary ui-btn-sm">搜尋</button>
             {hasFilter && (
-              <a href={`/admin/${tenant.slug}/products`} style={{ padding: '8px 12px', fontSize: 13, color: c.textSec, textDecoration: 'none', border: `1px solid ${c.border}`, borderRadius: 7, background: c.card }}>清除篩選</a>
+              <a href={`/admin/${tenant.slug}/products`} className="ui-btn ui-btn-ghost ui-btn-sm">清除篩選</a>
             )}
           </form>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -310,8 +310,8 @@ details[open] .chev { transform: rotate(90deg); }
                         <ProductStatusToggle tenantSlug={tenant.slug} productId={p.id} initialActive={p.status === 'active'} />
                       </td>
                       <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <Link href={editHref} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '7px 12px', border: `1px solid ${c.border}`, borderRadius: 7, background: c.card, fontSize: 12.5, fontWeight: 600, color: c.text, textDecoration: 'none' }}>
-                          編輯 ›
+                        <Link href={editHref} className="ui-btn ui-btn-outline ui-btn-xs">
+                          編輯
                         </Link>
                       </td>
                     </tr>
@@ -325,8 +325,8 @@ details[open] .chev { transform: rotate(90deg); }
               {hasFilter ? `${filtered.length} 個符合 · ` : ''}第 {page} / {totalPages} 頁
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
-              {page > 1 && <a href={pageHref(page - 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 6, textDecoration: 'none', color: c.text, background: c.card }}>‹ 上一頁</a>}
-              {page < totalPages && <a href={pageHref(page + 1)} style={{ padding: '6px 12px', border: `1px solid ${c.border}`, borderRadius: 6, textDecoration: 'none', color: c.text, background: c.card }}>下一頁 ›</a>}
+              {page > 1 && <a href={pageHref(page - 1)} className="ui-btn ui-btn-outline ui-btn-xs">上一頁</a>}
+              {page < totalPages && <a href={pageHref(page + 1)} className="ui-btn ui-btn-outline ui-btn-xs">下一頁</a>}
             </div>
           </div>
         </div>
