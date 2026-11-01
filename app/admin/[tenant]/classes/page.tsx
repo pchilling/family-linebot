@@ -4,7 +4,13 @@ import { createClass, deleteClass, updateClass } from '../../actions';
 import { ProductImageUploader } from '../products/image-uploader';
 import { SubmitButton } from '../../_components/submit-button';
 import { UploadImageField } from '../../_components/upload-image-field';
-import { IconAlert, IconCalendar, IconCheck, IconClock, IconPin, IconUser } from '@/lib/icons';
+import { FlashToast } from '../../../_components/toast';
+import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconClock, IconPin, IconPlus, IconUser } from '@/lib/icons';
+
+/**
+ * 活動(2026-11-01 換成後台新設計系統:新增表單與每張活動卡都改成卡片,欄位用 ui-input)。
+ * 查詢、建立、更新、刪除的 action 不變。
+ */
 
 type Region = { id: string; name: string };
 type ClassRow = {
@@ -91,77 +97,61 @@ function formatDate(iso: string): { day: string; month: string; weekday: string;
   return { day, month, weekday, time, full };
 }
 
-const c = {
-  bg: '#fafafa',
-  card: '#ffffff',
-  border: '#e4e4e7',
-  borderSubtle: '#f4f4f5',
-  text: '#18181b',
-  textSec: '#52525b',
-  textMuted: '#71717a',
-  textDisabled: '#a1a1aa',
-  accent: '#18181b',
-  success: '#16a34a',
-  successBg: '#dcfce7',
-  successBorder: '#bbf7d0',
-  warning: '#f59e0b',
-  warningBg: '#fef3c7',
-  danger: '#dc2626',
-  dangerBg: '#fef2f2',
-  dangerBorder: '#fecaca',
-  info: '#0070f3',
-  infoBg: '#dbeafe',
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: c.textMuted,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  marginBottom: 12,
-};
-const label: React.CSSProperties = { fontSize: 12, color: c.textSec };
-const labelText: React.CSSProperties = { display: 'block', marginBottom: 4 };
-const input: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  fontSize: 13,
-  border: `1px solid ${c.border}`,
-  borderRadius: 5,
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-  background: c.card,
-};
-// 2026-09-11:iPadOS Safari 空值 datetime-local 會塌成一條線(不畫佔位字),給明確高度撐住
-const dtInput: React.CSSProperties = {
-  ...input,
-  height: 36,
-  WebkitAppearance: 'none',
-  appearance: 'none',
-  display: 'block',
-};
-const btnPrimary: React.CSSProperties = {
-  padding: '10px 18px',
-  background: c.accent,
-  color: '#fff',
-  border: 0,
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 6,
-  fontFamily: 'inherit',
-};
-const btnDanger: React.CSSProperties = {
-  padding: '6px 12px',
-  background: c.card,
-  color: c.danger,
-  border: `1px solid ${c.dangerBorder}`,
-  cursor: 'pointer',
-  fontSize: 12,
-  borderRadius: 5,
-  fontFamily: 'inherit',
-};
+const CSS = `
+.cl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.cl-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.cl-head p{margin:4px 0 0;font-size:13px;color:#71717a}
+.cl-callout{display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:13px;margin-bottom:14px;line-height:1.5}
+.cl-card{background:#fff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden;margin-bottom:20px}
+.cl-card > summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600}
+.cl-card > summary::-webkit-details-marker{display:none}
+.cl-card > summary .hint{color:#71717a;font-size:12px;font-weight:400}
+.cl-card > summary .chev{margin-left:auto;color:#a1a1aa;transition:transform .15s;flex:none}
+.cl-card[open] > summary .chev{transform:rotate(180deg)}
+.cl-body{padding:0 18px 18px;border-top:1px solid #f4f4f5}
+.cl-form{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.cl-form .full{grid-column:1/-1}
+.cl-f{display:block;min-width:0}
+.cl-f .ui-label{margin-bottom:4px}
+.cl-f .h{display:block;font-size:11.5px;color:#71717a;margin-top:4px;line-height:1.5}
+.cl-check{display:flex;align-items:center;gap:8px;font-size:13px;align-self:end;min-height:40px}
+.cl-sec{font-size:12px;font-weight:600;color:#71717a;margin:0 0 10px;display:flex;align-items:center;gap:6px}
+.cl-sec .dot{width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block}
+.cl-fold > summary{list-style:none;cursor:pointer}
+.cl-fold > summary::-webkit-details-marker{display:none}
+.cl-list{display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
+.cl-item{background:#fff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden}
+.cl-item[data-accent="today"]{border-color:#fca5a5}
+.cl-item[data-accent="past"]{opacity:.72}
+.cl-item > summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;align-items:center;gap:14px}
+.cl-item > summary::-webkit-details-marker{display:none}
+.cl-date{flex:none;width:52px;padding:6px 0;background:#fafafa;border:1px solid #f4f4f5;border-radius:8px;text-align:center}
+.cl-date .m{font-size:9px;color:#71717a;font-weight:600;letter-spacing:.04em}
+.cl-date .d{font-size:18px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.cl-date .w{font-size:9px;color:#71717a}
+.cl-cover{flex:none;width:40px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #f4f4f5}
+.cl-main{flex:1;min-width:0}
+.cl-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.cl-title b{font-size:15px;font-weight:600}
+.cl-title .price{font-size:12px;color:#71717a;font-variant-numeric:tabular-nums}
+.cl-meta{font-size:12px;color:#71717a;margin-bottom:5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cl-stats{display:flex;gap:10px;font-size:11.5px;flex-wrap:wrap;font-weight:600}
+.cl-expand{border-top:1px solid #f4f4f5;padding:16px 18px;background:#fafafa}
+.cl-cover-box{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e4e4e7}
+.cl-cover-box .lb{font-size:12px;font-weight:600;color:#71717a;margin-bottom:10px}
+.cl-actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.cl-danger{margin-top:14px;padding-top:14px;border-top:1px dashed #e4e4e7}
+.cl-danger > summary{font-size:12px;color:#b91c1c;font-weight:500;display:inline-flex;align-items:center;gap:4px}
+.cl-danger-box{margin-top:8px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:#991b1b}
+.cl-empty{text-align:center;padding:56px 24px;background:#fff;border:1px solid #e4e4e7;border-radius:12px}
+.cl-badge-cancel{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+@media (max-width:767px){
+  .cl-form{grid-template-columns:1fr}
+  .cl-card,.cl-item{border-radius:10px}
+  .cl-item > summary{flex-wrap:wrap;gap:10px}
+  .cl-expand{padding:14px}
+}
+`;
 
 export default async function ClassesPage({
   params,
@@ -190,177 +180,128 @@ export default async function ClassesPage({
   const savedId = sp.saved;
 
   return (
-    <main style={{ padding: '24px 20px', maxWidth: 1000, margin: '0 auto', color: c.text }}>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-input:focus, textarea:focus, select:focus { outline: none; border-color: ${c.accent} !important; }
-details summary { list-style: none; cursor: pointer; }
-details summary::-webkit-details-marker { display: none; }
-details[open] .chev { transform: rotate(90deg); }
-.chev { display: inline-block; transition: transform 150ms ease; }
-.class-card { transition: border-color 0.15s, box-shadow 0.15s; }
-.class-card:hover { border-color: ${c.textDisabled}; }
-@keyframes fadein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-          `,
-        }}
-      />
+    <main style={{ padding: '28px 32px 48px' }}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div style={{ maxWidth: 1000 }}>
+        {savedId && <FlashToast key={savedId} message="已儲存活動" />}
 
-      {savedId && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: c.successBg,
-            border: `1px solid ${c.successBorder}`,
-            color: c.success,
-            fontSize: 13,
-            fontWeight: 500,
-            borderRadius: 6,
-            marginBottom: 16,
-            animation: 'fadein 0.25s ease',
-          }}
-        >
-          <IconCheck size={14} /> 已儲存活動
-        </div>
-      )}
-
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600 }}>活動</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: c.textMuted }}>
-          共 {classes.length} 個活動 · 今天 {today.length} · 未來 {upcoming.length} · 已結束 {past.length}
-        </p>
-      </header>
-
-      {regions.length === 0 && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: c.dangerBg,
-            border: `1px solid ${c.dangerBorder}`,
-            color: c.danger,
-            fontSize: 12,
-            borderRadius: 6,
-            marginBottom: 16,
-          }}
-        >
-          <IconAlert size={14} /> 這個攤位還沒有上課地點,請先請 NEOP 加地點資料,再新增活動。
-        </div>
-      )}
-
-      {/* 新增活動 — 折疊 */}
-      <details
-        style={{
-          background: c.card,
-          border: `1px solid ${c.border}`,
-          borderRadius: 8,
-          marginBottom: 24,
-          overflow: 'hidden',
-        }}
-      >
-        <summary style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500 }}>
-          <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11 }}>▶</span>
-          + 新增活動
-          <span style={{ color: c.textMuted, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>
-            建立後可下載簽到 QR
-          </span>
-        </summary>
-        <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${c.borderSubtle}` }}>
-          <form action={createClass} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
-            <input type="hidden" name="tenant_id" value={tenant.id} />
-            <input type="hidden" name="tenant_slug" value={tenant.slug} />
-            <label style={label}>
-              <span style={labelText}>地點 *</span>
-              <select name="region_id" required style={input}>
-                {regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-            </label>
-            <label style={label}><span style={labelText}>活動名稱 *</span><input name="name" required style={input} placeholder="例:芳療基礎工作坊" /></label>
-            <label style={label}><span style={labelText}>時間 *</span><input name="scheduled_at" type="datetime-local" required style={dtInput} /></label>
-            <label style={label}><span style={labelText}>講師</span><input name="instructor" style={input} placeholder="王老師" /></label>
-            <label style={label}><span style={labelText}>時長(分)</span><input name="duration_min" type="number" defaultValue={90} style={input} /></label>
-            <label style={label}><span style={labelText}>價格(收費才填)</span><input name="price_twd" type="number" style={input} placeholder="例:500" /></label>
-            <label style={label}><span style={labelText}>人數限制(空 = 無限制)</span><input name="capacity" type="number" min="0" style={input} placeholder="例:12" /></label>
-            <label style={{ ...label, gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, color: c.text }}>
-              <input name="is_paid" type="checkbox" />
-              收費課程
-            </label>
-            <label style={{ ...label, gridColumn: '1 / -1' }}>
-              <span style={labelText}>課程介紹(可換行)</span>
-              <textarea
-                name="description"
-                rows={4}
-                style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
-                placeholder={'例:\n帶你認識芳療基礎,從精油功效到日常應用\n適合:芳療新手、想學自我保健\n時長 90 分鐘,現場提供精油試聞\n名額限 12 人,先報先得'}
-              />
-              <span style={{ fontSize: 11, color: c.textMuted, marginTop: 4, display: 'block' }}>
-                LINE 選單「本月課程」和報名頁都會顯示這段。一行一點,150 字以內。
-              </span>
-            </label>
-            {/* 2026-09-08:建立時就能傳活動圖(原本要先建立才能傳) */}
-            <div style={{ ...label, gridColumn: '1 / -1' }}>
-              <span style={labelText}>活動圖(選填)</span>
-              <UploadImageField
-                tenantSlug={tenant.slug}
-                folder="classes"
-                hint="建議直式 4:5(如 1080×1350)— LINE 課程卡固定以 4:5 裁切;報名頁詳情會顯示完整原圖。之後也可在活動卡內更換"
-              />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <SubmitButton pendingText="建立中…">建立活動</SubmitButton>
-            </div>
-          </form>
-        </div>
-      </details>
-
-      {/* Today */}
-      {today.length > 0 && (
-        <section style={{ marginBottom: 24 }}>
-          <div style={sectionTitle}>
-            <span aria-hidden style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: c.danger, marginRight: 6, verticalAlign: 'middle' }} />
-            今天進行
+        <header className="cl-head">
+          <div>
+            <h1>活動</h1>
+            <p>
+              共 {classes.length} 個 · 今天 {today.length} · 未來 {upcoming.length} · 已結束 {past.length}
+            </p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {today.map((cls) => (
-              <ClassCard key={cls.id} cls={cls} tenant={tenant} regions={regions} stats={stats.get(cls.id)} savedId={savedId} accent="today" />
-            ))}
-          </div>
-        </section>
-      )}
+        </header>
 
-      {/* Upcoming */}
-      {upcoming.length > 0 && (
-        <section style={{ marginBottom: 24 }}>
-          <div style={sectionTitle}>未來活動({upcoming.length})</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {upcoming.map((cls) => (
-              <ClassCard key={cls.id} cls={cls} tenant={tenant} regions={regions} stats={stats.get(cls.id)} savedId={savedId} />
-            ))}
+        {regions.length === 0 && (
+          <div className="cl-callout">
+            <IconAlert size={14} style={{ marginTop: 2 }} />
+            <span>這個攤位還沒有上課地點,請先請 NEOP 加地點資料,再新增活動。</span>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* Past — 折疊 */}
-      {past.length > 0 && (
-        <details style={{ marginBottom: 24 }}>
-          <summary style={{ ...sectionTitle, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="chev" aria-hidden style={{ fontSize: 10 }}>▶</span>
-            已結束 ({past.length})
+        {/* 新增活動 — 折疊 */}
+        <details className="cl-card">
+          <summary>
+            <IconPlus size={15} />
+            新增活動
+            <span className="hint">建立後可下載簽到 QR</span>
+            <IconChevronDown size={16} style={{ marginLeft: 'auto', color: '#a1a1aa' }} />
           </summary>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-            {past.map((cls) => (
-              <ClassCard key={cls.id} cls={cls} tenant={tenant} regions={regions} stats={stats.get(cls.id)} savedId={savedId} accent="past" />
-            ))}
+          <div className="cl-body">
+            <form action={createClass} className="cl-form">
+              <input type="hidden" name="tenant_id" value={tenant.id} />
+              <input type="hidden" name="tenant_slug" value={tenant.slug} />
+              <label className="cl-f">
+                <span className="ui-label">地點<i>*</i></span>
+                <select name="region_id" required className="ui-input">
+                  {regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </label>
+              <label className="cl-f"><span className="ui-label">活動名稱<i>*</i></span><input name="name" required className="ui-input" placeholder="例:芳療基礎工作坊" /></label>
+              <label className="cl-f"><span className="ui-label">時間<i>*</i></span><input name="scheduled_at" type="datetime-local" required className="ui-input" style={{ WebkitAppearance: 'none', appearance: 'none' }} /></label>
+              <label className="cl-f"><span className="ui-label">講師</span><input name="instructor" className="ui-input" placeholder="王老師" /></label>
+              <label className="cl-f"><span className="ui-label">時長(分鐘)</span><input name="duration_min" type="number" defaultValue={90} className="ui-input" /></label>
+              <label className="cl-f"><span className="ui-label">價格<span style={{ color: '#71717a', fontWeight: 400 }}>(收費才填)</span></span><input name="price_twd" type="number" className="ui-input" placeholder="例:500" /></label>
+              <label className="cl-f"><span className="ui-label">人數限制<span style={{ color: '#71717a', fontWeight: 400 }}>(留空不限)</span></span><input name="capacity" type="number" min="0" className="ui-input" placeholder="例:12" /></label>
+              <label className="cl-check">
+                <input name="is_paid" type="checkbox" className="ui-cb" />
+                收費課程
+              </label>
+              <label className="cl-f full">
+                <span className="ui-label">課程介紹<span style={{ color: '#71717a', fontWeight: 400 }}>(可換行)</span></span>
+                <textarea
+                  name="description"
+                  rows={4}
+                  className="ui-input"
+                  placeholder={'例:\n帶你認識芳療基礎,從精油功效到日常應用\n適合:芳療新手、想學自我保健\n時長 90 分鐘,現場提供精油試聞\n名額限 12 人,先報先得'}
+                />
+                <span className="h">LINE 選單「本月課程」和報名頁都會顯示這段。一行一點,150 字以內。</span>
+              </label>
+              {/* 2026-09-08:建立時就能傳活動圖(原本要先建立才能傳) */}
+              <div className="cl-f full">
+                <span className="ui-label">活動圖<span style={{ color: '#71717a', fontWeight: 400 }}>(選填)</span></span>
+                <UploadImageField
+                  tenantSlug={tenant.slug}
+                  folder="classes"
+                  hint="建議直式 4:5(如 1080×1350)。LINE 課程卡固定以 4:5 裁切;報名頁會顯示完整原圖。之後也可以在活動卡裡換。"
+                />
+              </div>
+              <div className="cl-actions">
+                <SubmitButton pendingText="建立中…">建立活動</SubmitButton>
+              </div>
+            </form>
           </div>
         </details>
-      )}
 
-      {classes.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '4rem 1.5rem', background: c.card, border: `1px solid ${c.border}`, borderRadius: 12 }}>
-          <div style={{ marginBottom: 10, color: c.textDisabled }}><IconCalendar size={40} /></div>
-          <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500 }}>還沒有活動</p>
-          <p style={{ margin: 0, fontSize: 12, color: c.textMuted }}>點上方「+ 新增活動」開始</p>
-        </div>
-      )}
+        {/* Today */}
+        {today.length > 0 && (
+          <section style={{ marginBottom: 8 }}>
+            <div className="cl-sec"><span className="dot" />今天進行</div>
+            <div className="cl-list">
+              {today.map((cls) => (
+                <ClassCard key={cls.id} cls={cls} tenant={tenant} regions={regions} stats={stats.get(cls.id)} savedId={savedId} accent="today" />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Upcoming */}
+        {upcoming.length > 0 && (
+          <section style={{ marginBottom: 8 }}>
+            <div className="cl-sec">未來活動({upcoming.length})</div>
+            <div className="cl-list">
+              {upcoming.map((cls) => (
+                <ClassCard key={cls.id} cls={cls} tenant={tenant} regions={regions} stats={stats.get(cls.id)} savedId={savedId} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Past — 折疊 */}
+        {past.length > 0 && (
+          <details className="cl-fold" style={{ marginBottom: 24 }}>
+            <summary className="cl-sec" style={{ display: 'inline-flex' }}>
+              <IconChevronDown size={14} />
+              已結束({past.length})
+            </summary>
+            <div className="cl-list" style={{ marginTop: 12 }}>
+              {past.map((cls) => (
+                <ClassCard key={cls.id} cls={cls} tenant={tenant} regions={regions} stats={stats.get(cls.id)} savedId={savedId} accent="past" />
+              ))}
+            </div>
+          </details>
+        )}
+
+        {classes.length === 0 && (
+          <div className="cl-empty">
+            <div style={{ marginBottom: 10, color: '#a1a1aa' }}><IconCalendar size={40} /></div>
+            <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500 }}>還沒有活動</p>
+            <p style={{ margin: 0, fontSize: 12.5, color: '#71717a' }}>點上面的「新增活動」開始。</p>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
@@ -388,121 +329,60 @@ function ClassCard({
   const cap = cls.capacity;
   const isFull = cap !== null && confirmed >= cap;
 
-  const borderColor = accent === 'today' ? c.danger : accent === 'past' ? c.borderSubtle : c.border;
-  const opacity = accent === 'past' ? 0.7 : 1;
-
   return (
-    <details
-      open={isExpanded}
-      className="class-card"
-      style={{
-        background: c.card,
-        border: `1px solid ${borderColor}`,
-        borderLeft: accent === 'today' ? `3px solid ${c.danger}` : `1px solid ${borderColor}`,
-        borderRadius: 10,
-        overflow: 'hidden',
-        opacity,
-      }}
-    >
-      <summary
-        style={{
-          padding: '14px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-        }}
-      >
-        <span className="chev" aria-hidden style={{ color: c.textMuted, fontSize: 11, flexShrink: 0 }}>▶</span>
-
+    <details open={isExpanded} className="cl-item" data-accent={accent ?? 'normal'}>
+      <summary>
         {/* 日期區塊 */}
-        <div
-          style={{
-            flexShrink: 0,
-            width: 50,
-            padding: '6px 0',
-            background: '#fafafa',
-            border: `1px solid ${c.borderSubtle}`,
-            borderRadius: 6,
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 9, color: c.textMuted, fontWeight: 600, letterSpacing: '0.04em' }}>{dt.month}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'ui-monospace, monospace', lineHeight: 1.1 }}>{dt.day}</div>
-          <div style={{ fontSize: 9, color: c.textMuted }}>{dt.weekday}</div>
+        <div className="cl-date">
+          <div className="m">{dt.month}</div>
+          <div className="d">{dt.day}</div>
+          <div className="w">{dt.weekday}</div>
         </div>
 
         {/* Cover 縮圖 4:5 直式(有設才顯示)*/}
         {cls.image_url && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={cls.image_url}
-            alt={cls.name}
-            style={{
-              flexShrink: 0,
-              width: 40,
-              height: 50,
-              objectFit: 'cover',
-              borderRadius: 4,
-              border: `1px solid ${c.borderSubtle}`,
-            }}
-          />
+          <img src={cls.image_url} alt={cls.name} className="cl-cover" />
         )}
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-            <span style={{ fontWeight: 600, fontSize: 15 }}>{cls.name}</span>
-            {cls.status === 'cancelled' && (
-              <span style={{ padding: '1px 6px', background: c.dangerBg, color: c.danger, borderRadius: 3, fontSize: 10, fontWeight: 600 }}>已取消</span>
-            )}
-            {cls.is_paid && cls.price_twd && (
-              <span style={{ fontSize: 11, color: c.textMuted, fontFamily: 'ui-monospace, monospace' }}>NT$ {cls.price_twd}</span>
-            )}
+        <div className="cl-main">
+          <div className="cl-title">
+            <b>{cls.name}</b>
+            {cls.status === 'cancelled' && <span className="ui-badge cl-badge-cancel">已取消</span>}
+            {cls.is_paid && cls.price_twd && <span className="price">NT$ {cls.price_twd}</span>}
           </div>
-          <div style={{ fontSize: 12, color: c.textMuted, marginBottom: 4 }}>
+          <div className="cl-meta">
             <IconClock size={12} /> {dt.time}
             {cls.regions?.name && <> · <IconPin size={12} /> {cls.regions.name}</>}
             {cls.instructor && <> · <IconUser size={12} /> {cls.instructor}</>}
           </div>
           {/* 報名 / 簽到 stats */}
-          <div style={{ display: 'flex', gap: 10, fontSize: 11, flexWrap: 'wrap' }}>
-            <span style={{ color: isFull ? c.danger : c.success, fontWeight: 600 }}>
+          <div className="cl-stats">
+            <span style={{ color: isFull ? '#b91c1c' : '#15803d' }}>
               報名 {confirmed}{cap !== null && <>/{cap}</>}
             </span>
-            {waitlist > 0 && (
-              <span style={{ color: c.warning, fontWeight: 600 }}>候補 {waitlist}</span>
-            )}
-            <span style={{ color: c.info, fontWeight: 600 }}><IconCheck size={12} /> 簽到 {attended}</span>
-            {isFull && <span style={{ color: c.danger, fontWeight: 600 }}>已滿</span>}
+            {waitlist > 0 && <span style={{ color: '#b45309' }}>候補 {waitlist}</span>}
+            <span style={{ color: '#1d4ed8' }}><IconCheck size={12} /> 簽到 {attended}</span>
+            {isFull && <span style={{ color: '#b91c1c' }}>已滿</span>}
           </div>
         </div>
 
-        {/* 突出 QR 按鈕在 summary 右側 */}
+        {/* 簽到 QR 在 summary 右側 */}
         <a
           href={`/admin/${tenant.slug}/classes/${cls.id}/qr`}
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            padding: '7px 12px',
-            background: c.info,
-            color: '#fff',
-            border: 0,
-            borderRadius: 6,
-            fontSize: 12,
-            fontWeight: 600,
-            textDecoration: 'none',
-            flexShrink: 0,
-          }}
+          className="ui-btn ui-btn-outline ui-btn-xs"
+          style={{ flex: 'none' }}
         >
           簽到 QR
         </a>
       </summary>
 
-      <div style={{ borderTop: `1px solid ${c.borderSubtle}`, padding: '16px 18px', background: '#fafafa' }}>
-        {/* Cover 圖上傳器 — 16:9 — 顯示在 LIFF / Rich Menu Flex / admin */}
-        <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${c.border}` }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: c.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
-            活動 cover 圖 · 16:9
-          </div>
+      <div className="cl-expand">
+        {/* Cover 圖上傳器 — 顯示在 LIFF / Rich Menu Flex / admin */}
+        <div className="cl-cover-box">
+          <div className="lb">活動圖(直式 4:5)</div>
           <ProductImageUploader
             entity="class"
             entityId={cls.id}
@@ -512,71 +392,55 @@ function ClassCard({
           />
         </div>
 
-        <form action={updateClass} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <form action={updateClass} className="cl-form" style={{ marginTop: 0 }}>
           <input type="hidden" name="id" value={cls.id} />
           <input type="hidden" name="tenant_id" value={tenant.id} />
           <input type="hidden" name="tenant_slug" value={tenant.slug} />
-          <label style={label}>
-            <span style={labelText}>地點</span>
-            <select name="region_id" defaultValue={cls.region_id} style={input}>
+          <label className="cl-f">
+            <span className="ui-label">地點</span>
+            <select name="region_id" defaultValue={cls.region_id} className="ui-input">
               {regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </label>
-          <label style={label}><span style={labelText}>名稱</span><input name="name" defaultValue={cls.name} style={input} /></label>
-          <label style={label}><span style={labelText}>時間</span><input name="scheduled_at" type="datetime-local" defaultValue={toLocalInput(cls.scheduled_at)} style={dtInput} /></label>
-          <label style={label}><span style={labelText}>講師</span><input name="instructor" defaultValue={cls.instructor ?? ''} style={input} /></label>
-          <label style={label}><span style={labelText}>價格</span><input name="price_twd" type="number" defaultValue={cls.price_twd ?? ''} style={input} /></label>
-          <label style={label}><span style={labelText}>人數限制(空 = 無限制)</span><input name="capacity" type="number" min="0" defaultValue={cls.capacity ?? ''} style={input} placeholder="例:12" /></label>
-          <label style={{ ...label, alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6, color: c.text }}>
-            <input name="is_paid" type="checkbox" defaultChecked={cls.is_paid} />
+          <label className="cl-f"><span className="ui-label">名稱</span><input name="name" defaultValue={cls.name} className="ui-input" /></label>
+          <label className="cl-f"><span className="ui-label">時間</span><input name="scheduled_at" type="datetime-local" defaultValue={toLocalInput(cls.scheduled_at)} className="ui-input" style={{ WebkitAppearance: 'none', appearance: 'none' }} /></label>
+          <label className="cl-f"><span className="ui-label">講師</span><input name="instructor" defaultValue={cls.instructor ?? ''} className="ui-input" /></label>
+          <label className="cl-f"><span className="ui-label">價格</span><input name="price_twd" type="number" defaultValue={cls.price_twd ?? ''} className="ui-input" /></label>
+          <label className="cl-f"><span className="ui-label">人數限制<span style={{ color: '#71717a', fontWeight: 400 }}>(留空不限)</span></span><input name="capacity" type="number" min="0" defaultValue={cls.capacity ?? ''} className="ui-input" placeholder="例:12" /></label>
+          <label className="cl-check">
+            <input name="is_paid" type="checkbox" defaultChecked={cls.is_paid} className="ui-cb" />
             收費
           </label>
-          <label style={{ ...label, gridColumn: '1 / -1' }}>
-            <span style={labelText}>課程介紹(可換行,顯示在 LINE 選單「本月課程」和報名頁)</span>
+          <label className="cl-f full">
+            <span className="ui-label">課程介紹<span style={{ color: '#71717a', fontWeight: 400 }}>(可換行,顯示在 LINE 選單「本月課程」和報名頁)</span></span>
             <textarea
               name="description"
               defaultValue={cls.description ?? ''}
               rows={5}
-              style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }}
+              className="ui-input"
               placeholder={'例:\n帶你認識芳療基礎\n適合芳療新手\n時長 90 分鐘\n名額限 12 人'}
             />
-            <span style={{ fontSize: 11, color: c.textMuted, marginTop: 4, display: 'block' }}>
-              一行一點,150 字以內,超過會截斷。
-            </span>
+            <span className="h">一行一點,150 字以內,超過會截斷。</span>
           </label>
-          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <a
-              href={`/admin/${tenant.slug}/attendances?class_id=${cls.id}`}
-              style={{
-                padding: '8px 14px',
-                background: c.card,
-                color: c.textSec,
-                border: `1px solid ${c.border}`,
-                borderRadius: 6,
-                fontSize: 12,
-                textDecoration: 'none',
-                fontWeight: 500,
-              }}
-            >
+          <div className="cl-actions">
+            <a href={`/admin/${tenant.slug}/attendances?class_id=${cls.id}`} className="ui-btn ui-btn-outline ui-btn-sm">
               看出席紀錄
             </a>
             <SubmitButton size="sm" pendingText="儲存中…">儲存</SubmitButton>
           </div>
         </form>
 
-        <details style={{ marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${c.border}` }}>
-          <summary style={{ fontSize: 11, color: c.danger, fontWeight: 500, padding: '2px 0' }}>
-            <span className="chev" aria-hidden style={{ marginRight: 4 }}>▶</span>
-            危險區
+        <details className="cl-fold cl-danger">
+          <summary>
+            <IconChevronDown size={12} />
+            刪除這個活動
           </summary>
-          <div style={{ marginTop: 8, padding: 10, background: c.dangerBg, border: `1px solid ${c.dangerBorder}`, borderRadius: 5 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 11, color: c.danger }}>
-              刪除活動同時會帶走報名 + 出席紀錄,無法復原。
-            </p>
+          <div className="cl-danger-box">
+            <span>刪除活動會連報名與出席紀錄一起刪掉,無法復原。</span>
             <form action={deleteClass} style={{ display: 'inline' }}>
               <input type="hidden" name="id" value={cls.id} />
               <input type="hidden" name="tenant_slug" value={tenant.slug} />
-              <SubmitButton variant="danger" size="sm" pendingText="刪除中…">確認刪除</SubmitButton>
+              <SubmitButton variant="danger" size="sm" pendingText="刪除中…" confirmText={`確定刪除「${cls.name}」?報名與出席紀錄會一起刪掉,無法復原。`}>確認刪除</SubmitButton>
             </form>
           </div>
         </details>
