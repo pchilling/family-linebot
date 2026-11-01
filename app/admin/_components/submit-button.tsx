@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { colors, fontSize, fontWeight, radius, space } from '@/lib/admin-theme';
 import { ConfirmDialog } from '../../_components/confirm-dialog';
 
+// 2026-11-01:primary 從 NEOP 綠改成後台一致的黑;綠只留在登入 / 申請頁自己的按鈕
 type Variant = 'primary' | 'danger' | 'secondary';
 
 /**
@@ -46,7 +47,7 @@ export function SubmitButton({
   const formRef = useRef<HTMLFormElement | null>(null);
 
   const palette: Record<Variant, { bg: string; fg: string; pendingBg: string; border?: string }> = {
-    primary: { bg: colors.neopGreen, fg: '#fff', pendingBg: '#9ca3af' },
+    primary: { bg: colors.accent, fg: '#fff', pendingBg: '#9ca3af' },
     danger: { bg: '#dc2626', fg: '#fff', pendingBg: '#9ca3af' },
     secondary: {
       bg: colors.bgCard,
@@ -72,7 +73,6 @@ export function SubmitButton({
           setConfirming(true);
         }
       }}
-      className="neop-cta"
       style={{
         padding,
         background: pending ? p.pendingBg : p.bg,

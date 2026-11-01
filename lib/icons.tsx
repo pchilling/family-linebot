@@ -385,3 +385,13 @@ export function IconMessage({ size = 16, color = 'currentColor', style }: IconPr
     </svg>
   );
 }
+
+export function IconDownload({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M12 4v12" />
+      <path d="m7 11 5 5 5-5" />
+      <path d="M4 20h16" />
+    </svg>
+  );
+}

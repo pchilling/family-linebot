@@ -3,7 +3,13 @@ import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { markOrderPaid, markOrderShipped } from '../../actions';
 import { ConfirmButton } from '../../_components/confirm-button';
-import { IconCheck, IconMessage, IconPackage, IconSearch } from '@/lib/icons';
+import { FlashToast } from '../../../_components/toast';
+import { IconCheck, IconDownload, IconMessage, IconPackage, IconSearch } from '@/lib/icons';
+
+/**
+ * 訂單列表(2026-11-01 換成後台新設計系統:lib/ui 元件 + 卡片式清單,不再用 <table>)。
+ * 資料查詢、篩選、快速動作的邏輯不變。
+ */
 
 type OrderRow = {
   id: string;
@@ -64,35 +70,55 @@ async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
   return (data ?? []) as unknown as OrderRow[];
 }
 
-function statusLabel(s: string): string {
-  return ({ open: '待付款', paid: '已付款', shipped: '已出貨', delivered: '已送達', cancelled: '已取消', refunded: '已退款' }[s]) ?? s;
-}
-function statusColor(s: string): string {
-  return ({ open: '#666', paid: '#0070f3', shipped: '#06c755', delivered: '#0a7038', cancelled: '#999', refunded: '#d00' }[s]) ?? '#666';
-}
-function sourceLabel(s: string): string {
-  return ({ web: '網站', liff: 'LIFF', manual: '手動', line_chat: 'LINE 對話' }[s]) ?? s;
-}
-function sourceColor(s: string): string {
-  return ({ web: '#7c3aed', liff: '#06c755', manual: '#9ca3af', line_chat: '#f59e0b' }[s]) ?? '#666';
-}
+const STATUS_LABEL: Record<string, string> = {
+  open: '待付款', paid: '已付款', shipped: '已出貨', delivered: '已送達', cancelled: '已取消', refunded: '已退款',
+};
+const PAY_LABEL: Record<string, string> = { pending: '未付款', paid: '已付款', failed: '付款失敗', refunded: '已退款' };
+const SOURCE_LABEL: Record<string, string> = { web: '網站', liff: 'LINE', manual: '手動', line_chat: 'LINE 對話' };
+
 function formatTw(iso: string): string {
   return new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontWeight: 600, fontSize: 13, color: '#444' };
-const td: React.CSSProperties = { padding: '12px 8px', verticalAlign: 'middle' };
-
-const filterInput: React.CSSProperties = {
-  padding: '6px 10px',
-  fontSize: 13,
-  border: '1px solid #e4e4e7',
-  borderRadius: 6,
-  background: '#fff',
-  color: '#18181b',
-  fontFamily: 'inherit',
-  outline: 'none',
-};
+const CSS = `
+.od-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.od-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.od-head p{margin:4px 0 0;font-size:13px;color:#71717a}
+.od-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:#fff;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:14px}
+.od-filter .q{flex:1 1 220px;min-width:160px;position:relative}
+.od-filter .q svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#a1a1aa;pointer-events:none}
+.od-filter .q input{padding-left:32px}
+.od-filter select.ui-input{width:auto;min-width:0}
+.od-filter .date{width:136px}
+.od-filter .tilde{color:#a1a1aa;font-size:13px}
+.od-filter .sp{flex:1}
+.od-list{background:#fff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden}
+.od-row{display:grid;grid-template-columns:190px 1.2fr 120px 100px 140px 150px;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid #f4f4f5;font-size:13.5px}
+.od-row:first-child{border-top:0}
+.od-row.head{background:#fafafa;font-size:11.5px;color:#71717a;font-weight:500;padding:8px 16px}
+.od-row .r{text-align:right}
+.od-no{font-weight:600;color:#18181b;text-decoration:none;font-family:var(--font-geist-mono),ui-monospace,Menlo,monospace;font-size:13px;letter-spacing:-.01em}
+.od-no:hover{text-decoration:underline}
+.od-sub{font-size:12px;color:#71717a;margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.od-amt{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.od-amt .od-sub{display:block;font-weight:400}
+.ob-pay-paid{color:#15803d}
+.ob-pay-pending{color:#71717a}
+.ob-pay-failed,.ob-pay-refunded{color:#b91c1c}
+.ob-note{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:1px 7px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;white-space:nowrap}
+.ob-wait{display:inline-flex;align-items:center;margin-top:4px;padding:1px 7px;border-radius:999px;background:#f4f4f5;color:#71717a;font-size:11px;font-weight:600;white-space:nowrap}
+.od-act{display:flex;gap:4px;justify-content:flex-end}
+.od-empty{padding:48px 16px;text-align:center;color:#71717a;font-size:14px}
+@media (max-width:767px){
+  .od-head{align-items:flex-start;flex-direction:column}
+  .od-filter{padding:10px}
+  .od-filter select.ui-input,.od-filter .date{width:100%;flex:1 1 45%}
+  .od-list{border-radius:10px}
+  .od-row{grid-template-columns:1fr auto;grid-template-areas:"no amt" "cust cust" "st pay" "act act";gap:6px 12px;padding:12px 14px}
+  .od-row.head{display:none}
+  .c-no{grid-area:no}.c-cust{grid-area:cust}.c-amt{grid-area:amt}.c-st{grid-area:st}.c-pay{grid-area:pay;text-align:right}.c-act{grid-area:act;justify-self:end;margin-top:4px}
+}
+`;
 
 export default async function OrdersListPage({
   params,
@@ -117,311 +143,200 @@ export default async function OrdersListPage({
   );
   const savedId = filters.saved;
 
+  const exportHref = `/admin/${tenant.slug}/orders/export?${new URLSearchParams(
+    Object.fromEntries(
+      Object.entries({
+        status: filters.status ?? '',
+        payment: filters.payment ?? '',
+        source: filters.source ?? '',
+        q: filters.q ?? '',
+        from: filters.from ?? '',
+        to: filters.to ?? '',
+      }).filter(([, v]) => v !== ''),
+    ),
+  ).toString()}`;
+
   return (
-    <main style={{ padding: 24, maxWidth: 1080, margin: '0 auto' }}>
-      {savedId && (
-        <div
-          style={{
-            padding: '8px 14px',
-            background: '#dcfce7',
-            border: '1px solid #bbf7d0',
-            color: '#15803d',
-            fontSize: 13,
-            fontWeight: 500,
-            borderRadius: 6,
-            marginBottom: 14,
-          }}
-        >
-          <IconCheck size={14} /> 已更新訂單狀態
-        </div>
-      )}
-      <h1 style={{ fontSize: 22, marginBottom: 16 }}>
-        訂單{' '}
-        <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>
-          ({orders.length}
-          {orders.length >= 200 ? '+,只顯示最近 200 筆' : ''})
-        </span>
-      </h1>
+    <main style={{ padding: '28px 32px 48px' }}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div style={{ maxWidth: 1120 }}>
+        {savedId && <FlashToast key={savedId} message="已更新訂單狀態" />}
 
-      {/* Filter bar — 預設折疊,有 filter 才自動展開 */}
-      <details
-        open={hasAnyFilter}
-        style={{
-          marginBottom: 20,
-          background: '#fafafa',
-          border: '1px solid #e4e4e7',
-          borderRadius: 8,
-          overflow: 'hidden',
-        }}
-      >
-        <summary
-          style={{
-            padding: '10px 14px',
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-            color: '#52525b',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            listStyle: 'none',
-          }}
-        >
-          <span style={{ fontSize: 11, color: '#71717a' }}>▶</span>
-          <IconSearch size={14} /> 篩選 / 搜尋
+        <header className="od-head">
+          <div>
+            <h1>訂單</h1>
+            <p>
+              {hasAnyFilter ? '符合條件 ' : '最近 '}
+              {orders.length}
+              {orders.length >= 200 ? '+ 筆,只顯示最近 200 筆' : ' 筆'}
+            </p>
+          </div>
+          {/* 匯出 CSV(2026-09-02):帶目前套用的篩選條件 */}
+          <a className="ui-btn ui-btn-outline ui-btn-sm" href={exportHref}>
+            <IconDownload size={14} />
+            匯出 CSV
+          </a>
+        </header>
+
+        {/* 篩選列:GET 表單,網址可分享 */}
+        <form method="GET" action={`/admin/${tenant.slug}/orders`} className="od-filter">
+          <label className="q">
+            <IconSearch size={15} />
+            <input
+              name="q"
+              className="ui-input ui-input-sm"
+              defaultValue={filters.q ?? ''}
+              placeholder="搜尋訂單編號、姓名、電話"
+              aria-label="搜尋"
+            />
+          </label>
+          <select name="status" className="ui-input ui-input-sm" defaultValue={filters.status ?? ''} aria-label="訂單狀態">
+            <option value="">所有狀態</option>
+            <option value="open">待付款</option>
+            <option value="paid">已付款</option>
+            <option value="shipped">已出貨</option>
+            <option value="delivered">已送達</option>
+            <option value="cancelled">已取消</option>
+            <option value="refunded">已退款</option>
+          </select>
+          <select name="payment" className="ui-input ui-input-sm" defaultValue={filters.payment ?? ''} aria-label="付款狀態">
+            <option value="">所有付款</option>
+            <option value="pending">未付款</option>
+            <option value="paid">已付款</option>
+            <option value="failed">付款失敗</option>
+            <option value="refunded">已退款</option>
+          </select>
+          <select name="source" className="ui-input ui-input-sm" defaultValue={filters.source ?? ''} aria-label="來源">
+            <option value="">所有來源</option>
+            <option value="web">網站</option>
+            <option value="liff">LINE</option>
+            <option value="manual">手動</option>
+            <option value="line_chat">LINE 對話</option>
+          </select>
+          {/* 2026-09-11:iPadOS Safari 空值 date 輸入框會塌陷,給明確高度 + 關原生外觀 */}
+          <input
+            name="from"
+            type="date"
+            className="ui-input ui-input-sm date"
+            defaultValue={filters.from ?? ''}
+            style={{ WebkitAppearance: 'none', appearance: 'none' }}
+            aria-label="起始日期"
+          />
+          <span className="tilde">~</span>
+          <input
+            name="to"
+            type="date"
+            className="ui-input ui-input-sm date"
+            defaultValue={filters.to ?? ''}
+            style={{ WebkitAppearance: 'none', appearance: 'none' }}
+            aria-label="結束日期"
+          />
+          <button type="submit" className="ui-btn ui-btn-primary ui-btn-sm">查詢</button>
           {hasAnyFilter && (
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#0070f3', fontWeight: 500 }}>
-              · 條件啟用中
-            </span>
+            <Link href={`/admin/${tenant.slug}/orders`} className="ui-btn ui-btn-ghost ui-btn-sm">
+              清除
+            </Link>
           )}
-        </summary>
-        <form
-          method="GET"
-          action={`/admin/${tenant.slug}/orders`}
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            padding: '12px 14px 14px',
-            background: '#fafafa',
-            borderTop: '1px solid #e4e4e7',
-          }}
-        >
-        <input
-          name="q"
-          defaultValue={filters.q ?? ''}
-          placeholder="搜尋訂單號 / 姓名 / 電話"
-          style={{ ...filterInput, flex: '1 1 200px', minWidth: 160 }}
-        />
-        <select name="status" defaultValue={filters.status ?? ''} style={filterInput}>
-          <option value="">所有狀態</option>
-          <option value="open">待付款</option>
-          <option value="paid">已付款</option>
-          <option value="shipped">已出貨</option>
-          <option value="delivered">已送達</option>
-          <option value="cancelled">已取消</option>
-          <option value="refunded">已退款</option>
-        </select>
-        <select name="payment" defaultValue={filters.payment ?? ''} style={filterInput}>
-          <option value="">所有付款</option>
-          <option value="pending">未付</option>
-          <option value="paid">已付</option>
-          <option value="failed">失敗</option>
-          <option value="refunded">已退</option>
-        </select>
-        <select name="source" defaultValue={filters.source ?? ''} style={filterInput}>
-          <option value="">所有來源</option>
-          <option value="web">網站</option>
-          <option value="liff">LIFF</option>
-          <option value="manual">手動</option>
-          <option value="line_chat">LINE 對話</option>
-        </select>
-        {/* 2026-09-11:iPadOS Safari 空值 date 輸入框會塌陷,給明確高度 + 關原生外觀 */}
-        <input
-          name="from"
-          type="date"
-          defaultValue={filters.from ?? ''}
-          style={{ ...filterInput, height: 34, WebkitAppearance: 'none', appearance: 'none' }}
-          aria-label="起始日期"
-        />
-        <span style={{ color: '#a1a1aa', fontSize: 13 }}>~</span>
-        <input
-          name="to"
-          type="date"
-          defaultValue={filters.to ?? ''}
-          style={{ ...filterInput, height: 34, WebkitAppearance: 'none', appearance: 'none' }}
-          aria-label="結束日期"
-        />
-        <button
-          type="submit"
-          style={{
-            padding: '6px 14px',
-            background: '#18181b',
-            color: '#fff',
-            border: 0,
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          查詢
-        </button>
-        {hasAnyFilter && (
-          <Link
-            href={`/admin/${tenant.slug}/orders`}
-            style={{
-              padding: '6px 12px',
-              color: '#52525b',
-              textDecoration: 'none',
-              fontSize: 13,
-              border: '1px solid #e4e4e7',
-              borderRadius: 6,
-              background: '#fff',
-            }}
-          >
-            清除
-          </Link>
-        )}
-        {/* 匯出 CSV(2026-09-02):帶目前套用的篩選條件,先查詢再匯出 */}
-        <a
-          href={`/admin/${tenant.slug}/orders/export?${new URLSearchParams(
-            Object.fromEntries(
-              Object.entries({
-                status: filters.status ?? '',
-                payment: filters.payment ?? '',
-                source: filters.source ?? '',
-                q: filters.q ?? '',
-                from: filters.from ?? '',
-                to: filters.to ?? '',
-              }).filter(([, v]) => v !== ''),
-            ),
-          ).toString()}`}
-          style={{
-            marginLeft: 'auto',
-            padding: '6px 14px',
-            background: '#fff',
-            color: '#15803d',
-            border: '1px solid #bbf7d0',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            textDecoration: 'none',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          ⬇ 匯出 Excel(CSV)
-        </a>
         </form>
-      </details>
 
-      {orders.length === 0 && (
-        <p style={{ color: '#71717a', padding: 32, textAlign: 'center', fontSize: 14 }}>
-          {hasAnyFilter ? '(條件下無符合訂單)' : '(尚無訂單)'}
-        </p>
-      )}
+        <div className="od-list">
+          {orders.length === 0 ? (
+            <div className="od-empty">{hasAnyFilter ? '沒有符合條件的訂單。' : '還沒有訂單。'}</div>
+          ) : (
+            <>
+              <div className="od-row head" aria-hidden>
+                <span>訂單</span>
+                <span>客戶</span>
+                <span className="r">金額</span>
+                <span>狀態</span>
+                <span>付款</span>
+                <span className="r">動作</span>
+              </div>
+              {orders.map((o) => (
+                <div key={o.id} className="od-row">
+                  <div className="c-no">
+                    <Link href={`/admin/${tenant.slug}/orders/${o.id}`} className="od-no">
+                      {o.order_no}
+                    </Link>
+                    <div className="od-sub">
+                      <span>{formatTw(o.created_at)}</span>
+                      <span>·</span>
+                      <span>{SOURCE_LABEL[o.source] ?? o.source}</span>
+                    </div>
+                  </div>
 
-      {orders.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
-              <th style={th}>訂單編號</th>
-              <th style={th}>來源</th>
-              <th style={th}>客戶</th>
-              <th style={{ ...th, textAlign: 'right' }}>金額</th>
-              <th style={th}>狀態</th>
-              <th style={th}>付款</th>
-              <th style={th}>建立時間</th>
-              <th style={th}>動作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((o) => (
-              <tr key={o.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={td}>
-                  <Link href={`/admin/${tenant.slug}/orders/${o.id}`} style={{ color: '#0070f3', textDecoration: 'none', fontWeight: 500 }}>
-                    {o.order_no}
-                  </Link>
-                </td>
-                <td style={td}>
-                  <span style={{ display: 'inline-block', padding: '2px 8px', background: sourceColor(o.source) + '22', color: sourceColor(o.source), borderRadius: 3, fontSize: 12 }}>
-                    {sourceLabel(o.source)}
-                  </span>
-                </td>
-                <td style={td}>
-                  {o.users?.display_name ? (
-                    <>
-                      <div style={{ fontWeight: 500 }}>{o.users.display_name}</div>
-                      {o.users.full_name && (
-                        <div style={{ fontSize: 12, color: '#888' }}>填:{o.users.full_name}</div>
+                  <div className="c-cust">
+                    {o.users?.display_name ? (
+                      <>
+                        <div style={{ fontWeight: 500 }}>{o.users.display_name}</div>
+                        {o.users.full_name && <div className="od-sub">收件人 {o.users.full_name}</div>}
+                      </>
+                    ) : o.shipping_recipient ? (
+                      <>
+                        <div style={{ fontWeight: 500 }}>{o.shipping_recipient}</div>
+                        <div className="od-sub">訪客</div>
+                      </>
+                    ) : (
+                      <div style={{ color: '#a1a1aa' }}>沒有客戶資料</div>
+                    )}
+                  </div>
+
+                  <div className="c-amt od-amt">
+                    NT$ {(o.total_twd + (o.shipping_fee_twd ?? 0)).toLocaleString()}
+                    {(o.shipping_fee_twd ?? 0) > 0 && <span className="od-sub">含運 {o.shipping_fee_twd}</span>}
+                  </div>
+
+                  <div className="c-st">
+                    <span className={`ui-badge ob-${o.status}`}>{STATUS_LABEL[o.status] ?? o.status}</span>
+                  </div>
+
+                  <div className="c-pay">
+                    <span className={`ob-pay-${o.payment_status}`} style={{ fontWeight: 500 }}>
+                      {PAY_LABEL[o.payment_status] ?? o.payment_status}
+                    </span>
+                    {/* D#14:客人已自助回報後五碼,提醒核帳 */}
+                    {o.payment_status === 'pending' && o.payment_reported_at && (
+                      <div>
+                        <span className="ob-note">
+                          <IconMessage size={11} />
+                          {o.payment_method === 'qr' ? '已回報掃碼付款' : `回報後五碼 ${o.payment_last5}`}
+                        </span>
+                      </div>
+                    )}
+                    {/* 2026-10-16:客人選了線上付款但還沒付完 — 不是等你核帳的單,付完會自動變已收款;
+                        逾期排程會自動取消並退庫存,標出來免得被當成待辦 */}
+                    {o.payment_status === 'pending' &&
+                      (o.payment_method === 'line_pay' || o.payment_method === 'ecpay_credit' || o.payment_method === 'ecpay_atm') && (
+                        <div>
+                          <span className="ob-wait">
+                            {o.payment_method === 'line_pay' ? 'LINE Pay 未完成' : o.payment_method === 'ecpay_credit' ? '信用卡未完成' : 'ATM 待轉帳'}
+                          </span>
+                        </div>
                       )}
-                    </>
-                  ) : o.shipping_recipient ? (
-                    <>
-                      <div style={{ fontWeight: 500 }}>{o.shipping_recipient}</div>
-                      <div style={{ fontSize: 12, color: '#888' }}>訪客</div>
-                    </>
-                  ) : (
-                    <div style={{ color: '#888' }}>(無客戶資料)</div>
-                  )}
-                </td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>
-                  NT$ {(o.total_twd + (o.shipping_fee_twd ?? 0)).toLocaleString()}
-                  {(o.shipping_fee_twd ?? 0) > 0 && (
-                    <div style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>含運 {o.shipping_fee_twd}</div>
-                  )}
-                </td>
-                <td style={td}>
-                  <span style={{ display: 'inline-block', padding: '2px 8px', background: statusColor(o.status) + '22', color: statusColor(o.status), borderRadius: 3, fontSize: 12 }}>
-                    {statusLabel(o.status)}
-                  </span>
-                </td>
-                <td style={td}>
-                  {statusLabel(o.payment_status)}
-                  {/* D#14:客人已自助回報後五碼,提醒核帳 */}
-                  {o.payment_status === 'pending' && o.payment_reported_at && (
-                    <div style={{ marginTop: 3 }}>
-                      <span style={{ display: 'inline-block', padding: '1px 7px', background: '#fef3c7', color: '#92400e', borderRadius: 3, fontSize: 11, fontWeight: 700 }}>
-                        <IconMessage size={11} /> {o.payment_method === 'qr' ? '已回報掃碼付款' : `回報 ${o.payment_last5}`}
-                      </span>
-                    </div>
-                  )}
-                  {/* 2026-10-16:客人選了線上付款(LINE Pay / 綠界)但還沒付完 — 不是等你核帳的單,
-                      付完會自動變已收款;逾期排程會自動取消並退庫存,標出來免得被當成待辦 */}
-                  {o.payment_status === 'pending' &&
-                    (o.payment_method === 'line_pay' || o.payment_method === 'ecpay_credit' || o.payment_method === 'ecpay_atm') && (
-                    <div style={{ marginTop: 3 }}>
-                      <span style={{ display: 'inline-block', padding: '1px 7px', background: '#f4f4f5', color: '#71717a', borderRadius: 3, fontSize: 11, fontWeight: 600 }}>
-                        {o.payment_method === 'line_pay' ? 'LINE Pay 未完成' : o.payment_method === 'ecpay_credit' ? '信用卡未完成' : 'ATM 待轉帳'}
-                      </span>
-                    </div>
-                  )}
-                </td>
-                <td style={{ ...td, fontSize: 13, color: '#666' }}>{formatTw(o.created_at)}</td>
-                <td style={td}>
-                  <QuickAction
-                    order={o}
-                    tenantSlug={tenant.slug}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+                  </div>
+
+                  <div className="c-act od-act">
+                    <QuickAction order={o} tenantSlug={tenant.slug} />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
 
 /**
- * 訂單列表 inline quick action button:
- * - 未付款 → 「✓ 標已付款」綠 button(直接呼叫 markOrderPaid,跳轉回此頁 ?saved=paid)
- * - 已付款 未出貨 → 「📦 標已出貨」藍 button
- * - 已出貨 / 已送達 / 已取消 / 已退款 → 「詳細」灰 link
+ * 訂單列表 inline quick action:
+ * - 待付款 → 「已收款」(直接呼叫 markOrderPaid,跳轉回此頁 ?saved=id)
+ * - 已付款未出貨 → 「已出貨」(自取訂單顯示「已備貨」)
+ * - 其他 → 只有「詳細」
  */
-function QuickAction({
-  order,
-  tenantSlug,
-}: {
-  order: OrderRow;
-  tenantSlug: string;
-}) {
+function QuickAction({ order, tenantSlug }: { order: OrderRow; tenantSlug: string }) {
   const linkBtn = (
-    <Link
-      href={`/admin/${tenantSlug}/orders/${order.id}`}
-      style={{
-        padding: '5px 10px',
-        background: '#fff',
-        color: '#52525b',
-        border: '1px solid #e4e4e7',
-        borderRadius: 4,
-        fontSize: 11,
-        textDecoration: 'none',
-        whiteSpace: 'nowrap',
-      }}
-    >
+    <Link href={`/admin/${tenantSlug}/orders/${order.id}`} className="ui-btn ui-btn-outline ui-btn-xs">
       詳細
     </Link>
   );
@@ -433,7 +348,7 @@ function QuickAction({
         <input type="hidden" name="tenant_slug" value={tenantSlug} />
         <input type="hidden" name="return_to" value="list" />
         <ConfirmButton bg="#16a34a" confirmText={`確定把訂單 ${order.order_no} 標記為「已收款」?`}>
-          <IconCheck size={13} /> 已收款
+          <IconCheck size={12} /> 已收款
         </ConfirmButton>
         {linkBtn}
       </form>
@@ -448,8 +363,8 @@ function QuickAction({
         <input type="hidden" name="id" value={order.id} />
         <input type="hidden" name="tenant_slug" value={tenantSlug} />
         <input type="hidden" name="return_to" value="list" />
-        <ConfirmButton bg="#0070f3" confirmText={`確定把訂單 ${order.order_no} 標記為「${isPickup ? '已備貨(待自取)' : '已出貨'}」?`}>
-          <IconPackage size={13} /> {isPickup ? '已備貨' : '已出貨'}
+        <ConfirmButton bg="#2563eb" confirmText={`確定把訂單 ${order.order_no} 標記為「${isPickup ? '已備貨(待自取)' : '已出貨'}」?`}>
+          <IconPackage size={12} /> {isPickup ? '已備貨' : '已出貨'}
         </ConfirmButton>
         {linkBtn}
       </form>

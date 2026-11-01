@@ -32,12 +32,17 @@ export function ConfirmButton({
         setConfirming(true);
       }}
       style={{
-        padding: '5px 10px',
+        // 2026-11-01:尺寸對齊 lib/ui 的 ui-btn-xs(28px 高、6px 圓角)
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        height: 28,
+        padding: '0 10px',
         background: pending ? '#9ca3af' : bg,
         color: '#fff',
         border: 0,
-        borderRadius: 4,
-        fontSize: 11,
+        borderRadius: 6,
+        fontSize: 12,
         fontWeight: 600,
         cursor: pending ? 'wait' : 'pointer',
         fontFamily: 'inherit',

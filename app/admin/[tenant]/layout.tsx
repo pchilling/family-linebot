@@ -19,6 +19,12 @@ import {
 import { NavLinks } from './nav-links';
 import { NavProgress } from './nav-progress';
 import { MobileToggle, SidebarBackdrop } from './mobile-toggle';
+import { UI_CSS } from '@/lib/ui';
+import { derivePalette, paletteCssVars } from '@/lib/theme';
+
+// 2026-11-01:後台也用公開商店那套元件(lib/ui.tsx 的 ui-btn / ui-input / ui-badge…),
+// 色票設成 zinc(品牌色 #18181b → 中性灰階),整個後台一次注入,各頁直接用 className。
+const ADMIN_UI_VARS = paletteCssVars(derivePalette('#18181b', 'white')) as React.CSSProperties;
 
 // 字型在 app/layout.tsx root 統一載入(Phase 8.2),這裡不再各自載
 
@@ -97,14 +103,23 @@ export default async function TenantAdminLayout({
         background: colors.bgBody,
         fontFamily: fontFamilySans,
         color: colors.textPrimary,
+        ...ADMIN_UI_VARS,
       }}
     >
       {/* 2026-10-20:點任何站內連結立刻出現頂部進度條,到站才收 */}
       <NavProgress />
-      {/* CSS:手機版 sidebar 改 fixed drawer + hamburger;內頁 RWD */}
+      {/* CSS:共用元件(lib/ui)+ 手機版 sidebar 改 fixed drawer + hamburger;內頁 RWD */}
       <style
         dangerouslySetInnerHTML={{
-          __html: `
+          __html: UI_CSS + `
+/* 2026-11-01:訂單狀態 badge(訂單列表 / 明細 / 總覽共用,配 ui-badge 一起用) */
+.ob-open{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
+.ob-paid{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.ob-shipped{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.ob-delivered{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+.ob-cancelled{background:#f4f4f5;color:#71717a;border-color:transparent}
+.ob-refunded{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+
 /* 2026-10-20:所有後台頁面不限寬,螢幕多寬用多寬。
    各頁原本各自在 <main> 設 maxWidth(720~1200 不等),寬螢幕兩側留一大片白;
    統一在這裡用 !important 蓋掉,不用逐頁改。哪一頁拉太寬難看再個別處理。 */

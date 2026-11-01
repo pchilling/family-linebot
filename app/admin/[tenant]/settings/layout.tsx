@@ -1,7 +1,5 @@
 import { notFound } from 'next/navigation';
 import { getTenantBySlug } from '@/lib/supabase';
-import { UI_CSS } from '@/lib/ui';
-import { derivePalette, paletteCssVars } from '@/lib/theme';
 import { siteOrigin } from '@/lib/return-to';
 import { IconExternal } from '@/lib/icons';
 import { SETTINGS_CSS } from './settings-ui';
@@ -11,7 +9,7 @@ import { CopyButton, SettingsNav } from './settings-client';
  * 「設定」頁外框(2026-11-01 改版):頁首 + 一張卡片(左導覽、右內容)。
  * 六個分頁各自是獨立路由(/settings、/look、/payment、/shipping、/promo、/about),
  * 網址可以直接分享,每頁只撈自己要的欄位。
- * 表單元件沿用公開商店的 lib/ui.tsx,色票設成後台的 zinc(品牌色 #18181b → 中性灰階)。
+ * 表單元件沿用公開商店的 lib/ui.tsx(UI_CSS 與 zinc 色票由上層 admin layout 注入)。
  */
 export default async function SettingsLayout({
   children,
@@ -27,12 +25,11 @@ export default async function SettingsLayout({
   const origin = siteOrigin();
   const host = origin.replace(/^https?:\/\//, '');
   const publicUrl = `${origin}/${tenant.slug}`;
-  const vars = paletteCssVars(derivePalette('#18181b', 'white')) as React.CSSProperties;
 
   return (
     <main style={{ padding: '28px 32px 48px' }}>
-      <style dangerouslySetInnerHTML={{ __html: UI_CSS + SETTINGS_CSS }} />
-      <div className="sx" style={{ maxWidth: 1120, ...vars }}>
+      <style dangerouslySetInnerHTML={{ __html: SETTINGS_CSS }} />
+      <div className="sx" style={{ maxWidth: 1120 }}>
         <header className="sx-head">
           <div>
             <h1>設定</h1>
