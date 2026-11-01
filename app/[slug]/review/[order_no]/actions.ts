@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 
-export type SubmitReviewsResult = { ok: true; saved: number } | { ok: false; error: string };
+export type SubmitReviewsResult = { ok: true; saved: number; store: boolean } | { ok: false; error: string };
 
 /**
  * 送出評價(Phase 25):用訂單存取碼驗證身分(不用登入),每個商品 1–5 星 + 可選留言。
  * 同一筆訂單同一商品再送 = 更新(unique order_id + product_id)。
  * 分數客人自己給,後台只能隱藏、不能改。
+ * Phase 30(2026-11-01):同一張表單多「這家店整體」一顆星 → tenant_reviews,一筆訂單評一次(再送 = 更新)。
  */
 export async function submitReviews(formData: FormData): Promise<SubmitReviewsResult> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
@@ -55,17 +56,34 @@ export async function submitReviews(formData: FormData): Promise<SubmitReviewsRe
       status: 'visible',
     });
   }
-  if (rows.length === 0) return { ok: false, error: '至少給一個商品打星' };
+  // 店家星等(Phase 30):沒打就跳過
+  const storeRating = Number(formData.get('rating_store'));
+  const hasStore = Number.isInteger(storeRating) && storeRating >= 1 && storeRating <= 5;
+  if (rows.length === 0 && !hasStore) return { ok: false, error: '至少給商品或這家店打一顆星' };
 
-  const { error } = await supabaseAdmin.from('product_reviews').upsert(rows, { onConflict: 'order_id,product_id' });
-  if (error) {
-    console.error('[submitReviews]', error);
-    return { ok: false, error: '儲存失敗,請稍後再試' };
+  if (rows.length > 0) {
+    const { error } = await supabaseAdmin.from('product_reviews').upsert(rows, { onConflict: 'order_id,product_id' });
+    if (error) {
+      console.error('[submitReviews]', error);
+      return { ok: false, error: '儲存失敗,請稍後再試' };
+    }
+  }
+  if (hasStore) {
+    const storeComment = String(formData.get('comment_store') ?? '').trim().slice(0, 300) || null;
+    const { error } = await supabaseAdmin.from('tenant_reviews').upsert(
+      { tenant_id: tenant.id, order_id: order.id, user_id: order.user_id, rating: storeRating, comment: storeComment, display_name: displayName, status: 'visible' },
+      { onConflict: 'order_id' },
+    );
+    if (error) {
+      console.error('[submitReviews:store]', error);
+      return { ok: false, error: '店家評價儲存失敗,請稍後再試' };
+    }
   }
 
-  revalidatePath(`/${slug}`);
+  // 頁首的店家星數在 layout 裡算,整個商店的路由都要重算
+  revalidatePath(`/${slug}`, 'layout');
   for (const i of order.order_items ?? []) {
     if (i.products?.slug) revalidatePath(`/${slug}/p/${i.products.slug}`);
   }
-  return { ok: true, saved: rows.length };
+  return { ok: true, saved: rows.length, store: hasStore };
 }

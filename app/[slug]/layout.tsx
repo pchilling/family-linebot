@@ -38,12 +38,16 @@ export default async function TenantLayout({ children, params }: Props) {
   if (!tenant) notFound();
 
   // 2026-09-11(回饋 #13):footer 顯示攤位對外聯絡資訊(getTenantPublic 沒帶,另撈)
-  const { data: extraRow } = await supabaseAdmin
-    .from('tenants')
-    .select('contact_info')
-    .eq('slug', slug)
-    .maybeSingle();
+  // Phase 30(2026-11-01):頁首店名旁顯示店家評價(只算顯示中的),量小在程式裡算平均
+  const [{ data: extraRow }, { data: storeReviews }] = await Promise.all([
+    supabaseAdmin.from('tenants').select('contact_info').eq('slug', slug).maybeSingle(),
+    supabaseAdmin.from('tenant_reviews').select('rating').eq('tenant_id', tenant.id).eq('status', 'visible'),
+  ]);
   const contactInfo = (extraRow as { contact_info: string | null } | null)?.contact_info ?? null;
+  const ratingList = ((storeReviews as { rating: number }[] | null) ?? []).map((r) => r.rating);
+  const storeRating = ratingList.length
+    ? { avg: Math.round((ratingList.reduce((s, r) => s + r, 0) / ratingList.length) * 10) / 10, count: ratingList.length }
+    : null;
 
   const palette = derivePalette(tenant.brand_color, bgStyleFromLegacy(tenant.shop_bg_color));
   const vars = paletteCssVars(palette) as React.CSSProperties;
@@ -71,6 +75,10 @@ export default async function TenantLayout({ children, params }: Props) {
 .shop-hdr-in{height:100%;display:flex;align-items:center;justify-content:space-between;gap:24px}
 .shop-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ui-ink);font-weight:600;font-size:15px;letter-spacing:-.01em;min-width:0}
 .shop-brand span.n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shop-brand-wrap{display:flex;align-items:center;gap:10px;min-width:0}
+.shop-rating{display:inline-flex;align-items:center;gap:3px;font-size:12.5px;color:var(--ui-muted);white-space:nowrap;flex-shrink:0}
+.shop-rating b{color:var(--ui-ink);font-weight:600;font-variant-numeric:tabular-nums}
+@media (max-width:420px){.shop-rating{display:none}}
 .shop-nav{display:flex;gap:20px;font-size:14px;font-weight:500}
 .shop-nav a{text-decoration:none;color:var(--ui-muted)}.shop-nav a:hover{color:var(--ui-ink)}
 .shop-main{width:100%;padding-top:24px;padding-bottom:64px}
@@ -83,23 +91,33 @@ export default async function TenantLayout({ children, params }: Props) {
 
       <header className="shop-hdr">
         <div className="ui-wrap shop-hdr-in">
-          <a href={`/${slug}`} className="shop-brand">
-            {tenant.logo_url ? (
-              <img
-                src={tenant.logo_url}
-                alt=""
-                style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--ui-line)', flexShrink: 0 }}
-              />
-            ) : (
-              <span
-                aria-hidden
-                style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--ui-accent)', color: 'var(--ui-on-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}
-              >
-                {tenant.name.slice(0, 1)}
+          <div className="shop-brand-wrap">
+            <a href={`/${slug}`} className="shop-brand">
+              {tenant.logo_url ? (
+                <img
+                  src={tenant.logo_url}
+                  alt=""
+                  style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--ui-line)', flexShrink: 0 }}
+                />
+              ) : (
+                <span
+                  aria-hidden
+                  style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--ui-accent)', color: 'var(--ui-on-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}
+                >
+                  {tenant.name.slice(0, 1)}
+                </span>
+              )}
+              <span className="n">{tenant.name}</span>
+            </a>
+            {/* Phase 30:店家評價平均星數(客人出貨後給的) */}
+            {storeRating && (
+              <span className="shop-rating" title={`${storeRating.count} 位客人評價這家店`} aria-label={`店家評價 ${storeRating.avg.toFixed(1)} 顆星,共 ${storeRating.count} 則`}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" aria-hidden><path d="M12 2.5l2.9 6.1 6.7.8-4.9 4.6 1.3 6.6L12 17.3l-6 3.3 1.3-6.6L2.4 9.4l6.7-.8z" /></svg>
+                <b>{storeRating.avg.toFixed(1)}</b>
+                <span>({storeRating.count})</span>
               </span>
             )}
-            <span className="n">{tenant.name}</span>
-          </a>
+          </div>
           <nav className="shop-nav" aria-label="主選單">
             <a href={`/${slug}`}>商品</a>
             <a href={`/${slug}/order-lookup`}>查訂單</a>

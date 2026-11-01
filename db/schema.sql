@@ -1408,3 +1408,27 @@ alter table orders add column if not exists cvs_store_id text;     -- 店號
 alter table orders add column if not exists cvs_store_name text;   -- 門市名稱
 alter table orders add column if not exists tracking_no text;      -- 寄件單號(宅配也可以填)
 alter table orders add column if not exists logistics_status text; -- shipped / arrived / picked / returned;第一階段只有 shipped
+
+
+-- ====================
+-- Phase 30(2026-11-01):店家評價(整家店的星等,不只商品)
+-- 跟 Phase 25 同一套:出貨後、綁訂單、用存取碼進評價頁,客人在同一張評價頁順手給店家打 1–5 星。
+-- 一筆訂單只能評一次店家(再送 = 更新)。商店頁首店名旁顯示平均星數與評價數,後台只能隱藏不能改分數。
+-- ====================
+create table if not exists tenant_reviews (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  order_id uuid not null references orders(id) on delete cascade,
+  user_id uuid references users(id) on delete set null,
+  rating int not null check (rating between 1 and 5),
+  comment text,
+  display_name text,                 -- 顯示用名字(個人設定暱稱 / 自己打的暱稱,不給匿名)
+  status text not null default 'visible' check (status in ('visible', 'hidden')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (order_id)                  -- 一筆訂單只能評一次店家
+);
+create index if not exists tenant_reviews_tenant_idx on tenant_reviews(tenant_id, status, created_at desc);
+alter table tenant_reviews enable row level security;
+create trigger tenant_reviews_updated_at before update on tenant_reviews
+  for each row execute function set_updated_at();

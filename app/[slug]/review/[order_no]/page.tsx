@@ -60,13 +60,18 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
     );
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from('product_reviews')
-    .select('product_id, rating, comment, display_name')
-    .eq('order_id', order!.id);
+  const [{ data: existing }, { data: storeRow }] = await Promise.all([
+    supabaseAdmin
+      .from('product_reviews')
+      .select('product_id, rating, comment, display_name')
+      .eq('order_id', order!.id),
+    // Phase 30:這筆訂單評過店家的話帶進來
+    supabaseAdmin.from('tenant_reviews').select('rating, comment, display_name').eq('order_id', order!.id).maybeSingle(),
+  ]);
   const existingByProduct = new Map(
     ((existing as { product_id: string; rating: number; comment: string | null; display_name: string | null }[] | null) ?? []).map((r) => [r.product_id, r]),
   );
+  const storeExisting = (storeRow as { rating: number; comment: string | null; display_name: string | null } | null) ?? null;
 
   const seen = new Set<string>();
   const items: ReviewItem[] = [];
@@ -85,7 +90,7 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
     const { data: pu } = await supabaseAdmin.from('platform_users').select('display_name').eq('id', order!.platform_user_id).maybeSingle();
     accountName = (pu as { display_name: string | null } | null)?.display_name ?? null;
   }
-  const defaultName = existingByProduct.values().next().value?.display_name ?? accountName ?? order!.users?.display_name ?? '';
+  const defaultName = existingByProduct.values().next().value?.display_name ?? storeExisting?.display_name ?? accountName ?? order!.users?.display_name ?? '';
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -95,7 +100,15 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
           訂單 <span className="ui-num" style={{ color: 'var(--ui-ink)', fontWeight: 500 }}>{order_no}</span> · 點星星打分數,想多說一點也可以。
         </p>
       </div>
-      <ReviewForm slug={slug} orderNo={order_no} accessKey={k} defaultName={defaultName} items={items} />
+      <ReviewForm
+        slug={slug}
+        tenantName={tenant.name}
+        orderNo={order_no}
+        accessKey={k}
+        defaultName={defaultName}
+        items={items}
+        store={{ rating: storeExisting?.rating ?? null, comment: storeExisting?.comment ?? null }}
+      />
     </div>
   );
 }

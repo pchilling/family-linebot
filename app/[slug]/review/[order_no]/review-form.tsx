@@ -46,24 +46,29 @@ function StarPicker({ value, onChange, name }: { value: number; onChange: (v: nu
 
 export function ReviewForm({
   slug,
+  tenantName,
   orderNo,
   accessKey,
   defaultName,
   items,
+  store,
 }: {
   slug: string;
+  tenantName: string;
   orderNo: string;
   accessKey: string;
   defaultName: string;
   items: ReviewItem[];
+  store: { rating: number | null; comment: string | null }; // Phase 30:這筆訂單給店家的評價(評過的話帶進來)
 }) {
   const [ratings, setRatings] = useState<Record<string, number>>(
     Object.fromEntries(items.map((i) => [i.productId, i.rating ?? 0])),
   );
+  const [storeRating, setStoreRating] = useState(store.rating ?? 0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<number | null>(null);
-  const alreadyReviewed = items.some((i) => i.rating);
+  const [done, setDone] = useState<{ saved: number; store: boolean } | null>(null);
+  const alreadyReviewed = items.some((i) => i.rating) || !!store.rating;
   // 2026-11-01 Peter:不給匿名 — 用自己的名字(預設帶暱稱 / LINE 名稱),或另外打一個暱稱
   const [useDefault, setUseDefault] = useState(!!defaultName);
 
@@ -76,17 +81,18 @@ export function ReviewForm({
       setError(result.error);
       return;
     }
-    setDone(result.saved);
+    setDone({ saved: result.saved, store: result.store });
   }
 
   if (done !== null) {
+    const what = [done.saved > 0 ? `${done.saved} 個商品` : '', done.store ? '這家店' : ''].filter(Boolean).join('和');
     return (
       <div className="ui-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
         <span style={{ width: 48, height: 48, borderRadius: '50%', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
         </span>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>謝謝您的評價</h2>
-        <p className="ui-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>已收到 {done} 個商品的評價,會顯示在商品頁上讓其他客人參考。</p>
+        <p className="ui-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>已收到{what}的評價,會顯示在商店裡讓其他客人參考。</p>
         <a href={`/${slug}`} className="ui-btn ui-btn-outline ui-btn-md" style={{ marginTop: 8 }}>回商店逛逛</a>
       </div>
     );
@@ -103,6 +109,16 @@ export function ReviewForm({
           這筆訂單您已經評價過了,可以修改後再送出一次。
         </div>
       )}
+
+      {/* Phase 30:這家店整體(出貨速度、包裝、服務)— 一筆訂單一顆星 */}
+      <div className="ui-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, borderColor: 'var(--ui-accent)' }}>
+        <div>
+          <span className="ui-label" style={{ marginBottom: 2 }}>這家店整體</span>
+          <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>給 <b style={{ color: 'var(--ui-ink)', fontWeight: 500 }}>{tenantName}</b> 打個分數:出貨速度、包裝、服務的整體感覺。</p>
+        </div>
+        <StarPicker name="rating_store" value={storeRating} onChange={setStoreRating} />
+        <Textarea name="comment_store" defaultValue={store.comment ?? ''} rows={2} maxLength={300} placeholder="對這家店想說的話(選填)" style={{ minHeight: 64 }} />
+      </div>
 
       {items.map((it) => (
         <div key={it.productId} className="ui-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -151,7 +167,7 @@ export function ReviewForm({
         {pending ? <span className="ui-spin" style={{ borderTopColor: '#fff' }} /> : null}
         {pending ? '送出中…' : alreadyReviewed ? '更新評價' : '送出評價'}
       </Button>
-      <p className="ui-muted" style={{ margin: 0, fontSize: 12, textAlign: 'center', lineHeight: 1.6 }}>沒打星的商品不會送出。評價內容由您提供,店家不會修改分數。</p>
+      <p className="ui-muted" style={{ margin: 0, fontSize: 12, textAlign: 'center', lineHeight: 1.6 }}>沒打星的不會送出。評價內容由您提供,店家不會修改分數。</p>
     </form>
   );
 }
