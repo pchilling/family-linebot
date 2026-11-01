@@ -5,6 +5,7 @@ import { markOrderPaid, markOrderShipped } from '../../actions';
 import { ConfirmButton } from '../../_components/confirm-button';
 import { FlashToast } from '../../../_components/toast';
 import { IconCheck, IconDownload, IconMessage, IconPackage, IconSearch } from '@/lib/icons';
+import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
 
 /**
  * 訂單列表(2026-11-01 換成後台新設計系統:lib/ui 元件 + 卡片式清單,不再用 <table>)。
@@ -25,6 +26,7 @@ type OrderRow = {
   payment_reported_at: string | null;
   payment_last5: string | null;
   payment_method: string | null; // 2026-10-16:標示 LINE Pay 未完成付款的單
+  cvs_type: string | null; // Phase 29:超商店到店('711' | 'family')
   created_at: string;
   users: { display_name: string | null; full_name: string | null } | null;
 };
@@ -43,7 +45,7 @@ async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_method, shipping_fee_twd, payment_reported_at, payment_last5, payment_method, created_at, users(display_name, full_name)',
+      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_method, shipping_fee_twd, payment_reported_at, payment_last5, payment_method, cvs_type, created_at, users(display_name, full_name)',
     )
     .eq('tenant_id', tenantId);
 
@@ -262,6 +264,12 @@ export default async function OrdersListPage({
                       <span>{formatTw(o.created_at)}</span>
                       <span>·</span>
                       <span>{SOURCE_LABEL[o.source] ?? o.source}</span>
+                      {isCvsChain(o.cvs_type) && (
+                        <>
+                          <span>·</span>
+                          <span style={{ color: '#b45309', fontWeight: 600 }}>{CVS_CHAINS[o.cvs_type].short} 取貨</span>
+                        </>
+                      )}
                     </div>
                   </div>
 

@@ -1396,3 +1396,15 @@ delete from tenants
   where slug = 'rek'
     and id not in (select tenant_id from products where tenant_id is not null)
     and id not in (select tenant_id from orders where tenant_id is not null);
+
+
+-- ====================
+-- Phase 29(2026-11-01):超商店到店第一階段(不接 API,攤主自己到 ibon / FamiPort 寄)
+-- 配送方式多「7-ELEVEN 店到店」「全家 店到店」(存在 tenants.shipping_rules.options[].cvs,不用加欄位);
+-- 訂單記客人選的門市與攤主寄件後的單號。物流狀態另開欄位,不塞進 status。
+-- ====================
+alter table orders add column if not exists cvs_type text;         -- '711' | 'family';null = 宅配 / 自取
+alter table orders add column if not exists cvs_store_id text;     -- 店號
+alter table orders add column if not exists cvs_store_name text;   -- 門市名稱
+alter table orders add column if not exists tracking_no text;      -- 寄件單號(宅配也可以填)
+alter table orders add column if not exists logistics_status text; -- shipped / arrived / picked / returned;第一階段只有 shipped

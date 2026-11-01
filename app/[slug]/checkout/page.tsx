@@ -4,7 +4,8 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
-import { IconBank, IconCreditCard, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
+import { IconBank, IconCreditCard, IconGift, IconPackage, IconStore, IconTruck, IconWallet } from '@/lib/icons';
+import { CVS_CHAINS } from '@/lib/cvs';
 import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
 import { createOrder, getCartPricingInfo, getGiftRulesPublic, getQrPaymentPublic, getShippingOptions, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type QrPaymentPublic, type ShippingOption } from './actions';
 
@@ -143,6 +144,8 @@ export default function CheckoutPage({ params }: Props) {
   const isLinePayPay = linePayOn && payMethod === 'line_pay';
   const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
   const isOnlinePay = isLinePayPay || isEcpayPay;
+  // Phase 29:選了超商店到店 → 收件區改填門市
+  const cvs = shipOptions.find((o) => o.key === shipKey)?.cvs ?? null;
 
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
   const [pricing, setPricing] = useState<CartPricingInfo>({});
@@ -315,7 +318,7 @@ export default function CheckoutPage({ params }: Props) {
                       value={opt.key}
                       on={shipKey === opt.key}
                       onSelect={() => { setShipKey(opt.key); setShipError(false); }}
-                      icon={isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
+                      icon={opt.cvs ? <IconStore size={16} /> : isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
                       title={opt.label}
                       trailing={
                         <span className="ui-num" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
@@ -366,10 +369,10 @@ export default function CheckoutPage({ params }: Props) {
           )}
 
           <section className="ck-sec" aria-labelledby="addr-h">
-            <div className="ck-sec-h"><h2 id="addr-h">收件資訊</h2></div>
+            <div className="ck-sec-h"><h2 id="addr-h">{cvs ? '取貨資訊' : '收件資訊'}</h2></div>
             <div className="ck-row2">
               <div className="ck-field">
-                <label className="ui-label" htmlFor="recipient" style={{ marginBottom: 0 }}>收件人姓名 <i>*</i></label>
+                <label className="ui-label" htmlFor="recipient" style={{ marginBottom: 0 }}>{cvs ? '取件人姓名' : '收件人姓名'} <i>*</i></label>
                 {/* key 跟著會員資料換:資料載進來時重掛一次,把預設值填進去 */}
                 <input key={member ? 'm' : 'g'} id="recipient" name="recipient" type="text" required defaultValue={member?.name ?? ''} className="ui-input" placeholder="王小明" autoComplete="name" />
               </div>
@@ -379,11 +382,32 @@ export default function CheckoutPage({ params }: Props) {
               </div>
             </div>
             {member?.email && <input type="hidden" name="guestEmail" value={member.email} />}
-            <div className="ck-field">
-              <span className="ui-label" style={{ marginBottom: 0 }}>寄送地址 <i>*</i></span>
-              {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
-              <TwAddressFields required inputStyle={inputStyle} />
-            </div>
+            {cvs ? (
+              /* Phase 29:超商店到店 — 填取貨門市,不填地址;取件要核對姓名與手機 */
+              <>
+                <div className="ck-row2">
+                  <div className="ck-field">
+                    <label className="ui-label" htmlFor="cvs-store-name" style={{ marginBottom: 0 }}>{CVS_CHAINS[cvs].short} 取貨門市 <i>*</i></label>
+                    <input id="cvs-store-name" name="cvs_store_name" type="text" required maxLength={40} className="ui-input" placeholder="例:大安門市" autoComplete="off" />
+                  </div>
+                  <div className="ck-field">
+                    <label className="ui-label" htmlFor="cvs-store-id" style={{ marginBottom: 0 }}>店號 <i>*</i></label>
+                    <input id="cvs-store-id" name="cvs_store_id" type="text" required inputMode="numeric" pattern="[0-9]{3,10}" className="ui-input" placeholder="例:123456" autoComplete="off" />
+                  </div>
+                </div>
+                <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+                  店號可以到{' '}
+                  <a href={CVS_CHAINS[cvs].mapUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--ui-accent-ink)', fontWeight: 500 }}>{CVS_CHAINS[cvs].short} 官方門市查詢</a>
+                  {' '}找。取貨時超商會核對姓名和手機,請填本名。
+                </p>
+              </>
+            ) : (
+              <div className="ck-field">
+                <span className="ui-label" style={{ marginBottom: 0 }}>寄送地址 <i>*</i></span>
+                {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
+                <TwAddressFields required inputStyle={inputStyle} />
+              </div>
+            )}
             <div className="ck-field">
               <label className="ui-label" htmlFor="note" style={{ marginBottom: 0 }}>備註(選填)</label>
               {/* 需要統編直接寫在備註 */}

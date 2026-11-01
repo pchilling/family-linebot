@@ -111,7 +111,8 @@ export const SETTINGS_CSS = `
 .sx-preview .pbtn{height:30px;padding:0 12px;border-radius:6px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center}
 .sx-preview .ptag{height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;border:1px solid transparent}
 .sx-crop{padding:12px;background:#fafafa;border:1px solid #e4e4e7;border-radius:8px;display:flex;justify-content:center;max-height:480px;overflow:auto}
-.sx-ship{display:grid;grid-template-columns:1.4fr .6fr .8fr 1.4fr 32px;gap:8px;align-items:center}
+.sx-ship{display:grid;grid-template-columns:150px 1.3fr .6fr .8fr 1.3fr 32px;gap:8px;align-items:center}
+.sx-ship select.ui-input{width:100%}
 .sx-ship-head{font-size:11.5px;color:#71717a;font-weight:500;padding:0 2px}
 .sx-filebtn input{display:none}
 /* 收款方式清單(2026-11-01):每種方式一張可展開的卡 */
@@ -149,7 +150,7 @@ export const SETTINGS_CSS = `
   .sx-dl dt{margin-top:10px;font-size:12px}
   .sx-og{width:100%}
   .sx-ship{grid-template-columns:1fr 1fr 32px;padding:10px;border:1px solid #e4e4e7;border-radius:8px}
-  .sx-ship > :first-child,.sx-ship > :nth-child(4){grid-column:1/-1}
+  .sx-ship > :first-child,.sx-ship > :nth-child(2),.sx-ship > :nth-child(5){grid-column:1/-1}
   .sx-ship-head{display:none}
 }
 `;

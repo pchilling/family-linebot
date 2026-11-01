@@ -6,6 +6,7 @@ import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
 import { isEcpayConfigured } from '@/lib/ecpay';
 import { getCurrentMember } from '@/lib/member-auth';
 import { bankTransferFromRow, isBankTransferOffered } from '@/lib/bank-transfer';
+import { cvsStoreText, type CvsChain } from '@/lib/cvs';
 
 // 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
 // (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
@@ -75,12 +76,14 @@ export type CreateOrderResult =
   | { ok: false; error: string };
 
 // D#13:運費規則(tenants.shipping_rules.options;空陣列 = 該攤位不收運費)
+// Phase 29:cvs = 超商店到店(7-ELEVEN / 全家),客人結帳要選門市,不填地址
 export type ShippingOption = {
   key: string;
   label: string;
   fee: number;
   free_over?: number;
   note?: string;
+  cvs?: CvsChain;
 };
 
 // 2026-10-06:滿額贈進度橫幅用 — 回有效規則(贈品名已解析,已下架贈品不列)
@@ -183,6 +186,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const note = String(formData.get('note') ?? '').trim();
   const guestEmail = String(formData.get('guestEmail') ?? '').trim();
   const shippingMethod = String(formData.get('shipping_method') ?? '').trim();
+  // Phase 29:超商店到店選的門市(有選店到店才會有;地址由門市組出來)
+  const cvsStoreName = String(formData.get('cvs_store_name') ?? '').trim().slice(0, 40);
+  const cvsStoreId = String(formData.get('cvs_store_id') ?? '').trim().replace(/\s+/g, '');
   // 2026-10-15:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
   // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款,不信任前端
   const rawPayment = String(formData.get('payment_method') ?? '').trim();
@@ -203,7 +209,8 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   if (!tenantSlug) return { ok: false, error: '無攤位資訊' };
   if (!recipient) return { ok: false, error: '請填收件人姓名' };
   if (!phone) return { ok: false, error: '請填聯絡電話' };
-  if (!address) return { ok: false, error: '請填寄送地址' };
+  // 地址:店到店用門市代替,下面決定配送方式時再檢查
+  if (!address && !cvsStoreName) return { ok: false, error: '請填寄送地址' };
 
   let cartItems: CartItemInput[];
   try {
@@ -338,11 +345,24 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const shipOptions = await getShippingOptions(tenantSlug);
   let shippingFee = 0;
   let shippingKey: string | null = null;
+  let cvsType: CvsChain | null = null;
+  let finalAddress = address;
   if (shipOptions.length > 0) {
     const opt = shipOptions.find((o) => o.key === shippingMethod);
     if (!opt) return { ok: false, error: '請選擇配送方式' };
     shippingFee = opt.free_over && subtotal >= opt.free_over ? 0 : opt.fee;
     shippingKey = opt.key;
+    // Phase 29:店到店 — 門市必填,地址用門市字串代替(出貨單、後台、訂單頁都看得懂)
+    if (opt.cvs) {
+      if (!cvsStoreName) return { ok: false, error: '請填取貨門市名稱' };
+      if (!/^\d{3,10}$/.test(cvsStoreId)) return { ok: false, error: '請填門市店號(3 到 10 位數字)' };
+      cvsType = opt.cvs;
+      finalAddress = cvsStoreText(opt.cvs, cvsStoreName, cvsStoreId);
+    } else if (!finalAddress) {
+      return { ok: false, error: '請填寄送地址' };
+    }
+  } else if (!finalAddress) {
+    return { ok: false, error: '請填寄送地址' };
   }
 
   // 2026-09-21 防重複下單:同電話 2 分鐘內送出「內容完全相同」的單,
@@ -381,9 +401,13 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       source: 'web',
       shipping_recipient: recipient,
       shipping_phone: phone,
-      shipping_address: address,
+      shipping_address: finalAddress,
       shipping_method: shippingKey,
       shipping_fee_twd: shippingFee,
+      // Phase 29:店到店的門市;宅配 / 自取為 null
+      cvs_type: cvsType,
+      cvs_store_id: cvsType ? cvsStoreId : null,
+      cvs_store_name: cvsType ? cvsStoreName : null,
       note: note || null,
       guest_email: guestEmail || null,
       guest_phone: phone,

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { BG_STYLE_HEX, type BgStyle } from '@/lib/theme';
 import { parseBankInput } from '@/lib/bank-transfer';
+import { CVS_CHAINS, isCvsChain, type CvsChain } from '@/lib/cvs';
 
 export type SettingsState =
   | { status: 'idle' }
@@ -662,7 +663,8 @@ export async function finalizeBannerUpload(formData: FormData): Promise<UploadLo
 // 以前只能請 NEOP 改 SQL;現在攤主在後台整份編輯,一次存整個陣列。
 // key 是結帳與訂單記的配送方式代號,既有的不給改(舊訂單還指著它),新的由前端產生。
 // ====================
-type ShippingOptionRow = { key: string; label: string; fee: number; free_over?: number; note?: string };
+// Phase 29:cvs = 超商店到店(7-ELEVEN / 全家),key 固定 cvs_711 / cvs_family,一家只能一種
+type ShippingOptionRow = { key: string; label: string; fee: number; free_over?: number; note?: string; cvs?: CvsChain };
 
 export async function saveShippingRules(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
@@ -681,13 +683,17 @@ export async function saveShippingRules(_prev: SettingsState, formData: FormData
   const seen = new Set<string>();
   for (let i = 0; i < raw.length; i++) {
     const o = (raw[i] ?? {}) as Record<string, unknown>;
-    const key = String(o.key ?? '').trim();
-    const label = String(o.label ?? '').trim();
+    const cvs = isCvsChain(o.cvs) ? o.cvs : null;
+    // 店到店:代號固定、名稱沒填就用預設,同一家超商只能有一種
+    const key = cvs ? CVS_CHAINS[cvs].key : String(o.key ?? '').trim();
+    const label = String(o.label ?? '').trim() || (cvs ? CVS_CHAINS[cvs].label : '');
     const fee = Number(o.fee);
     const freeOver = o.free_over === '' || o.free_over == null ? null : Number(o.free_over);
     const note = String(o.note ?? '').trim();
     if (!/^[a-z0-9_-]{1,32}$/.test(key)) return { status: 'error', error: `第 ${i + 1} 種配送方式的代號不正確` };
-    if (seen.has(key)) return { status: 'error', error: `第 ${i + 1} 種配送方式的代號重複` };
+    if (seen.has(key)) {
+      return { status: 'error', error: cvs ? `${CVS_CHAINS[cvs].label}只能有一種` : `第 ${i + 1} 種配送方式的代號重複` };
+    }
     seen.add(key);
     if (!label) return { status: 'error', error: `第 ${i + 1} 種配送方式要填名稱` };
     if (!Number.isInteger(fee) || fee < 0 || fee > 99999) {
@@ -702,6 +708,7 @@ export async function saveShippingRules(_prev: SettingsState, formData: FormData
       fee,
       ...(freeOver != null ? { free_over: freeOver } : {}),
       ...(note ? { note: note.slice(0, 120) } : {}),
+      ...(cvs ? { cvs } : {}),
     });
   }
 

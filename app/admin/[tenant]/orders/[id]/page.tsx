@@ -4,7 +4,8 @@ import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { updateOrder, markOrderPaid, markOrderShipped, refundEcpayOrder, refundLinePayOrder } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
-import { IconCheck, IconChevronLeft, IconMessage, IconPrinter, IconReceipt } from '@/lib/icons';
+import { IconCheck, IconChevronLeft, IconMessage, IconPrinter, IconReceipt, IconStore } from '@/lib/icons';
+import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
 
 /**
  * 訂單明細(2026-11-01 換成後台新設計系統:左邊明細 / 客戶 / 訂單資料,右邊收款與出貨、退款)。
@@ -47,6 +48,10 @@ type OrderDetail = {
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
+  cvs_type: string | null; // Phase 29:超商店到店('711' | 'family')
+  cvs_store_id: string | null;
+  cvs_store_name: string | null;
+  tracking_no: string | null; // 寄件單號
   note: string | null;
   guest_email: string | null;
   guest_phone: string | null;
@@ -73,7 +78,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
        ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, refund_note, atm_bank_code, atm_vaccount, atm_expire_at,
        invoice_tax_id, invoice_title,
        total_twd, shipping_method, shipping_fee_twd, source,
-       shipping_recipient, shipping_phone, shipping_address, note,
+       shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at,
        users(line_user_id, display_name, full_name, phone),
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
@@ -193,6 +198,8 @@ export default async function OrderDetailPage({
   const isShipped = o.status === 'shipped' || o.status === 'delivered';
   // 2026-10-06:自取訂單的「出貨」其實是「備貨」,相關文案依配送方式切換
   const isPickup = o.shipping_method === 'pickup';
+  // Phase 29:超商店到店 — 出貨時要填寄件單號
+  const cvs = isCvsChain(o.cvs_type) ? o.cvs_type : null;
   const grandTotal = o.total_twd + (o.shipping_fee_twd ?? 0);
   // 付款方式下拉:資料裡若是沒列的代碼也要顯示出來,不然存檔會被改掉
   const methodOptions =
@@ -369,8 +376,12 @@ export default async function OrderDetailPage({
                     <input id="f-phone" name="shipping_phone" defaultValue={o.shipping_phone ?? ''} className="ui-input" />
                   </div>
                   <div>
-                    <label className="ui-label" htmlFor="f-address">地址</label>
+                    <label className="ui-label" htmlFor="f-address">{cvs ? '取貨門市(文字)' : '地址'}</label>
                     <input id="f-address" name="shipping_address" defaultValue={o.shipping_address ?? ''} className="ui-input" />
+                  </div>
+                  <div>
+                    <label className="ui-label" htmlFor="f-tracking">寄件單號</label>
+                    <input id="f-tracking" name="tracking_no" defaultValue={o.tracking_no ?? ''} className="ui-input" maxLength={40} placeholder="—" />
                   </div>
                 </div>
                 <div>
@@ -459,23 +470,51 @@ export default async function OrderDetailPage({
                 </>
               )}
 
-              {/* 已付款 → 顯示「標已出貨」按鈕(2026-09-11:追蹤單號功能移除,改一鍵標出貨) */}
+              {/* Phase 29:超商店到店 — 客人選的門市與寄件提示 */}
+              {cvs && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${isPaid ? '#bbf7d0' : '#fde68a'}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
+                    <IconStore size={15} /> {CVS_CHAINS[cvs].short} 取貨
+                  </div>
+                  <div style={{ fontSize: 14, marginTop: 6 }}>
+                    {o.cvs_store_name} <span className="odd-code">店號 {o.cvs_store_id}</span>
+                  </div>
+                  <div className="odd-note" style={{ marginTop: 6 }}>
+                    取件人 {o.shipping_recipient} · {o.shipping_phone}
+                    <br />
+                    {CVS_CHAINS[cvs].shipHint}
+                  </div>
+                </div>
+              )}
+
+              {/* 已付款 → 顯示「標已出貨」(2026-09-11 一鍵標出貨;Phase 29 店到店要填寄件單號) */}
               {isPaid && !isShipped && (
-                <form action={markOrderShipped} style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0' }}>
+                <form action={markOrderShipped} className="odd-form" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0' }}>
                   <input type="hidden" name="id" value={o.id} />
                   <input type="hidden" name="tenant_slug" value={tenant.slug} />
-                  <SubmitButton
-                    pendingText="標記中…"
-                    confirmText={isPickup ? '確定標記這筆自取訂單為「已備貨」?(客人訂單頁會顯示可取貨)' : '確定標記這筆訂單為「已出貨」?'}
-                  >
-                    {isPickup ? '標記已備貨(待自取)' : '標記已出貨'}
-                  </SubmitButton>
+                  {!isPickup && (
+                    <div>
+                      <label className="ui-label" htmlFor="s-tracking">
+                        寄件單號{cvs ? <i>*</i> : <span style={{ color: '#71717a', fontWeight: 400 }}>(選填)</span>}
+                      </label>
+                      <input id="s-tracking" name="tracking_no" className="ui-input" required={!!cvs} maxLength={40} placeholder={cvs ? '寄件後標籤上的單號,客人會用來查件' : '宅配單號,有的話填'} autoComplete="off" />
+                    </div>
+                  )}
+                  <div>
+                    <SubmitButton
+                      pendingText="標記中…"
+                      confirmText={isPickup ? '確定標記這筆自取訂單為「已備貨」?(客人訂單頁會顯示可取貨)' : cvs ? '確定已寄出?客人訂單頁會顯示寄件單號。' : '確定標記這筆訂單為「已出貨」?'}
+                    >
+                      {isPickup ? '標記已備貨(待自取)' : cvs ? '已寄出' : '標記已出貨'}
+                    </SubmitButton>
+                  </div>
                 </form>
               )}
 
               {isShipped && (
                 <div className="odd-note" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0', color: '#0a7038' }}>
-                  {isPickup ? '已備貨,等待取貨' : '已出貨'} · {formatTw(o.shipped_at)}
+                  {isPickup ? '已備貨,等待取貨' : cvs ? '已寄出' : '已出貨'} · {formatTw(o.shipped_at)}
+                  {o.tracking_no && <> · 單號 <span className="odd-code">{o.tracking_no}</span></>}
                 </div>
               )}
             </div>

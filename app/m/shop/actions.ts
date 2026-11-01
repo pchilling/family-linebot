@@ -4,6 +4,7 @@ import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTier
 import { isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import { bankTransferFromRow, formatBankTransferText, type BankTransfer } from '@/lib/bank-transfer';
+import type { CvsChain } from '@/lib/cvs';
 import type { messagingApi } from '@line/bot-sdk';
 
 const LIFF_CHANNEL_ID = process.env.LIFF_CHANNEL_ID!;
@@ -69,11 +70,13 @@ export type ShopMember = {
 };
 
 // 批次 D #13:運費規則(tenants.shipping_rules jsonb;null = 不收運費)
+// Phase 29:cvs = 超商店到店;LINE 商店第一階段不支援,載入時會濾掉
 export type ShippingOption = {
   key: string;
   label: string;
   fee: number;
   free_over?: number;
+  cvs?: CvsChain;
   note?: string;
 };
 
@@ -267,7 +270,8 @@ export async function loadShopData(
       shop_bg_color: t?.shop_bg_color ?? null,
       brand_color: t?.brand_color ?? null,
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],
-      shipping_options: Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : [],
+      // Phase 29:店到店要選門市,LINE 商店還沒做這個畫面,先不給選(網站結帳才有)
+      shipping_options: (Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : []).filter((o) => !o.cvs),
       gift_mode: (t?.gift_rules?.mode === 'highest' ? 'highest' : 'stack') as 'stack' | 'highest',
       gift_rules: (t?.gift_rules?.rules ?? [])
         .filter((r) => r && r.threshold_twd > 0 && productNameById.has(r.product_id))
@@ -468,6 +472,8 @@ export async function placeOrder(
   if (shipOptions.length > 0) {
     const opt = shipOptions.find((o) => o.key === shippingMethod);
     if (!opt) throw new Error('請選擇配送方式');
+    // Phase 29:LINE 商店第一階段還沒有選門市的畫面,店到店只在網站結帳
+    if (opt.cvs) throw new Error('超商店到店請到網站結帳');
     shippingFee = opt.free_over && pricedSubtotal >= opt.free_over ? 0 : opt.fee;
     shippingKey = opt.key;
   }

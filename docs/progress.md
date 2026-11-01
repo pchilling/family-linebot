@@ -407,3 +407,10 @@ delete from tenant_members where tenant_id = (select id from tenants where slug 
 delete from tenants where slug = 'rek'
   and id not in (select tenant_id from products where tenant_id is not null)
   and id not in (select tenant_id from orders where tenant_id is not null);
+
+-- Phase 29(2026-11-01)— 超商店到店第一階段:訂單加門市與寄件單號欄位
+alter table orders add column if not exists cvs_type text;
+alter table orders add column if not exists cvs_store_id text;
+alter table orders add column if not exists cvs_store_name text;
+alter table orders add column if not exists tracking_no text;
+alter table orders add column if not exists logistics_status text;

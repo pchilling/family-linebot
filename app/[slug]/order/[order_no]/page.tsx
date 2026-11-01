@@ -8,6 +8,7 @@ import { IconBank, IconCheck, IconCheckCircle, IconClock, IconCreditCard, IconPa
 import { OtpInput } from '@/lib/otp-input';
 import { Badge, Button, ButtonLink, Card } from '@/lib/ui';
 import { bankDisplayName, bankTransferFromRow } from '@/lib/bank-transfer';
+import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
@@ -46,6 +47,10 @@ type OrderDetail = {
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
+  cvs_type: string | null; // Phase 29:超商店到店('711' | 'family')
+  cvs_store_id: string | null;
+  cvs_store_name: string | null;
+  tracking_no: string | null; // 攤主寄件後填的單號
   note: string | null;
   guest_email: string | null;
   created_at: string;
@@ -87,7 +92,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, note, guest_email, created_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
+      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note, guest_email, created_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -139,6 +144,10 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     shipping_recipient: row.shipping_recipient,
     shipping_phone: row.shipping_phone,
     shipping_address: row.shipping_address,
+    cvs_type: row.cvs_type ?? null,
+    cvs_store_id: row.cvs_store_id ?? null,
+    cvs_store_name: row.cvs_store_name ?? null,
+    tracking_no: row.tracking_no ?? null,
     note: row.note,
     guest_email: row.guest_email,
     created_at: row.created_at,
@@ -284,6 +293,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const isCancelled = order.status === 'cancelled' || order.status === 'refunded';
   // 自取訂單沒有「出貨/送達」,文案改「備貨/取貨」(DB 狀態共用 shipped/delivered)
   const isPickup = order.shipping_method === 'pickup';
+  // Phase 29:超商店到店
+  const cvs = isCvsChain(order.cvs_type) ? order.cvs_type : null;
   const isLinePayOrder = order.payment_method === 'line_pay';
   const isEcpayAtm = order.payment_method === 'ecpay_atm';
   const isEcpayCredit = order.payment_method === 'ecpay_credit';
@@ -338,7 +349,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
         : stage === 2
           ? { icon: <IconCheckCircle size={20} />, title: '已收款,商品準備中', desc: isPickup ? '備貨完成會通知您取貨' : '出貨後會再通知您', ...tone.green }
           : stage === 3
-            ? { icon: isPickup ? <IconPackage size={20} /> : <IconTruck size={20} />, title: isPickup ? '已備貨,歡迎取貨' : '已出貨', desc: isPickup ? '請於營業時間至門市取貨' : '請留意物流通知', ...tone.blue }
+            ? {
+                icon: isPickup ? <IconPackage size={20} /> : <IconTruck size={20} />,
+                title: isPickup ? '已備貨,歡迎取貨' : cvs ? '已寄出,請等超商到店通知' : '已出貨',
+                desc: isPickup ? '請於營業時間至門市取貨' : cvs ? `到店後 ${CVS_CHAINS[cvs].short} 會發簡訊通知,請憑姓名和手機取件` : '請留意物流通知',
+                ...tone.blue,
+              }
             : { icon: <IconCheckCircle size={20} />, title: isPickup ? '已取貨,感謝您的訂購' : '已送達,感謝您的訂購', desc: '有任何問題歡迎聯絡我們', ...tone.green };
   const steps = [
     '下單',
@@ -596,6 +612,19 @@ export default async function OrderPage({ params, searchParams }: Props) {
           <dt>狀態</dt><dd><Badge style={{ borderColor: banner.bd, color: banner.fg, background: banner.bg }}>{statusShort}</Badge></dd>
           <dt>付款</dt><dd>{paymentText}</dd>
           <dt>配送</dt><dd>{shipLabel ?? (isPickup ? '門市自取' : order.shipping_method ? order.shipping_method : '—')}</dd>
+          {order.tracking_no && (
+            <>
+              <dt>寄件單號</dt>
+              <dd className="ui-num" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600 }}>{order.tracking_no}</span>
+                {cvs && (
+                  <a href={CVS_CHAINS[cvs].trackUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--ui-accent-ink)', fontWeight: 500 }}>
+                    到 {CVS_CHAINS[cvs].short} 查件
+                  </a>
+                )}
+              </dd>
+            </>
+          )}
         </dl>
       </Card>
 
@@ -638,11 +667,23 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
       {/* ---------- 寄送資訊 ---------- */}
       <Card className="od-card">
-        <h2>寄送資訊 {!unlocked && <span style={{ color: '#b45309' }}>部分遮蔽</span>}</h2>
+        <h2>{cvs ? '取貨資訊' : '寄送資訊'} {!unlocked && <span style={{ color: '#b45309' }}>部分遮蔽</span>}</h2>
         <dl className="od-kv">
-          <dt>收件人</dt><dd>{unlocked ? order.shipping_recipient : maskName(order.shipping_recipient)}</dd>
+          <dt>{cvs ? '取件人' : '收件人'}</dt><dd>{unlocked ? order.shipping_recipient : maskName(order.shipping_recipient)}</dd>
           <dt>電話</dt><dd className="ui-num">{unlocked ? order.shipping_phone : maskPhone(order.shipping_phone)}</dd>
-          <dt>地址</dt><dd>{unlocked ? order.shipping_address : maskAddress(order.shipping_address)}</dd>
+          {cvs ? (
+            <>
+              <dt>取貨門市</dt>
+              <dd>
+                {CVS_CHAINS[cvs].short} {order.cvs_store_name}
+                {order.cvs_store_id && <span className="ui-muted ui-num" style={{ marginLeft: 6, fontSize: 13 }}>店號 {order.cvs_store_id}</span>}
+              </dd>
+            </>
+          ) : (
+            <>
+              <dt>地址</dt><dd>{unlocked ? order.shipping_address : maskAddress(order.shipping_address)}</dd>
+            </>
+          )}
           {order.guest_email && (<><dt>Email</dt><dd>{unlocked ? order.guest_email : maskEmail(order.guest_email)}</dd></>)}
           {unlocked && order.invoice_tax_id && (<><dt>統一編號</dt><dd className="ui-num">{order.invoice_tax_id}</dd></>)}
           {unlocked && order.invoice_title && (<><dt>發票抬頭</dt><dd>{order.invoice_title}</dd></>)}

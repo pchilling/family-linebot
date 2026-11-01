@@ -1007,10 +1007,14 @@ export async function markOrderPaid(formData: FormData) {
 export async function markOrderShipped(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
+  // Phase 29:寄件單號(超商店到店一定要填,宅配可選填);物流狀態另開欄位
+  const trackingNo = String(formData.get('tracking_no') || '').trim().slice(0, 40);
   await supabaseAdmin
     .from('orders')
     .update({
       status: 'shipped',
+      logistics_status: 'shipped',
+      ...(trackingNo ? { tracking_no: trackingNo } : {}),
     })
     .eq('id', id);
 
@@ -1282,6 +1286,8 @@ export async function updateOrder(formData: FormData) {
   const shipping_phone = strOrNull(formData.get('shipping_phone'));
   const shipping_address = strOrNull(formData.get('shipping_address'));
   const note = strOrNull(formData.get('note'));
+  // Phase 29:寄件單號可以在訂單資料改(表單沒帶這個欄位就不動)
+  const trackingPatch = formData.has('tracking_no') ? { tracking_no: strOrNull(formData.get('tracking_no')) } : {};
 
   await supabaseAdmin
     .from('orders')
@@ -1293,6 +1299,7 @@ export async function updateOrder(formData: FormData) {
       shipping_phone,
       shipping_address,
       note,
+      ...trackingPatch,
     })
     .eq('id', id);
   const slug = String(formData.get('tenant_slug') || '').trim();
