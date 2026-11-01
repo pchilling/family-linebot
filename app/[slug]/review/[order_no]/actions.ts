@@ -59,7 +59,7 @@ export async function submitReviews(formData: FormData): Promise<SubmitReviewsRe
   // 店家星等(Phase 30):沒打就跳過
   const storeRating = Number(formData.get('rating_store'));
   const hasStore = Number.isInteger(storeRating) && storeRating >= 1 && storeRating <= 5;
-  if (rows.length === 0 && !hasStore) return { ok: false, error: '至少給商品或這家店打一顆星' };
+  if (rows.length === 0 && !hasStore) return { ok: false, error: '至少給商品或這家店打個分數' };
 
   if (rows.length > 0) {
     const { error } = await supabaseAdmin.from('product_reviews').upsert(rows, { onConflict: 'order_id,product_id' });

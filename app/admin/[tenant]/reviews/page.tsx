@@ -113,7 +113,7 @@ export default async function ReviewsAdminPage({ params, searchParams }: Props) 
           {showHidden
             ? '沒有隱藏的評價。'
             : isStore
-              ? '還沒有店家評價。客人在評價頁給商品打星時,可以順手給這家店打一顆整體的星。'
+              ? '還沒有店家評價。客人在評價頁給商品評分時,可以順手給這家店打一個整體的分數。'
               : '還沒有評價。出貨或取貨 3 天後,系統會自動用 LINE 邀請客人評價。'}
         </div>
       ) : (
