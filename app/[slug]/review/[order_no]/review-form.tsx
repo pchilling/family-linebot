@@ -64,6 +64,8 @@ export function ReviewForm({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<number | null>(null);
   const alreadyReviewed = items.some((i) => i.rating);
+  // 2026-11-01 Peter:學 Google — 用 LINE 名稱、自己打暱稱、或匿名,三選一
+  const [nameMode, setNameMode] = useState<'line' | 'nick' | 'anon'>(defaultName ? 'line' : 'nick');
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -115,10 +117,27 @@ export function ReviewForm({
         </div>
       ))}
 
-      <div className="ui-card" style={{ padding: 18 }}>
-        <label className="ui-label" htmlFor="display_name">顯示的暱稱</label>
-        <Input id="display_name" name="display_name" defaultValue={defaultName} maxLength={30} placeholder="例:小美" />
-        <p className="ui-muted" style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6 }}>會跟評價一起顯示在商品頁。不想露名字可以改成暱稱。</p>
+      <div className="ui-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <span className="ui-label" style={{ marginBottom: 0 }}>評價用什麼名字顯示</span>
+        {defaultName && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+            <input type="radio" className="ui-radio" name="name_mode" checked={nameMode === 'line'} onChange={() => setNameMode('line')} />
+            用我的 LINE 名稱 <b>{defaultName}</b>
+          </label>
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+          <input type="radio" className="ui-radio" name="name_mode" checked={nameMode === 'nick'} onChange={() => setNameMode('nick')} />
+          用暱稱
+        </label>
+        {nameMode === 'nick' && (
+          <Input name="display_name" maxLength={30} placeholder="例:小美" autoFocus style={{ marginLeft: 26, width: 'calc(100% - 26px)' }} />
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+          <input type="radio" className="ui-radio" name="name_mode" checked={nameMode === 'anon'} onChange={() => setNameMode('anon')} />
+          匿名<span className="ui-muted" style={{ fontSize: 12 }}>(商品頁顯示「匿名」)</span>
+        </label>
+        {nameMode !== 'nick' && <input type="hidden" name="display_name" value={nameMode === 'line' ? defaultName : ''} />}
+        <p className="ui-muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>會跟評價一起顯示在商品頁,之後修改評價時可以再改。</p>
       </div>
 
       {error && (
