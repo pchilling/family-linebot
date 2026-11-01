@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { BG_STYLE_HEX, type BgStyle } from '@/lib/theme';
+import { parseBankInput } from '@/lib/bank-transfer';
 
 export type SettingsState =
   | { status: 'idle' }
@@ -33,7 +34,7 @@ export async function updateTenantSettings(
 
   // free text(多行)頭尾空白 trim,內部換行保留
   const text = (key: string) => String(formData.get(key) ?? '').replace(/^\s+|\s+$/g, '');
-  const patch: Record<string, string | null> = {};
+  const patch: Record<string, unknown> = {};
 
   if (formData.has('name')) {
     const name = text('name');
@@ -55,6 +56,25 @@ export async function updateTenantSettings(
   }
   if (formData.has('contact_info')) patch.contact_info = text('contact_info') || null;
   if (formData.has('payment_info')) patch.payment_info = text('payment_info') || null;
+  // Phase 28(2026-11-01):匯款改分欄 → tenants.bank_transfer jsonb;帳號是必要欄位,全空就清掉
+  if (formData.has('bank_account')) {
+    const account = text('bank_account').replace(/\s+/g, '');
+    const bankRaw = text('bank_bank').slice(0, 40);
+    const holder = text('bank_holder').slice(0, 40);
+    const note = text('bank_note').slice(0, 200);
+    if (account && !/^[0-9-]{6,24}$/.test(account)) {
+      return { status: 'error', error: '帳號只能有數字和連字號,6 到 24 碼' };
+    }
+    if (!account && (bankRaw || holder)) {
+      return { status: 'error', error: '匯款資訊要填帳號' };
+    }
+    if (account) {
+      const { code, name } = parseBankInput(bankRaw);
+      patch.bank_transfer = { bank_code: code, bank_name: name, account, holder: holder || null, note: note || null };
+    } else {
+      patch.bank_transfer = null;
+    }
+  }
 
   if (Object.keys(patch).length === 0) return { status: 'error', error: '沒有要儲存的內容' };
 

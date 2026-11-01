@@ -3,6 +3,7 @@
 import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
+import { bankTransferFromRow, formatBankTransferText, type BankTransfer } from '@/lib/bank-transfer';
 import type { messagingApi } from '@line/bot-sdk';
 
 const LIFF_CHANNEL_ID = process.env.LIFF_CHANNEL_ID!;
@@ -80,7 +81,8 @@ export type ShopTenant = {
   name: string;
   logo_url: string | null;
   banners: { type: 'image' | 'video'; url: string }[]; // Phase 9.8 多媒體 carousel
-  payment_info: string | null;
+  payment_info: string | null; // 舊的一整段文字,bank_transfer 沒填時的備用
+  bank_transfer: BankTransfer | null; // Phase 28:分欄的匯款資訊
   contact_info: string | null; // 2026-09-11(回饋 #13):商城底部顯示聯絡資訊
   shop_bg_color: string | null; // 批次 C #7:商城底色
   brand_color: string | null; // 2026-10-23:品牌色,LIFF 也用 lib/theme 算整套配色
@@ -154,7 +156,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, banners, payment_info, contact_info, shop_bg_color, brand_color, category_order, shipping_rules, gift_rules')
+      .select('name, logo_url, og_image_url, banners, payment_info, bank_transfer, contact_info, shop_bg_color, brand_color, category_order, shipping_rules, gift_rules')
       .eq('id', TENANT_ID)
       .maybeSingle(),
     // 2026-09-11(回饋 #9):一次撈整攤的分階定價(量小,免 per-product 查)
@@ -208,6 +210,7 @@ export async function loadShopData(
     og_image_url: string | null;
     banners: MediaItem[] | null;
     payment_info: string | null;
+    bank_transfer: unknown;
     contact_info: string | null;
     shop_bg_color: string | null;
     brand_color: string | null;
@@ -259,6 +262,7 @@ export async function loadShopData(
       logo_url: t?.logo_url ?? null,
       banners: tenantBanners,
       payment_info: t?.payment_info ?? null,
+      bank_transfer: bankTransferFromRow(t?.bank_transfer),
       contact_info: t?.contact_info ?? null,
       shop_bg_color: t?.shop_bg_color ?? null,
       brand_color: t?.brand_color ?? null,
@@ -604,13 +608,15 @@ async function pushOrderConfirmation(
   const isLinePay = paymentMethod === 'line_pay';
   const isEcpayAtm = paymentMethod === 'ecpay_atm';
   const isEcpayCredit = paymentMethod === 'ecpay_credit';
-  // 拉 tenant payment_info + slug(for order URL)
+  // 拉 tenant 匯款資訊 + slug(for order URL);Phase 28:分欄的 bank_transfer 優先,沒填退回 payment_info 文字
   const { data: t } = await supabaseAdmin
     .from('tenants')
-    .select('slug, payment_info, name')
+    .select('slug, payment_info, bank_transfer, name')
     .eq('id', TENANT_ID)
     .maybeSingle();
-  const tenant = (t as { slug: string; payment_info: string | null; name: string } | null) ?? null;
+  const tenant = (t as { slug: string; payment_info: string | null; bank_transfer: unknown; name: string } | null) ?? null;
+  const bank = bankTransferFromRow(tenant?.bank_transfer);
+  const bankText = bank ? formatBankTransferText(bank) : tenant?.payment_info ?? null;
 
   const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw';
   const orderUrl = tenant ? `${baseUrl}/${tenant.slug}/order/${orderNo}${accessKey ? `?k=${accessKey}` : ''}` : '';
@@ -663,12 +669,12 @@ async function pushOrderConfirmation(
       wrap: true,
       margin: 'sm',
     });
-  } else if (tenant?.payment_info) {
+  } else if (bankText) {
     bodyContents.push({ type: 'separator', margin: 'lg', color: '#e4e4e7' });
     bodyContents.push({ type: 'text', text: '💰 匯款資訊', weight: 'bold', size: 'sm', margin: 'lg', color: '#92400e' });
     bodyContents.push({
       type: 'text',
-      text: tenant.payment_info,
+      text: bankText,
       size: 'xs',
       color: '#57534e',
       wrap: true,

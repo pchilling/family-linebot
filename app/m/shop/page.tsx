@@ -8,6 +8,7 @@ import { PD_CSS } from '../../[slug]/p/[product]/variant-selector';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { OtpInput } from '@/lib/otp-input';
 import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
+import { bankDisplayName } from '@/lib/bank-transfer';
 import { IconBank, IconCheck, IconCheckCircle, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPackage, IconPencil, IconTruck, IconWallet } from '@/lib/icons';
 import { Badge, Button, Card, OptionCard, Textarea, UI_CSS } from '@/lib/ui';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
@@ -123,6 +124,7 @@ export default function ShopPage() {
     logo_url: null,
     banners: [],
     payment_info: null,
+    bank_transfer: null,
     contact_info: null,
     shop_bg_color: null,
     brand_color: null,
@@ -504,14 +506,17 @@ export default function ShopPage() {
   }
 
   if (status === 'done') {
-    const acct = extractBankAccount(tenant.payment_info);
+    // Phase 28:分欄的匯款資訊優先,沒填退回舊的 payment_info 文字
+    const bank = tenant.bank_transfer;
+    const hasBankInfo = !!bank || !!tenant.payment_info;
+    const acct = bank?.account ?? extractBankAccount(tenant.payment_info);
     return shell(
       <>
         <div className="ls-status ui-swap" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', marginTop: 8 }}>
           <span className="ic" style={{ background: '#dcfce7' }}><IconCheckCircle size={20} /></span>
           <div style={{ minWidth: 0 }}>
             <h1>訂單已建立</h1>
-            <p>{tenant.payment_info ? '匯款後回報帳號後 5 碼,賣家核帳後就會安排出貨' : '客服會盡快聯繫您確認付款與出貨'}</p>
+            <p>{hasBankInfo ? '匯款後回報帳號後 5 碼,賣家核帳後就會安排出貨' : '客服會盡快聯繫您確認付款與出貨'}</p>
             <div className="no"><em style={{ fontStyle: 'normal', whiteSpace: 'nowrap' }}>訂單編號</em> <strong className="ui-num">{orderNo}</strong><CopyButton text={orderNo} /></div>
           </div>
         </div>
@@ -519,11 +524,33 @@ export default function ShopPage() {
         <Card className="ls-cardb">
           <div className="ls-next">
             <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconBank size={17} /></span>
-            <div><b>{tenant.payment_info ? '下一步:匯款' : '下一步:等候聯繫'}</b><small>{tenant.payment_info ? '匯款後填帳號後 5 碼,賣家核帳後轉已付款' : '請保留訂單編號,客服會主動聯繫您'}</small></div>
+            <div><b>{hasBankInfo ? '下一步:匯款' : '下一步:等候聯繫'}</b><small>{hasBankInfo ? '匯款後填帳號後 5 碼,賣家核帳後轉已付款' : '請保留訂單編號,客服會主動聯繫您'}</small></div>
           </div>
-          {tenant.payment_info && (
+          {hasBankInfo && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div className="ls-mono">{tenant.payment_info}</div>
+              {bank ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: '8px 12px', fontSize: 14, alignItems: 'center' }}>
+                    {bankDisplayName(bank) && (
+                      <>
+                        <span className="ui-muted" style={{ fontSize: 13 }}>銀行</span>
+                        <span style={{ fontWeight: 500 }}>{bankDisplayName(bank)}</span>
+                      </>
+                    )}
+                    <span className="ui-muted" style={{ fontSize: 13 }}>帳號</span>
+                    <span className="ui-num" style={{ fontSize: 19, fontWeight: 600, letterSpacing: '.04em' }}>{bank.account}</span>
+                    {bank.holder && (
+                      <>
+                        <span className="ui-muted" style={{ fontSize: 13 }}>戶名</span>
+                        <span style={{ fontWeight: 500 }}>{bank.holder}</span>
+                      </>
+                    )}
+                  </div>
+                  {bank.note && <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>{bank.note}</p>}
+                </>
+              ) : (
+                <div className="ls-mono">{tenant.payment_info}</div>
+              )}
               {acct && <CopyButton big text={acct} label={`複製帳號 ${acct}`} />}
               <p className="ui-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>晚點匯也沒關係,LINE 通知裡的按鈕隨時可以回報。</p>
             </div>

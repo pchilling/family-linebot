@@ -7,6 +7,7 @@ import { startLinePayAndRedirect } from '../../checkout/actions';
 import { IconBank, IconCheck, IconCheckCircle, IconClock, IconCreditCard, IconPackage, IconPencil, IconTruck, IconUndo, IconWallet, IconX } from '@/lib/icons';
 import { OtpInput } from '@/lib/otp-input';
 import { Badge, Button, ButtonLink, Card } from '@/lib/ui';
+import { bankDisplayName, bankTransferFromRow } from '@/lib/bank-transfer';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
@@ -251,26 +252,30 @@ export default async function OrderPage({ params, searchParams }: Props) {
   );
   const lockedHint = <div className="od-warn" style={{ marginBottom: 0 }}>請從 LINE 通知或下單完成頁的連結開啟這張訂單,才能進行付款或回報。</div>;
 
-  // 額外拉 tenant.contact_info + payment_info + shipping_rules(沒在 getTenantPublic)
+  // 額外拉 tenant.contact_info + payment_info + bank_transfer + shipping_rules(沒在 getTenantPublic)
   const { data: tenantExtra } = await supabaseAdmin
     .from('tenants')
-    .select('contact_info, payment_info, shipping_rules, qr_payment')
+    .select('contact_info, payment_info, bank_transfer, shipping_rules, qr_payment')
     .eq('id', tenant.id)
     .maybeSingle();
   type ExtraRow = {
     contact_info: string | null;
     payment_info: string | null;
+    bank_transfer: unknown;
     shipping_rules: { options?: { key: string; label: string }[] } | null;
     qr_payment: { enabled?: boolean; image_url?: string; label?: string; note?: string; link_url?: string } | null;
   } | null;
   const contactInfo = (tenantExtra as ExtraRow)?.contact_info ?? null;
   const paymentInfo = (tenantExtra as ExtraRow)?.payment_info ?? null;
+  // Phase 28:分欄的匯款資訊;沒填就退回舊的 payment_info 文字
+  const bank = bankTransferFromRow((tenantExtra as ExtraRow)?.bank_transfer);
+  const hasBankInfo = !!bank || !!paymentInfo;
   // Phase 27:掃碼付款設定(訂單已經選了 qr 就算攤主後來關掉也要顯示 QR,不然客人付不了)
   const qrRaw = (tenantExtra as ExtraRow)?.qr_payment ?? null;
   const qrCfg = qrRaw?.image_url
     ? { image_url: qrRaw.image_url, label: (qrRaw.label ?? '').trim() || '掃碼付款', note: (qrRaw.note ?? '').trim() || null, link_url: (qrRaw.link_url ?? '').trim() || null }
     : null;
-  const bankAccount = extractBankAccount(paymentInfo);
+  const bankAccount = bank?.account ?? extractBankAccount(paymentInfo);
   const shipLabel = ((tenantExtra as ExtraRow)?.shipping_rules?.options ?? []).find((o) => o.key === order.shipping_method)?.label ?? null;
   const grandTotal = order.total_twd + order.shipping_fee_twd;
 
@@ -505,11 +510,33 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <Card className="od-card">
           <div className="od-next">
             <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconBank size={17} /></span>
-            <div><b>{paymentInfo ? '下一步:匯款' : '下一步:等候匯款資訊'}</b><small>{paymentInfo ? '匯款後填帳號後 5 碼,賣家核帳後轉已付款' : '賣家會主動私訊您匯款方式'}</small></div>
+            <div><b>{hasBankInfo ? '下一步:匯款' : '下一步:等候匯款資訊'}</b><small>{hasBankInfo ? '匯款後填帳號後 5 碼,賣家核帳後轉已付款' : '賣家會主動私訊您匯款方式'}</small></div>
           </div>
           {!unlocked ? lockedHint : (
             <div className="od-pay">
-              {paymentInfo ? (
+              {bank ? (
+                <>
+                  {/* Phase 28:分欄顯示,帳號單獨一行好對、好複製 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: '8px 12px', fontSize: 14, alignItems: 'center' }}>
+                    {bankDisplayName(bank) && (
+                      <>
+                        <span className="ui-muted" style={{ fontSize: 13 }}>銀行</span>
+                        <span style={{ fontWeight: 500 }}>{bankDisplayName(bank)}</span>
+                      </>
+                    )}
+                    <span className="ui-muted" style={{ fontSize: 13 }}>帳號</span>
+                    <span className="ui-num" style={{ fontSize: 19, fontWeight: 600, letterSpacing: '.04em' }}>{bank.account}</span>
+                    {bank.holder && (
+                      <>
+                        <span className="ui-muted" style={{ fontSize: 13 }}>戶名</span>
+                        <span style={{ fontWeight: 500 }}>{bank.holder}</span>
+                      </>
+                    )}
+                  </div>
+                  {bank.note && <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>{bank.note}</p>}
+                  <CopyButton big text={bank.account} label={`複製帳號 ${bank.account}`} />
+                </>
+              ) : paymentInfo ? (
                 <>
                   <div className="od-mono">{paymentInfo}</div>
                   {bankAccount && <CopyButton big text={bankAccount} label={`複製帳號 ${bankAccount}`} />}

@@ -398,3 +398,6 @@ alter table products add column if not exists sale_end_at timestamptz;
 
 NOTIFY pgrst, 'reload schema';
 ```
+
+-- Phase 28(2026-11-01)— 匯款資訊改分欄(銀行代號 / 名稱 / 帳號 / 戶名 / 說明),payment_info 留作備用
+alter table tenants add column if not exists bank_transfer jsonb;

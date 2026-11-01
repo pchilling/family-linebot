@@ -1373,3 +1373,13 @@ insert into tenant_members (tenant_id, user_id, role)
 alter table tenants add column if not exists qr_payment jsonb;
 -- 客人回報掃碼付款時的備註(轉帳後 5 碼、時間、暱稱都行);匯款仍用 payment_last5
 alter table orders add column if not exists payment_note text;
+
+
+-- ====================
+-- Phase 28(2026-11-01):匯款資訊改分欄
+-- 以前 tenants.payment_info 是一整段文字;改成分開存銀行代號 / 名稱 / 帳號 / 戶名 / 說明,
+-- 客人看到的訂單頁、LIFF、LINE 通知才能把帳號單獨一行加複製鈕。
+-- payment_info 留著當備用:攤主還沒填新欄位前照樣顯示舊文字。
+-- ====================
+-- {"bank_code": "808", "bank_name": "玉山銀行", "account": "1234567890123", "holder": "王小明", "note": "匯款後回訂單頁填後五碼"}
+alter table tenants add column if not exists bank_transfer jsonb;

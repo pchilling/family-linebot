@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Badge, Button, Input, Switch, Textarea } from '@/lib/ui';
 import { IconCheck, IconUpload } from '@/lib/icons';
+import { bankDisplayName, TW_BANKS, type BankTransfer } from '@/lib/bank-transfer';
 import { FlashToast } from '../../../_components/toast';
 import { Field, GroupHead, PanelTitle, SwitchRow } from './settings-ui';
 import { removeQrPayment, saveQrPayment, updateTenantSettings, uploadQrPayment } from './actions';
@@ -11,17 +12,19 @@ export type Gateway = { key: string; name: string; desc: string; on: boolean };
 
 type Props = {
   tenantSlug: string;
-  paymentInfo: string;
+  bank: BankTransfer | null;
+  /** 舊版一整段文字的匯款資訊,新欄位填好前客人還是看這段 */
+  legacyPaymentInfo: string;
   qr: { enabled: boolean; image_url: string | null; label: string; note: string; link_url: string };
   gateways: Gateway[];
 };
 
 /**
- * 設定 → 收款(2026-11-01 改版):匯款資訊 + 掃碼付款(Phase 27)+ 線上金流狀態,
- * 一個表單、一顆儲存:先存匯款文字(updateTenantSettings 只動 payment_info),再存掃碼設定。
+ * 設定 → 收款(2026-11-01 改版;Phase 28 匯款改分欄):匯款 + 掃碼付款(Phase 27)+ 線上金流狀態,
+ * 一個表單、一顆儲存:先存匯款欄位(updateTenantSettings 只動 bank_transfer),再存掃碼設定。
  * QR 圖片上傳 / 移除是獨立動作,馬上生效。
  */
-export function PaymentSettings({ tenantSlug, paymentInfo, qr, gateways }: Props) {
+export function PaymentSettings({ tenantSlug, bank, legacyPaymentInfo, qr, gateways }: Props) {
   const [imageUrl, setImageUrl] = useState<string | null>(qr.image_url);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,25 +89,50 @@ export function PaymentSettings({ tenantSlug, paymentInfo, qr, gateways }: Props
         <div className="sx-group">
           <GroupHead
             title="匯款"
-            desc="訂單成立後客人會立刻看到這段。寫清楚銀行、帳號、戶名與後續流程;留空就不提供匯款。"
+            desc="訂單成立後客人會立刻看到銀行、帳號、戶名,帳號旁邊有複製鈕。帳號留空就是不提供匯款資訊。"
             right={
-              paymentInfo ? (
+              bank ? (
                 <Badge className="sx-badge-ok">
                   <IconCheck size={12} />
-                  開放中
+                  已設定
                 </Badge>
+              ) : legacyPaymentInfo ? (
+                <Badge className="sx-badge-info">舊格式</Badge>
               ) : (
                 <Badge className="sx-badge-off">未設定</Badge>
               )
             }
           />
-          <Textarea
-            name="payment_info"
-            rows={5}
-            defaultValue={paymentInfo}
-            placeholder={'玉山銀行(808)\n帳號:1234-5678-9012-345\n戶名:王小明\n\n匯款後請回到訂單頁填帳號後五碼,我們會盡快對帳出貨。'}
-            aria-label="匯款資訊"
-          />
+          <div className="sx-grid2">
+            <Field label="銀行" htmlFor="bank-bank" hint="從清單選,或直接打名稱。">
+              <Input id="bank-bank" name="bank_bank" list="tw-banks" defaultValue={bank ? bankDisplayName(bank) : ''} placeholder="例:808 玉山銀行" maxLength={40} autoComplete="off" />
+              <datalist id="tw-banks">
+                {TW_BANKS.map((b) => (
+                  <option key={b.code} value={`${b.code} ${b.name}`} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="帳號" htmlFor="bank-account" hint="只填數字,可以用連字號分段。">
+              <Input id="bank-account" name="bank_account" defaultValue={bank?.account ?? ''} placeholder="例:1234567890123" inputMode="numeric" maxLength={24} autoComplete="off" />
+            </Field>
+            <Field label="戶名" htmlFor="bank-holder">
+              <Input id="bank-holder" name="bank_holder" defaultValue={bank?.holder ?? ''} placeholder="例:王小明" maxLength={40} />
+            </Field>
+            <Field label="給客人的說明" optional htmlFor="bank-note">
+              <Input id="bank-note" name="bank_note" defaultValue={bank?.note ?? ''} placeholder="例:匯款後回訂單頁填後五碼,核帳後出貨" maxLength={200} />
+            </Field>
+          </div>
+          {!bank && legacyPaymentInfo && (
+            <div className="sx-callout" style={{ whiteSpace: 'pre-wrap' }}>
+              <span>
+                <strong>目前客人看到的是舊的文字版:</strong>
+                {'\n'}
+                {legacyPaymentInfo}
+                {'\n\n'}
+                把上面的欄位填好儲存後,就會改用新的格式,舊文字不再顯示。
+              </span>
+            </div>
+          )}
         </div>
 
         <hr className="sx-sep" />
