@@ -178,7 +178,7 @@ export default async function ReconcilePage({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1000 }}>
+      <div>
         <header className="lp-head">
           <h1>對帳</h1>
           <p>

@@ -238,7 +238,7 @@ export default async function InventoryPage({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1200 }}>
+      <div>
         <header className="iv-head">
           <div>
             <h1>庫存</h1>

@@ -159,7 +159,7 @@ export default async function OrdersListPage({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1120 }}>
+      <div>
         {savedId && <FlashToast key={savedId} message="已更新訂單狀態" />}
 
         <header className="od-head">

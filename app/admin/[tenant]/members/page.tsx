@@ -94,7 +94,7 @@ export default async function MembersPage({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1000 }}>
+      <div>
         {info && <FlashToast message={decodeURIComponent(info)} />}
         {error && <FlashToast tone="error" message={decodeURIComponent(error)} />}
 

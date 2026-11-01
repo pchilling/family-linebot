@@ -29,7 +29,8 @@ export default async function SettingsLayout({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: SETTINGS_CSS }} />
-      <div className="sx" style={{ maxWidth: 1120 }}>
+      {/* 2026-11-01 Peter:電腦版照瀏覽器寬度拉寬,不設上限 */}
+      <div className="sx">
         <header className="sx-head">
           <div>
             <h1>設定</h1>

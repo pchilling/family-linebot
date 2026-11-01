@@ -111,7 +111,7 @@ export default async function NewsPage({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 860 }}>
+      <div>
         {savedId && <FlashToast key={savedId} message="已儲存" />}
 
         <header className="nw-head">

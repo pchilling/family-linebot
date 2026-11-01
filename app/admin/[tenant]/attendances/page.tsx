@@ -132,7 +132,7 @@ async function ListView({ tenantId, slug }: { tenantId: string; slug: string }) 
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1000 }}>
+      <div>
         <header className="at-head">
           <h1>
             出席 <span className="sub">本週</span>
@@ -283,7 +283,7 @@ async function DetailView({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 860 }}>
+      <div>
         <Link href={`/admin/${slug}/attendances`} className="at-back">
           <IconChevronLeft size={14} /> 出席
         </Link>

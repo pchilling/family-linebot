@@ -222,7 +222,7 @@ export default async function CustomerDetailPage({ params }: Props) {
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1000 }}>
+      <div>
         <Link href={`/admin/${slug}/customers`} className="cd-back">
           <IconChevronLeft size={14} /> 客戶
         </Link>

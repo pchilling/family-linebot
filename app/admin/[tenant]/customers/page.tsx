@@ -161,7 +161,7 @@ export default async function CustomersPage({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1200 }}>
+      <div>
         <header className="cs-head">
           <div>
             <h1>客戶</h1>

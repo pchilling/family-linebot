@@ -198,7 +198,7 @@ export default async function MessagesPage({
     <main style={{ padding: '28px 32px 48px' }}>
       <MarkReadOnMount tenantSlug={slug} />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 920 }}>
+      <div>
         <header className="ms-head">
           <div>
             <h1>訊息</h1>

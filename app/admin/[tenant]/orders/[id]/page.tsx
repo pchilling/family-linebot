@@ -203,7 +203,7 @@ export default async function OrderDetailPage({
   return (
     <main style={{ padding: '28px 32px 48px' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ maxWidth: 1120 }}>
+      <div>
         {/* 2026-09-11:對帳回饋改頂部滑入通知(shadcn Sonner 風格) */}
         {(justPaid || justShipped || justEdit || refundMsg) && (
           <FlashToast

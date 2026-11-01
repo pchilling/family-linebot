@@ -73,7 +73,7 @@ export default async function ProductSortPage({
   }));
 
   return (
-    <main style={{ padding: '28px 32px 48px', maxWidth: 984 }}>
+    <main style={{ padding: '28px 32px 48px' }}>
       <Link href={`/admin/${tenant.slug}/products`} style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
         <IconChevronLeft size={14} /> 商品
       </Link>
