@@ -65,12 +65,13 @@ export async function updateTenantSettings(
     if (account && !/^[0-9-]{6,24}$/.test(account)) {
       return { status: 'error', error: '帳號只能有數字和連字號,6 到 24 碼' };
     }
-    if (!account && (bankRaw || holder)) {
-      return { status: 'error', error: '匯款資訊要填帳號' };
+    const enabled = formData.get('bank_enabled') === 'on';
+    if (!account && (bankRaw || holder || enabled)) {
+      return { status: 'error', error: enabled ? '要先填帳號才能在結帳顯示匯款' : '匯款資訊要填帳號' };
     }
     if (account) {
       const { code, name } = parseBankInput(bankRaw);
-      patch.bank_transfer = { bank_code: code, bank_name: name, account, holder: holder || null, note: note || null };
+      patch.bank_transfer = { enabled, bank_code: code, bank_name: name, account, holder: holder || null, note: note || null };
     } else {
       patch.bank_transfer = null;
     }

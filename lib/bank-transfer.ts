@@ -10,12 +10,22 @@
  */
 
 export type BankTransfer = {
+  enabled: boolean; // 在結帳顯示「匯款」;關掉就不出現(資料留著)
   bank_code: string | null; // 3 碼,例如 808
   bank_name: string | null; // 例如 玉山銀行
   account: string; // 只留數字與連字號
   holder: string | null; // 戶名
   note: string | null; // 給客人的說明,例如「匯款後回訂單頁填後五碼」
 };
+
+/**
+ * 結帳要不要出現「匯款」(2026-11-01 Peter:沒設定的收款方式不要出現在結帳):
+ * 新欄位有填 → 看開關;沒填新欄位但還有舊的一整段文字 → 當開著(過渡期,愛油哇還沒搬);都沒有 → 不出現。
+ */
+export function isBankTransferOffered(bank: BankTransfer | null, legacyText: string | null | undefined): boolean {
+  if (bank) return bank.enabled;
+  return !!(legacyText && legacyText.trim());
+}
 
 /** 台灣常見銀行(代號照金管會總行代號),後台下拉用;不在清單的攤主可以自己打 */
 export const TW_BANKS: { code: string; name: string }[] = [
@@ -81,6 +91,7 @@ export function bankTransferFromRow(row: unknown): BankTransfer | null {
   if (!account) return null;
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   return {
+    enabled: r.enabled !== false, // 沒存這個欄位的舊資料當開著
     bank_code: str(r.bank_code),
     bank_name: str(r.bank_name),
     account,

@@ -14,6 +14,7 @@ import { Badge, Button, Card, OptionCard, Textarea, UI_CSS } from '@/lib/ui';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   ecpayPayUrlLiff,
+  isBankTransferAvailableLiff,
   isEcpayAtmAvailableLiff,
   isEcpayAvailableLiff,
   isLinePayAvailableLiff,
@@ -138,7 +139,14 @@ export default function ShopPage() {
   const [linePayOn, setLinePayOn] = useState(false);
   const [ecpayOn, setEcpayOn] = useState(false);
   const [ecpayAtmOn, setEcpayAtmOn] = useState(false);
+  // Phase 28:匯款沒設定(或攤主關掉)就不出現;預設 true 免得載入中閃一下
+  const [bankOn, setBankOn] = useState(true);
   const [payMethod, setPayMethod] = useState<'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit'>('bank');
+  // 匯款不開時,預設選項往線上付款移;什麼都沒有就維持 bank(下單後由賣家聯絡)
+  useEffect(() => {
+    if (bankOn || payMethod !== 'bank') return;
+    setPayMethod(ecpayOn ? 'ecpay_credit' : linePayOn ? 'line_pay' : ecpayAtmOn ? 'ecpay_atm' : 'bank');
+  }, [bankOn, ecpayOn, linePayOn, ecpayAtmOn, payMethod]);
   // 訂單建好、正在跳去付款頁的那幾秒也要蓋住畫面
   const [leaving, setLeaving] = useState(false);
   const isLinePayPay = linePayOn && payMethod === 'line_pay';
@@ -204,6 +212,7 @@ export default function ShopPage() {
         setTenant(data.tenant);
         setLastShip(data.lastShipping);
         isLinePayAvailableLiff().then(setLinePayOn).catch(() => {});
+        isBankTransferAvailableLiff().then(setBankOn).catch(() => {});
         isEcpayAvailableLiff()
           .then((on) => {
             setEcpayOn(on);
@@ -847,7 +856,8 @@ export default function ShopPage() {
               </div>
             )}
 
-            {(linePayOn || ecpayOn) && (
+            {/* 有兩種以上才需要選;只有匯款(或什麼都沒有)就不顯示這張卡 */}
+            {[bankOn, linePayOn, ecpayOn, ecpayAtmOn].filter(Boolean).length >= 2 && (
               <Card className="ls-cardb">
                 <h3>付款方式 <span>必選</span></h3>
                 <div className="ls-opts" role="radiogroup" aria-label="付款方式">
@@ -860,7 +870,9 @@ export default function ShopPage() {
                   {ecpayAtmOn && (
                     <OptionCard name="payment_method" value="ecpay_atm" on={payMethod === 'ecpay_atm'} onSelect={() => setPayMethod('ecpay_atm')} icon={<IconBank size={16} />} title="ATM 轉帳" trailing={<Badge>免回報</Badge>} desc="送出後取得專屬轉帳帳號,3 天內轉帳,系統自動對帳" />
                   )}
-                  <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後回報帳號後 5 碼,等待人工核帳" />
+                  {bankOn && (
+                    <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後回報帳號後 5 碼,等待人工核帳" />
+                  )}
                 </div>
               </Card>
             )}

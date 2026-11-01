@@ -114,7 +114,25 @@ export const SETTINGS_CSS = `
 .sx-ship{display:grid;grid-template-columns:1.4fr .6fr .8fr 1.4fr 32px;gap:8px;align-items:center}
 .sx-ship-head{font-size:11.5px;color:#71717a;font-weight:500;padding:0 2px}
 .sx-filebtn input{display:none}
+/* 收款方式清單(2026-11-01):每種方式一張可展開的卡 */
+.sx-methods{display:flex;flex-direction:column;gap:10px}
+.sx-method{border:1px solid #e4e4e7;border-radius:10px;background:#fff}
+.sx-method > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 16px}
+.sx-method > summary::-webkit-details-marker{display:none}
+.sx-method.static > summary{cursor:default}
+.sx-method .mic{width:36px;height:36px;border-radius:8px;background:#f4f4f5;display:grid;place-items:center;color:#52525b;flex:none}
+.sx-method .mt{flex:1;min-width:0}
+.sx-method .mt b{font-size:14px;font-weight:600;display:block}
+.sx-method .mt span{font-size:12.5px;color:#71717a;display:block;margin-top:2px;line-height:1.5}
+.sx-method .mst{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:#a1a1aa;flex:none;white-space:nowrap}
+.sx-method .mst.ok{color:#15803d;font-weight:600}
+.sx-method .act{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border:1px solid #e4e4e7;border-radius:6px;font-size:12.5px;color:#18181b;font-weight:500;flex:none;white-space:nowrap;background:#fff}
+.sx-method .act svg{transition:transform .15s}
+.sx-method[open] .act svg{transform:rotate(180deg)}
+.sx-method .body{padding:4px 16px 16px;border-top:1px solid #f4f4f5;display:flex;flex-direction:column;gap:14px}
 @media (max-width:767px){
+  .sx-method > summary{flex-wrap:wrap;padding:12px 14px}
+  .sx-method .body{padding:4px 14px 14px}
   .sx-head{flex-direction:column;align-items:flex-start}
   .sx-card{flex-direction:column;border-radius:10px}
   .sx-nav{width:auto;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid #e4e4e7;padding:8px;gap:4px;scrollbar-width:none}

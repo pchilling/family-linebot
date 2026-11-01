@@ -1,7 +1,7 @@
 'use server';
 
 import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
-import { isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
+import { isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import { bankTransferFromRow, formatBankTransferText, type BankTransfer } from '@/lib/bank-transfer';
 import type { messagingApi } from '@line/bot-sdk';
@@ -736,6 +736,12 @@ async function tenantSlug(): Promise<string | null> {
 export async function isLinePayAvailableLiff(): Promise<boolean> {
   const slug = await tenantSlug();
   return slug ? isLinePayAvailable(slug) : false;
+}
+
+/** Phase 28(2026-11-01):匯款沒設定(或關掉)就不出現在結帳 */
+export async function isBankTransferAvailableLiff(): Promise<boolean> {
+  const slug = await tenantSlug();
+  return slug ? isBankTransferAvailable(slug) : false;
 }
 
 /**

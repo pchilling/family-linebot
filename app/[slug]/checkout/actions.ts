@@ -5,6 +5,7 @@ import { buildGiftItems, getTenantBySlug, getProductTiers, hasFeature, isSaleAct
 import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
 import { isEcpayConfigured } from '@/lib/ecpay';
 import { getCurrentMember } from '@/lib/member-auth';
+import { bankTransferFromRow, isBankTransferOffered } from '@/lib/bank-transfer';
 
 // 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
 // (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
@@ -151,6 +152,16 @@ export async function getQrPaymentPublic(tenantSlug: string): Promise<QrPaymentP
     note: (q.note ?? '').trim() || null,
     link_url: (q.link_url ?? '').trim() || null,
   };
+}
+
+/**
+ * Phase 28(2026-11-01):結帳要不要出現「匯款」。
+ * 新欄位 bank_transfer 有填就看開關;沒填但還有舊的 payment_info 文字 → 當開著;都沒有 → 不出現。
+ */
+export async function isBankTransferAvailable(tenantSlug: string): Promise<boolean> {
+  const { data } = await supabaseAdmin.from('tenants').select('bank_transfer, payment_info').eq('slug', tenantSlug).maybeSingle();
+  const row = data as { bank_transfer?: unknown; payment_info?: string | null } | null;
+  return isBankTransferOffered(bankTransferFromRow(row?.bank_transfer), row?.payment_info ?? null);
 }
 
 export async function getShippingOptions(tenantSlug: string): Promise<ShippingOption[]> {

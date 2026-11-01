@@ -6,7 +6,7 @@ import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconCreditCard, IconGift, IconPackage, IconTruck, IconWallet } from '@/lib/icons';
 import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getQrPaymentPublic, getShippingOptions, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type QrPaymentPublic, type ShippingOption } from './actions';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getQrPaymentPublic, getShippingOptions, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type QrPaymentPublic, type ShippingOption } from './actions';
 
 // 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
 // Phase 27(2026-11-01):加 'qr' 掃碼付款(攤主自己的收款 QR,人工核帳)
@@ -104,6 +104,13 @@ export default function CheckoutPage({ params }: Props) {
   const [payMethod, setPayMethod] = useState<PayMethod>('bank');
   // Phase 27:掃碼付款設定(攤位有開 + 有上傳 QR 才會有)
   const [qrCfg, setQrCfg] = useState<QrPaymentPublic | null>(null);
+  // Phase 28:匯款沒設定(或攤主關掉)就不出現;預設 true 免得載入中閃一下
+  const [bankOn, setBankOn] = useState(true);
+  // 匯款不開時,預設選項往其他方式移;什麼都沒有就維持 bank(下單後由賣家聯絡)
+  useEffect(() => {
+    if (bankOn || payMethod !== 'bank') return;
+    setPayMethod(ecpayOn ? 'ecpay_credit' : qrCfg ? 'qr' : linePayOn ? 'line_pay' : ecpayAtmOn ? 'ecpay_atm' : 'bank');
+  }, [bankOn, ecpayOn, qrCfg, linePayOn, ecpayAtmOn, payMethod]);
   // Phase 26:已登入就預填收件人與電話,並把信箱帶進訂單(查單、對帳號用);沒登入照舊
   const [member, setMember] = useState<{ name: string | null; email: string | null; phone: string | null } | null>(null);
   useEffect(() => {
@@ -116,6 +123,7 @@ export default function CheckoutPage({ params }: Props) {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
     getGiftRulesPublic(slug).then(setGiftCfg).catch(() => {});
     isLinePayAvailable(slug).then(setLinePayOn).catch(() => {});
+    isBankTransferAvailable(slug).then(setBankOn).catch(() => {});
     isEcpayAvailable(slug)
       .then((on) => {
         setEcpayOn(on);
@@ -329,9 +337,9 @@ export default function CheckoutPage({ params }: Props) {
             </section>
           )}
 
-          {/* 2026-10-15:付款方式(攤位有開 LINE Pay 或綠界才顯示;都沒開一律匯款)
-              2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳) */}
-          {(linePayOn || ecpayOn || qrCfg) && (
+          {/* 2026-10-15:付款方式;2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳)
+              Phase 28:只有一種(通常是匯款)就不用選、不顯示;兩種以上才顯示;一種都沒有顯示提示 */}
+          {[bankOn, linePayOn, ecpayOn, ecpayAtmOn, !!qrCfg].filter(Boolean).length !== 1 && (
             <section className="ck-sec" aria-labelledby="pay-h">
               <div className="ck-sec-h"><h2 id="pay-h">付款方式</h2><span>必選</span></div>
               <div className="ck-opts" role="radiogroup" aria-label="付款方式">
@@ -347,7 +355,12 @@ export default function CheckoutPage({ params }: Props) {
                 {qrCfg && (
                   <OptionCard name="payment_method" value="qr" on={payMethod === 'qr'} onSelect={() => setPayMethod('qr')} icon={<IconWallet size={16} />} title={`掃碼付款(${qrCfg.label})`} desc="下單後到訂單頁掃 QR 付款,付完按「我已付款」,賣家核帳後出貨" />
                 )}
-                <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳" />
+                {bankOn && (
+                  <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳" />
+                )}
+                {!bankOn && !ecpayOn && !linePayOn && !ecpayAtmOn && !qrCfg && (
+                  <p className="ui-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>賣家還沒設定收款方式,下單後賣家會聯絡你付款。</p>
+                )}
               </div>
             </section>
           )}
