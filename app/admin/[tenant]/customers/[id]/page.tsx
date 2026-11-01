@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { IconChevronLeft } from '@/lib/icons';
+
+/**
+ * 客戶明細(2026-11-01 換成後台新設計系統)。資料查詢不變。
+ */
 
 type Props = {
   params: Promise<{ tenant: string; id: string }>;
@@ -27,30 +32,63 @@ function formatDate(iso: string): string {
   });
 }
 
-function statusLabel(s: string): string {
-  return ({ active: '活躍', blocked: '封鎖', left: '已退' }[s]) ?? s;
-}
+const STATUS: Record<string, { label: string; cls: string }> = {
+  active: { label: '活躍', cls: 'cd-active' },
+  blocked: { label: '封鎖', cls: 'cd-blocked' },
+  left: { label: '已退出', cls: 'cd-left' },
+};
+const ORDER_STATUS: Record<string, string> = {
+  open: '待付款', paid: '已付款', shipped: '已出貨', delivered: '已送達', cancelled: '已取消', refunded: '已退款',
+};
+const SOURCE_LABEL: Record<string, string> = { web: '網站', liff: 'LINE', manual: '手動', line_chat: 'LINE 對話' };
+const METHOD_LABEL: Record<string, string> = { liff: 'LINE 報名頁', qr: '掃 QR', manual: '老師', admin: '後台' };
+const RESV: Record<string, { label: string; color: string }> = {
+  confirmed: { label: '已報名', color: '#15803d' },
+  waitlist: { label: '候補', color: '#a16207' },
+  cancelled: { label: '已取消', color: '#71717a' },
+  no_show: { label: '沒到', color: '#b91c1c' },
+};
 
-function orderStatusLabel(s: string): string {
-  return ({ open: '待付款', paid: '已付款', shipped: '已出貨', delivered: '已送達', cancelled: '已取消', refunded: '已退款' }[s]) ?? s;
+const CSS = `
+.cd-back{display:inline-flex;align-items:center;gap:2px;font-size:13px;color:#71717a;text-decoration:none;margin-bottom:10px}
+.cd-back:hover{color:#18181b}
+.cd-head{margin-bottom:16px}
+.cd-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cd-head p{margin:4px 0 0;font-size:13px;color:#71717a}
+.cd-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.cd-stat{padding:14px 16px;background:#fff;border:1px solid #e4e4e7;border-radius:12px}
+.cd-stat .l{font-size:12px;color:#71717a;margin-bottom:4px}
+.cd-stat .v{font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.cd-card{background:#fff;border:1px solid #e4e4e7;border-radius:12px;margin-bottom:16px;overflow:hidden}
+.cd-card h2{margin:0;padding:14px 16px;font-size:14px;font-weight:600;border-bottom:1px solid #f4f4f5;display:flex;align-items:center;gap:8px}
+.cd-card h2 .n{font-weight:400;color:#71717a;font-size:13px}
+.cd-kv{display:grid;grid-template-columns:110px 1fr;gap:10px 14px;font-size:13.5px;margin:0;padding:16px}
+.cd-kv dt{color:#71717a;margin:0}.cd-kv dd{margin:0;min-width:0;word-break:break-all}
+.cd-code{font-family:var(--font-geist-mono),ui-monospace,Menlo,monospace;padding:1px 8px;background:#f4f4f5;border-radius:4px;font-size:13px;user-select:all}
+.cd-hint{font-size:12px;color:#71717a;margin-left:8px}
+.cd-row{display:grid;gap:12px;align-items:center;padding:11px 16px;border-top:1px solid #f4f4f5;font-size:13.5px}
+.cd-row.head{background:#fafafa;font-size:11.5px;color:#71717a;font-weight:500;padding:8px 16px;border-top:0}
+.cd-row .r{text-align:right;font-variant-numeric:tabular-nums}
+.cd-row .muted{color:#71717a;font-size:13px}
+.cd-orders{grid-template-columns:170px 90px 100px 110px 1fr}
+.cd-atts{grid-template-columns:1.4fr 160px 120px}
+.cd-resvs{grid-template-columns:1.4fr 100px 150px 150px}
+.cd-link{font-weight:600;color:#18181b;text-decoration:none}
+.cd-link:hover{text-decoration:underline}
+.cd-no{font-family:var(--font-geist-mono),ui-monospace,Menlo,monospace;font-size:13px}
+.cd-empty{padding:24px 16px;text-align:center;color:#71717a;font-size:13.5px}
+.cd-active{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.cd-blocked{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+.cd-left{background:#f4f4f5;color:#71717a;border-color:transparent}
+@media (max-width:767px){
+  .cd-stats{grid-template-columns:1fr 1fr}
+  .cd-card{border-radius:10px}
+  .cd-kv{grid-template-columns:90px 1fr;padding:14px}
+  .cd-row{grid-template-columns:1fr auto;gap:4px 12px;padding:12px 14px}
+  .cd-row.head{display:none}
+  .cd-row > .wide{grid-column:1/-1}
 }
-
-function methodLabel(m: string): string {
-  return ({ liff: 'LIFF', qr: 'QR', manual: '老師', admin: '後台' }[m]) ?? m;
-}
-
-function resvStatusLabel(s: string): string {
-  return ({ confirmed: '已報名', waitlist: '候補', cancelled: '已取消', no_show: '沒到' }[s]) ?? s;
-}
-
-function resvStatusColor(s: string): string {
-  return ({
-    confirmed: '#0a7038',
-    waitlist: '#9a7400',
-    cancelled: '#888',
-    no_show: '#d00',
-  }[s]) ?? '#444';
-}
+`;
 
 export default async function CustomerDetailPage({ params }: Props) {
   const { tenant: slug, id } = await params;
@@ -111,11 +149,12 @@ export default async function CustomerDetailPage({ params }: Props) {
   const user = (userRaw ?? null) as UserRow | null;
   if (!user) {
     return (
-      <main style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-        <Link href={`/admin/${slug}/customers`} style={{ color: '#666', fontSize: 13 }}>
-          ← 返回客戶名單
+      <main style={{ padding: '28px 32px 48px' }}>
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        <Link href={`/admin/${slug}/customers`} className="cd-back">
+          <IconChevronLeft size={14} /> 客戶
         </Link>
-        <p style={{ marginTop: 20, color: '#d00' }}>找不到此客戶</p>
+        <p style={{ marginTop: 12, color: '#b91c1c' }}>找不到這位客戶。</p>
       </main>
     );
   }
@@ -176,273 +215,185 @@ export default async function CustomerDetailPage({ params }: Props) {
   const activeAttCount = atts.length;
   const activeResvCount = resvs.filter((r) => r.status === 'confirmed' || r.status === 'waitlist').length;
 
-  const displayName = user.full_name ?? user.display_name ?? '(無名)';
+  const displayName = user.full_name ?? user.display_name ?? '(沒有名稱)';
+  const st = STATUS[user.status] ?? { label: user.status, cls: 'cd-left' };
+  const nameOf = (r: RefereeRow) => r.full_name ?? r.display_name ?? '(沒有名稱)';
 
   return (
-    <main style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <Link href={`/admin/${slug}/customers`} style={{ color: '#666', fontSize: 13 }}>
-        ← 返回客戶名單
-      </Link>
+    <main style={{ padding: '28px 32px 48px' }}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div style={{ maxWidth: 1000 }}>
+        <Link href={`/admin/${slug}/customers`} className="cd-back">
+          <IconChevronLeft size={14} /> 客戶
+        </Link>
+        <header className="cd-head">
+          <h1>
+            {displayName}
+            <span className={`ui-badge ${st.cls}`}>{st.label}</span>
+          </h1>
+          <p>加入 {formatDate(user.added_at)}</p>
+        </header>
 
-      <h1 style={{ fontSize: 24, marginTop: 12, marginBottom: 8 }}>{displayName}</h1>
-      <p style={{ color: '#666', fontSize: 13, marginBottom: 24 }}>
-        加入 {formatDate(user.added_at)} · 狀態 {statusLabel(user.status)}
-      </p>
+        <div className="cd-stats">
+          {[
+            { label: '累積消費', value: `NT$ ${totalSpent.toLocaleString()}` },
+            { label: '訂單', value: `${activeOrders.length}` },
+            { label: '簽到次數', value: `${activeAttCount}` },
+            { label: '未來報名', value: `${activeResvCount}` },
+          ].map((s) => (
+            <div key={s.label} className="cd-stat">
+              <div className="l">{s.label}</div>
+              <div className="v">{s.value}</div>
+            </div>
+          ))}
+        </div>
 
-      {/* 統計 cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-          gap: 12,
-          marginBottom: 24,
-        }}
-      >
-        <StatCard label="累積消費" value={`NT$ ${totalSpent.toLocaleString()}`} />
-        <StatCard label="訂單數" value={`${activeOrders.length}`} />
-        <StatCard label="簽到次數" value={`${activeAttCount}`} />
-        <StatCard label="未來報名" value={`${activeResvCount}`} />
-      </div>
-
-      {/* 個資 */}
-      <section style={section}>
-        <h2 style={h2}>個人資料</h2>
-        <dl style={meta}>
-          <dt style={metaKey}>LINE 顯示名</dt>
-          <dd style={{ margin: 0 }}>
-            <code style={lineCode}>{user.display_name ?? '—'}</code>
-            <span style={{ marginLeft: 8, fontSize: 12, color: '#666' }}>← LINE@ Manager 搜尋對話</span>
-          </dd>
-          <dt style={metaKey}>真名(填)</dt>
-          <dd style={{ margin: 0 }}>{user.full_name ?? '—'}</dd>
-          <dt style={metaKey}>電話</dt>
-          <dd style={{ margin: 0 }}>{user.phone ?? '—'}</dd>
-          <dt style={metaKey}>地址</dt>
-          <dd style={{ margin: 0 }}>{user.address ?? '—'}</dd>
-          <dt style={metaKey}>生日</dt>
-          <dd style={{ margin: 0 }}>{user.birthday ?? '—'}</dd>
-          <dt style={metaKey}>ID</dt>
-          <dd style={{ margin: 0 }}>
-            {user.member_id ? (
-              <code style={{ padding: '2px 8px', background: '#f3f4f6', borderRadius: 3, fontFamily: 'monospace', fontSize: 13, userSelect: 'all' }}>
-                {user.member_id}
-              </code>
-            ) : (
-              <span style={{ color: '#9ca3af' }}>—(學員未填)</span>
-            )}
-          </dd>
-          <dt style={metaKey}>介紹人 ID</dt>
-          <dd style={{ margin: 0 }}>
-            {user.referrer_member_id ? (
-              <span>
-                <code style={{ padding: '2px 8px', background: '#f3f4f6', borderRadius: 3, fontFamily: 'monospace', fontSize: 13 }}>
-                  {user.referrer_member_id}
-                </code>
-                {referrer && (
-                  <Link
-                    href={`/admin/${slug}/customers/${referrer.id}`}
-                    style={{ marginLeft: 8, color: '#0070f3', textDecoration: 'none', fontSize: 13 }}
-                  >
-                    → {referrer.full_name ?? referrer.display_name ?? '(無名)'}
-                  </Link>
-                )}
-                {!referrer && (
-                  <span style={{ marginLeft: 8, color: '#9ca3af', fontSize: 12 }}>
-                    (此 ID 尚未在系統內、可能還沒辦會員)
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span style={{ color: '#9ca3af' }}>—</span>
-            )}
-          </dd>
-          <dt style={metaKey}>LINE userId</dt>
-          <dd style={{ margin: 0, fontFamily: 'monospace', fontSize: 12, color: '#888' }}>
-            {user.line_user_id}
-          </dd>
-        </dl>
-      </section>
-
-      {referrals.length > 0 && (
-        <section style={section}>
-          <h2 style={h2}>我介紹進來的人 ({referrals.length})</h2>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {referrals.map((r) => (
-              <li
-                key={r.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 12px',
-                  background: '#fafafa',
-                  border: '1px solid #e4e4e7',
-                  borderRadius: 4,
-                  fontSize: 14,
-                }}
-              >
-                <Link
-                  href={`/admin/${slug}/customers/${r.id}`}
-                  style={{ flex: 1, color: '#0070f3', textDecoration: 'none', fontWeight: 500 }}
-                >
-                  {r.full_name ?? r.display_name ?? '(無名)'}
-                </Link>
-                {r.member_id && (
-                  <code style={{ fontSize: 11, color: '#71717a', fontFamily: 'monospace' }}>
-                    {r.member_id}
-                  </code>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* 訂單歷史 */}
-      <section style={section}>
-        <h2 style={h2}>訂單歷史 ({orders.length})</h2>
-        {orders.length === 0 && <p style={mutedText}>(無訂單)</p>}
-        {orders.length > 0 && (
-          <table style={tableStyle}>
-            <thead>
-              <tr style={trHead}>
-                <th style={th}>訂單編號</th>
-                <th style={th}>來源</th>
-                <th style={th}>狀態</th>
-                <th style={{ ...th, textAlign: 'right' }}>金額</th>
-                <th style={th}>時間</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} style={trBody}>
-                  <td style={td}>
-                    <Link
-                      href={`/admin/${slug}/orders/${o.id}`}
-                      style={{ color: '#0070f3', textDecoration: 'none', fontWeight: 500 }}
-                    >
-                      {o.order_no}
+        <div className="cd-card">
+          <h2>個人資料</h2>
+          <dl className="cd-kv">
+            <dt>LINE 名稱</dt>
+            <dd>
+              <span className="cd-code">{user.display_name ?? '—'}</span>
+              <span className="cd-hint">到 LINE 官方帳號用這個名字找對話</span>
+            </dd>
+            <dt>填寫姓名</dt>
+            <dd>{user.full_name ?? '—'}</dd>
+            <dt>電話</dt>
+            <dd>{user.phone ?? '—'}</dd>
+            <dt>地址</dt>
+            <dd>{user.address ?? '—'}</dd>
+            <dt>生日</dt>
+            <dd>{user.birthday ?? '—'}</dd>
+            <dt>會員編號</dt>
+            <dd>{user.member_id ? <span className="cd-code">{user.member_id}</span> : <span style={{ color: '#a1a1aa' }}>還沒填</span>}</dd>
+            <dt>介紹人編號</dt>
+            <dd>
+              {user.referrer_member_id ? (
+                <>
+                  <span className="cd-code">{user.referrer_member_id}</span>
+                  {referrer ? (
+                    <Link href={`/admin/${slug}/customers/${referrer.id}`} className="cd-link" style={{ marginLeft: 8, fontSize: 13 }}>
+                      {nameOf(referrer)}
                     </Link>
-                  </td>
-                  <td style={{ ...td, fontSize: 13 }}>{o.source}</td>
-                  <td style={{ ...td, fontSize: 13 }}>{orderStatusLabel(o.status)}</td>
-                  <td style={{ ...td, textAlign: 'right', fontWeight: 500 }}>
-                    NT$ {o.total_twd.toLocaleString()}
-                  </td>
-                  <td style={{ ...td, fontSize: 12, color: '#666' }}>{formatTw(o.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+                  ) : (
+                    <span className="cd-hint">這個編號還沒有對應的客戶,可能還沒辦會員</span>
+                  )}
+                </>
+              ) : (
+                <span style={{ color: '#a1a1aa' }}>—</span>
+              )}
+            </dd>
+            <dt>LINE userId</dt>
+            <dd style={{ fontFamily: 'var(--font-geist-mono), ui-monospace, monospace', fontSize: 12, color: '#a1a1aa' }}>{user.line_user_id}</dd>
+          </dl>
+        </div>
 
-      {/* 簽到歷史 */}
-      <section style={section}>
-        <h2 style={h2}>簽到歷史 ({atts.length})</h2>
-        {atts.length === 0 && <p style={mutedText}>(無簽到紀錄)</p>}
-        {atts.length > 0 && (
-          <table style={tableStyle}>
-            <thead>
-              <tr style={trHead}>
-                <th style={th}>課程</th>
-                <th style={th}>簽到時間</th>
-                <th style={th}>方式</th>
-              </tr>
-            </thead>
-            <tbody>
+        {referrals.length > 0 && (
+          <div className="cd-card">
+            <h2>
+              介紹進來的人
+              <span className="n">{referrals.length} 位</span>
+            </h2>
+            {referrals.map((r) => (
+              <div key={r.id} className="cd-row" style={{ gridTemplateColumns: '1fr auto' }}>
+                <Link href={`/admin/${slug}/customers/${r.id}`} className="cd-link">{nameOf(r)}</Link>
+                {r.member_id && <span className="cd-code" style={{ fontSize: 12 }}>{r.member_id}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="cd-card">
+          <h2>
+            訂單
+            <span className="n">{orders.length} 筆</span>
+          </h2>
+          {orders.length === 0 ? (
+            <div className="cd-empty">還沒有訂單。</div>
+          ) : (
+            <>
+              <div className="cd-row cd-orders head" aria-hidden>
+                <span>訂單編號</span>
+                <span>來源</span>
+                <span>狀態</span>
+                <span className="r">金額</span>
+                <span>時間</span>
+              </div>
+              {orders.map((o) => (
+                <div key={o.id} className="cd-row cd-orders">
+                  <div>
+                    <Link href={`/admin/${slug}/orders/${o.id}`} className="cd-link cd-no">{o.order_no}</Link>
+                  </div>
+                  <div className="muted">{SOURCE_LABEL[o.source] ?? o.source}</div>
+                  <div>
+                    <span className={`ui-badge ob-${o.status}`}>{ORDER_STATUS[o.status] ?? o.status}</span>
+                  </div>
+                  <div className="r" style={{ fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString()}</div>
+                  <div className="muted wide">{formatTw(o.created_at)}</div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="cd-card">
+          <h2>
+            簽到
+            <span className="n">{atts.length} 次</span>
+          </h2>
+          {atts.length === 0 ? (
+            <div className="cd-empty">還沒有簽到紀錄。</div>
+          ) : (
+            <>
+              <div className="cd-row cd-atts head" aria-hidden>
+                <span>課程</span>
+                <span>簽到時間</span>
+                <span>方式</span>
+              </div>
               {atts.map((a) => (
-                <tr key={a.id} style={trBody}>
-                  <td style={td}>{a.classes?.name ?? '(已刪課程)'}</td>
-                  <td style={{ ...td, fontSize: 12, color: '#666' }}>{formatTw(a.checked_in_at)}</td>
-                  <td style={{ ...td, fontSize: 13 }}>{methodLabel(a.method)}</td>
-                </tr>
+                <div key={a.id} className="cd-row cd-atts">
+                  <div style={{ fontWeight: 500 }}>{a.classes?.name ?? '(已刪除的課程)'}</div>
+                  <div className="muted">{formatTw(a.checked_in_at)}</div>
+                  <div className="muted">{METHOD_LABEL[a.method] ?? a.method}</div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+            </>
+          )}
+        </div>
 
-      {/* 報名歷史 */}
-      <section style={section}>
-        <h2 style={h2}>報名歷史 ({resvs.length})</h2>
-        {resvs.length === 0 && <p style={mutedText}>(無報名紀錄)</p>}
-        {resvs.length > 0 && (
-          <table style={tableStyle}>
-            <thead>
-              <tr style={trHead}>
-                <th style={th}>活動</th>
-                <th style={th}>狀態</th>
-                <th style={th}>活動時間</th>
-                <th style={th}>報名時間</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resvs.map((r) => (
-                <tr key={r.id} style={trBody}>
-                  <td style={td}>{r.classes?.name ?? '(已刪活動)'}</td>
-                  <td style={{ ...td, fontSize: 13 }}>
-                    <span style={{ color: resvStatusColor(r.status), fontWeight: 500 }}>
-                      {resvStatusLabel(r.status)}
+        <div className="cd-card">
+          <h2>
+            報名
+            <span className="n">{resvs.length} 筆</span>
+          </h2>
+          {resvs.length === 0 ? (
+            <div className="cd-empty">還沒有報名紀錄。</div>
+          ) : (
+            <>
+              <div className="cd-row cd-resvs head" aria-hidden>
+                <span>活動</span>
+                <span>狀態</span>
+                <span>活動時間</span>
+                <span>報名時間</span>
+              </div>
+              {resvs.map((r) => {
+                const rs = RESV[r.status] ?? { label: r.status, color: '#52525b' };
+                return (
+                  <div key={r.id} className="cd-row cd-resvs">
+                    <div style={{ fontWeight: 500 }}>{r.classes?.name ?? '(已刪除的活動)'}</div>
+                    <div style={{ color: rs.color, fontWeight: 600, fontSize: 13 }}>
+                      {rs.label}
                       {r.status === 'waitlist' && r.position !== null && ` #${r.position}`}
-                    </span>
-                  </td>
-                  <td style={{ ...td, fontSize: 12, color: '#666' }}>
-                    {r.classes?.scheduled_at ? formatTw(r.classes.scheduled_at) : '—'}
-                  </td>
-                  <td style={{ ...td, fontSize: 12, color: '#666' }}>{formatTw(r.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+                    </div>
+                    <div className="muted wide">{r.classes?.scheduled_at ? formatTw(r.classes.scheduled_at) : '—'}</div>
+                    <div className="muted wide">報名於 {formatTw(r.created_at)}</div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        padding: '14px 16px',
-        background: '#fff',
-        border: '1px solid #e5e7eb',
-        borderRadius: 8,
-      }}
-    >
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: '#111' }}>{value}</div>
-    </div>
-  );
-}
-
-const section: React.CSSProperties = {
-  marginBottom: 24,
-  padding: 18,
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  background: '#fff',
-};
-const h2: React.CSSProperties = { fontSize: 15, marginBottom: 14 };
-const meta: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '7rem 1fr',
-  gap: '8px 16px',
-  fontSize: 14,
-  margin: 0,
-};
-const metaKey: React.CSSProperties = { color: '#888' };
-const lineCode: React.CSSProperties = {
-  padding: '2px 8px',
-  background: '#fff7d6',
-  borderRadius: 3,
-  fontSize: 14,
-  userSelect: 'all',
-};
-const mutedText: React.CSSProperties = { color: '#999', fontSize: 13 };
-const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse' };
-const trHead: React.CSSProperties = { borderBottom: '1px solid #ddd', background: '#fafafa' };
-const trBody: React.CSSProperties = { borderBottom: '1px solid #f0f0f0' };
-const th: React.CSSProperties = { textAlign: 'left', padding: '8px', fontWeight: 600, fontSize: 13, color: '#444' };
-const td: React.CSSProperties = { padding: '10px 8px', verticalAlign: 'middle', fontSize: 14 };

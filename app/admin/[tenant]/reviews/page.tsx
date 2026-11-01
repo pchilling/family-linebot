@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { Stars } from '@/lib/ui';
 import { setReviewStatus } from './actions';
+import { FlashToast } from '../../../_components/toast';
 
 type Props = {
   params: Promise<{ tenant: string }>;
@@ -76,7 +77,7 @@ export default async function ReviewsAdminPage({ params, searchParams }: Props) 
       />
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>評價</h1>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>評價</h1>
           <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
             顯示中 {visibleCount ?? 0} 則 · 隱藏 {hiddenCount ?? 0} 則{avg !== null && <> · 平均 {avg.toFixed(1)} 星</>}
           </div>
@@ -87,9 +88,7 @@ export default async function ReviewsAdminPage({ params, searchParams }: Props) 
         </div>
       </div>
 
-      {saved && (
-        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, color: '#166534', fontSize: 13 }}>{saved}</div>
-      )}
+      {saved && <FlashToast message={saved} />}
 
       {rows.length === 0 ? (
         <div style={{ padding: '48px 24px', textAlign: 'center', background: '#fff', border: '1px solid #e4e4e7', borderRadius: 12, color: '#71717a', fontSize: 14, lineHeight: 1.7 }}>
@@ -130,7 +129,7 @@ export default async function ReviewsAdminPage({ params, searchParams }: Props) 
                     <input type="hidden" name="tenant_slug" value={tenant.slug} />
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="status" value={r.status === 'visible' ? 'hidden' : 'visible'} />
-                    <button type="submit" style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid #e4e4e7', background: '#fff', fontSize: 12, cursor: 'pointer', color: r.status === 'visible' ? '#b91c1c' : '#166534', fontWeight: 600 }}>
+                    <button type="submit" className="ui-btn ui-btn-outline ui-btn-xs" style={{ color: r.status === 'visible' ? '#b91c1c' : '#15803d' }}>
                       {r.status === 'visible' ? '隱藏' : '恢復顯示'}
                     </button>
                   </form>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { SortBoard, type SortGroup } from './sort-board';
+import { IconChevronLeft } from '@/lib/icons';
 
 /**
  * 商品拖曳排序頁(Phase 16.2,2026-09-18):
@@ -72,11 +73,11 @@ export default async function ProductSortPage({
   }));
 
   return (
-    <main style={{ padding: 24, maxWidth: 920, margin: '0 auto' }}>
-      <Link href={`/admin/${tenant.slug}/products`} style={{ color: '#666', fontSize: 13 }}>
-        ← 返回商品管理
+    <main style={{ padding: '28px 32px 48px', maxWidth: 984 }}>
+      <Link href={`/admin/${tenant.slug}/products`} style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+        <IconChevronLeft size={14} /> 商品
       </Link>
-      <h1 style={{ fontSize: 22, marginTop: 12, marginBottom: 6 }}>商品排序</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 10, marginBottom: 6 }}>商品排序</h1>
       <p style={{ color: '#71717a', fontSize: 13, marginBottom: 20, lineHeight: 1.7 }}>
         按住卡片直接拖到想要的位置,放開自動儲存(手機 / iPad 請<strong>長按半秒</strong>再拖)。
         只能在同一分類內移動;分類之間的先後請到「商品 → 分類顯示順序」調整。

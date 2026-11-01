@@ -2,7 +2,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { MarkReadOnMount } from './mark-read-client';
-import { IconSearch } from '@/lib/icons';
+import { IconChevronDown, IconSearch } from '@/lib/icons';
+
+/**
+ * 訊息(2026-11-01 換成後台新設計系統:範圍切換改分段按鈕、篩選列常駐、對話改卡片)。
+ * 查詢、分組、自動已讀的邏輯不變。
+ */
 
 type MessageRow = {
   id: string;
@@ -75,7 +80,7 @@ function groupByUser(rows: MessageRow[]): UserGroup[] {
   const map = new Map<string, UserGroup>();
   for (const m of rows) {
     const key = m.user_id ?? '__noUser__';
-    const userName = m.users?.full_name ?? m.users?.display_name ?? '(未綁定 user)';
+    const userName = m.users?.full_name ?? m.users?.display_name ?? '(沒有對應的客戶)';
     if (!map.has(key)) {
       map.set(key, {
         userId: m.user_id,
@@ -128,16 +133,47 @@ function previewText(m: MessageRow): string {
   return `[${typeLabel(m.message_type)}]`;
 }
 
-const filterInput: React.CSSProperties = {
-  padding: '6px 10px',
-  fontSize: 13,
-  border: '1px solid #e4e4e7',
-  borderRadius: 6,
-  background: '#fff',
-  color: '#18181b',
-  fontFamily: 'inherit',
-  outline: 'none',
-};
+const CSS = `
+.ms-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.ms-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.ms-head p{margin:4px 0 0;font-size:13px;color:#71717a;line-height:1.5}
+.ms-seg{display:inline-flex;padding:3px;border-radius:8px;background:#f4f4f5;gap:2px}
+.ms-seg a{height:30px;padding:0 14px;border-radius:6px;font-size:13px;color:#52525b;display:inline-flex;align-items:center;text-decoration:none}
+.ms-seg a[aria-current="page"]{background:#fff;color:#18181b;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.ms-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:#fff;border:1px solid #e4e4e7;border-radius:10px;margin-bottom:14px}
+.ms-filter .q{flex:1 1 220px;min-width:160px;position:relative}
+.ms-filter .q svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#a1a1aa;pointer-events:none}
+.ms-filter .q input{padding-left:32px}
+.ms-list{display:flex;flex-direction:column;gap:10px}
+.ms-card{background:#fff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden}
+.ms-card[data-unread="true"]{border-color:#fcd34d;box-shadow:0 0 0 1px #fde68a}
+.ms-card summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.ms-card summary::-webkit-details-marker{display:none}
+.ms-card .chev{color:#a1a1aa;transition:transform .15s;flex:none}
+.ms-card[open] .chev{transform:rotate(180deg)}
+.ms-card .who{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+.ms-card .who a{color:#18181b;text-decoration:none;font-weight:600;font-size:14px}
+.ms-card .who a:hover{text-decoration:underline}
+.ms-card .who .n{font-size:12px;color:#71717a}
+.ms-card .who .t{font-size:11.5px;color:#a1a1aa;margin-left:auto}
+.ms-unread{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:700}
+.ms-card .preview{font-size:13px;color:#71717a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-card[data-unread="true"] .preview{color:#18181b;font-weight:500}
+.ms-thread{border-top:1px solid #f4f4f5;background:#fafafa;padding:10px 16px 12px;display:flex;flex-direction:column;gap:8px;margin:0;list-style:none}
+.ms-msg{padding:8px 12px;border-radius:8px;border:1px solid transparent}
+.ms-msg[data-unread="true"]{background:#fff;border-color:#fde68a}
+.ms-msg .meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;font-size:11.5px;color:#a1a1aa}
+.ms-msg[data-unread="true"] .meta{color:#18181b;font-weight:600}
+.ms-msg .meta b{color:#dc2626;font-size:10.5px;letter-spacing:.05em}
+.ms-msg .body{font-size:14px;color:#374151;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.ms-msg .other{font-size:13px;color:#a1a1aa}
+.ms-empty{padding:48px 16px;text-align:center;color:#71717a;font-size:14px;background:#fff;border:1px solid #e4e4e7;border-radius:12px}
+@media (max-width:767px){
+  .ms-head{align-items:flex-start;flex-direction:column}
+  .ms-card{border-radius:10px}
+  .ms-card summary{padding:12px 14px}
+}
+`;
 
 export default async function MessagesPage({
   params,
@@ -159,348 +195,107 @@ export default async function MessagesPage({
   const totalUnread = groups.reduce((sum, g) => sum + g.unreadCount, 0);
 
   return (
-    <main style={{ padding: 24, maxWidth: 920, margin: '0 auto' }}>
+    <main style={{ padding: '28px 32px 48px' }}>
       <MarkReadOnMount tenantSlug={slug} />
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div style={{ maxWidth: 920 }}>
+        <header className="ms-head">
+          <div>
+            <h1>訊息</h1>
+            <p>
+              {totalUnread > 0 && <strong style={{ color: '#dc2626' }}>{totalUnread} 則未讀 · </strong>}
+              {groups.length} 位客人、{messages.length} 則
+              {messages.length >= 200 ? '+,只顯示最近 200 則' : ''}
+              {' · '}
+              {scope === 'support'
+                ? '只列客人按「客服」或「我要詢問」後 30 分鐘內傳的訊息'
+                : '所有客人傳進來的訊息'}
+            </p>
+          </div>
+          <nav className="ms-seg" aria-label="訊息範圍">
+            <Link href={`/admin/${tenant.slug}/messages`} aria-current={scope === 'support' ? 'page' : undefined}>
+              客服問題
+            </Link>
+            <Link href={`/admin/${tenant.slug}/messages?scope=all`} aria-current={scope === 'all' ? 'page' : undefined}>
+              所有訊息
+            </Link>
+          </nav>
+        </header>
 
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-details summary { cursor: pointer; list-style: none; }
-details summary::-webkit-details-marker { display: none; }
-details summary::marker { content: ''; }
-details[open] .chevron { transform: rotate(90deg); }
-.chevron { display: inline-block; transition: transform 150ms ease; }
-          `,
-        }}
-      />
-
-      <h1 style={{ fontSize: 22, marginBottom: 6 }}>
-        訊息{' '}
-        <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>
-          ({groups.length} 位用戶, {messages.length} 則
-          {messages.length >= 200 ? '+,只顯示最近 200' : ''})
-        </span>
-      </h1>
-      <p style={{ fontSize: 13, color: '#71717a', marginBottom: 12 }}>
-        {totalUnread > 0 && (
-          <strong style={{ color: '#dc2626' }}>
-            {totalUnread} 則未讀 ·{' '}
-          </strong>
-        )}
-        {scope === 'support'
-          ? '只顯示按「客服」/「我要詢問」後 30 分鐘內的訊息(看到就上 LINE@ Manager 回覆)'
-          : '顯示所有 inbound 訊息'}
-      </p>
-
-      {/* Scope toggle */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Link
-          href={`/admin/${tenant.slug}/messages`}
-          style={{
-            padding: '6px 12px',
-            background: scope === 'support' ? '#18181b' : '#fff',
-            color: scope === 'support' ? '#fff' : '#52525b',
-            border: `1px solid ${scope === 'support' ? '#18181b' : '#e4e4e7'}`,
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 500,
-            textDecoration: 'none',
-          }}
-        >
-          客服問題
-        </Link>
-        <Link
-          href={`/admin/${tenant.slug}/messages?scope=all`}
-          style={{
-            padding: '6px 12px',
-            background: scope === 'all' ? '#18181b' : '#fff',
-            color: scope === 'all' ? '#fff' : '#52525b',
-            border: `1px solid ${scope === 'all' ? '#18181b' : '#e4e4e7'}`,
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 500,
-            textDecoration: 'none',
-          }}
-        >
-          所有訊息
-        </Link>
-      </div>
-
-      {/* Filter — 預設折疊,有條件啟用才自動 open */}
-      <details
-        open={hasAnyFilter}
-        style={{
-          marginBottom: 20,
-          background: '#fafafa',
-          border: '1px solid #e4e4e7',
-          borderRadius: 8,
-          overflow: 'hidden',
-        }}
-      >
-        <summary
-          style={{
-            padding: '10px 14px',
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-            color: '#52525b',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            listStyle: 'none',
-          }}
-        >
-          <span style={{ fontSize: 11, color: '#71717a' }}>▶</span>
-          <IconSearch size={14} /> 篩選 / 搜尋
+        <form method="GET" action={`/admin/${tenant.slug}/messages`} className="ms-filter">
+          {scope === 'all' && <input type="hidden" name="scope" value="all" />}
+          <label className="q">
+            <IconSearch size={15} />
+            <input
+              name="q"
+              className="ui-input ui-input-sm"
+              defaultValue={filters.q ?? ''}
+              placeholder="搜尋訊息內容、客人名稱"
+              aria-label="搜尋"
+            />
+          </label>
+          <button type="submit" className="ui-btn ui-btn-primary ui-btn-sm">查詢</button>
           {hasAnyFilter && (
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#0070f3', fontWeight: 500 }}>
-              · 條件啟用中
-            </span>
+            <Link href={`/admin/${tenant.slug}/messages${scope === 'all' ? '?scope=all' : ''}`} className="ui-btn ui-btn-ghost ui-btn-sm">
+              清除
+            </Link>
           )}
-        </summary>
-        <form
-          method="GET"
-          action={`/admin/${tenant.slug}/messages`}
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            padding: '12px 14px 14px',
-            background: '#fafafa',
-            borderTop: '1px solid #e4e4e7',
-          }}
-        >
-        <input
-          name="q"
-          defaultValue={filters.q ?? ''}
-          placeholder="搜尋訊息內容 / 姓名"
-          style={{ ...filterInput, flex: '1 1 200px', minWidth: 200 }}
-        />
-        <button
-          type="submit"
-          style={{
-            padding: '6px 14px',
-            background: '#18181b',
-            color: '#fff',
-            border: 0,
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          查詢
-        </button>
-        {hasAnyFilter && (
-          <Link
-            href={`/admin/${tenant.slug}/messages`}
-            style={{
-              padding: '6px 12px',
-              color: '#52525b',
-              textDecoration: 'none',
-              fontSize: 13,
-              border: '1px solid #e4e4e7',
-              borderRadius: 6,
-              background: '#fff',
-            }}
-          >
-            清除
-          </Link>
-        )}
         </form>
-      </details>
 
-      {groups.length === 0 && (
-        <p style={{ color: '#71717a', padding: 32, textAlign: 'center', fontSize: 14 }}>
-          {hasAnyFilter ? '(條件下無訊息)' : '(尚無訊息)'}
-        </p>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {groups.map((g) => {
-          const hasUnread = g.unreadCount > 0;
-          return (
-            <details
-              key={g.userId ?? '__noUser__'}
-              open={hasUnread}
-              style={{
-                background: hasUnread ? '#fefce8' : '#fff',
-                border: `1px solid ${hasUnread ? '#fde047' : '#e4e4e7'}`,
-                borderLeft: hasUnread ? '3px solid #dc2626' : '1px solid #e4e4e7',
-                borderRadius: 8,
-                overflow: 'hidden',
-              }}
-            >
-              <summary
-                style={{
-                  padding: '12px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                }}
-              >
-                <span
-                  className="chevron"
-                  aria-hidden
-                  style={{
-                    color: '#71717a',
-                    fontSize: 11,
-                    width: 12,
-                    flexShrink: 0,
-                  }}
-                >
-                  ▶
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                      marginBottom: 2,
-                    }}
-                  >
-                    {g.userId ? (
-                      <Link
-                        href={`/admin/${tenant.slug}/customers/${g.userId}`}
-                        style={{
-                          color: '#0070f3',
-                          textDecoration: 'none',
-                          fontWeight: hasUnread ? 700 : 500,
-                          fontSize: 14,
-                        }}
-                      >
-                        {g.userName}
-                      </Link>
-                    ) : (
-                      <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 14 }}>
-                        {g.userName}
-                      </span>
-                    )}
-                    <span style={{ fontSize: 12, color: '#71717a' }}>
-                      ({g.messages.length} 則)
-                    </span>
-                    {hasUnread && (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '1px 7px',
-                          background: '#dc2626',
-                          color: '#fff',
-                          borderRadius: 999,
-                          fontSize: 11,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {g.unreadCount} 未讀
-                      </span>
-                    )}
-                    <span style={{ fontSize: 11, color: '#a1a1aa', marginLeft: 'auto' }}>
-                      {formatTw(g.latest.created_at)}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: hasUnread ? '#18181b' : '#71717a',
-                      fontWeight: hasUnread ? 500 : 400,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {previewText(g.latest)}
-                  </div>
-                </div>
-              </summary>
-
-              {/* Expanded thread */}
-              <div
-                style={{
-                  borderTop: '1px solid rgba(0, 0, 0, 0.05)',
-                  background: '#fafafa',
-                  padding: '8px 16px 12px',
-                }}
-              >
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {g.messages.map((m) => {
-                    const text = m.content?.text;
-                    const unread = !m.read_at;
-                    return (
-                      <li
-                        key={m.id}
-                        style={{
-                          padding: '8px 12px',
-                          background: unread ? '#fff' : 'transparent',
-                          border: unread ? '1px solid #fde047' : '1px solid transparent',
-                          borderRadius: 6,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                            marginBottom: 4,
-                            alignItems: 'center',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 11,
-                              color: unread ? '#18181b' : '#a1a1aa',
-                              fontWeight: unread ? 600 : 400,
-                            }}
-                          >
-                            {formatTw(m.created_at)}
-                          </span>
-                          {unread && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: '#dc2626',
-                                letterSpacing: '0.05em',
-                              }}
-                            >
-                              未讀
-                            </span>
-                          )}
-                        </div>
-                        {text ? (
-                          <div
-                            style={{
-                              fontSize: 14,
-                              color: '#374151',
-                              lineHeight: 1.55,
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word',
-                            }}
-                          >
-                            {text}
-                          </div>
+        {groups.length === 0 ? (
+          <div className="ms-empty">{hasAnyFilter ? '沒有符合條件的訊息。' : '還沒有訊息。'}</div>
+        ) : (
+          <div className="ms-list">
+            {groups.map((g) => {
+              const hasUnread = g.unreadCount > 0;
+              return (
+                <details key={g.userId ?? '__noUser__'} open={hasUnread} className="ms-card" data-unread={hasUnread ? 'true' : 'false'}>
+                  <summary>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="who">
+                        {g.userId ? (
+                          <Link href={`/admin/${tenant.slug}/customers/${g.userId}`}>{g.userName}</Link>
                         ) : (
-                          <div style={{ fontSize: 13, color: '#9ca3af', fontStyle: 'italic' }}>
-                            {typeLabel(m.message_type)}(非文字,LINE@ Manager 直接看)
-                          </div>
+                          <span style={{ color: '#a1a1aa', fontSize: 14 }}>{g.userName}</span>
                         )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </details>
-          );
-        })}
-      </div>
+                        <span className="n">{g.messages.length} 則</span>
+                        {hasUnread && <span className="ms-unread">{g.unreadCount} 未讀</span>}
+                        <span className="t">{formatTw(g.latest.created_at)}</span>
+                      </div>
+                      <div className="preview">{previewText(g.latest)}</div>
+                    </div>
+                    <IconChevronDown size={16} style={{ color: '#a1a1aa' }} />
+                  </summary>
 
-      <p style={{ marginTop: 24, fontSize: 12, color: '#a1a1aa', textAlign: 'center', lineHeight: 1.6 }}>
-        進這頁 2 秒後系統會自動把未讀標為已讀。要回覆學員請直接在 LINE@ Manager 對話。
-      </p>
+                  <ul className="ms-thread">
+                    {g.messages.map((m) => {
+                      const text = m.content?.text;
+                      const unread = !m.read_at;
+                      return (
+                        <li key={m.id} className="ms-msg" data-unread={unread ? 'true' : 'false'}>
+                          <div className="meta">
+                            <span>{formatTw(m.created_at)}</span>
+                            {unread && <b>未讀</b>}
+                          </div>
+                          {text ? (
+                            <div className="body">{text}</div>
+                          ) : (
+                            <div className="other">{typeLabel(m.message_type)},不是文字,請到 LINE 官方帳號看。</div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
+              );
+            })}
+          </div>
+        )}
+
+        <p style={{ marginTop: 24, fontSize: 12, color: '#a1a1aa', textAlign: 'center', lineHeight: 1.6 }}>
+          進這頁 2 秒後會自動把未讀標成已讀。要回覆客人請直接到 LINE 官方帳號管理後台對話。
+        </p>
+      </div>
     </main>
   );
 }

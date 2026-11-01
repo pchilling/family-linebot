@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
-import { IconPin } from '@/lib/icons';
+import { IconChevronLeft, IconDownload, IconPin } from '@/lib/icons';
 
 type ClassDetail = {
   id: string;
@@ -84,9 +84,9 @@ export default async function ClassQrPage({
       <div className="no-print" style={{ display: 'flex', gap: 12, marginBottom: 20, fontSize: 14 }}>
         <Link
           href={`/admin/${slug}/classes`}
-          style={{ color: '#52525b', textDecoration: 'none' }}
+          style={{ color: '#52525b', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 2 }}
         >
-          ← 回活動管理
+          <IconChevronLeft size={14} /> 活動
         </Link>
         <span style={{ color: '#a1a1aa', marginLeft: 'auto' }}>掃 QR 後直接跳到簽到頁</span>
       </div>
@@ -187,31 +187,11 @@ export default async function ClassQrPage({
           target="_blank"
           rel="noopener noreferrer"
           download={`qr-${c.id.slice(0, 8)}.png`}
-          style={{
-            padding: '8px 16px',
-            background: '#18181b',
-            color: '#fff',
-            border: 0,
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            textDecoration: 'none',
-          }}
+          className="ui-btn ui-btn-primary ui-btn-sm"
         >
-          ↓ 下載 PNG
+          <IconDownload size={14} /> 下載 PNG
         </a>
-        <a
-          href={`/admin/${slug}/attendances?class_id=${c.id}`}
-          style={{
-            padding: '8px 16px',
-            background: '#fff',
-            color: '#52525b',
-            border: '1px solid #e4e4e7',
-            borderRadius: 6,
-            fontSize: 13,
-            textDecoration: 'none',
-          }}
-        >
+        <a href={`/admin/${slug}/attendances?class_id=${c.id}`} className="ui-btn ui-btn-outline ui-btn-sm">
           看出席紀錄
         </a>
       </div>

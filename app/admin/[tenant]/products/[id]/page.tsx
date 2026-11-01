@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { compareVariantOrder, getTenantBySlug, supabaseAdmin, type PriceTier } from '@/lib/supabase';
-import { IconChevronLeft } from '@/lib/icons';
+import { IconChevronLeft, IconExternal } from '@/lib/icons';
 import { deleteProduct, updateProduct, updateProductSale } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
@@ -179,14 +179,14 @@ details summary::-webkit-details-marker { display: none; }
             <div style={{ width: 56, height: 70, borderRadius: 8, background: '#f4f4f5', flexShrink: 0 }} />
           )}
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>{p.name}</h1>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>{p.name}</h1>
             <div style={{ ...sub, fontVariantNumeric: 'tabular-nums' }}>
               {p.category ?? '未分類'} · SKU {p.sku ?? '—'} · {variants.length} 規格 · 庫存 {totalStock}
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <a href={publicUrl} target="_blank" rel="noopener noreferrer" style={ghostLink}>看商品頁 ↗</a>
+          <a href={publicUrl} target="_blank" rel="noopener noreferrer" style={ghostLink}>看商品頁 <IconExternal size={14} /></a>
           <ProductStatusToggle tenantSlug={tenant.slug} productId={p.id} initialActive={p.status === 'active'} />
         </div>
       </div>

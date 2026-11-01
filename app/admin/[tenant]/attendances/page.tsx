@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { IconChevronLeft } from '@/lib/icons';
 import {
   cancelReservationAdmin,
   markAttendance,
@@ -8,6 +9,12 @@ import {
   promoteWaitlist,
   unmarkAttendance,
 } from './actions';
+
+/**
+ * 出席(2026-11-01 換成後台新設計系統)。
+ * 列表 = 本週課程與每堂簽到數;詳情 = 單堂的報名 / 候補 / 簽到 / 未簽到名單與手動操作。
+ * 查詢與 action 不變。
+ */
 
 type Props = {
   params: Promise<{ tenant: string }>;
@@ -36,17 +43,48 @@ function formatTime(iso: string): string {
 }
 
 function methodLabel(m: string): string {
-  return ({ liff: 'LIFF', qr: 'QR', manual: '老師', admin: '後台' }[m]) ?? m;
+  return ({ liff: 'LINE 報名頁', qr: '掃 QR', manual: '老師', admin: '後台' }[m]) ?? m;
 }
 
-function methodColor(m: string): string {
-  return ({ liff: '#0070f3', qr: '#06c755', manual: '#f59e0b', admin: '#6b7280' }[m]) ?? '#6b7280';
+const CSS = `
+.at-head{margin-bottom:16px}
+.at-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.at-head h1 .sub{font-size:14px;font-weight:400;color:#71717a}
+.at-head p{margin:4px 0 0;font-size:13px;color:#71717a;line-height:1.5}
+.at-back{display:inline-flex;align-items:center;gap:2px;font-size:13px;color:#71717a;text-decoration:none;margin-bottom:10px}
+.at-back:hover{color:#18181b}
+.at-card{background:#fff;border:1px solid #e4e4e7;border-radius:12px;margin-bottom:16px;overflow:hidden}
+.at-card h2{margin:0;padding:14px 16px;font-size:14px;font-weight:600;border-bottom:1px solid #f4f4f5;display:flex;align-items:center;gap:8px}
+.at-card h2 .n{font-weight:400;color:#71717a;font-size:13px}
+.at-card.dim{opacity:.7}
+.at-row{display:grid;grid-template-columns:140px 1.4fr 1fr 1fr 110px 90px;gap:12px;align-items:center;padding:11px 16px;border-top:1px solid #f4f4f5;font-size:13.5px}
+.at-row.head{background:#fafafa;font-size:11.5px;color:#71717a;font-weight:500;padding:8px 16px;border-top:0}
+.at-row .r{text-align:right;font-variant-numeric:tabular-nums}
+.at-row .muted{color:#71717a;font-size:13px}
+.at-link{font-weight:600;color:#18181b;text-decoration:none}
+.at-link:hover{text-decoration:underline}
+.at-li{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid #f4f4f5;font-size:13.5px}
+.at-li .main{flex:1;min-width:0}
+.at-li .sub{font-size:12px;color:#71717a;margin-top:2px;display:flex;gap:6px;align-items:center}
+.at-li form{margin:0}
+.at-pos{font-family:var(--font-geist-mono),ui-monospace,Menlo,monospace;color:#a16207;margin-right:8px;font-size:12.5px}
+.at-empty{padding:24px 16px;text-align:center;color:#71717a;font-size:13.5px}
+.at-ok{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.at-cancel{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+@media (max-width:767px){
+  .at-card{border-radius:10px}
+  .at-row{grid-template-columns:1fr auto;gap:4px 12px;padding:12px 14px}
+  .at-row.head{display:none}
+  .at-row > .c-time{grid-column:1/-1}
+  .at-row > .c-place,.at-row > .c-teacher{display:none}
+  .at-li{padding:10px 14px;flex-wrap:wrap}
 }
+`;
 
 // ====================
 // 列表 view:本週課程(已過 + 即將)+ 每堂簽到數
 // ====================
-async function ListView({ tenantId, slug, tenantName }: { tenantId: string; slug: string; tenantName: string }) {
+async function ListView({ tenantId, slug }: { tenantId: string; slug: string }) {
   // 本週區間(Asia/Taipei)
   const now = new Date();
   const twOffsetMs = 8 * 60 * 60 * 1000;
@@ -92,56 +130,53 @@ async function ListView({ tenantId, slug, tenantName }: { tenantId: string; slug
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 20 }}>
-        出席 <span style={{ color: '#71717a', fontSize: 14, fontWeight: 400 }}>本週</span>
-      </h1>
+    <main style={{ padding: '28px 32px 48px' }}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div style={{ maxWidth: 1000 }}>
+        <header className="at-head">
+          <h1>
+            出席 <span className="sub">本週</span>
+          </h1>
+          <p>點課程名稱看報名與簽到名單,也可以手動簽到。</p>
+        </header>
 
-      {rows.length === 0 && (
-        <p style={{ color: '#666', padding: 32, textAlign: 'center' }}>本週無課程</p>
-      )}
-
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #ddd', background: '#fafafa' }}>
-            <th style={th}>時間</th>
-            <th style={th}>課程</th>
-            <th style={th}>地點</th>
-            <th style={th}>老師</th>
-            <th style={{ ...th, textAlign: 'right' }}>已簽 / 容量</th>
-            <th style={th}>狀態</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((c) => {
-            const signed = counts.get(c.id) ?? 0;
-            const isPast = new Date(c.scheduled_at) < now;
-            return (
-              <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ ...td, fontSize: 13, color: isPast ? '#999' : '#222' }}>
-                  {formatDateTime(c.scheduled_at)}
-                </td>
-                <td style={td}>
-                  <Link
-                    href={`/admin/${slug}/attendances?class_id=${c.id}`}
-                    style={{ color: '#0070f3', textDecoration: 'none', fontWeight: 500 }}
-                  >
-                    {c.name}
-                  </Link>
-                </td>
-                <td style={{ ...td, fontSize: 13 }}>{c.regions?.name ?? '—'}</td>
-                <td style={{ ...td, fontSize: 13 }}>{c.instructor ?? '—'}</td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>
-                  {signed} / {c.capacity ?? '∞'}
-                </td>
-                <td style={{ ...td, fontSize: 13 }}>
-                  {c.status === 'cancelled' ? <span style={{ color: '#d00' }}>已取消</span> : '正常'}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+        <div className="at-card">
+          {rows.length === 0 ? (
+            <div className="at-empty">本週沒有課程。</div>
+          ) : (
+            <>
+              <div className="at-row head" aria-hidden>
+                <span>時間</span>
+                <span>課程</span>
+                <span>地點</span>
+                <span>老師</span>
+                <span className="r">已簽 / 名額</span>
+                <span>狀態</span>
+              </div>
+              {rows.map((c) => {
+                const signed = counts.get(c.id) ?? 0;
+                const isPast = new Date(c.scheduled_at) < now;
+                return (
+                  <div key={c.id} className="at-row">
+                    <div className="c-time muted" style={{ color: isPast ? '#a1a1aa' : undefined }}>{formatDateTime(c.scheduled_at)}</div>
+                    <div>
+                      <Link href={`/admin/${slug}/attendances?class_id=${c.id}`} className="at-link">{c.name}</Link>
+                    </div>
+                    <div className="c-place muted">{c.regions?.name ?? '—'}</div>
+                    <div className="c-teacher muted">{c.instructor ?? '—'}</div>
+                    <div className="r" style={{ fontWeight: 600 }}>
+                      {signed} / {c.capacity ?? '不限'}
+                    </div>
+                    <div>
+                      {c.status === 'cancelled' ? <span className="ui-badge at-cancel">已取消</span> : <span className="ui-badge at-ok">正常</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
@@ -152,12 +187,10 @@ async function ListView({ tenantId, slug, tenantName }: { tenantId: string; slug
 async function DetailView({
   tenantId,
   slug,
-  tenantName,
   classId,
 }: {
   tenantId: string;
   slug: string;
-  tenantName: string;
   classId: string;
 }) {
   const { data: cls } = await supabaseAdmin
@@ -178,11 +211,12 @@ async function DetailView({
   const c = cls as Cls | null;
   if (!c) {
     return (
-      <main style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
-        <Link href={`/admin/${slug}/attendances`} style={{ color: '#666', fontSize: 13 }}>
-          ← 返回 {tenantName} 出席紀錄
+      <main style={{ padding: '28px 32px 48px' }}>
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        <Link href={`/admin/${slug}/attendances`} className="at-back">
+          <IconChevronLeft size={14} /> 出席
         </Link>
-        <p style={{ marginTop: 20, color: '#d00' }}>找不到此課程</p>
+        <p style={{ marginTop: 12, color: '#b91c1c' }}>找不到這堂課。</p>
       </main>
     );
   }
@@ -237,185 +271,151 @@ async function DetailView({
   const waitlistResvs = resvs.filter((r) => r.status === 'waitlist');
   const cancelledResvs = resvs.filter((r) => r.status === 'cancelled' || r.status === 'no_show');
 
+  const hidden = (userId: string) => (
+    <>
+      <input type="hidden" name="tenant_slug" value={slug} />
+      <input type="hidden" name="class_id" value={classId} />
+      <input type="hidden" name="user_id" value={userId} />
+    </>
+  );
+  const nameOf = (u: { full_name: string | null; display_name: string | null } | null) => u?.full_name ?? u?.display_name ?? '(沒有名稱)';
+
   return (
-    <main style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
-      <Link href={`/admin/${slug}/attendances`} style={{ color: '#666', fontSize: 13 }}>
-        ← 返回 {tenantName} 出席紀錄
-      </Link>
+    <main style={{ padding: '28px 32px 48px' }}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div style={{ maxWidth: 860 }}>
+        <Link href={`/admin/${slug}/attendances`} className="at-back">
+          <IconChevronLeft size={14} /> 出席
+        </Link>
+        <header className="at-head">
+          <h1>
+            {c.name}
+            {c.status === 'cancelled' && <span className="ui-badge at-cancel">已取消</span>}
+          </h1>
+          <p>
+            {formatDateTime(c.scheduled_at)} · {c.regions?.name ?? '—'} · {c.instructor ?? '—'} · 名額 {c.capacity ?? '不限'}
+          </p>
+        </header>
 
-      <h1 style={{ fontSize: 22, marginTop: 12, marginBottom: 4 }}>
-        {c.name}
-        {c.status === 'cancelled' && (
-          <span style={{ marginLeft: 10, fontSize: 13, color: '#d00' }}>(已取消)</span>
-        )}
-      </h1>
-      <p style={{ color: '#666', fontSize: 13, marginBottom: 24 }}>
-        {formatDateTime(c.scheduled_at)} · {c.regions?.name ?? '—'} · {c.instructor ?? '—'} · 容量 {c.capacity ?? '∞'}
-      </p>
-
-      <section style={section}>
-        <h2 style={h2}>
-          已報名 ({confirmedResvs.length}{c.capacity ? ` / ${c.capacity}` : ''})
-        </h2>
-        {confirmedResvs.length === 0 && <p style={{ color: '#999', fontSize: 13 }}>(尚無報名)</p>}
-        {confirmedResvs.length > 0 && (
-          <ul style={listStyle}>
-            {confirmedResvs.map((r) => (
-              <li key={r.user_id} style={liStyle}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500 }}>
-                    {r.users?.full_name ?? r.users?.display_name ?? '(無名)'}
-                  </div>
-                </div>
-                <form action={markNoShow} style={{ marginRight: 6 }}>
-                  <input type="hidden" name="tenant_slug" value={slug} />
-                  <input type="hidden" name="class_id" value={classId} />
-                  <input type="hidden" name="user_id" value={r.user_id} />
-                  <button type="submit" style={btnGhost} title="標記為沒到">
-                    沒到
-                  </button>
+        <div className="at-card">
+          <h2>
+            已報名
+            <span className="n">{confirmedResvs.length}{c.capacity ? ` / ${c.capacity}` : ''}</span>
+          </h2>
+          {confirmedResvs.length === 0 ? (
+            <div className="at-empty">還沒有人報名。</div>
+          ) : (
+            confirmedResvs.map((r) => (
+              <div key={r.user_id} className="at-li">
+                <div className="main" style={{ fontWeight: 500 }}>{nameOf(r.users)}</div>
+                <form action={markNoShow}>
+                  {hidden(r.user_id)}
+                  <button type="submit" className="ui-btn ui-btn-outline ui-btn-xs" title="標記為沒到">沒到</button>
                 </form>
                 <form action={cancelReservationAdmin}>
-                  <input type="hidden" name="tenant_slug" value={slug} />
-                  <input type="hidden" name="class_id" value={classId} />
-                  <input type="hidden" name="user_id" value={r.user_id} />
-                  <button type="submit" style={btnGhost} title="取消這筆報名 — 候補第 1 名自動升等">
-                    取消
-                  </button>
+                  {hidden(r.user_id)}
+                  <button type="submit" className="ui-btn ui-btn-ghost ui-btn-xs" title="取消這筆報名,候補第 1 名會自動補上">取消</button>
                 </form>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </div>
+            ))
+          )}
+        </div>
 
-      {waitlistResvs.length > 0 && (
-        <section style={section}>
-          <h2 style={h2}>候補 ({waitlistResvs.length})</h2>
-          <ul style={listStyle}>
+        {waitlistResvs.length > 0 && (
+          <div className="at-card">
+            <h2>
+              候補
+              <span className="n">{waitlistResvs.length}</span>
+            </h2>
             {waitlistResvs.map((r) => (
-              <li key={r.user_id} style={liStyle}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500 }}>
-                    <span style={{ color: '#9a7400', marginRight: 8, fontFamily: 'monospace' }}>
-                      #{r.position}
-                    </span>
-                    {r.users?.full_name ?? r.users?.display_name ?? '(無名)'}
-                  </div>
+              <div key={r.user_id} className="at-li">
+                <div className="main" style={{ fontWeight: 500 }}>
+                  <span className="at-pos">#{r.position}</span>
+                  {nameOf(r.users)}
                 </div>
-                <form action={promoteWaitlist} style={{ marginRight: 6 }}>
-                  <input type="hidden" name="tenant_slug" value={slug} />
-                  <input type="hidden" name="class_id" value={classId} />
-                  <input type="hidden" name="user_id" value={r.user_id} />
-                  <button type="submit" style={btnPrimary} title="升等為已報名">
-                    ↑ 升等
-                  </button>
+                <form action={promoteWaitlist}>
+                  {hidden(r.user_id)}
+                  <button type="submit" className="ui-btn ui-btn-primary ui-btn-xs" title="改成已報名">補上</button>
                 </form>
                 <form action={cancelReservationAdmin}>
-                  <input type="hidden" name="tenant_slug" value={slug} />
-                  <input type="hidden" name="class_id" value={classId} />
-                  <input type="hidden" name="user_id" value={r.user_id} />
-                  <button type="submit" style={btnGhost} title="取消候補">
-                    取消
-                  </button>
+                  {hidden(r.user_id)}
+                  <button type="submit" className="ui-btn ui-btn-ghost ui-btn-xs" title="取消候補">取消</button>
                 </form>
-              </li>
+              </div>
             ))}
-          </ul>
-        </section>
-      )}
+          </div>
+        )}
 
-      {cancelledResvs.length > 0 && (
-        <section style={section}>
-          <h2 style={{ ...h2, color: '#888' }}>已取消 / 沒到 ({cancelledResvs.length})</h2>
-          <ul style={{ ...listStyle, opacity: 0.6 }}>
+        {cancelledResvs.length > 0 && (
+          <div className="at-card dim">
+            <h2>
+              已取消、沒到
+              <span className="n">{cancelledResvs.length}</span>
+            </h2>
             {cancelledResvs.map((r) => (
-              <li key={r.user_id} style={liStyle}>
-                <div style={{ flex: 1, fontSize: 13 }}>
-                  {r.users?.full_name ?? r.users?.display_name ?? '(無名)'}
-                  <span style={{ marginLeft: 8, fontSize: 11, color: '#999' }}>
-                    {r.status === 'no_show' ? '沒到' : '已取消'}
-                  </span>
+              <div key={r.user_id} className="at-li">
+                <div className="main">
+                  {nameOf(r.users)}
+                  <span style={{ marginLeft: 8, fontSize: 12, color: '#a1a1aa' }}>{r.status === 'no_show' ? '沒到' : '已取消'}</span>
                 </div>
-              </li>
+              </div>
             ))}
-          </ul>
-        </section>
-      )}
+          </div>
+        )}
 
-      <section style={section}>
-        <h2 style={h2}>
-          已簽到 ({atts.length}{c.capacity ? ` / ${c.capacity}` : ''})
-        </h2>
-        {atts.length === 0 && <p style={{ color: '#999', fontSize: 13 }}>(尚無學員簽到)</p>}
-        {atts.length > 0 && (
-          <ul style={listStyle}>
-            {atts.map((a) => (
-              <li key={a.user_id} style={liStyle}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500 }}>
-                    {a.users?.full_name ?? a.users?.display_name ?? '(無名)'}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+        <div className="at-card">
+          <h2>
+            已簽到
+            <span className="n">{atts.length}{c.capacity ? ` / ${c.capacity}` : ''}</span>
+          </h2>
+          {atts.length === 0 ? (
+            <div className="at-empty">還沒有人簽到。</div>
+          ) : (
+            atts.map((a) => (
+              <div key={a.user_id} className="at-li">
+                <div className="main">
+                  <div style={{ fontWeight: 500 }}>{nameOf(a.users)}</div>
+                  <div className="sub">
                     {formatTime(a.checked_in_at)}
-                    <span
-                      style={{
-                        marginLeft: 8,
-                        padding: '1px 6px',
-                        background: methodColor(a.method) + '22',
-                        color: methodColor(a.method),
-                        borderRadius: 3,
-                        fontSize: 11,
-                      }}
-                    >
-                      {methodLabel(a.method)}
-                    </span>
+                    <span className="ui-badge" style={{ fontSize: 11, padding: '0 7px' }}>{methodLabel(a.method)}</span>
                   </div>
                 </div>
                 <form action={unmarkAttendance}>
-                  <input type="hidden" name="tenant_slug" value={slug} />
-                  <input type="hidden" name="class_id" value={classId} />
-                  <input type="hidden" name="user_id" value={a.user_id} />
-                  <button type="submit" style={btnGhost} title="取消這個簽到">
-                    取消
-                  </button>
+                  {hidden(a.user_id)}
+                  <button type="submit" className="ui-btn ui-btn-ghost ui-btn-xs" title="取消這個簽到">取消</button>
                 </form>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </div>
+            ))
+          )}
+        </div>
 
-      <section style={section}>
-        <h2 style={h2}>未簽到 ({unsigned.length})</h2>
-        {unsigned.length === 0 && <p style={{ color: '#999', fontSize: 13 }}>(全部簽完了)</p>}
-        {unsigned.length > 0 && (
-          <ul style={listStyle}>
-            {unsigned.map((u) => (
-              <li key={u.id} style={liStyle}>
-                <div style={{ flex: 1, fontSize: 14 }}>
-                  {u.full_name ?? u.display_name ?? '(無名)'}
-                  {!u.full_name && u.display_name && (
-                    <span style={{ fontSize: 12, color: '#999', marginLeft: 6 }}>LINE 名</span>
-                  )}
+        <div className="at-card">
+          <h2>
+            未簽到
+            <span className="n">{unsigned.length}</span>
+          </h2>
+          {unsigned.length === 0 ? (
+            <div className="at-empty">全部簽完了。</div>
+          ) : (
+            unsigned.map((u) => (
+              <div key={u.id} className="at-li">
+                <div className="main">
+                  {u.full_name ?? u.display_name ?? '(沒有名稱)'}
+                  {!u.full_name && u.display_name && <span style={{ fontSize: 12, color: '#a1a1aa', marginLeft: 6 }}>LINE 名稱</span>}
                 </div>
                 <form action={markAttendance}>
-                  <input type="hidden" name="tenant_slug" value={slug} />
-                  <input type="hidden" name="class_id" value={classId} />
-                  <input type="hidden" name="user_id" value={u.id} />
-                  <button type="submit" style={btnPrimary}>
-                    手動簽到
-                  </button>
+                  {hidden(u.id)}
+                  <button type="submit" className="ui-btn ui-btn-primary ui-btn-xs">手動簽到</button>
                 </form>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </div>
+            ))
+          )}
+        </div>
 
-      <p style={{ fontSize: 12, color: '#999', marginTop: 24 }}>
-        提示:學員只會在加 LINE@ 好友後出現在「未簽到」名單(從 users 表撈,排除 blocked/left)。
-      </p>
+        <p style={{ fontSize: 12, color: '#a1a1aa', margin: '8px 0 0', lineHeight: 1.6 }}>
+          客人加了 LINE 好友才會出現在「未簽到」名單;封鎖或退出的不會列。
+        </p>
+      </div>
     </main>
   );
 }
@@ -430,48 +430,7 @@ export default async function AttendancesPage({ params, searchParams }: Props) {
   if (!tenant) notFound();
 
   if (class_id) {
-    return (
-      <DetailView
-        tenantId={tenant.id}
-        slug={tenant.slug}
-        tenantName={tenant.name}
-        classId={class_id}
-      />
-    );
+    return <DetailView tenantId={tenant.id} slug={tenant.slug} classId={class_id} />;
   }
-  return <ListView tenantId={tenant.id} slug={tenant.slug} tenantName={tenant.name} />;
+  return <ListView tenantId={tenant.id} slug={tenant.slug} />;
 }
-
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', fontWeight: 600, fontSize: 13, color: '#444' };
-const td: React.CSSProperties = { padding: '12px 8px', verticalAlign: 'middle', fontSize: 14 };
-const section: React.CSSProperties = { marginBottom: 28, padding: 16, border: '1px solid #ddd', borderRadius: 6, background: '#fafafa' };
-const h2: React.CSSProperties = { fontSize: 15, marginBottom: 12 };
-const listStyle: React.CSSProperties = { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 };
-const liStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 12,
-  padding: '10px 12px',
-  background: '#fff',
-  border: '1px solid #e5e7eb',
-  borderRadius: 4,
-};
-const btnPrimary: React.CSSProperties = {
-  padding: '6px 14px',
-  background: '#06c755',
-  color: '#fff',
-  border: 0,
-  borderRadius: 4,
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-};
-const btnGhost: React.CSSProperties = {
-  padding: '6px 12px',
-  background: 'transparent',
-  color: '#888',
-  border: '1px solid #ddd',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-};
