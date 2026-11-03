@@ -51,7 +51,7 @@ const CSS = `
 .ls-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px}
 .ls-card{display:flex;flex-direction:column;gap:8px;text-align:left;background:none;border:0;padding:0;font:inherit;color:var(--ui-ink);cursor:pointer;animation:ui-swap .3s ease backwards;-webkit-tap-highlight-color:transparent}
 .ls-card:active .ls-ph{transform:scale(.98)}
-.ls-ph{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--ui-line-soft);border:1px solid var(--ui-line);display:flex;align-items:center;justify-content:center;color:#d4d4d8;transition:transform .15s}
+.ls-ph{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:var(--ui-line-soft);border:1px solid var(--ui-line);display:flex;align-items:center;justify-content:center;color:#d4d4d8;transition:transform .15s}
 .ls-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ls-ph img[data-dim="true"]{opacity:.6}
 .ls-on{position:absolute;top:8px;left:8px;z-index:2;display:flex;flex-direction:column;gap:4px;align-items:flex-start}

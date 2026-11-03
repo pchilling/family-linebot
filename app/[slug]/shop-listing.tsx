@@ -88,7 +88,7 @@ const CSS = `
 .sl-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:32px 24px;padding-top:24px}
 @media (max-width:1280px){.sl-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .sl-card{position:relative;display:flex;flex-direction:column;gap:12px;text-decoration:none;color:var(--ui-ink)}
-.sl-ph{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--ui-line-soft);border:1px solid var(--ui-line);display:flex;align-items:center;justify-content:center}
+.sl-ph{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:var(--ui-line-soft);border:1px solid var(--ui-line);display:flex;align-items:center;justify-content:center}
 .sl-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s ease-out}
 .sl-ph img[data-fit="contain"]{object-fit:contain;padding:12%}
 .sl-card:hover .sl-ph img{transform:scale(1.05)}
