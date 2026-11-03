@@ -84,13 +84,16 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   }, [product.sale_end_at]);
 
   // media 圖 + 各規格圖聯集(去重,media 在前),可滑動
+  // 2026-11-03:只有一個規格時不看規格圖 — 建商品時預設規格會複製主圖,之後主圖換了規格圖還是舊的,會變成兩張。
   const images = useMemo(() => {
     const arr: string[] = [];
     for (const m of product.media ?? []) {
       if (m.type === 'image' && !arr.includes(m.url)) arr.push(m.url);
     }
-    for (const v of variants) {
-      if (v.image_url && !arr.includes(v.image_url)) arr.push(v.image_url);
+    if (variants.length > 1) {
+      for (const v of variants) {
+        if (v.image_url && !arr.includes(v.image_url)) arr.push(v.image_url);
+      }
     }
     if (arr.length === 0 && product.image_url) arr.push(product.image_url);
     return arr;

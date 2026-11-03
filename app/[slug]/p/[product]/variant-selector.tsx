@@ -73,7 +73,7 @@ const pctToZhe = (pct: number) => {
 export const PD_CSS = `
 .pd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:start}
 .pd-gal{display:flex;flex-direction:column;gap:12px;position:sticky;top:80px}
-.pd-main{position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;border:1px solid var(--ui-line);background:var(--ui-line-soft)}
+.pd-main{position:relative;aspect-ratio:3/4;border-radius:8px;overflow:hidden;border:1px solid var(--ui-line);background:var(--ui-line-soft)}
 .pd-main img,.pd-main video,.pd-main iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;display:block}
 .pd-main img[data-fit="contain"]{object-fit:contain;padding:8%}
 .pd-main .empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--ui-faint);font-size:13px}
@@ -82,7 +82,7 @@ export const PD_CSS = `
 .pd-count{position:absolute;top:10px;right:10px;z-index:2}
 .pd-thumbs{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding:2px}
 .pd-thumbs::-webkit-scrollbar{display:none}
-.pd-thumb{width:72px;height:90px;flex-shrink:0;border-radius:6px;overflow:hidden;border:1px solid var(--ui-line);background:var(--ui-line-soft);padding:0;cursor:pointer;position:relative;display:grid;place-items:center;color:var(--ui-muted)}
+.pd-thumb{width:72px;height:96px;flex-shrink:0;border-radius:6px;overflow:hidden;border:1px solid var(--ui-line);background:var(--ui-line-soft);padding:0;cursor:pointer;position:relative;display:grid;place-items:center;color:var(--ui-muted)}
 .pd-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .pd-thumb[data-on="true"]{outline:2px solid var(--ui-accent);outline-offset:1px}
 .pd-info{display:flex;flex-direction:column;gap:20px}
@@ -164,20 +164,20 @@ export function VariantSelector({
   const maxQty = selected?.stock ?? 0;
 
   // ---------- 圖片 ----------
-  // 相簿 = 後台 media;沒 media 就用商品主圖。規格自己有圖、又不在相簿裡時,插到最前面
+  // 相簿 = 後台 media;沒 media 就用商品主圖。規格自己有圖、又不在相簿裡時,插到最前面。
+  // 2026-11-03:只有一個規格時不看規格圖 — 建商品時預設規格會複製主圖,之後主圖換了規格圖還是舊的,會變成兩張。
+  const variantImg = variants.length > 1 ? selected?.image_url ?? null : null;
   const gallery = useMemo<MediaItem[]>(() => {
     const base: MediaItem[] = productMedia.length > 0 ? productMedia : productImageUrl ? [{ type: 'image', url: productImageUrl }] : [];
-    const vimg = selected?.image_url;
-    if (vimg && !base.some((m) => m.url === vimg)) return [{ type: 'image', url: vimg }, ...base];
+    if (variantImg && !base.some((m) => m.url === variantImg)) return [{ type: 'image', url: variantImg }, ...base];
     return base;
-  }, [productMedia, productImageUrl, selected?.image_url]);
+  }, [productMedia, productImageUrl, variantImg]);
   const [active, setActive] = useState(0);
   useEffect(() => {
-    const vimg = selected?.image_url;
-    if (!vimg) return;
-    const i = gallery.findIndex((m) => m.url === vimg);
+    if (!variantImg) return;
+    const i = gallery.findIndex((m) => m.url === variantImg);
     if (i >= 0) setActive(i);
-  }, [selectedId, gallery, selected?.image_url]);
+  }, [selectedId, gallery, variantImg]);
   const activeItem = gallery[Math.min(active, Math.max(0, gallery.length - 1))] ?? null;
 
   // ---------- 價格 ----------
@@ -223,7 +223,7 @@ export function VariantSelector({
       variantName: selected.variant_name,
       priceTwd: effectivePrice,
       qty,
-      imageUrl: selected.image_url ?? productMedia.find((m) => m.type === 'image')?.url ?? productImageUrl,
+      imageUrl: variantImg ?? productMedia.find((m) => m.type === 'image')?.url ?? productImageUrl,
     });
     return true;
   }
