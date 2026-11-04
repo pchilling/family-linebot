@@ -371,7 +371,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   // 2026-11-05(Peter 選的直式時間軸):每一步有時間和一句說明,現在這步會呼吸。
   // 線上付款(LINE Pay / 刷卡 / ATM)沒有「回報」那步,四步;匯款 / 掃碼要回報再核帳,五步。
   const fmtT = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
+    iso ? new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : null;
   const isPaid = order.payment_status === 'paid';
   const reported = !!order.payment_reported_at;
   const isShipped = order.status === 'shipped' || order.status === 'delivered';
@@ -383,14 +383,17 @@ export default async function OrderPage({ params, searchParams }: Props) {
     ...(isOnlinePayOrder
       ? [{ key: 'paid', done: isPaid, title: isPaid ? `${payName}付款完成` : `${payName}付款`, time: isPaid ? fmtT(order.paid_at) : null, hint: '等待您完成付款', desc: null }]
       : [
-          {
-            key: 'reported',
-            done: reported || isPaid,
-            title: isQrOrder ? (reported ? '已回報付款' : isPaid ? '付款完成' : '掃碼付款後回報') : (reported ? '已回報匯款後五碼' : isPaid ? '匯款完成' : '匯款後回報後五碼'),
-            time: reported ? fmtT(order.payment_reported_at) : isPaid ? fmtT(order.paid_at) : null,
-            hint: '等待您付款並回報',
-            desc: null,
-          },
+          // 客人沒回報、賣家直接核帳的單,「回報」那步沒有自己的時間,整步省略
+          ...(reported || !isPaid
+            ? [{
+                key: 'reported',
+                done: reported,
+                title: isQrOrder ? (reported ? '已回報付款' : '掃碼付款後回報') : (reported ? '已回報匯款後五碼' : '匯款後回報後五碼'),
+                time: reported ? fmtT(order.payment_reported_at) : null,
+                hint: '等待您付款並回報',
+                desc: null,
+              }]
+            : []),
           { key: 'paid', done: isPaid, title: isPaid ? '賣家已收款' : '賣家核帳', time: isPaid ? fmtT(order.paid_at) : null, hint: '賣家核對中,通常一個工作天內', desc: null },
         ]),
     {
