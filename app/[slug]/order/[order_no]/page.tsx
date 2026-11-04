@@ -54,6 +54,8 @@ type OrderDetail = {
   note: string | null;
   guest_email: string | null;
   created_at: string;
+  paid_at: string | null; // 2026-11-05:進度時間軸用(trigger 自動填)
+  shipped_at: string | null;
   access_key: string | null; // Phase 22:訂單存取碼(網址 ?k=),對得上才看得到個資
   items: OrderItemRow[];
 };
@@ -92,7 +94,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note, guest_email, created_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
+      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note, guest_email, created_at, paid_at, shipped_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -151,6 +153,8 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     note: row.note,
     guest_email: row.guest_email,
     created_at: row.created_at,
+    paid_at: row.paid_at ?? null,
+    shipped_at: row.shipped_at ?? null,
     access_key: row.access_key ?? null,
     items,
   };
@@ -190,16 +194,23 @@ const CSS = `
 .od-status p{margin:4px 0 0;font-size:13px;opacity:.9;line-height:1.5}
 .od-status .no{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:13px;flex-wrap:wrap}
 .od-status .no em{font-style:normal;white-space:nowrap}
-.od-steps{display:grid;grid-template-columns:repeat(5,1fr);margin:0 0 24px;position:relative}
-.od-step{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12px;color:var(--ui-faint);position:relative;text-align:center}
-.od-step .dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--ui-line);background:var(--ui-surface);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--ui-faint);z-index:1;box-sizing:border-box}
-.od-step .line{position:absolute;top:12px;left:50%;right:-50%;height:2px;background:var(--ui-line)}
-.od-step:last-child .line{display:none}
-.od-step[data-done="true"]{color:var(--ui-ink)}
-.od-step[data-done="true"] .dot{border-color:var(--ui-accent);background:var(--ui-accent);color:var(--ui-on-accent)}
-.od-step[data-line="true"] .line{background:var(--ui-accent)}
-.od-step[data-next="true"]{color:var(--ui-ink);font-weight:500}
-.od-step[data-next="true"] .dot{border-color:var(--ui-accent);color:var(--ui-accent);animation:od-pulse 1.8s ease-in-out .9s infinite}
+.od-tl{list-style:none;margin:0;padding:0}
+.od-tl li{position:relative;display:grid;grid-template-columns:30px 1fr;column-gap:14px;padding-bottom:20px;animation:od-rise .35s ease both}
+.od-tl li:nth-child(1){animation-delay:.05s}.od-tl li:nth-child(2){animation-delay:.15s}.od-tl li:nth-child(3){animation-delay:.25s}.od-tl li:nth-child(4){animation-delay:.35s}.od-tl li:nth-child(5){animation-delay:.45s}
+.od-tl li:last-child{padding-bottom:0}
+.od-tl li::before{content:"";position:absolute;left:14px;top:30px;bottom:-2px;width:2px;background:var(--ui-line)}
+.od-tl li:last-child::before{display:none}
+.od-tl li[data-line="true"]::before{background:var(--ui-accent)}
+.od-tl .ic{width:30px;height:30px;border-radius:50%;border:2px solid var(--ui-line);background:var(--ui-surface);display:grid;place-items:center;color:var(--ui-faint);position:relative;z-index:1;box-sizing:border-box;font-size:12px;font-weight:600}
+.od-tl li[data-state="done"] .ic{background:var(--ui-accent);border-color:var(--ui-accent);color:var(--ui-on-accent)}
+.od-tl li[data-state="current"] .ic{border-color:var(--ui-accent);color:var(--ui-accent)}
+.od-tl li[data-state="current"] .ic::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid var(--ui-accent);animation:od-ping 1.6s cubic-bezier(0,0,.2,1) infinite}
+.od-tl .t{display:flex;flex-direction:column;gap:2px;padding-top:4px;min-width:0}
+.od-tl .t b{font-size:14px;font-weight:500;color:var(--ui-ink)}
+.od-tl li[data-state="pending"] .t b{color:var(--ui-faint);font-weight:400}
+.od-tl .t small{font-size:12px;color:var(--ui-muted);font-variant-numeric:tabular-nums}
+.od-tl li[data-state="current"] .t small{color:var(--ui-ink)}
+.od-tl .t em{font-style:normal;font-size:12px;color:var(--ui-muted);line-height:1.5;margin-top:2px;overflow-wrap:anywhere}
 .od-card{padding:18px 20px;margin-bottom:14px}
 .od-card h2{margin:0 0 12px;font-size:14px;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
 .od-card h2 span{font-size:12px;color:var(--ui-muted);font-weight:400}
@@ -226,9 +237,10 @@ const CSS = `
 .od-contact{font-size:14px;line-height:1.8;white-space:pre-wrap}
 .od-pay{display:flex;flex-direction:column;gap:12px}
 .od-report{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-@keyframes od-pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}50%{box-shadow:0 0 0 5px rgba(0,0,0,.07)}}
-@media (max-width:640px){.od-kv{grid-template-columns:72px 1fr}.od-step{font-size:11px}.od-status{padding:16px}}
-@media (prefers-reduced-motion:reduce){.od-step .dot{animation:none}}
+@keyframes od-ping{0%{transform:scale(1);opacity:.6}80%,100%{transform:scale(1.7);opacity:0}}
+@keyframes od-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (max-width:640px){.od-kv{grid-template-columns:72px 1fr}.od-status{padding:16px}}
+@media (prefers-reduced-motion:reduce){.od-tl li,.od-tl .ic::after{animation:none}}
 `;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -356,13 +368,51 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 ...tone.blue,
               }
             : { icon: <IconCheckCircle size={20} />, title: isPickup ? '已取貨,感謝您的訂購' : '已送達,感謝您的訂購', desc: '有任何問題歡迎聯絡我們', ...tone.green };
-  const steps = [
-    '下單',
-    isLinePayOrder ? 'LINE Pay' : isEcpayCredit ? '刷卡' : isEcpayAtm ? 'ATM 轉帳' : isQrOrder ? '掃碼付款' : '回報五碼',
-    '已收款',
-    isPickup ? '備貨' : '出貨',
-    isPickup ? '取貨' : '送達',
+  // 2026-11-05(Peter 選的直式時間軸):每一步有時間和一句說明,現在這步會呼吸。
+  // 線上付款(LINE Pay / 刷卡 / ATM)沒有「回報」那步,四步;匯款 / 掃碼要回報再核帳,五步。
+  const fmtT = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
+  const isPaid = order.payment_status === 'paid';
+  const reported = !!order.payment_reported_at;
+  const isShipped = order.status === 'shipped' || order.status === 'delivered';
+  const isDelivered = order.status === 'delivered';
+  const payName = isLinePayOrder ? 'LINE Pay' : isEcpayCredit ? '信用卡' : 'ATM 轉帳';
+  type TlStep = { key: string; done: boolean; title: string; time: string | null; hint: string | null; desc: string | null };
+  const timeline: TlStep[] = [
+    { key: 'placed', done: true, title: '下單完成', time: fmtT(order.created_at), hint: null, desc: null },
+    ...(isOnlinePayOrder
+      ? [{ key: 'paid', done: isPaid, title: isPaid ? `${payName}付款完成` : `${payName}付款`, time: isPaid ? fmtT(order.paid_at) : null, hint: '等待您完成付款', desc: null }]
+      : [
+          {
+            key: 'reported',
+            done: reported || isPaid,
+            title: isQrOrder ? (reported ? '已回報付款' : isPaid ? '付款完成' : '掃碼付款後回報') : (reported ? '已回報匯款後五碼' : isPaid ? '匯款完成' : '匯款後回報後五碼'),
+            time: reported ? fmtT(order.payment_reported_at) : isPaid ? fmtT(order.paid_at) : null,
+            hint: '等待您付款並回報',
+            desc: null,
+          },
+          { key: 'paid', done: isPaid, title: isPaid ? '賣家已收款' : '賣家核帳', time: isPaid ? fmtT(order.paid_at) : null, hint: '賣家核對中,通常一個工作天內', desc: null },
+        ]),
+    {
+      key: 'shipped',
+      done: isShipped,
+      title: isShipped ? (isPickup ? '已備貨,可以取貨' : cvs ? `已寄出 · ${CVS_CHAINS[cvs].label}` : '已出貨') : isPickup ? '備貨' : '出貨',
+      time: isShipped ? fmtT(order.shipped_at) : null,
+      hint: isPickup ? '賣家備貨中' : '賣家準備出貨中',
+      desc: isShipped && unlocked
+        ? [order.tracking_no ? `寄件單號 ${order.tracking_no}` : null, cvs ? '到店後會收到超商簡訊' : null].filter(Boolean).join(',') || null
+        : null,
+    },
+    {
+      key: 'done',
+      done: isDelivered,
+      title: isDelivered ? (isPickup || cvs ? '已取貨' : '已送達') : isPickup ? '取貨' : cvs ? '到店取貨' : '送達',
+      time: null,
+      hint: cvs ? '等待到店通知' : isPickup ? '請於營業時間至門市取貨' : '運送中',
+      desc: !isDelivered && isShipped && cvs && unlocked ? `憑姓名和手機到${order.cvs_store_name ? ` ${order.cvs_store_name} ` : '門市'}取件` : null,
+    },
   ];
+  const currentIdx = timeline.findIndex((s) => !s.done);
   const statusShort = isPickup && order.status === 'shipped' ? '已備貨' : isPickup && order.status === 'delivered' ? '已取貨' : order.status === 'open' && order.payment_status === 'pending' ? '待付款' : (STATUS_LABEL[order.status] ?? order.status);
   const paymentText = `${METHOD_LABEL[order.payment_method ?? 'bank'] ?? '匯款'} · ${order.payment_status === 'pending' && isOnlinePayOrder ? '等待付款' : (PAYMENT_LABEL[order.payment_status] ?? order.payment_status)}`;
   const giftCount = order.items.filter((i) => i.price_at_purchase === 0).length;
@@ -383,19 +433,24 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
       {/* ---------- 進度(取消/退款不顯示) ---------- */}
       {!isCancelled && (
-        <div className="od-steps" aria-label="訂單進度">
-          {steps.map((s, i) => {
-            const done = i <= stage;
-            const next = i === stage + 1;
-            return (
-              <div key={s} className="od-step" data-done={done ? 'true' : 'false'} data-next={next ? 'true' : 'false'} data-line={i < stage ? 'true' : 'false'}>
-                <span className="line" />
-                <span className="dot">{done ? <IconCheck size={12} /> : i + 1}</span>
-                <span>{s}</span>
-              </div>
-            );
-          })}
-        </div>
+        <Card className="od-card">
+          <h2>訂單進度</h2>
+          <ol className="od-tl" aria-label="訂單進度">
+            {timeline.map((s, i) => {
+              const state = s.done ? 'done' : i === currentIdx ? 'current' : 'pending';
+              return (
+                <li key={s.key} data-state={state} data-line={s.done && timeline[i + 1]?.done ? 'true' : 'false'} aria-current={state === 'current' ? 'step' : undefined}>
+                  <span className="ic">{s.done ? <IconCheck size={13} /> : i + 1}</span>
+                  <div className="t">
+                    <b>{s.title}</b>
+                    {s.time ? <small>{s.time}</small> : state === 'current' && s.hint ? <small>{s.hint}</small> : null}
+                    {s.desc && <em>{s.desc}</em>}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </Card>
       )}
 
       {!unlocked && !isCancelled && lockedNotice}
