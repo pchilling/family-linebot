@@ -36,6 +36,7 @@ type ShipOption = { key: string; label: string; fee?: number; free_over?: number
 type ExtraRow = {
   contact_info: string | null;
   shipping_rules: { options?: ShipOption[] } | null;
+  disclaimer: string | null; // Phase 32:商店聲明
 };
 
 export default async function TenantPolicyPage({ params }: Props) {
@@ -45,11 +46,12 @@ export default async function TenantPolicyPage({ params }: Props) {
   if (!tenant) notFound();
 
   const [{ data: extraRow }, tenantFull] = await Promise.all([
-    supabaseAdmin.from('tenants').select('contact_info, shipping_rules').eq('id', tenant.id).maybeSingle(),
+    supabaseAdmin.from('tenants').select('contact_info, shipping_rules, disclaimer').eq('id', tenant.id).maybeSingle(),
     getTenantBySlug(slug),
   ]);
   const extra = (extraRow as ExtraRow | null) ?? null;
   const contactInfo = extra?.contact_info?.trim() || null;
+  const disclaimer = extra?.disclaimer?.trim() || null;
   const shipOptions = extra?.shipping_rules?.options ?? [];
   const hasLinePay = hasFeature(tenantFull, 'line_pay');
   const hasEcpay = hasFeature(tenantFull, 'ecpay');
@@ -334,6 +336,8 @@ export default async function TenantPolicyPage({ params }: Props) {
                 本線上商店由 {name} 經營,架設於 NEOP STALL 平台(由 NEO Potential Studio 維運)。
                 在本商店下單即表示您同意以下條款。
               </p>
+              {/* Phase 32:商店聲明(攤主自己寫的品牌關係) */}
+              {disclaimer && <p style={{ whiteSpace: 'pre-wrap' }}>{disclaimer}</p>}
             </section>
 
             <section>

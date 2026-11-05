@@ -11,11 +11,11 @@ export default async function BasicSettingsPage({ params }: { params: Promise<{ 
   const { tenant: slug } = await params;
   const { data } = await supabaseAdmin
     .from('tenants')
-    .select('slug, name, description, contact_info')
+    .select('slug, name, description, contact_info, disclaimer')
     .eq('slug', slug)
     .maybeSingle();
   if (!data) notFound();
-  const t = data as { slug: string; name: string; description: string | null; contact_info: string | null };
+  const t = data as { slug: string; name: string; description: string | null; contact_info: string | null; disclaimer: string | null };
   const origin = siteOrigin();
 
   return (
@@ -23,7 +23,7 @@ export default async function BasicSettingsPage({ params }: { params: Promise<{ 
       tenantSlug={t.slug}
       publicHost={origin.replace(/^https?:\/\//, '')}
       publicUrl={`${origin}/${t.slug}`}
-      defaults={{ name: t.name, description: t.description ?? '', contact_info: t.contact_info ?? '' }}
+      defaults={{ name: t.name, description: t.description ?? '', contact_info: t.contact_info ?? '', disclaimer: t.disclaimer ?? '' }}
     />
   );
 }

@@ -465,3 +465,6 @@ begin
 end;
 $$ language plpgsql;
 NOTIFY pgrst, 'reload schema';
+
+-- Phase 32(2026-11-05)— 商店聲明(品牌關係聲明),頁尾 / 服務條款 / LINE 商店顯示
+alter table tenants add column if not exists disclaimer text;

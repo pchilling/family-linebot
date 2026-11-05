@@ -40,10 +40,13 @@ export default async function TenantLayout({ children, params }: Props) {
   // 2026-09-11(回饋 #13):footer 顯示攤位對外聯絡資訊(getTenantPublic 沒帶,另撈)
   // Phase 30(2026-11-01):頁首店名旁顯示店家評價(只算顯示中的),量小在程式裡算平均
   const [{ data: extraRow }, { data: storeReviews }] = await Promise.all([
-    supabaseAdmin.from('tenants').select('contact_info').eq('slug', slug).maybeSingle(),
+    supabaseAdmin.from('tenants').select('contact_info, disclaimer').eq('slug', slug).maybeSingle(),
     supabaseAdmin.from('tenant_reviews').select('rating').eq('tenant_id', tenant.id).eq('status', 'visible'),
   ]);
-  const contactInfo = (extraRow as { contact_info: string | null } | null)?.contact_info ?? null;
+  const extra = (extraRow as { contact_info: string | null; disclaimer: string | null } | null) ?? null;
+  const contactInfo = extra?.contact_info ?? null;
+  // Phase 32:商店聲明(攤主說明跟所賣品牌的關係),空白不顯示
+  const disclaimer = extra?.disclaimer?.trim() || null;
   const ratingList = ((storeReviews as { rating: number }[] | null) ?? []).map((r) => r.rating);
   const storeRating = ratingList.length
     ? { avg: Math.round((ratingList.reduce((s, r) => s + r, 0) / ratingList.length) * 10) / 10, count: ratingList.length }
@@ -134,6 +137,10 @@ export default async function TenantLayout({ children, params }: Props) {
 
       <footer className="shop-foot">
         <div className="ui-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Phase 32:商店聲明 */}
+          {disclaimer && (
+            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 12.5 }}>{disclaimer}</p>
+          )}
           {/* 2026-09-11(回饋 #13):對外聯絡資訊 */}
           {contactInfo && (
             <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 13 }}>{contactInfo}</div>

@@ -25,7 +25,7 @@ export function BasicForm({
   tenantSlug: string;
   publicHost: string;
   publicUrl: string;
-  defaults: { name: string; description: string; contact_info: string };
+  defaults: { name: string; description: string; contact_info: string; disclaimer: string };
 }) {
   const [state, formAction, pending] = useActionState(updateTenantSettings, initial);
 
@@ -62,6 +62,21 @@ export function BasicForm({
             defaultValue={defaults.contact_info}
             placeholder={'LINE:@yourshop\n電話:0900-000-000\nEmail:hello@yourshop.com'}
             aria-label="對外聯絡資訊"
+          />
+        </div>
+
+        <hr className="sx-sep" />
+
+        {/* Phase 32(2026-11-05):商店聲明 — 說明跟所賣品牌的關係,代購 / 經銷 / 個人經營都用得到 */}
+        <div className="sx-group">
+          <GroupHead title="商店聲明" desc="說明你跟所賣品牌的關係。會顯示在商店頁尾、服務條款和 LINE 商店底部,空白就不顯示。" />
+          <Textarea
+            name="disclaimer"
+            rows={3}
+            maxLength={300}
+            defaultValue={defaults.disclaimer}
+            placeholder={'例:本店由 ○○ 個人經營,非 ○○ 品牌公司經營。\n例:本店為 ○○ 品牌授權經銷商。\n例:本店商品皆為自有品牌。'}
+            aria-label="商店聲明"
           />
         </div>
 

@@ -87,6 +87,7 @@ export type ShopTenant = {
   payment_info: string | null; // 舊的一整段文字,bank_transfer 沒填時的備用
   bank_transfer: BankTransfer | null; // Phase 28:分欄的匯款資訊
   contact_info: string | null; // 2026-09-11(回饋 #13):商城底部顯示聯絡資訊
+  disclaimer: string | null; // Phase 32:商店聲明(品牌關係),底部顯示
   shop_bg_color: string | null; // 批次 C #7:商城底色
   brand_color: string | null; // 2026-10-23:品牌色,LIFF 也用 lib/theme 算整套配色
   category_order: string[]; // 批次 C #8:分類顯示順序
@@ -159,7 +160,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, banners, payment_info, bank_transfer, contact_info, shop_bg_color, brand_color, category_order, shipping_rules, gift_rules')
+      .select('name, logo_url, og_image_url, banners, payment_info, bank_transfer, contact_info, disclaimer, shop_bg_color, brand_color, category_order, shipping_rules, gift_rules')
       .eq('id', TENANT_ID)
       .maybeSingle(),
     // 2026-09-11(回饋 #9):一次撈整攤的分階定價(量小,免 per-product 查)
@@ -215,6 +216,7 @@ export async function loadShopData(
     payment_info: string | null;
     bank_transfer: unknown;
     contact_info: string | null;
+    disclaimer: string | null;
     shop_bg_color: string | null;
     brand_color: string | null;
     category_order: string[] | null;
@@ -267,6 +269,7 @@ export async function loadShopData(
       payment_info: t?.payment_info ?? null,
       bank_transfer: bankTransferFromRow(t?.bank_transfer),
       contact_info: t?.contact_info ?? null,
+      disclaimer: t?.disclaimer?.trim() || null,
       shop_bg_color: t?.shop_bg_color ?? null,
       brand_color: t?.brand_color ?? null,
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],

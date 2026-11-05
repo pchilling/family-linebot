@@ -57,6 +57,8 @@ export async function updateTenantSettings(
     patch.shop_bg_color = BG_STYLE_HEX[style];
   }
   if (formData.has('contact_info')) patch.contact_info = text('contact_info') || null;
+  // Phase 32(2026-11-05):商店聲明(品牌關係),頁尾 / 服務條款 / LINE 商店顯示
+  if (formData.has('disclaimer')) patch.disclaimer = text('disclaimer').slice(0, 300) || null;
   if (formData.has('payment_info')) patch.payment_info = text('payment_info') || null;
   // Phase 28(2026-11-01):匯款改分欄 → tenants.bank_transfer jsonb;帳號是必要欄位,全空就清掉
   if (formData.has('bank_account')) {
@@ -92,7 +94,7 @@ export async function updateTenantSettings(
 
   revalidatePath(`/admin/${slug}/settings`, 'layout');
   revalidatePath(`/admin/${slug}`); // 左側欄的店名
-  revalidatePath(`/${slug}`);
+  revalidatePath(`/${slug}`, 'layout'); // 頁尾的聯絡資訊、聲明在 layout,整個商店都要重算
 
   return { status: 'success', ts: Date.now() };
 }

@@ -127,6 +127,7 @@ export default function ShopPage() {
     payment_info: null,
     bank_transfer: null,
     contact_info: null,
+    disclaimer: null,
     shop_bg_color: null,
     brand_color: null,
     category_order: [],
@@ -721,10 +722,18 @@ export default function ShopPage() {
             </section>
           )}
 
-          {tenant.contact_info && (
+          {(tenant.contact_info || tenant.disclaimer) && (
             <footer className="ls-foot">
-              <b>聯絡我們</b>
-              {tenant.contact_info}
+              {tenant.contact_info && (
+                <>
+                  <b>聯絡我們</b>
+                  {tenant.contact_info}
+                </>
+              )}
+              {/* Phase 32:商店聲明(品牌關係) */}
+              {tenant.disclaimer && (
+                <p style={{ margin: tenant.contact_info ? '12px 0 0' : 0, whiteSpace: 'pre-wrap', opacity: 0.85 }}>{tenant.disclaimer}</p>
+              )}
             </footer>
           )}
         </>
