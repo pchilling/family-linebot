@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { requireAdminTenant } from '@/lib/super-admin';
 
 /**
  * 老師手動勾學員為已簽到。method='manual'。
@@ -16,7 +17,7 @@ export async function markAttendance(formData: FormData): Promise<void> {
   if (!classId) throw new Error('無課程資訊');
   if (!userId) throw new Error('無學員資訊');
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   const { error } = await supabaseAdmin.from('attendances').insert({
@@ -50,7 +51,7 @@ export async function unmarkAttendance(formData: FormData): Promise<void> {
 
   if (!slug || !classId || !userId) throw new Error('缺必要參數');
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   const { error } = await supabaseAdmin
@@ -83,7 +84,7 @@ export async function promoteWaitlist(formData: FormData): Promise<void> {
 
   if (!slug || !classId || !userId) throw new Error('缺必要參數');
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   // 先取得這個 user 在 waitlist 的 position(後面要 reorder)
@@ -142,7 +143,7 @@ export async function cancelReservationAdmin(formData: FormData): Promise<void> 
 
   if (!slug || !classId || !userId) throw new Error('缺必要參數');
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   // 先看這個人原本是 confirmed 還是 waitlist
@@ -232,7 +233,7 @@ export async function markNoShow(formData: FormData): Promise<void> {
 
   if (!slug || !classId || !userId) throw new Error('缺必要參數');
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   const { error } = await supabaseAdmin

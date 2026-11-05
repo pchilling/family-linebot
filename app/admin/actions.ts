@@ -7,13 +7,17 @@ import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
 import { refundLinePayPayment } from '@/lib/linepay';
 import { refundEcpayCredit } from '@/lib/ecpay';
 import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
+import { assertRowAccess, assertTenantAccessById, requireAdminTenant } from '@/lib/super-admin';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
 
 // tenant_id 從 formData 取(舊 routes 沒帶就 fallback env)
-function tIdFromForm(formData: FormData): string {
+// 2026-11-05:取完先驗登入帳號有沒有這個攤位的權限,沒有就丟錯(lib/super-admin.ts)
+async function tIdFromForm(formData: FormData): Promise<string> {
   const fromForm = String(formData.get('tenant_id') || '').trim();
-  return fromForm || TENANT_ID;
+  const id = fromForm || TENANT_ID;
+  await assertTenantAccessById(id);
+  return id;
 }
 
 // revalidate 新 + 舊 admin path
@@ -122,7 +126,7 @@ export async function createAdminImageUploadUrl(formData: FormData): Promise<Adm
   if (!slug) return { ok: false, error: '無攤位資訊' };
   if (!['classes'].includes(folder)) return { ok: false, error: '資料夾不合法' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
@@ -155,9 +159,10 @@ export async function createClass(formData: FormData) {
   const description = String(formData.get('description') || '').replace(/^\s+|\s+$/g, '') || null;
   // 2026-09-08:建立時就能帶圖(前端直傳完把 URL 塞 hidden input)
   const image_url = String(formData.get('image_url') || '').trim() || null;
+  const tenantId = await tIdFromForm(formData);
 
   await supabaseAdmin.from('classes').insert({
-    tenant_id: tIdFromForm(formData),
+    tenant_id: tenantId,
     region_id,
     name,
     scheduled_at,
@@ -175,6 +180,7 @@ export async function createClass(formData: FormData) {
 
 export async function updateClass(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('classes', id);
   const region_id = String(formData.get('region_id'));
   const name = String(formData.get('name')).trim();
   const scheduled_at = toIsoTaipei(String(formData.get('scheduled_at')));
@@ -202,6 +208,7 @@ export async function updateClass(formData: FormData) {
 
 export async function deleteClass(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('classes', id);
   await supabaseAdmin.from('classes').delete().eq('id', id);
   revalForRoute(formData, 'classes');
 }
@@ -217,10 +224,12 @@ function numOrNull(v: FormDataEntryValue | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// tenant_id from formData(舊 routes 沒帶 fallback env)
-function tenantIdFromForm(formData: FormData): string {
+// tenant_id from formData(舊 routes 沒帶 fallback env);2026-11-05 取完先驗權限
+async function tenantIdFromForm(formData: FormData): Promise<string> {
   const fromForm = String(formData.get('tenant_id') || '').trim();
-  return fromForm || TENANT_ID;
+  const id = fromForm || TENANT_ID;
+  await assertTenantAccessById(id);
+  return id;
 }
 
 function revalidateProductRoutes(formData: FormData) {
@@ -329,7 +338,7 @@ function generateProductSlug(name: string): string {
 }
 
 export async function createProduct(formData: FormData) {
-  const tenantId = tenantIdFromForm(formData);
+  const tenantId = await tenantIdFromForm(formData);
   const name = String(formData.get('name')).trim();
   const description = String(formData.get('description') || '').trim() || null;
   const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
@@ -406,7 +415,7 @@ export async function createProduct(formData: FormData) {
 // ====================
 
 export async function createVariant(formData: FormData) {
-  const tenantId = tenantIdFromForm(formData);
+  const tenantId = await tenantIdFromForm(formData);
   const product_id = String(formData.get('product_id'));
   // SKU 系統產:撈該 product 的 SKU 後追加 -V{n}
   const { data: parent } = await supabaseAdmin
@@ -448,6 +457,7 @@ export async function createVariant(formData: FormData) {
 
 export async function updateVariant(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('product_variants', id);
   const sku = String(formData.get('sku')).trim();
   const variant_name = String(formData.get('variant_name') || '').trim() || 'default';
   const price_twd = numOrNull(formData.get('price_twd')) ?? 0;
@@ -470,12 +480,14 @@ export async function updateVariant(formData: FormData) {
 
 export async function deleteVariant(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('product_variants', id);
   await supabaseAdmin.from('product_variants').delete().eq('id', id);
   revalidateProductRoutes(formData);
 }
 
 export async function updateProduct(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('products', id);
   const sku = String(formData.get('sku') || '').trim() || null;
   const name = String(formData.get('name')).trim();
   const description = String(formData.get('description') || '').trim() || null;
@@ -504,6 +516,7 @@ export async function updateProduct(formData: FormData) {
 export async function deleteProduct(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
+  await assertRowAccess('products', id);
   await supabaseAdmin.from('products').delete().eq('id', id);
   revalidateProductRoutes(formData);
   // 從編輯頁刪的話,商品已經不在了,回列表
@@ -522,7 +535,7 @@ export async function setVariantStock(
   variantId: string,
   stock: number,
 ): Promise<{ ok: boolean }> {
-  const tenant = await getTenantBySlug(tenantSlug);
+  const tenant = await requireAdminTenant(tenantSlug);
   if (!tenant || !variantId) return { ok: false };
   const n = Math.max(0, Math.floor(Number(stock)));
   if (!Number.isFinite(n)) return { ok: false };
@@ -546,7 +559,7 @@ export async function setProductStatus(
   productId: string,
   active: boolean,
 ): Promise<{ ok: boolean }> {
-  const tenant = await getTenantBySlug(tenantSlug);
+  const tenant = await requireAdminTenant(tenantSlug);
   if (!tenant || !productId) return { ok: false };
   const { error } = await supabaseAdmin
     .from('products')
@@ -570,7 +583,7 @@ export async function setProductStatus(
  */
 export async function saveVariantsBulk(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') || '').trim();
-  const tenantId = tenantIdFromForm(formData);
+  const tenantId = await tenantIdFromForm(formData);
   const productId = String(formData.get('product_id') || '').trim();
   if (!slug || !productId) throw new Error('缺必要參數');
 
@@ -668,6 +681,7 @@ export async function saveCategoryOrder(
   if (!Array.isArray(order) || order.some((c) => typeof c !== 'string' || !c.trim())) {
     return { ok: false };
   }
+  await assertTenantAccessById(tenantId);
   const clean = order.map((c) => c.trim()).slice(0, 100);
 
   const { error } = await supabaseAdmin
@@ -695,7 +709,7 @@ export async function saveProductOrder(
   orderedIds: string[],
 ): Promise<{ ok: boolean }> {
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) return { ok: false };
-  const tenant = await getTenantBySlug(tenantSlug);
+  const tenant = await requireAdminTenant(tenantSlug);
   if (!tenant) return { ok: false };
   const ids = orderedIds.filter((id) => typeof id === 'string' && id).slice(0, 200);
 
@@ -732,7 +746,7 @@ export async function saveVariantOrder(
   if (!tenantSlug || !productId || !Array.isArray(orderedIds) || orderedIds.length === 0) {
     return { ok: false };
   }
-  const tenant = await getTenantBySlug(tenantSlug);
+  const tenant = await requireAdminTenant(tenantSlug);
   if (!tenant) return { ok: false };
   const ids = orderedIds.filter((id) => typeof id === 'string' && id).slice(0, 100);
 
@@ -763,7 +777,7 @@ export async function saveVariantOrder(
 // ====================
 
 export async function createPriceTier(formData: FormData) {
-  const tenantId = tenantIdFromForm(formData);
+  const tenantId = await tenantIdFromForm(formData);
   const product_id = String(formData.get('product_id'));
   const min_qty = Number(formData.get('min_qty') || 0);
   const price_twd = Number(formData.get('price_twd') || 0);
@@ -784,6 +798,7 @@ export async function createPriceTier(formData: FormData) {
 
 export async function updatePriceTier(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('product_price_tiers', id);
   const min_qty = Number(formData.get('min_qty') || 0);
   const price_twd = Number(formData.get('price_twd') || 0);
 
@@ -809,6 +824,7 @@ export async function updatePriceTier(formData: FormData) {
  */
 export async function updateProductSale(formData: FormData) {
   const id = String(formData.get('product_id'));
+  await assertRowAccess('products', id);
   const slug = String(formData.get('tenant_slug') || '').trim();
   const pctStr = String(formData.get('sale_discount_pct') || '').trim();
   const startStr = String(formData.get('sale_start_at') || '').trim();
@@ -838,6 +854,7 @@ export async function updateProductSale(formData: FormData) {
 
 export async function deletePriceTier(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('product_price_tiers', id);
   await supabaseAdmin.from('product_price_tiers').delete().eq('id', id);
   revalidateProductRoutes(formData);
 }
@@ -852,6 +869,7 @@ export async function deletePriceTier(formData: FormData) {
  */
 export async function updateShareFocus(formData: FormData) {
   const id = String(formData.get('product_id'));
+  await assertRowAccess('products', id);
   const slug = String(formData.get('tenant_slug') || '').trim();
   const raw = Number(formData.get('share_focus_x'));
   const focus = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 50;
@@ -896,6 +914,7 @@ function mediaRedirect(formData: FormData, slug: string, productId: string) {
  */
 export async function addProductMedia(formData: FormData): Promise<void> {
   const product_id = String(formData.get('product_id'));
+  await assertRowAccess('products', product_id);
   const slug = String(formData.get('tenant_slug') || '').trim();
   const type = String(formData.get('type'));
   const url = String(formData.get('url') ?? '').trim();
@@ -913,6 +932,7 @@ export async function addProductMedia(formData: FormData): Promise<void> {
 export async function removeProductMedia(formData: FormData): Promise<void> {
   const product_id = String(formData.get('product_id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
+  await assertRowAccess('products', product_id);
   const index = Number(formData.get('index'));
   if (!Number.isFinite(index)) {
     revalidateProductRoutes(formData);
@@ -929,6 +949,7 @@ export async function removeProductMedia(formData: FormData): Promise<void> {
 export async function reorderProductMedia(formData: FormData): Promise<void> {
   const product_id = String(formData.get('product_id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
+  await assertRowAccess('products', product_id);
   const index = Number(formData.get('index'));
   const direction = String(formData.get('direction')); // 'up' | 'down'
   const current = await getProductMedia(product_id);
@@ -957,6 +978,7 @@ export async function reorderProductMedia(formData: FormData): Promise<void> {
 // ====================
 export async function markOrderPaid(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('orders', id);
   const slug = String(formData.get('tenant_slug') || '').trim();
   const last5 = String(formData.get('payment_last5') || '').trim() || null;
   const method = String(formData.get('payment_method') || 'bank').trim() || 'bank';
@@ -1006,6 +1028,7 @@ export async function markOrderPaid(formData: FormData) {
 // 一鍵標已出貨(2026-05-22)
 export async function markOrderShipped(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('orders', id);
   const slug = String(formData.get('tenant_slug') || '').trim();
   // Phase 29:寄件單號(超商店到店一定要填,宅配可選填);物流狀態另開欄位
   const trackingNo = String(formData.get('tracking_no') || '').trim().slice(0, 40);
@@ -1038,6 +1061,7 @@ export async function markOrderShipped(formData: FormData) {
 export async function refundLinePayOrder(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
+  await assertRowAccess('orders', id);
   const amountRaw = Number(formData.get('refund_amount'));
   // 2026-10-22:退款原因(必填,防手滑)— 客人在 LINE 退款卡上看得到,也存回訂單
   const reason = String(formData.get('refund_note') || '').trim().slice(0, 100) || null;
@@ -1147,6 +1171,7 @@ export async function refundLinePayOrder(formData: FormData) {
 export async function refundEcpayOrder(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
+  await assertRowAccess('orders', id);
   const amountRaw = Number(formData.get('refund_amount'));
   // 退款原因(必填,防手滑)— 客人在 LINE 退款卡上看得到,也存回訂單
   const reason = String(formData.get('refund_note') || '').trim().slice(0, 100) || null;
@@ -1279,6 +1304,7 @@ function strOrNull(v: FormDataEntryValue | null): string | null {
 
 export async function updateOrder(formData: FormData) {
   const id = String(formData.get('id'));
+  await assertRowAccess('orders', id);
   const status = String(formData.get('status') || 'open');
   const payment_status = String(formData.get('payment_status') || 'pending');
   const payment_method = strOrNull(formData.get('payment_method'));

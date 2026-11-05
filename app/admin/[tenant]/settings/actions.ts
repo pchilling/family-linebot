@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { requireAdminTenant } from '@/lib/super-admin';
 import { BG_STYLE_HEX, type BgStyle } from '@/lib/theme';
 import { parseBankInput } from '@/lib/bank-transfer';
 import { CVS_CHAINS, isCvsChain, type CvsChain } from '@/lib/cvs';
@@ -24,7 +25,7 @@ export type SettingsState =
  *
  * Signature 給 React 19 useActionState 用:(prev, formData) => newState
  *
- * TODO:check 登入用戶是否在 tenant_members 內(目前任一 Supabase Auth 帳號都能改任何 tenant)
+ * 2026-11-05:每個 action 都走 requireAdminTenant,登入帳號必須是這個攤位的成員(lib/super-admin.ts)
  */
 export async function updateTenantSettings(
   _prev: SettingsState,
@@ -80,7 +81,7 @@ export async function updateTenantSettings(
 
   if (Object.keys(patch).length === 0) return { status: 'error', error: '沒有要儲存的內容' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { status: 'error', error: '攤位不存在' };
 
   const { error } = await supabaseAdmin.from('tenants').update(patch).eq('id', tenant.id);
@@ -131,7 +132,7 @@ export async function setGiftMode(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const mode = String(formData.get('mode') ?? '').trim() === 'highest' ? 'highest' : 'stack';
   if (!slug) throw new Error('無攤位資訊');
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   const { rules } = await readGiftConfig(tenant.id);
@@ -159,7 +160,7 @@ export async function addGiftRule(formData: FormData): Promise<void> {
   if (!productId) throw new Error('請選贈品商品');
   if (fallbackId && fallbackId === productId) throw new Error('備用贈品不能跟主贈品相同');
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   const { mode, rules } = await readGiftConfig(tenant.id);
@@ -188,7 +189,7 @@ export async function deleteGiftRule(formData: FormData): Promise<void> {
   const idx = parseInt(String(formData.get('idx') ?? ''), 10);
   if (!slug || !Number.isFinite(idx)) throw new Error('缺必要參數');
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) throw new Error('攤位不存在');
 
   const { mode, rules } = await readGiftConfig(tenant.id);
@@ -224,7 +225,7 @@ export async function uploadLogo(formData: FormData): Promise<UploadLogoResult> 
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 2 * 1024 * 1024) return { ok: false, error: '檔案太大(裁切後應 < 2MB)' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   // path 加 timestamp 避免 CDN cache 殘留舊圖
@@ -284,7 +285,7 @@ export async function uploadQrPayment(formData: FormData): Promise<UploadLogoRes
   const type = file.type || 'image/png';
   if (!/^image\/(png|jpe?g|webp)$/.test(type)) return { ok: false, error: '只接受 PNG、JPG、WebP' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const ext = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
@@ -312,7 +313,7 @@ export async function uploadQrPayment(formData: FormData): Promise<UploadLogoRes
 export async function saveQrPayment(formData: FormData): Promise<UploadLogoResult> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   if (!slug) return { ok: false, error: '無攤位資訊' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const label = String(formData.get('label') ?? '').trim().slice(0, 30);
@@ -337,7 +338,7 @@ export async function saveQrPayment(formData: FormData): Promise<UploadLogoResul
 
 export async function removeQrPayment(slug: string): Promise<UploadLogoResult> {
   if (!slug) return { ok: false, error: '無攤位資訊' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
   const { error } = await supabaseAdmin.from('tenants').update({ qr_payment: null }).eq('id', tenant.id);
   if (error) {
@@ -354,7 +355,7 @@ export async function removeQrPayment(slug: string): Promise<UploadLogoResult> {
  */
 export async function removeLogo(slug: string): Promise<UploadLogoResult> {
   if (!slug) return { ok: false, error: '無攤位資訊' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const { error } = await supabaseAdmin
@@ -384,7 +385,7 @@ export async function uploadBanner(formData: FormData): Promise<UploadLogoResult
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 4 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 4MB' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const path = `${tenant.id}/banner-${Date.now()}.jpg`;
@@ -423,7 +424,7 @@ export async function uploadBanner(formData: FormData): Promise<UploadLogoResult
  */
 export async function removeBanner(slug: string): Promise<UploadLogoResult> {
   if (!slug) return { ok: false, error: '無攤位資訊' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const { error } = await supabaseAdmin
@@ -487,7 +488,7 @@ export async function addTenantBanner(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const type = String(formData.get('type') ?? '').trim();
   const url = String(formData.get('url') ?? '').trim();
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant || !url || (type !== 'image' && type !== 'video')) {
     bannerRedirect(slug);
     return;
@@ -502,7 +503,7 @@ export async function addTenantBanner(formData: FormData): Promise<void> {
 export async function removeTenantBanner(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const index = Number(formData.get('index'));
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant || !Number.isFinite(index)) {
     bannerRedirect(slug);
     return;
@@ -518,7 +519,7 @@ export async function reorderTenantBanner(formData: FormData): Promise<void> {
   const slug = String(formData.get('tenant_slug') ?? '').trim();
   const index = Number(formData.get('index'));
   const direction = String(formData.get('direction'));
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant || !Number.isFinite(index)) {
     bannerRedirect(slug);
     return;
@@ -541,7 +542,7 @@ export async function uploadTenantBannerImage(formData: FormData): Promise<Uploa
   if (!slug) return { ok: false, error: '無攤位資訊' };
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 5 * 1024 * 1024) return { ok: false, error: '圖檔應 < 5MB' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const ext = (file as File).name?.split('.').pop()?.toLowerCase() ?? 'jpg';
@@ -574,7 +575,7 @@ export async function uploadTenantBannerVideo(formData: FormData): Promise<Uploa
   if (!slug) return { ok: false, error: '無攤位資訊' };
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 50 * 1024 * 1024) return { ok: false, error: '影片應 < 50MB' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const ext = (file as File).name?.split('.').pop()?.toLowerCase() ?? 'mp4';
@@ -613,7 +614,7 @@ export async function createBannerUploadUrl(formData: FormData): Promise<BannerU
   const filename = String(formData.get('filename') ?? '').trim();
   if (!slug) return { ok: false, error: '無攤位資訊' };
   if (type !== 'image' && type !== 'video') return { ok: false, error: '類型錯誤' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
@@ -640,7 +641,7 @@ export async function finalizeBannerUpload(formData: FormData): Promise<UploadLo
   const path = String(formData.get('path') ?? '').trim();
   if (!slug) return { ok: false, error: '無攤位資訊' };
   if (type !== 'image' && type !== 'video') return { ok: false, error: '類型錯誤' };
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
   // path 必須落在該 tenant 自己的 banners 目錄,防止塞別人的檔案路徑
   if (!path.startsWith(`${tenant.id}/banners/`)) return { ok: false, error: '路徑不合法' };
@@ -712,7 +713,7 @@ export async function saveShippingRules(_prev: SettingsState, formData: FormData
     });
   }
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { status: 'error', error: '攤位不存在' };
 
   const { error } = await supabaseAdmin

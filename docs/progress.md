@@ -434,3 +434,34 @@ alter table tenant_reviews enable row level security;
 create trigger tenant_reviews_updated_at before update on tenant_reviews
   for each row execute function set_updated_at();
 NOTIFY pgrst, 'reload schema';
+
+-- Phase 31(2026-11-05)— 訂單單號改計數器(order_counters),刪單不回收號碼
+create table if not exists order_counters (
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  ym text not null,
+  last_seq int not null default 0,
+  primary key (tenant_id, ym)
+);
+alter table order_counters enable row level security;
+insert into order_counters (tenant_id, ym, last_seq)
+select tenant_id, substring(order_no from '-(\d{6})-'), max(substring(order_no from '-\d{6}-(\d+)$')::int)
+from orders where order_no ~ '-\d{6}-\d+$' group by 1, 2
+on conflict (tenant_id, ym) do update set last_seq = greatest(order_counters.last_seq, excluded.last_seq);
+create or replace function generate_order_no()
+returns trigger as $$
+declare
+  ym text; prefix text; cnt int;
+begin
+  if new.order_no is null or new.order_no = '' then
+    ym := to_char(now() at time zone 'Asia/Taipei', 'YYYYMM');
+    select order_prefix into prefix from tenants where id = new.tenant_id;
+    if prefix is null then raise exception 'tenant % missing order_prefix', new.tenant_id; end if;
+    insert into order_counters (tenant_id, ym, last_seq) values (new.tenant_id, ym, 1)
+      on conflict (tenant_id, ym) do update set last_seq = order_counters.last_seq + 1
+      returning last_seq into cnt;
+    new.order_no := prefix || '-' || ym || '-' || lpad(cnt::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+NOTIFY pgrst, 'reload schema';

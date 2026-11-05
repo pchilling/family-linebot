@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { requireAdminTenant } from '@/lib/super-admin';
 
 /**
  * 後台評價管理(Phase 25):只能「隱藏 / 顯示」,不能改分數或留言 —
@@ -15,7 +16,7 @@ export async function setReviewStatus(formData: FormData) {
   const kind = String(formData.get('kind') ?? 'product'); // Phase 30:'store' = 店家評價(tenant_reviews)
   if (!slug || !id || (status !== 'visible' && status !== 'hidden')) return;
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return;
 
   if (kind === 'store') {

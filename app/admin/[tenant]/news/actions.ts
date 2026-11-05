@@ -3,10 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { broadcastNewsItem } from '@/lib/line';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { requireAdminTenant } from '@/lib/super-admin';
 
+// 2026-11-05:先驗登入帳號是這個攤位的成員(lib/super-admin.ts),再取 id
 async function tenantIdBySlug(slug: string): Promise<string | null> {
-  const t = await getTenantBySlug(slug);
+  const t = await requireAdminTenant(slug);
   return t?.id ?? null;
 }
 

@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { requireAdminTenant } from '@/lib/super-admin';
 
 export type UploadProductImageResult =
   | { ok: true; url: string }
@@ -22,7 +23,7 @@ export async function uploadProductImage(formData: FormData): Promise<UploadProd
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 3 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 3MB' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   // 確認 product 屬於這 tenant(防 cross-tenant 上傳)
@@ -81,7 +82,7 @@ export async function uploadClassImage(formData: FormData): Promise<UploadProduc
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 3 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 3MB' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const { data: cls, error: cErr } = await supabaseAdmin
@@ -136,7 +137,7 @@ export async function uploadVariantImage(formData: FormData): Promise<UploadProd
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 3 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 3MB' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   // 確認 variant 屬於這 tenant(防 cross-tenant 上傳)
@@ -201,7 +202,7 @@ export async function uploadProductMediaImage(formData: FormData): Promise<Uploa
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 5 * 1024 * 1024) return { ok: false, error: '圖檔應 < 5MB' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const { data: product } = await supabaseAdmin
@@ -249,7 +250,7 @@ export async function uploadProductMediaVideo(formData: FormData): Promise<Uploa
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 50 * 1024 * 1024) return { ok: false, error: '影片應 < 50MB' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const { data: product } = await supabaseAdmin
@@ -295,7 +296,7 @@ export async function uploadDraftImage(formData: FormData): Promise<UploadProduc
   if (!(file instanceof Blob)) return { ok: false, error: '無檔案' };
   if (file.size > 3 * 1024 * 1024) return { ok: false, error: '裁切後檔案應 < 3MB' };
 
-  const tenant = await getTenantBySlug(slug);
+  const tenant = await requireAdminTenant(slug);
   if (!tenant) return { ok: false, error: '攤位不存在' };
 
   const path = `${tenant.id}/products/draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;

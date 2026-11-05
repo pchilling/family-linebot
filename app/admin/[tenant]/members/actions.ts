@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
+import { assertTenantAccess } from '@/lib/super-admin';
 
 /**
  * Members 邀請 UI server actions(Phase 13.1,2026-06-04)。
  *
- * 沒做 RLS check —— 假設能進 /admin/[tenant]/members 的就有權管理。
- * 之後補 tenant_members role check 時這層一起改。
+ * 2026-11-05:tenantIdFromSlug 先驗登入帳號是這個攤位的成員(lib/super-admin.ts)。
+ * 角色層級(staff 能不能管成員)還沒分,之後補。
  *
  * 安全:防最後一個 owner 被移除 / 降級(會孤兒化 tenant)。
  */
@@ -21,6 +22,7 @@ function parseRole(raw: string): Role | null {
 }
 
 async function tenantIdFromSlug(slug: string): Promise<string | null> {
+  await assertTenantAccess(slug);
   const { data } = await supabaseAdmin
     .from('tenants')
     .select('id')
