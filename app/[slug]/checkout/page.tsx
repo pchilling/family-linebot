@@ -33,7 +33,7 @@ const CSS = `
 .ck-sec{background:var(--ui-surface);border:1px solid var(--ui-line);border-radius:12px;scroll-margin-top:80px;overflow:hidden}
 .ck-sec-h{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--ui-line)}
 .ck-sec-h h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
-.ck-sec-h span{margin-left:auto;font-size:12px;color:var(--ui-faint)}
+.ck-sec-h span:not(.ck-n){margin-left:auto;font-size:12px;color:var(--ui-faint)}
 .ck-n{width:22px;height:22px;border-radius:50%;background:var(--ui-accent);color:var(--ui-on-accent);font-size:12px;font-weight:600;display:grid;place-items:center;flex-shrink:0}
 .ck-sec-b{padding:20px;display:flex;flex-direction:column;gap:14px}
 .ck-opts{display:flex;flex-direction:column}
