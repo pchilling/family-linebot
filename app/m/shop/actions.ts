@@ -482,6 +482,8 @@ export async function placeOrder(
   }
 
   // insert order(order_no / total_twd 由 trigger 自動)
+  // Phase 33(2026-11-06):LIFF 這輪不收折扣碼,discount_code / discount_twd 走預設(null / 0),
+  // 下面 totalForPush 維持 pricedSubtotal + shippingFee,跟 orderPayable 的結果相同
   const { data: order, error: orderErr } = await supabaseAdmin
     .from('orders')
     .insert({

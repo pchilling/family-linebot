@@ -112,7 +112,7 @@ export default async function CustomerDetailPage({ params }: Props) {
       .maybeSingle(),
     supabaseAdmin
       .from('orders')
-      .select('id, order_no, status, payment_status, total_twd, source, created_at')
+      .select('id, order_no, status, payment_status, total_twd, discount_twd, source, created_at')
       .eq('tenant_id', tenant.id)
       .eq('user_id', id)
       .order('created_at', { ascending: false })
@@ -165,6 +165,7 @@ export default async function CustomerDetailPage({ params }: Props) {
     status: string;
     payment_status: string;
     total_twd: number;
+    discount_twd: number | null; // Phase 33
     source: string;
     created_at: string;
   };
@@ -211,7 +212,9 @@ export default async function CustomerDetailPage({ params }: Props) {
 
   // 統計(排除 cancelled/refunded 訂單)
   const activeOrders = orders.filter((o) => o.status !== 'cancelled' && o.status !== 'refunded');
-  const totalSpent = activeOrders.reduce((s, o) => s + o.total_twd, 0);
+  // Phase 33:消費金額 = 商品小計 − 折扣碼(不含運費)
+  const netOf = (o: { total_twd: number; discount_twd: number | null }) => o.total_twd - (o.discount_twd ?? 0);
+  const totalSpent = activeOrders.reduce((s, o) => s + netOf(o), 0);
   const activeAttCount = atts.length;
   const activeResvCount = resvs.filter((r) => r.status === 'confirmed' || r.status === 'waitlist').length;
 
@@ -328,7 +331,7 @@ export default async function CustomerDetailPage({ params }: Props) {
                   <div>
                     <span className={`ui-badge ob-${o.status}`}>{ORDER_STATUS[o.status] ?? o.status}</span>
                   </div>
-                  <div className="r" style={{ fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString()}</div>
+                  <div className="r" style={{ fontWeight: 600 }}>NT$ {netOf(o).toLocaleString()}</div>
                   <div className="muted wide">{formatTw(o.created_at)}</div>
                 </div>
               ))}

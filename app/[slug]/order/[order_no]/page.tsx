@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
+import { getTenantPublic, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
 import { reportPaymentLast5, reportQrPaid } from './actions';
 import { startLinePayAndRedirect } from '../../checkout/actions';
@@ -37,6 +37,8 @@ type OrderDetail = {
   atm_vaccount: string | null;
   atm_expire_at: string | null;
   total_twd: number;
+  discount_code: string | null; // Phase 33:用過的折扣碼(文字,碼刪了照樣顯示)
+  discount_twd: number;
   shipping_method: string | null;
   shipping_fee_twd: number;
   payment_last5: string | null;
@@ -94,7 +96,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note, guest_email, created_at, paid_at, shipped_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
+      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, discount_code, discount_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note, guest_email, created_at, paid_at, shipped_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -136,6 +138,8 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     atm_vaccount: row.atm_vaccount ?? null,
     atm_expire_at: row.atm_expire_at ?? null,
     total_twd: row.total_twd,
+    discount_code: row.discount_code ?? null,
+    discount_twd: row.discount_twd ?? 0,
     shipping_method: row.shipping_method ?? null,
     shipping_fee_twd: row.shipping_fee_twd ?? 0,
     payment_last5: row.payment_last5 ?? null,
@@ -299,7 +303,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
     : null;
   const bankAccount = bank?.account ?? extractBankAccount(paymentInfo);
   const shipLabel = ((tenantExtra as ExtraRow)?.shipping_rules?.options ?? []).find((o) => o.key === order.shipping_method)?.label ?? null;
-  const grandTotal = order.total_twd + order.shipping_fee_twd;
+  const grandTotal = orderPayable(order); // Phase 33:商品小計 − 折扣 + 運費
 
   const createdAt = new Date(order.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -711,9 +715,13 @@ export default async function OrderPage({ params, searchParams }: Props) {
           </div>
         ))}
         <div className="od-tot">
-          {(order.shipping_fee_twd > 0 || order.shipping_method) && (
+          {(order.shipping_fee_twd > 0 || order.shipping_method || order.discount_twd > 0) && (
             <>
               <div className="r"><span>商品小計</span><span className="ui-num" style={{ color: 'var(--ui-ink)' }}>NT$ {money(order.total_twd)}</span></div>
+              {/* Phase 33:折扣碼只折商品小計 */}
+              {order.discount_twd > 0 && (
+                <div className="r"><span>折扣碼 {order.discount_code}</span><span className="ui-num" style={{ color: '#15803d' }}>−NT$ {money(order.discount_twd)}</span></div>
+              )}
               <div className="r">
                 <span>運費{shipLabel ? `(${shipLabel})` : ''}</span>
                 <span className="ui-num" style={{ color: order.shipping_fee_twd === 0 ? '#15803d' : 'var(--ui-ink)' }}>{order.shipping_fee_twd === 0 ? '免運' : `NT$ ${money(order.shipping_fee_twd)}`}</span>

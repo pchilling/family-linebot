@@ -1,13 +1,16 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
-import { IconBank, IconCreditCard, IconGift, IconPackage, IconStore, IconTruck, IconWallet } from '@/lib/icons';
+import { IconBank, IconCheck, IconCreditCard, IconGift, IconPackage, IconStore, IconTruck, IconWallet, IconX } from '@/lib/icons';
 import { CVS_CHAINS } from '@/lib/cvs';
 import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getLastShipping, getQrPaymentPublic, getShippingOptions, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type LastShipping, type QrPaymentPublic, type ShippingOption } from './actions';
+import { applyDiscountCode, createOrder, getCartPricingInfo, getGiftRulesPublic, getLastShipping, getQrPaymentPublic, getShippingOptions, hasDiscountCodes, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type CartPricingInfo, type GiftConfigPublic, type LastShipping, type QrPaymentPublic, type ShippingOption } from './actions';
+
+// Phase 33(2026-11-06):套用成功的折扣碼
+type DiscountApplied = Extract<ApplyDiscountResult, { ok: true }>;
 
 // 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
 // Phase 27(2026-11-01):加 'qr' 掃碼付款(攤主自己的收款 QR,人工核帳)
@@ -69,6 +72,16 @@ const CSS = `
 .ck-gift-t{display:flex;justify-content:space-between;gap:12px;font-weight:500;align-items:center}
 .ck-bar{height:6px;border-radius:999px;background:var(--ui-line);overflow:hidden}
 .ck-bar div{height:100%;border-radius:999px;background:var(--ui-accent);transition:width .45s cubic-bezier(.3,.8,.4,1)}
+/* Phase 33(2026-11-06):折扣碼輸入區(滿額贈進度之後、金額區之前) */
+.ck-dc{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.ck-dc-row{display:flex;gap:8px}
+.ck-dc-row .ui-input{flex:1;min-width:0;text-transform:uppercase}
+.ck-dc-err{font-size:12.5px;color:#b91c1c;margin:0;line-height:1.5}
+.ck-dc-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;font-size:13px;font-weight:500}
+.ck-dc-chip .t{flex:1;min-width:0}
+.ck-dc-chip .s{display:block;font-size:12px;font-weight:400;margin-top:2px}
+.ck-dc-chip .x{margin-left:auto;width:24px;height:24px;border:0;background:none;color:#15803d;cursor:pointer;display:grid;place-items:center;border-radius:6px;padding:0;flex-shrink:0}
+.ck-dc-chip .x:hover{background:#dcfce7}
 .ck-tot{margin-top:16px;padding-top:14px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:8px;font-size:14px}
 .ck-tot .r{display:flex;justify-content:space-between;gap:12px;color:#52525b}
 .ck-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:10px;margin-top:4px;border-top:1px solid var(--ui-line);color:var(--ui-ink);font-weight:600}
@@ -161,7 +174,14 @@ export default function CheckoutPage({ params }: Props) {
   }, [member, slug]);
   // 2026-11-06:統編發票改成勾選才展開(以前叫客人寫在備註)
   const [needInvoice, setNeedInvoice] = useState(false);
+  // Phase 33:折扣碼 — 攤位有啟用中的碼才顯示輸入區;套用結果的金額只用來顯示,送單時 server 重算
+  const [dcOffered, setDcOffered] = useState(false);
+  const [dcInput, setDcInput] = useState('');
+  const [dcApplied, setDcApplied] = useState<DiscountApplied | null>(null);
+  const [dcError, setDcError] = useState<string | null>(null);
+  const [dcBusy, setDcBusy] = useState(false);
   useEffect(() => {
+    hasDiscountCodes(slug).then(setDcOffered).catch(() => {});
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
     getGiftRulesPublic(slug).then(setGiftCfg).catch(() => {});
     isLinePayAvailable(slug).then(setLinePayOn).catch(() => {});
@@ -219,11 +239,47 @@ export default function CheckoutPage({ params }: Props) {
     return unit;
   }
 
-  // 折後商品小計(運費免運門檻、總計都用這個,跟後端實收一致)
+  // 特價 / 量購價後的商品小計(運費免運門檻、滿額贈都用這個,跟後端一致;折扣碼另外減)
   const subtotal = items.reduce((s, i) => s + unitPriceOf(i) * i.qty, 0);
   const shipOption = shipOptions.find((o) => o.key === shipKey) ?? null;
   const shipFee = shipOption ? (shipOption.free_over && subtotal >= shipOption.free_over ? 0 : shipOption.fee) : 0;
-  const grandTotal = subtotal + shipFee;
+  // Phase 33:折扣只折商品小計、不折運費;不得超過小計
+  const discount = dcApplied ? Math.min(dcApplied.discount_twd, subtotal) : 0;
+  const grandTotal = subtotal - discount + shipFee;
+
+  // Phase 33:按「套用」才打 server(不要每打一字就查)。code 沒給就用目前套用的碼(改數量後靜默重驗)
+  async function applyNow(code?: string) {
+    const raw = (code ?? dcInput).trim();
+    if (!raw || items.length === 0) return;
+    setDcBusy(true);
+    const phone = document.querySelector<HTMLInputElement>('#ck-form [name="phone"]')?.value ?? '';
+    try {
+      const r = await applyDiscountCode(slug, raw, items.map((i) => ({ variantId: i.variantId, qty: i.qty })), phone);
+      if (r.ok) {
+        setDcApplied(r);
+        setDcError(null);
+      } else {
+        setDcApplied(null);
+        setDcError(r.error);
+      }
+    } catch {
+      setDcApplied(null);
+      setDcError('確認折扣碼失敗,請再試一次');
+    } finally {
+      setDcBusy(false);
+    }
+  }
+  // 改數量 → 300ms 後用已套用的碼重跑一次;掉出門檻會自動移除並顯示原因(原碼留在輸入框)
+  const dcAppliedRef = useRef(dcApplied);
+  dcAppliedRef.current = dcApplied;
+  const applyNowRef = useRef(applyNow);
+  applyNowRef.current = applyNow;
+  useEffect(() => {
+    const current = dcAppliedRef.current;
+    if (!current) return;
+    const t = window.setTimeout(() => { void applyNowRef.current(current.code); }, 300);
+    return () => window.clearTimeout(t);
+  }, [subtotal]);
 
   // 滿額贈:擇高式只算最高那條;可重複的規則會一直有下一個倍數可拿
   const gift = (() => {
@@ -281,6 +337,12 @@ export default function CheckoutPage({ params }: Props) {
     formData.append('cartItems', JSON.stringify(items));
     const result = await createOrder(formData);
     if (!result.ok) {
+      // Phase 33:折扣碼驗不過 → 整張沒建單,清掉已套用的碼讓合計恢復;不自動重送。
+      // 原因同時放到折扣碼輸入框下方(跟「套用」失敗一致),客人不會以為是自己點掉的
+      if (result.discountInvalid) {
+        setDcApplied(null);
+        setDcError(result.error);
+      }
       setError(result.error);
       setSubmitting(false);
       return;
@@ -362,6 +424,8 @@ export default function CheckoutPage({ params }: Props) {
       <div className="ck-layout">
         {/* ---------- 左:表單 ---------- */}
         <form id="ck-form" className="ck-form" action={handleSubmit}>
+          {/* Phase 33:已套用的折扣碼跟表單走(右邊 Card 不在 form 裡);只送碼文字,金額 server 重算 */}
+          <input type="hidden" name="discount_code" value={dcApplied?.code ?? ''} />
           {/* D#13:配送方式(攤位有設運費規則才顯示) */}
           {showShip && (
             <section id="ship-section" className="ck-sec" aria-labelledby="ship-h">
@@ -578,8 +642,54 @@ export default function CheckoutPage({ params }: Props) {
             </div>
           )}
 
+          {/* Phase 33:折扣碼(攤位有啟用中的碼才顯示;輸入框不放進 form,Enter 才不會送出整張訂單) */}
+          {dcOffered && items.length > 0 && (
+            <div className="ck-dc">
+              {dcApplied ? (
+                <div className="ck-dc-chip" role="status">
+                  <IconCheck size={14} />
+                  <span className="t">
+                    折扣碼 {dcApplied.code} 已套用
+                    {dcApplied.per_customer_once && <span className="s">每人限用一次,送出時以聯絡電話確認</span>}
+                  </span>
+                  <button type="button" className="x" aria-label="移除折扣碼" onClick={() => { setDcApplied(null); setDcError(null); }}>
+                    <IconX size={14} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="ck-dc-row">
+                    <input
+                      className="ui-input"
+                      placeholder="折扣碼"
+                      aria-label="折扣碼"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={20}
+                      value={dcInput}
+                      onChange={(e) => { setDcInput(e.target.value.toUpperCase()); setDcError(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void applyNow(); } }}
+                      aria-invalid={!!dcError}
+                    />
+                    <Button type="button" variant="outline" size="md" disabled={!dcInput.trim() || dcBusy} onClick={() => { void applyNow(); }}>
+                      {dcBusy ? '確認中…' : '套用'}
+                    </Button>
+                  </div>
+                  {dcError && <p className="ck-dc-err" role="alert">{dcError}</p>}
+                </>
+              )}
+            </div>
+          )}
+
           <div className="ck-tot">
             <div className="r"><span>商品小計</span><span className="ui-num" style={{ color: 'var(--ui-ink)' }}>NT$ {money(subtotal)}</span></div>
+            {discount > 0 && dcApplied && (
+              <div className="r">
+                <span>折扣碼 {dcApplied.code}</span>
+                <span className="ui-num" style={{ color: '#15803d' }} aria-live="polite">−NT$ {money(discount)}</span>
+              </div>
+            )}
             {shipOptions.length > 0 && (
               <div className="r">
                 <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>

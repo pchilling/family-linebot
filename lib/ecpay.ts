@@ -19,7 +19,7 @@
  */
 import crypto from 'node:crypto';
 import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
-import { supabaseAdmin } from '@/lib/supabase';
+import { orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 const STAGE_HOST = 'https://payment-stage.ecpay.com.tw';
 const PROD_HOST = 'https://payment.ecpay.com.tw';
@@ -421,6 +421,7 @@ type EcpayOrderRow = {
   id: string;
   order_no: string;
   total_twd: number;
+  discount_twd: number | null; // Phase 33:折扣碼金額,應付用 orderPayable 算
   shipping_fee_twd: number | null;
   payment_status: string;
   status: string;
@@ -432,7 +433,7 @@ type EcpayOrderRow = {
 };
 
 const ORDER_SELECT =
-  'id, order_no, total_twd, shipping_fee_twd, payment_status, status, ecpay_merchant_trade_no, atm_vaccount, access_key, tenants(slug, name), users(line_user_id)';
+  'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, ecpay_merchant_trade_no, atm_vaccount, access_key, tenants(slug, name), users(line_user_id)';
 
 /**
  * 用通知裡的資料找訂單:先比特店交易編號;對不上(客人後來換過付款方式,
@@ -490,7 +491,8 @@ export async function applyEcpayPaymentResult(fields: EcpayFields, baseUrl: stri
     ]);
     return 'not_found';
   }
-  const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
+  // Phase 33:應付 = 商品小計 − 折扣 + 運費(漏掉折扣每張折扣單都會被判金額不符)
+  const amount = orderPayable(order);
   if (Number(fields.TradeAmt) !== amount) {
     console.error('[ecpay] 付款金額跟訂單不符', order.order_no, fields.TradeAmt, amount);
     await notifyAdmin('綠界收到的金額跟訂單不一樣,沒有標已收款', [
@@ -611,7 +613,7 @@ export async function applyEcpayAtmInfo(fields: EcpayFields): Promise<EcpayAtmRe
 
   const lineUserId = order.users?.line_user_id;
   if (lineUserId) {
-    const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
+    const amount = orderPayable(order); // Phase 33
     try {
       await lineClient.pushMessage({
         to: lineUserId,

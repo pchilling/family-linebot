@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
 import { getCurrentMember } from '@/lib/member-auth';
 import { SIGNOUT_URL, loginHref } from '@/lib/return-to';
-import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
+import { getTenantPublic, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { Badge, ButtonLink } from '@/lib/ui';
 import { FlashToast } from '../../_components/toast';
 
@@ -44,6 +44,7 @@ type OrderRow = {
   payment_status: string;
   payment_method: string | null;
   total_twd: number;
+  discount_twd: number | null; // Phase 33
   shipping_fee_twd: number;
   created_at: string;
   access_key: string | null;
@@ -58,7 +59,7 @@ const STATUS_LABEL: Record<string, string> = {
   refunded: '已退款',
 };
 
-const ORDER_SELECT = 'id, order_no, status, payment_status, payment_method, total_twd, shipping_fee_twd, created_at, access_key';
+const ORDER_SELECT = 'id, order_no, status, payment_status, payment_method, total_twd, discount_twd, shipping_fee_twd, created_at, access_key';
 
 /**
  * 我的訂單(Phase 26):這個攤位裡屬於目前登入會員的訂單。三種對法合併:
@@ -158,7 +159,7 @@ export default async function AccountPage({ params, searchParams }: Props) {
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                   <Badge>{statusOf(o)}</Badge>
-                  <span className="ui-num" style={{ fontSize: 14, fontWeight: 600 }}>NT$ {(o.total_twd + (o.shipping_fee_twd ?? 0)).toLocaleString('en-US')}</span>
+                  <span className="ui-num" style={{ fontSize: 14, fontWeight: 600 }}>NT$ {orderPayable(o).toLocaleString('en-US')}</span>
                 </span>
               </a>
             </li>

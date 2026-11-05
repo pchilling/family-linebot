@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabase';
+import { orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 const LIFF_CHANNEL_ID = process.env.LIFF_CHANNEL_ID!;
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
@@ -29,7 +29,7 @@ export type OrderListItem = {
   order_no: string;
   status: string;
   payment_status: string;
-  total_twd: number;
+  total_twd: number; // 列表顯示用的應付總額(含運、扣折扣),見下方 orderPayable
   created_at: string;
   access_key: string | null; // Phase 22:訂單頁存取碼,連結要帶 ?k= 才看得到完整資訊
   items_summary: string; // 「商品A x2, 商品B x1」or「商品A x2 + 2 件」
@@ -69,7 +69,7 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
   // 訂單 + 簡要 items(Phase 11:含 variant_name)
   const { data: orders, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, status, payment_status, total_twd, shipping_fee_twd, created_at, access_key, order_items(qty, products(name), product_variants(variant_name))')
+    .select('id, order_no, status, payment_status, total_twd, discount_twd, shipping_fee_twd, created_at, access_key, order_items(qty, products(name), product_variants(variant_name))')
     .eq('tenant_id', TENANT_ID)
     .eq('user_id', (user as { id: string }).id)
     .order('created_at', { ascending: false })
@@ -86,6 +86,7 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
     status: string;
     payment_status: string;
     total_twd: number;
+    discount_twd: number | null; // Phase 33
     shipping_fee_twd: number | null;
     created_at: string;
     access_key: string | null;
@@ -123,8 +124,8 @@ export async function loadMyOrders(idToken: string): Promise<MyOrdersData> {
         order_no: r.order_no,
         status: r.status,
         payment_status: r.payment_status,
-        // D#13:列表顯示含運總額
-        total_twd: r.total_twd + (r.shipping_fee_twd ?? 0),
+        // D#13:列表顯示含運總額;Phase 33:扣掉折扣碼(app/m/orders/page.tsx 直接顯示這個值)
+        total_twd: orderPayable(r),
         created_at: r.created_at,
         access_key: r.access_key ?? null,
         items_summary: summary,

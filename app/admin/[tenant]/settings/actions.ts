@@ -730,3 +730,152 @@ export async function saveShippingRules(_prev: SettingsState, formData: FormData
   revalidatePath(`/${slug}/checkout`);
   return { status: 'success', ts: Date.now() };
 }
+
+// ====================
+// Phase 33(2026-11-06):折扣碼(設定 → 行銷)
+// 新增走 useActionState 回 SettingsState(碼重複、日期顛倒要留在表單裡,admin 沒有 error.tsx);
+// 停用 / 刪除跟 deleteGiftRule 一樣 throw。三支都先 requireAdminTenant(slug),寫入時一定 eq tenant_id。
+// 結帳端驗碼是 server action 每次查 DB,不用 revalidate 結帳頁。
+// ====================
+const DISCOUNT_CODE_RE = /^[A-Z0-9]{3,20}$/;
+const normalizeDiscountCode = (s: string) => s.normalize('NFKC').replace(/\s+/g, '').toUpperCase();
+
+/** 表單的 number 欄位:空白回 null;有填就要是正整數(不是就回 NaN 讓呼叫端擋) */
+function optionalPositiveInt(raw: string, max: number): number | null {
+  const s = raw.trim();
+  if (!s) return null;
+  if (!/^\d+$/.test(s)) return Number.NaN;
+  const n = Number(s);
+  return Number.isSafeInteger(n) && n >= 1 && n <= max ? n : Number.NaN;
+}
+
+export async function addDiscountCode(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  if (!slug) return { status: 'error', error: '無攤位資訊' };
+
+  const code = normalizeDiscountCode(String(formData.get('code') ?? ''));
+  const type = String(formData.get('type') ?? '').trim();
+  const valueRaw = String(formData.get('value') ?? '').trim();
+  const minRaw = String(formData.get('min_subtotal') ?? '');
+  const startsRaw = String(formData.get('starts_at') ?? '').trim();
+  const endsRaw = String(formData.get('ends_at') ?? '').trim();
+  const maxUsesRaw = String(formData.get('max_uses') ?? '');
+  const perCustomerOnce = formData.get('per_customer_once') === 'on';
+
+  if (!DISCOUNT_CODE_RE.test(code)) return { status: 'error', error: '折扣碼只能用英文和數字,3 到 20 位' };
+  if (type !== 'percent' && type !== 'fixed') return { status: 'error', error: '折扣方式不正確' };
+  const value = /^\d+$/.test(valueRaw) ? Number(valueRaw) : Number.NaN;
+  if (type === 'percent' && !(Number.isInteger(value) && value >= 1 && value <= 99)) {
+    return { status: 'error', error: '折扣 % 要在 1 到 99 之間(10 代表打 9 折);100% 等於免費送,不給設' };
+  }
+  if (type === 'fixed' && !(Number.isInteger(value) && value >= 1 && value <= 9999999)) {
+    return { status: 'error', error: '折抵金額要是正整數' };
+  }
+  const minSubtotal = optionalPositiveInt(minRaw, 9999999);
+  if (Number.isNaN(minSubtotal)) return { status: 'error', error: '最低消費要是正整數,不限就留空' };
+  if (type === 'fixed' && minSubtotal !== null && minSubtotal <= value) {
+    return { status: 'error', error: '最低消費要大於折抵金額,否則客人會折到 0 元' };
+  }
+
+  // 日期:後台只收 YYYY-MM-DD,server 補台北時區(Vercel 跑 UTC,忘了會差 8 小時)。
+  // 開始 = 當天 00:00:00,結束 = 當天 23:59:59(含當天)
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if ((startsRaw && !DATE_RE.test(startsRaw)) || (endsRaw && !DATE_RE.test(endsRaw))) {
+    return { status: 'error', error: '日期格式不正確' };
+  }
+  const startsAtMs = startsRaw ? new Date(`${startsRaw}T00:00:00+08:00`).getTime() : null;
+  const endsAtMs = endsRaw ? new Date(`${endsRaw}T23:59:59+08:00`).getTime() : null;
+  if ((startsAtMs !== null && Number.isNaN(startsAtMs)) || (endsAtMs !== null && Number.isNaN(endsAtMs))) {
+    return { status: 'error', error: '日期格式不正確' };
+  }
+  if (startsAtMs !== null && endsAtMs !== null && endsRaw < startsRaw) {
+    return { status: 'error', error: '結束日要在開始日之後(可以同一天)' };
+  }
+  if (endsAtMs !== null && endsAtMs < Date.now()) return { status: 'error', error: '結束日已經過了' };
+
+  const maxUses = optionalPositiveInt(maxUsesRaw, 9999999);
+  if (Number.isNaN(maxUses)) return { status: 'error', error: '可用次數要是正整數,不限就留空' };
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) return { status: 'error', error: '攤位不存在' };
+
+  const { count } = await supabaseAdmin
+    .from('discount_codes')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenant.id);
+  if ((count ?? 0) >= 100) return { status: 'error', error: '折扣碼最多 100 組,先刪掉不用的' };
+
+  const { error } = await supabaseAdmin.from('discount_codes').insert({
+    tenant_id: tenant.id,
+    code,
+    type,
+    value,
+    min_subtotal: minSubtotal,
+    starts_at: startsAtMs !== null ? new Date(startsAtMs).toISOString() : null,
+    ends_at: endsAtMs !== null ? new Date(endsAtMs).toISOString() : null,
+    max_uses: maxUses,
+    per_customer_once: perCustomerOnce,
+  });
+  if (error) {
+    if (error.code === '23505') return { status: 'error', error: '這組折扣碼已經有了,換一個或先刪掉舊的' };
+    console.error('[addDiscountCode]', error);
+    return { status: 'error', error: '儲存失敗,請稍後再試' };
+  }
+
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  return { status: 'success', ts: Date.now() };
+}
+
+/** 清單上的開關:hidden tenant_slug / id,enabled 是 checkbox('on' = 開) */
+export async function setDiscountCodeEnabled(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const id = String(formData.get('id') ?? '').trim();
+  const enabled = formData.get('enabled') === 'on';
+  if (!slug || !id) throw new Error('缺必要參數');
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const { data, error } = await supabaseAdmin
+    .from('discount_codes')
+    .update({ enabled })
+    .eq('id', id)
+    .eq('tenant_id', tenant.id)
+    .select('id');
+  if (error) {
+    console.error('[setDiscountCodeEnabled]', error);
+    throw new Error('儲存失敗:' + error.message);
+  }
+  if (!data || data.length === 0) throw new Error('折扣碼不存在');
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+}
+
+/**
+ * 只允許沒被用過(used_count = 0)的碼刪除:舊訂單存的是碼文字,刪了再建同名碼,
+ * 「每人一次」會把舊單算進去;用過的碼只能停用。
+ */
+export async function deleteDiscountCode(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const id = String(formData.get('id') ?? '').trim();
+  if (!slug || !id) throw new Error('缺必要參數');
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const { data, error } = await supabaseAdmin
+    .from('discount_codes')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', tenant.id)
+    .eq('used_count', 0)
+    .select('id');
+  if (error) {
+    console.error('[deleteDiscountCode]', error);
+    throw new Error('刪除失敗:' + error.message);
+  }
+  if (!data || data.length === 0) {
+    const { data: exists } = await supabaseAdmin.from('discount_codes').select('id').eq('id', id).eq('tenant_id', tenant.id).maybeSingle();
+    throw new Error(exists ? '這組折扣碼已有訂單用過,請改停用' : '折扣碼不存在');
+  }
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+}

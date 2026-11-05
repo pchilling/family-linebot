@@ -75,7 +75,7 @@ export function ShippingRules({ tenantSlug, initial }: { tenantSlug: string; ini
         <div className="sx-group">
           <GroupHead
             title="配送方式與運費"
-            desc="免運門檻以商品小計(折扣後)計算,留空就沒有免運。超商店到店:客人結帳選門市,你到 ibon 或 FamiPort 寄件,再回訂單填寄件單號。"
+            desc="免運門檻以商品小計(特價 / 量購價後、折扣碼折抵前)計算,留空就沒有免運。超商店到店:客人結帳選門市,你到 ibon 或 FamiPort 寄件,再回訂單填寄件單號。"
             right={
               <Button type="button" variant="outline" size="sm" onClick={add}>
                 <IconPlus size={14} />

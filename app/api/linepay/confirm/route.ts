@@ -10,7 +10,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { confirmLinePayPayment } from '@/lib/linepay';
 import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,7 @@ type OrderRow = {
   id: string;
   order_no: string;
   total_twd: number;
+  discount_twd: number | null; // Phase 33
   shipping_fee_twd: number | null;
   payment_status: string;
   status: string;
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, payment_status, status, linepay_transaction_id, access_key, users(line_user_id)',
+      'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, linepay_transaction_id, access_key, users(line_user_id)',
     )
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
@@ -80,7 +81,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(orderUrl('?linepay=failed'));
   }
 
-  const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
+  // Phase 33:confirm 金額必須等於 reserve 時的金額,兩邊都用 orderPayable
+  const amount = orderPayable(order);
   const confirmed = await confirmLinePayPayment(transactionId, amount);
   if (!confirmed.ok) {
     return NextResponse.redirect(orderUrl('?linepay=failed'));

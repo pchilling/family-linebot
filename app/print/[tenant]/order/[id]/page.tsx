@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 /**
  * 訂單 A4 出貨單(批次 B #18)。
@@ -36,6 +36,8 @@ type OrderDetail = {
   payment_status: string;
   payment_method: string | null;
   total_twd: number;
+  discount_code: string | null; // Phase 33
+  discount_twd: number | null;
   shipping_fee_twd: number | null;
   shipping_method: string | null;
   invoice_tax_id: string | null;
@@ -97,7 +99,7 @@ export default async function OrderPrintPage({
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      `id, order_no, status, payment_status, payment_method, total_twd, shipping_fee_twd, shipping_method,
+      `id, order_no, status, payment_status, payment_method, total_twd, discount_code, discount_twd, shipping_fee_twd, shipping_method,
        invoice_tax_id, invoice_title,
        shipping_recipient, shipping_phone, shipping_address, note, payment_last5, created_at,
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
@@ -111,7 +113,7 @@ export default async function OrderPrintPage({
   const shipLabel =
     ((tExtra as TExtra)?.shipping_rules?.options ?? []).find((opt) => opt.key === o.shipping_method)
       ?.label ?? null;
-  const grand = o.total_twd + (o.shipping_fee_twd ?? 0);
+  const grand = orderPayable(o); // Phase 33:商品小計 − 折扣 + 運費
 
   return (
     <div
@@ -259,6 +261,13 @@ export default async function OrderPrintPage({
             <span>小計</span>
             <span className="num">NT$ {o.total_twd.toLocaleString()}</span>
           </div>
+          {/* Phase 33:有用折扣碼才印這列 */}
+          {(o.discount_twd ?? 0) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', color: '#374151' }}>
+              <span>折扣{o.discount_code ? `(${o.discount_code})` : ''}</span>
+              <span className="num">−NT$ {(o.discount_twd ?? 0).toLocaleString()}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0 10px', color: '#374151' }}>
             <span>運費{shipLabel ? `(${shipLabel})` : ''}</span>
             <span className="num">

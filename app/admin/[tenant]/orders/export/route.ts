@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 /**
  * 訂單匯出 CSV(2026-09-02,批次 B #20)。
@@ -26,7 +26,7 @@ export async function GET(
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'order_no, status, payment_status, payment_method, payment_last5, total_twd, shipping_method, shipping_fee_twd, invoice_tax_id, invoice_title, source, shipping_recipient, shipping_phone, shipping_address, note, created_at, paid_at, shipped_at, order_items(qty, price_at_purchase, products(name), product_variants(variant_name))',
+      'order_no, status, payment_status, payment_method, payment_last5, total_twd, discount_code, discount_twd, shipping_method, shipping_fee_twd, invoice_tax_id, invoice_title, source, shipping_recipient, shipping_phone, shipping_address, note, created_at, paid_at, shipped_at, order_items(qty, price_at_purchase, products(name), product_variants(variant_name))',
     )
     .eq('tenant_id', tenant.id);
 
@@ -65,6 +65,8 @@ export async function GET(
     payment_method: string | null;
     payment_last5: string | null;
     total_twd: number;
+    discount_code: string | null; // Phase 33
+    discount_twd: number | null;
     shipping_method: string | null;
     shipping_fee_twd: number | null;
     invoice_tax_id: string | null;
@@ -97,9 +99,10 @@ export async function GET(
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
+  // Phase 33(2026-11-06):「運費」之後多「折扣碼」「折扣」兩欄,「合計」= 商品小計 − 折扣 + 運費
   const header = [
     '訂單編號', '建立日期', '狀態', '付款狀態', '付款方式', '匯款後五碼',
-    '商品小計', '運費', '合計', '統一編號', '發票抬頭', '來源', '收件人', '電話', '地址',
+    '商品小計', '運費', '折扣碼', '折扣', '合計', '統一編號', '發票抬頭', '來源', '收件人', '電話', '地址',
     '品項明細', '付款時間', '出貨時間', '備註',
   ];
   const lines = [header.join(',')];
@@ -121,7 +124,9 @@ export async function GET(
         esc(r.payment_last5 ?? ''),
         r.total_twd,
         r.shipping_fee_twd ?? 0,
-        r.total_twd + (r.shipping_fee_twd ?? 0),
+        esc(r.discount_code ?? ''),
+        r.discount_twd ?? 0,
+        orderPayable(r),
         esc(r.invoice_tax_id ?? ''),
         esc(r.invoice_title ?? ''),
         esc(r.source ?? ''),

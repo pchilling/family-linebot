@@ -52,18 +52,20 @@ type StatsRow = { user_id: string; order_count: number; total_spent: number };
 async function getCustomerStats(tenantId: string): Promise<Map<string, StatsRow>> {
   const { data } = await supabaseAdmin
     .from('orders')
-    .select('user_id, total_twd, status')
+    .select('user_id, total_twd, discount_twd, status')
     .eq('tenant_id', tenantId)
     .not('user_id', 'is', null);
   const map = new Map<string, StatsRow>();
-  for (const o of (data ?? []) as Array<{ user_id: string; total_twd: number; status: string }>) {
+  for (const o of (data ?? []) as Array<{ user_id: string; total_twd: number; discount_twd: number | null; status: string }>) {
     if (o.status === 'cancelled' || o.status === 'refunded') continue;
+    // Phase 33:消費金額 = 商品小計 − 折扣碼(不含運費)
+    const net = o.total_twd - (o.discount_twd ?? 0);
     const existing = map.get(o.user_id);
     if (existing) {
       existing.order_count += 1;
-      existing.total_spent += o.total_twd;
+      existing.total_spent += net;
     } else {
-      map.set(o.user_id, { user_id: o.user_id, order_count: 1, total_spent: o.total_twd });
+      map.set(o.user_id, { user_id: o.user_id, order_count: 1, total_spent: net });
     }
   }
   return map;

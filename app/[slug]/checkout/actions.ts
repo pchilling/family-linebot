@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { buildGiftItems, getTenantBySlug, getProductTiers, hasFeature, isSaleActive, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
+import { buildGiftItems, getTenantBySlug, getProductTiers, hasFeature, isSaleActive, orderPayable, pickPriceFromTiers, supabaseAdmin, type TenantBySlug } from '@/lib/supabase';
 import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
 import { isEcpayConfigured } from '@/lib/ecpay';
 import { getCurrentMember } from '@/lib/member-auth';
@@ -73,7 +73,8 @@ type CartItemInput = {
 
 export type CreateOrderResult =
   | { ok: true; orderNo: string; accessKey: string | null }
-  | { ok: false; error: string };
+  // Phase 33:discountInvalid = 折扣碼驗不過,前端要把已套用的碼清掉(整張沒建單)
+  | { ok: false; error: string; discountInvalid?: true };
 
 // D#13:運費規則(tenants.shipping_rules.options;空陣列 = 該攤位不收運費)
 // Phase 29:cvs = 超商店到店(7-ELEVEN / 全家),客人結帳要選門市,不填地址
@@ -201,68 +202,23 @@ export async function getShippingOptions(tenantSlug: string): Promise<ShippingOp
   return Array.isArray(rules?.options) ? rules.options : [];
 }
 
-export async function createOrder(formData: FormData): Promise<CreateOrderResult> {
-  const tenantSlug = String(formData.get('tenantSlug') ?? '').trim();
-  const recipient = String(formData.get('recipient') ?? '').trim();
-  const phone = String(formData.get('phone') ?? '').trim();
-  const address = String(formData.get('address') ?? '').trim();
-  const note = String(formData.get('note') ?? '').trim();
-  const guestEmail = String(formData.get('guestEmail') ?? '').trim();
-  const shippingMethod = String(formData.get('shipping_method') ?? '').trim();
-  // Phase 29:超商店到店選的門市(有選店到店才會有;地址由門市組出來)
-  const cvsStoreName = String(formData.get('cvs_store_name') ?? '').trim().slice(0, 40);
-  const cvsStoreId = String(formData.get('cvs_store_id') ?? '').trim().replace(/\s+/g, '');
-  // 2026-10-15:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
-  // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款,不信任前端
-  const rawPayment = String(formData.get('payment_method') ?? '').trim();
-  // Phase 27:'qr' 掃碼付款(攤位有開才收,不信任前端)
-  const paymentMethod =
-    rawPayment === 'line_pay'
-      ? 'line_pay'
-      : rawPayment === 'ecpay_credit' && (await isEcpayAvailable(tenantSlug))
-        ? 'ecpay_credit'
-        : rawPayment === 'ecpay_atm' && (await isEcpayAtmAvailable(tenantSlug))
-          ? 'ecpay_atm'
-          : rawPayment === 'qr' && (await getQrPaymentPublic(tenantSlug))
-            ? 'qr'
-            : 'bank';
-  // 2026-11-06:統編發票回到專用欄位(勾「需要統編發票」才會有);兩個都要填,統編 8 位數字
-  const invoiceTaxId = String(formData.get('invoice_tax_id') ?? '').replace(/\D/g, '');
-  const invoiceTitle = String(formData.get('invoice_title') ?? '').trim().slice(0, 60);
-  const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
+// ====================
+// 購物車定價(Phase 33 從 createOrder 抽出來):結帳頁套折扣碼的預覽與送單用同一支,
+// 兩邊的 subtotal 才會一樣(2026-09-18 出過前後端價格對不上的 bug)。
+// 單價優先序:特價(% off)→ 組合品固定價 → 分階價。
+// ====================
+type PricedItem = {
+  tenant_id: string;
+  product_id: string;
+  variant_id: string;
+  qty: number;
+  price_at_purchase: number;
+};
+type PriceCartResult =
+  | { ok: true; pricedItems: PricedItem[]; subtotal: number }
+  | { ok: false; error: string };
 
-  if (!tenantSlug) return { ok: false, error: '無攤位資訊' };
-  if (!recipient) return { ok: false, error: '請填收件人姓名' };
-  if (!phone) return { ok: false, error: '請填聯絡電話' };
-  if (guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) return { ok: false, error: 'Email 格式不對' };
-  if (invoiceTaxId || invoiceTitle) {
-    if (!/^\d{8}$/.test(invoiceTaxId)) return { ok: false, error: '統一編號要 8 位數字' };
-    if (!invoiceTitle) return { ok: false, error: '請填發票抬頭' };
-  }
-  // 地址:店到店用門市代替、自取不用填,下面決定配送方式時再檢查
-
-  let cartItems: CartItemInput[];
-  try {
-    const parsed: unknown = JSON.parse(cartItemsRaw);
-    if (!Array.isArray(parsed)) throw new Error('not array');
-    cartItems = parsed
-      .map((i) => {
-        const item = i as { variantId?: unknown; qty?: unknown };
-        return {
-          variantId: String(item.variantId ?? ''),
-          qty: Math.max(1, Math.floor(Number(item.qty) || 0)),
-        };
-      })
-      .filter((i) => i.variantId);
-  } catch {
-    return { ok: false, error: '購物車資料異常' };
-  }
-
-  if (cartItems.length === 0) return { ok: false, error: '購物車是空的' };
-
-  const tenant = await getTenantBySlug(tenantSlug);
-  if (!tenant) return { ok: false, error: '攤位不存在' };
-
+async function priceCart(tenant: TenantBySlug, cartItems: CartItemInput[]): Promise<PriceCartResult> {
   // 重新從 DB 拉 variant 真實價格 / 狀態 / 庫存(不信任 client cart 的 price)
   const variantIds = cartItems.map((i) => i.variantId);
   const { data: variants, error: vErr } = await supabaseAdmin
@@ -272,7 +228,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     .eq('tenant_id', tenant.id);
 
   if (vErr) {
-    console.error('[createOrder fetch variants]', vErr);
+    console.error('[priceCart fetch variants]', vErr);
     return { ok: false, error: '查詢商品失敗' };
   }
 
@@ -304,7 +260,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
 
   // Phase 9.5/9.9:結帳時用 sale + tier 重算每個 line 的單價
   // 優先級:sale 生效 → sale 通殺;否則 tier(以同 product_id 整單 qty 算)
-  // (D#13 改序:先算完單價才能算折後小計 → 運費免運門檻 → 再建 order)
+  // (D#13 改序:先算完單價才能算商品小計 → 運費免運門檻 → 再建 order)
   const qtyByProduct = new Map<string, number>();
   for (const item of cartItems) {
     const v = variantMap.get(item.variantId);
@@ -343,7 +299,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
 
   const now = new Date();
 
-  const pricedItems = cartItems.map((item) => {
+  const pricedItems: PricedItem[] = cartItems.map((item) => {
     const v = variantMap.get(item.variantId)!;
     const sale = saleByProduct.get(v.product_id);
     const saleActive =
@@ -375,8 +331,226 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     };
   });
 
-  // D#13:運費 server 端計算(免運門檻用折扣後的商品小計)
+  // 商品小計(= 之後 trigger 算出的 orders.total_twd;贈品 0 元不影響)
   const subtotal = pricedItems.reduce((s, it) => s + it.price_at_purchase * it.qty, 0);
+  return { ok: true, pricedItems, subtotal };
+}
+
+/** 前端送來的 cartItems 清洗(createOrder 與 applyDiscountCode 共用) */
+function parseCartItems(raw: unknown): CartItemInput[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw
+    .map((i) => {
+      const item = i as { variantId?: unknown; qty?: unknown };
+      return {
+        variantId: String(item.variantId ?? ''),
+        qty: Math.max(1, Math.floor(Number(item.qty) || 0)),
+      };
+    })
+    .filter((i) => i.variantId)
+    .slice(0, 100);
+}
+
+// ====================
+// Phase 33(2026-11-06):折扣碼
+// 只折商品小計、不折運費;免運門檻與滿額贈都看折扣前的小計。
+// 套用(預覽)與送單走同一支 validateDiscountCode;送單時 server 一定重驗重算,不信任前端金額。
+// ====================
+const CODE_RE = /^[A-Z0-9]{3,20}$/;
+const normalizeCode = (s: string) => s.normalize('NFKC').replace(/\s+/g, '').toUpperCase();
+// 比對用:去非數字,+886 912 345 678 → 0912345678(結帳頁電話欄允許 '+',同一支手機兩種寫法要算同一人);
+// 只在比對時正規化,存進 orders.shipping_phone 的原字串不動
+const phoneDigits = (s: string) => s.replace(/\D/g, '').replace(/^886(?=9\d{8}$)/, '0');
+const twMD = (iso: string) => new Date(iso).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric' });
+
+type DiscountRow = {
+  id: string;
+  code: string;
+  type: 'percent' | 'fixed';
+  value: number;
+  min_subtotal: number | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  max_uses: number | null;
+  used_count: number;
+  per_customer_once: boolean;
+  enabled: boolean;
+};
+type DiscountCheck = { ok: true; row: DiscountRow; discount_twd: number } | { ok: false; error: string };
+
+/** 折扣金額:percent 四捨五入到整數;不得超過商品小計 */
+function computeDiscount(type: 'percent' | 'fixed', value: number, subtotal: number): number {
+  const raw = type === 'percent' ? Math.round((subtotal * value) / 100) : value;
+  return Math.max(0, Math.min(raw, subtotal));
+}
+
+async function validateDiscountCode(tenantId: string, rawCode: string, subtotal: number, phone: string): Promise<DiscountCheck> {
+  const code = normalizeCode(rawCode);
+  if (!code) return { ok: false, error: '請先輸入折扣碼' };
+  if (!CODE_RE.test(code)) return { ok: false, error: '折扣碼是 3 到 20 位的英文或數字,請再核對一次' };
+
+  const { data, error } = await supabaseAdmin
+    .from('discount_codes')
+    .select('id, code, type, value, min_subtotal, starts_at, ends_at, max_uses, used_count, per_customer_once, enabled')
+    .eq('tenant_id', tenantId)
+    .eq('code', code)
+    .maybeSingle();
+  if (error) {
+    console.error('[validateDiscountCode]', error);
+    return { ok: false, error: '查詢折扣碼失敗,請稍後再試' };
+  }
+  const row = (data ?? null) as DiscountRow | null;
+  if (!row) return { ok: false, error: '找不到這組折扣碼,請再核對一次' };
+  if (!row.enabled) return { ok: false, error: '這組折扣碼目前無法使用' };
+
+  const nowMs = Date.now();
+  if (row.starts_at && nowMs < new Date(row.starts_at).getTime()) {
+    return { ok: false, error: `這組折扣碼 ${twMD(row.starts_at)} 才開始,請到時候再來用` };
+  }
+  if (row.ends_at && nowMs > new Date(row.ends_at).getTime()) {
+    return { ok: false, error: `這組折扣碼已在 ${twMD(row.ends_at)} 到期了` };
+  }
+  // 預檢;真正擋超賣的是 insert 時的 trigger(DISCOUNT_CODE_EXHAUSTED)
+  if (row.max_uses !== null && row.used_count >= row.max_uses) return { ok: false, error: '這組折扣碼已經被用完了' };
+  if (row.min_subtotal !== null && subtotal < row.min_subtotal) {
+    return {
+      ok: false,
+      error: `商品小計滿 NT$ ${row.min_subtotal.toLocaleString('en-US')} 才能用這組折扣碼,還差 NT$ ${(row.min_subtotal - subtotal).toLocaleString('en-US')}`,
+    };
+  }
+
+  // 每人一次:比收件電話(去非數字;歷史訂單的電話沒正規化,SQL eq 會漏 0912-345-678)。
+  // 套用時電話還沒填就跳過這條,送單時一定查。
+  const digits = phoneDigits(phone);
+  if (row.per_customer_once && digits) {
+    const { data: used } = await supabaseAdmin
+      .from('orders')
+      .select('shipping_phone')
+      .eq('tenant_id', tenantId)
+      .eq('discount_code', row.code)
+      .not('status', 'in', '(cancelled,refunded)');
+    const hit = ((used ?? []) as { shipping_phone: string | null }[]).some((o) => phoneDigits(o.shipping_phone ?? '') === digits);
+    if (hit) return { ok: false, error: '這組折扣碼每位客人限用一次,這個電話之前已經用過了' };
+  }
+
+  const discount = computeDiscount(row.type, row.value, subtotal);
+  if (discount <= 0) return { ok: false, error: '這組折扣碼對目前的購物車沒有折扣' };
+  // 折後商品小計必須 > 0:保證應付 ≥ 1,LINE Pay / 綠界不會收到 0 元
+  if (discount >= subtotal) return { ok: false, error: '這組折扣碼會把商品金額折到 0,不適用這筆訂單' };
+
+  return { ok: true, row, discount_twd: discount };
+}
+
+export type ApplyDiscountResult =
+  | { ok: true; code: string; type: 'percent' | 'fixed'; value: number; discount_twd: number; subtotal: number; per_customer_once: boolean }
+  | { ok: false; error: string };
+
+/**
+ * 結帳頁「套用」鈕:用跟送單一樣的定價與驗證,回折扣金額給前端顯示。
+ * 回來的 discount_twd 前端只用來顯示;送單時 server 會重算。
+ */
+export async function applyDiscountCode(
+  tenantSlug: string,
+  code: string,
+  cartItems: { variantId: string; qty: number }[],
+  phone: string,
+): Promise<ApplyDiscountResult> {
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+  const items = parseCartItems(cartItems);
+  if (!items || items.length === 0) return { ok: false, error: '購物車是空的' };
+
+  const priced = await priceCart(tenant, items);
+  if (!priced.ok) return { ok: false, error: priced.error };
+
+  const dc = await validateDiscountCode(tenant.id, code, priced.subtotal, String(phone ?? ''));
+  if (!dc.ok) return { ok: false, error: dc.error };
+  return {
+    ok: true,
+    code: dc.row.code,
+    type: dc.row.type,
+    value: dc.row.value,
+    discount_twd: dc.discount_twd,
+    subtotal: priced.subtotal,
+    per_customer_once: dc.row.per_customer_once,
+  };
+}
+
+/** 這個攤位有沒有啟用中的折扣碼;結帳頁用它決定要不要顯示折扣碼輸入區 */
+export async function hasDiscountCodes(tenantSlug: string): Promise<boolean> {
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return false;
+  const { data } = await supabaseAdmin
+    .from('discount_codes')
+    .select('id')
+    .eq('tenant_id', tenant.id)
+    .eq('enabled', true)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+export async function createOrder(formData: FormData): Promise<CreateOrderResult> {
+  const tenantSlug = String(formData.get('tenantSlug') ?? '').trim();
+  const recipient = String(formData.get('recipient') ?? '').trim();
+  const phone = String(formData.get('phone') ?? '').trim();
+  const address = String(formData.get('address') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim();
+  const guestEmail = String(formData.get('guestEmail') ?? '').trim();
+  const shippingMethod = String(formData.get('shipping_method') ?? '').trim();
+  // Phase 29:超商店到店選的門市(有選店到店才會有;地址由門市組出來)
+  const cvsStoreName = String(formData.get('cvs_store_name') ?? '').trim().slice(0, 40);
+  const cvsStoreId = String(formData.get('cvs_store_id') ?? '').trim().replace(/\s+/g, '');
+  // 2026-10-15:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
+  // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款,不信任前端
+  const rawPayment = String(formData.get('payment_method') ?? '').trim();
+  // Phase 27:'qr' 掃碼付款(攤位有開才收,不信任前端)
+  const paymentMethod =
+    rawPayment === 'line_pay'
+      ? 'line_pay'
+      : rawPayment === 'ecpay_credit' && (await isEcpayAvailable(tenantSlug))
+        ? 'ecpay_credit'
+        : rawPayment === 'ecpay_atm' && (await isEcpayAtmAvailable(tenantSlug))
+          ? 'ecpay_atm'
+          : rawPayment === 'qr' && (await getQrPaymentPublic(tenantSlug))
+            ? 'qr'
+            : 'bank';
+  // 2026-11-06:統編發票回到專用欄位(勾「需要統編發票」才會有);兩個都要填,統編 8 位數字
+  const invoiceTaxId = String(formData.get('invoice_tax_id') ?? '').replace(/\D/g, '');
+  const invoiceTitle = String(formData.get('invoice_title') ?? '').trim().slice(0, 60);
+  // Phase 33:折扣碼只收文字,不收金額;server 重驗重算
+  const discountCodeRaw = String(formData.get('discount_code') ?? '');
+  const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
+
+  if (!tenantSlug) return { ok: false, error: '無攤位資訊' };
+  if (!recipient) return { ok: false, error: '請填收件人姓名' };
+  if (!phone) return { ok: false, error: '請填聯絡電話' };
+  if (guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) return { ok: false, error: 'Email 格式不對' };
+  if (invoiceTaxId || invoiceTitle) {
+    if (!/^\d{8}$/.test(invoiceTaxId)) return { ok: false, error: '統一編號要 8 位數字' };
+    if (!invoiceTitle) return { ok: false, error: '請填發票抬頭' };
+  }
+  // 地址:店到店用門市代替、自取不用填,下面決定配送方式時再檢查
+
+  let cartItems: CartItemInput[];
+  try {
+    const parsed = parseCartItems(JSON.parse(cartItemsRaw));
+    if (!parsed) throw new Error('not array');
+    cartItems = parsed;
+  } catch {
+    return { ok: false, error: '購物車資料異常' };
+  }
+
+  if (cartItems.length === 0) return { ok: false, error: '購物車是空的' };
+
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  // 定價(特價 / 組合品 / 分階)、驗下架與庫存:跟結帳頁套折扣碼的預覽同一支
+  const priced = await priceCart(tenant, cartItems);
+  if (!priced.ok) return { ok: false, error: priced.error };
+  const { pricedItems, subtotal } = priced;
+
+  // D#13:運費 server 端計算(免運門檻用特價 / 量購價後、折扣碼折抵前的商品小計)
   const shipOptions = await getShippingOptions(tenantSlug);
   let shippingFee = 0;
   let shippingKey: string | null = null;
@@ -403,12 +577,18 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     return { ok: false, error: '請填寄送地址' };
   }
 
+  // Phase 33:折扣碼只先正規化,驗證放在防重複檢查「之後」—
+  // 雙擊 / 網路重送的第二個請求若先驗碼,會被自己的第一張單判成「已用過 / 已用完」,
+  // 客人移除碼再送就建出第二張全價單;先比對既有單就直接回第一張單號
+  const discountCodeWanted = normalizeCode(discountCodeRaw) || null;
+
   // 2026-09-21 防重複下單:同電話 2 分鐘內送出「內容完全相同」的單,
   // 直接回第一筆的單號(雙擊 / 網路重送不再建新單、不重複扣庫存)
+  // Phase 33:折扣碼也要一樣(第一張沒帶碼、第二張帶碼不能回第一張)
   const cartSig = cartItems.map((c) => `${c.variantId}x${c.qty}`).sort().join(',');
   const { data: recentDup } = await supabaseAdmin
     .from('orders')
-    .select('order_no, access_key, order_items(variant_id, qty)')
+    .select('order_no, access_key, discount_code, order_items(variant_id, qty)')
     .eq('tenant_id', tenant.id)
     .eq('shipping_phone', phone)
     .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
@@ -416,12 +596,23 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     .limit(1)
     .maybeSingle();
   if (recentDup) {
-    const dup = recentDup as { order_no: string; access_key: string | null; order_items: { variant_id: string | null; qty: number }[] | null };
+    const dup = recentDup as { order_no: string; access_key: string | null; discount_code: string | null; order_items: { variant_id: string | null; qty: number }[] | null };
     const dupSig = (dup.order_items ?? []).map((i) => `${i.variant_id}x${i.qty}`).sort().join(',');
-    if (dupSig === cartSig) {
+    if (dupSig === cartSig && (dup.discount_code ?? null) === discountCodeWanted) {
       console.warn('[createOrder] 2 分鐘內重複下單,回既有單號', dup.order_no);
       return { ok: true, orderNo: dup.order_no, accessKey: dup.access_key ?? null };
     }
+  }
+
+  // Phase 33:折扣碼 — 有帶碼才驗;驗不過整張不建單,回 discountInvalid 讓前端清掉已套用的碼
+  //(絕不默默拿掉折扣或照前端金額收)
+  let discountCode: string | null = null;
+  let discountTwd = 0;
+  if (discountCodeWanted) {
+    const dc = await validateDiscountCode(tenant.id, discountCodeRaw, subtotal, phone);
+    if (!dc.ok) return { ok: false, error: `${dc.error}。已幫您移除折扣碼,請確認金額後再送出一次`, discountInvalid: true };
+    discountCode = dc.row.code;
+    discountTwd = dc.discount_twd;
   }
 
   // Phase 26:已登入就把訂單綁到會員(platform_users),「我的訂單」靠這個找;沒登入維持訪客單
@@ -452,16 +643,27 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       // 2026-11-06:統編發票專用欄位
       invoice_tax_id: invoiceTaxId || null,
       invoice_title: invoiceTaxId ? invoiceTitle : null,
+      // Phase 33:折扣碼(大寫文字)與折扣金額;total_twd 仍由 trigger 從 items 算,應付 = orderPayable()
+      discount_code: discountCode,
+      discount_twd: discountTwd,
     })
     .select('id, order_no, access_key')
     .single();
 
   if (oErr || !orderRow) {
+    // Phase 33:trigger 的列鎖擋到最後一個名額被搶走 → 整張沒建,請客人移除碼再送
+    if (oErr?.message?.includes('DISCOUNT_CODE_EXHAUSTED')) {
+      return { ok: false, error: '這組折扣碼剛好被用完了。已幫您移除折扣碼,請確認金額後再送出一次', discountInvalid: true };
+    }
+    // Phase 33:「每人一次」的 DB 層保證(trigger 用 advisory lock 擋同電話同時送兩張)
+    if (oErr?.message?.includes('DISCOUNT_CODE_USED')) {
+      return { ok: false, error: '這組折扣碼每位客人限用一次,這個電話已經用過了。已幫您移除折扣碼,請確認金額後再送出一次', discountInvalid: true };
+    }
     console.error('[createOrder insert order]', oErr);
     return { ok: false, error: '建立訂單失敗' };
   }
 
-  // Phase 16(#12):滿額贈 — 折後小計達標的規則各加一行 0 元贈品
+  // Phase 16(#12):滿額贈 — 特價 / 量購價後、折扣碼折抵前的小計達標的規則各加一行 0 元贈品
   const giftItems = await buildGiftItems(tenant.id, subtotal);
   const itemsToInsert = [
     ...pricedItems.map((it) => ({
@@ -478,6 +680,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const { error: iErr } = await supabaseAdmin.from('order_items').insert(itemsToInsert);
 
   if (iErr) {
+    // Phase 33:把空單刪掉(跟 LIFF placeOrder 一樣);空單沒有 items、沒扣庫存,
+    // trigger 的 DELETE 分支會把折扣碼的 used_count 減回,不會留一張佔名額的孤兒單
+    await supabaseAdmin.from('orders').delete().eq('id', (orderRow as { id: string }).id);
     console.error('[createOrder insert items]', iErr);
     return { ok: false, error: '建立訂單明細失敗' };
   }
@@ -541,7 +746,7 @@ export async function startLinePay(
 
   const { data } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, total_twd, shipping_fee_twd, payment_status, status, payment_method, access_key')
+    .select('id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, payment_method, access_key')
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
     .maybeSingle();
@@ -549,6 +754,7 @@ export async function startLinePay(
     id: string;
     order_no: string;
     total_twd: number;
+    discount_twd: number | null; // Phase 33
     shipping_fee_twd: number | null;
     payment_status: string;
     status: string;
@@ -570,7 +776,8 @@ export async function startLinePay(
     return { ok: false, error: '這筆訂單不是 LINE Pay 付款' };
   }
 
-  const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
+  // Phase 33:應付 = 商品小計 − 折扣 + 運費
+  const amount = orderPayable(order);
   if (amount <= 0) return { ok: false, error: '訂單金額異常,請聯絡客服' };
 
   const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');

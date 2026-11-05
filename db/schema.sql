@@ -1492,3 +1492,108 @@ $$ language plpgsql;
 -- 多特瑞政策第 12 條要求的「本站非公司經營」聲明也靠這欄。空白就不顯示。
 -- ====================
 alter table tenants add column if not exists disclaimer text;
+
+
+-- ====================
+-- Phase 33(2026-11-06):折扣碼
+-- 攤主在「設定 → 行銷」建碼,客人在網站結帳頁輸入。只折商品小計、不折運費;
+-- 免運門檻與滿額贈都看「折扣前」的商品小計(客人買的東西沒變)。
+-- orders.total_twd 仍是商品小計(refresh_order_total 從 order_items 算),折扣另存 discount_twd,
+-- 應付總額 = total_twd - discount_twd + shipping_fee_twd(lib/supabase.ts 的 orderPayable,全站只有這一個公式)。
+-- used_count 是快取,真實來源是 orders 裡用了這個碼且沒取消 / 退款的單,由下面的 trigger 維護
+--(跟 products.stock 對 stock_movements 同一套想法),app 端不寫計數器。
+-- LINE 商店(app/m/shop)這輪不收折扣碼,discount_twd 走預設 0,所有公式自然成立。
+-- ====================
+create table if not exists discount_codes (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  code text not null check (code ~ '^[A-Z0-9]{3,20}$'),              -- 一律存大寫;app 端 trim + NFKC + toUpperCase 後才進來
+  type text not null check (type in ('percent', 'fixed')),            -- percent = 便宜幾 %(1–99);fixed = 折抵 NT$
+  value int not null check (value > 0),
+  min_subtotal int check (min_subtotal is null or min_subtotal > 0),  -- 折扣前商品小計門檻;null = 不限
+  starts_at timestamptz,                                              -- null = 立即可用;有值 = 台北當天 00:00:00
+  ends_at timestamptz,                                                -- null = 不過期;有值 = 台北當天 23:59:59(含當天)
+  max_uses int check (max_uses is null or max_uses > 0),              -- null = 不限
+  used_count int not null default 0 check (used_count >= 0),          -- 快取,trigger 維護
+  per_customer_once boolean not null default false,                   -- 用訂單 shipping_phone(去非數字)判斷
+  enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (tenant_id, code),
+  check (type <> 'percent' or value between 1 and 99),                -- 100% off 在 DB 層就擋
+  check (starts_at is null or ends_at is null or ends_at > starts_at)
+);
+create index if not exists discount_codes_tenant_idx on discount_codes(tenant_id, created_at desc);
+alter table discount_codes enable row level security;                -- 不建 policy,全站慣例
+
+-- orders 兩欄:存碼的文字不存 FK,碼刪了訂單還看得到用過哪個碼
+alter table orders add column if not exists discount_code text;
+alter table orders add column if not exists discount_twd int not null default 0 check (discount_twd >= 0);
+-- 「每人一次」查同碼的有效單、trigger 回補都走這個索引;只索引有用碼的單
+create index if not exists orders_discount_code_idx on orders(tenant_id, discount_code) where discount_code is not null;
+
+-- used_count 維護 + 用 update 的列鎖擋超賣、擋「每人一次」被同時送兩張繞過
+create or replace function sync_discount_code_usage()
+returns trigger as $$
+declare
+  v_used int;
+  v_max int;
+  v_once boolean;
+  v_phone text;
+begin
+  if tg_op = 'INSERT' then
+    if new.discount_code is not null then
+      -- update 鎖住該列:兩個客人同時搶最後一個名額,第二張單要等第一張 commit 才算,
+      -- 算出來超過上限就 raise,整張 insert 連同這次 +1 一起 rollback
+      update discount_codes set used_count = used_count + 1
+        where tenant_id = new.tenant_id and code = new.discount_code
+        returning used_count, max_uses, per_customer_once into v_used, v_max, v_once;
+      if v_max is not null and v_used > v_max then
+        raise exception 'DISCOUNT_CODE_EXHAUSTED';
+      end if;
+      -- 每人一次:app 端送單前已先查過,這裡是 DB 層保證。上面的 update 已鎖住這個碼的列,
+      -- 同碼的 insert 一定排隊,排到時前一張已 commit、這裡查得到 → 同電話同時送兩張只會過一張。
+      -- 電話去非數字、+886 9xx → 09xx(跟 app 端 phoneDigits 同一套);歷史訂單的電話沒正規化所以兩邊都洗
+      if v_once then
+        v_phone := regexp_replace(regexp_replace(coalesce(new.shipping_phone, ''), '\D', '', 'g'), '^886(9\d{8})$', '0\1');
+        if v_phone <> '' and exists (
+          select 1 from orders o
+          where o.tenant_id = new.tenant_id
+            and o.discount_code = new.discount_code
+            and o.id <> new.id
+            and o.status not in ('cancelled', 'refunded')
+            and regexp_replace(regexp_replace(coalesce(o.shipping_phone, ''), '\D', '', 'g'), '^886(9\d{8})$', '0\1') = v_phone
+        ) then
+          raise exception 'DISCOUNT_CODE_USED';
+        end if;
+      end if;
+    end if;
+    return null;
+  elsif tg_op = 'UPDATE' then
+    -- 後台 updateOrder 每次都 set status(即使沒變),所以一定要比 old / new
+    if new.discount_code is not null then
+      if new.status in ('cancelled', 'refunded') and old.status not in ('cancelled', 'refunded') then
+        update discount_codes set used_count = greatest(used_count - 1, 0)
+          where tenant_id = new.tenant_id and code = new.discount_code;
+      elsif old.status in ('cancelled', 'refunded') and new.status not in ('cancelled', 'refunded') then
+        update discount_codes set used_count = used_count + 1
+          where tenant_id = new.tenant_id and code = new.discount_code;
+      end if;
+    end if;
+    return null;
+  else
+    -- DELETE:建單失敗把空單刪掉(createOrder / LIFF placeOrder)或人工刪單,還是有效單才 -1
+    if old.discount_code is not null and old.status not in ('cancelled', 'refunded') then
+      update discount_codes set used_count = greatest(used_count - 1, 0)
+        where tenant_id = old.tenant_id and code = old.discount_code;
+    end if;
+    return null;
+  end if;
+end;
+$$ language plpgsql;
+
+drop trigger if exists orders_discount_usage on orders;
+create trigger orders_discount_usage
+  after insert or update of status or delete on orders
+  for each row execute function sync_discount_code_usage();
+
+NOTIFY pgrst, 'reload schema';

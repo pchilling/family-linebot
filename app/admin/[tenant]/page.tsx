@@ -24,6 +24,7 @@ type OrderRow = {
   payment_method: string | null;
   source: string;
   total_twd: number;
+  discount_twd: number | null; // Phase 33
   shipping_fee_twd: number | null;
   user_id: string | null;
   shipping_phone: string | null;
@@ -105,7 +106,7 @@ export default async function TenantDashboardPage({ params, searchParams }: Prop
       supabaseAdmin
         .from('orders')
         .select(
-          'id, status, payment_status, payment_method, source, total_twd, shipping_fee_twd, user_id, shipping_phone, created_at, order_items(qty, price_at_purchase, products(name, category))',
+          'id, status, payment_status, payment_method, source, total_twd, discount_twd, shipping_fee_twd, user_id, shipping_phone, created_at, order_items(qty, price_at_purchase, products(name, category))',
         )
         .eq('tenant_id', tenant.id)
         .gte('created_at', new Date(Math.min(since90.getTime(), lastMonthStart.getTime())).toISOString())
@@ -166,7 +167,8 @@ export default async function TenantDashboardPage({ params, searchParams }: Prop
   // ── 第一排:本月 vs 上月同期 ──
   const thisM = valid.filter((o) => inRange(o, monthStart));
   const lastM = valid.filter((o) => inRange(o, lastMonthStart, lastMonthSameEnd));
-  const sum = (xs: typeof valid) => xs.reduce((s, o) => s + (o.total_twd ?? 0), 0);
+  // Phase 33:營收 = 商品小計 − 折扣碼(口徑維持不含運費)
+  const sum = (xs: typeof valid) => xs.reduce((s, o) => s + (o.total_twd ?? 0) - (o.discount_twd ?? 0), 0);
   const revThis = sum(thisM);
   const revLast = sum(lastM);
   const shipThis = thisM.reduce((s, o) => s + (o.shipping_fee_twd ?? 0), 0);

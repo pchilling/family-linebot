@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { refundLinePayPayment } from '@/lib/linepay';
 import { refundEcpayCredit } from '@/lib/ecpay';
 import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
@@ -1077,7 +1077,7 @@ export async function refundLinePayOrder(formData: FormData) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, linepay_transaction_id, linepay_refunded_twd, access_key, users(line_user_id)',
+      'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, payment_method, linepay_transaction_id, linepay_refunded_twd, access_key, users(line_user_id)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -1085,6 +1085,7 @@ export async function refundLinePayOrder(formData: FormData) {
     id: string;
     order_no: string;
     total_twd: number;
+    discount_twd: number | null; // Phase 33
     shipping_fee_twd: number | null;
     payment_status: string;
     payment_method: string | null;
@@ -1099,7 +1100,7 @@ export async function refundLinePayOrder(formData: FormData) {
     return back('refund_failed');
   }
 
-  const grandTotal = order.total_twd + (order.shipping_fee_twd ?? 0);
+  const grandTotal = orderPayable(order); // Phase 33:可退上限 = 實際付的錢(折後含運)
   const already = order.linepay_refunded_twd ?? 0;
   const remaining = grandTotal - already;
   if (remaining <= 0) {
@@ -1187,7 +1188,7 @@ export async function refundEcpayOrder(formData: FormData) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, payment_status, payment_method, ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, access_key, users(line_user_id)',
+      'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, payment_method, ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, access_key, users(line_user_id)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -1195,6 +1196,7 @@ export async function refundEcpayOrder(formData: FormData) {
     id: string;
     order_no: string;
     total_twd: number;
+    discount_twd: number | null; // Phase 33
     shipping_fee_twd: number | null;
     payment_status: string;
     payment_method: string | null;
@@ -1216,7 +1218,7 @@ export async function refundEcpayOrder(formData: FormData) {
     return back('refund_failed', '這筆不是已收款的綠界信用卡訂單');
   }
 
-  const grandTotal = order.total_twd + (order.shipping_fee_twd ?? 0);
+  const grandTotal = orderPayable(order); // Phase 33:可退上限 = 實際付的錢(折後含運)
   const already = order.ecpay_refunded_twd ?? 0;
   const remaining = grandTotal - already;
   if (remaining <= 0) {

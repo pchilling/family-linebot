@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { updateOrder, markOrderPaid, markOrderShipped, refundEcpayOrder, refundLinePayOrder } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
@@ -44,6 +44,8 @@ type OrderDetail = {
   invoice_tax_id: string | null; // Phase 15.4:統編發票
   invoice_title: string | null;
   total_twd: number;
+  discount_code: string | null; // Phase 33:用過的折扣碼(文字)
+  discount_twd: number;
   shipping_method: string | null;
   shipping_fee_twd: number;
   source: string;
@@ -80,7 +82,7 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
        linepay_transaction_id, linepay_refunded_twd,
        ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, refund_note, atm_bank_code, atm_vaccount, atm_expire_at,
        invoice_tax_id, invoice_title,
-       total_twd, shipping_method, shipping_fee_twd, source,
+       total_twd, discount_code, discount_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at, access_key,
        users(line_user_id, display_name, full_name, phone),
@@ -203,7 +205,7 @@ export default async function OrderDetailPage({
   const isPickup = o.shipping_method === 'pickup';
   // Phase 29:超商店到店 — 出貨時要填寄件單號
   const cvs = isCvsChain(o.cvs_type) ? o.cvs_type : null;
-  const grandTotal = o.total_twd + (o.shipping_fee_twd ?? 0);
+  const grandTotal = orderPayable(o); // Phase 33:商品小計 − 折扣 + 運費
   // 付款方式下拉:資料裡若是沒列的代碼也要顯示出來,不然存檔會被改掉
   const methodOptions =
     o.payment_method && !PAY_METHODS.some((m) => m.value === o.payment_method)
@@ -284,15 +286,22 @@ export default async function OrderDetailPage({
                   </div>
                 );
               })}
-              {(o.shipping_fee_twd ?? 0) > 0 && (
+              {((o.shipping_fee_twd ?? 0) > 0 || (o.discount_twd ?? 0) > 0) && (
                 <>
                   <div className="sum" style={{ paddingTop: 12 }}>
                     <span>商品小計</span>
                     <span>{money(o.total_twd)}</span>
                   </div>
+                  {/* Phase 33:折扣碼只折商品小計 */}
+                  {(o.discount_twd ?? 0) > 0 && (
+                    <div className="sum">
+                      <span>折扣碼 {o.discount_code}</span>
+                      <span style={{ color: '#15803d' }}>−{money(o.discount_twd)}</span>
+                    </div>
+                  )}
                   <div className="sum">
                     <span>運費{o.shipping_method ? `(${o.shipping_method})` : ''}</span>
-                    <span>{money(o.shipping_fee_twd)}</span>
+                    <span>{money(o.shipping_fee_twd ?? 0)}</span>
                   </div>
                 </>
               )}
@@ -430,8 +439,12 @@ export default async function OrderDetailPage({
                   )}
                   <p className="odd-note" style={{ margin: '0 0 14px', color: '#78350f' }}>
                     核對入帳後標記為已收款,訂單會變成已付款、算進今日營收。
-                    {(o.shipping_fee_twd ?? 0) > 0 && (
-                      <> 應收 <strong>{money(grandTotal)}</strong>(含運費 {o.shipping_fee_twd})。</>
+                    {((o.shipping_fee_twd ?? 0) > 0 || (o.discount_twd ?? 0) > 0) && (
+                      <> 應收 <strong>{money(grandTotal)}</strong>(
+                        {(o.shipping_fee_twd ?? 0) > 0 && <>含運費 {o.shipping_fee_twd}</>}
+                        {(o.shipping_fee_twd ?? 0) > 0 && (o.discount_twd ?? 0) > 0 && '、'}
+                        {(o.discount_twd ?? 0) > 0 && <>已折 {o.discount_twd}</>}
+                        )。</>
                     )}
                   </p>
                   <form action={markOrderPaid} className="odd-form">

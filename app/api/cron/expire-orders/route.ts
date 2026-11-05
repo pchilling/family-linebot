@@ -28,7 +28,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { buildPaymentFlexMessage, buildReviewInviteFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
 import { checkLinePayPaymentStatus, confirmLinePayPayment } from '@/lib/linepay';
 import { applyEcpayPaymentResult, queryEcpayTrade } from '@/lib/ecpay';
-import { supabaseAdmin } from '@/lib/supabase';
+import { orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +57,7 @@ type PendingLinePayOrder = {
   id: string;
   order_no: string;
   total_twd: number;
+  discount_twd: number | null; // Phase 33
   shipping_fee_twd: number | null;
   linepay_transaction_id: string;
   access_key: string | null;
@@ -74,7 +75,7 @@ async function reconcileLinePay(): Promise<string[]> {
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, shipping_fee_twd, linepay_transaction_id, access_key, tenants(slug), users(line_user_id)',
+      'id, order_no, total_twd, discount_twd, shipping_fee_twd, linepay_transaction_id, access_key, tenants(slug), users(line_user_id)',
     )
     .eq('payment_status', 'pending')
     .eq('status', 'open')
@@ -92,7 +93,7 @@ async function reconcileLinePay(): Promise<string[]> {
     const status = await checkLinePayPaymentStatus(o.linepay_transaction_id);
     if (!status.authorized) continue; // 多半是客人根本沒付,略過
 
-    const amount = o.total_twd + (o.shipping_fee_twd ?? 0);
+    const amount = orderPayable(o); // Phase 33:補請款金額同 reserve
     const confirmed = await confirmLinePayPayment(o.linepay_transaction_id, amount);
     if (!confirmed.ok) {
       console.error('[reconcileLinePay] 補請款失敗', o.order_no, confirmed.code, confirmed.error);

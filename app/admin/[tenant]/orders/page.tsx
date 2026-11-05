@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getTenantBySlug, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { markOrderPaid, markOrderShipped } from '../../actions';
 import { ConfirmButton } from '../../_components/confirm-button';
 import { FlashToast } from '../../../_components/toast';
@@ -18,6 +18,8 @@ type OrderRow = {
   status: string;
   payment_status: string;
   total_twd: number;
+  discount_code: string | null; // Phase 33
+  discount_twd: number | null;
   source: string;
   shipping_recipient: string | null;
   shipping_phone: string | null;
@@ -45,7 +47,7 @@ async function getOrders(tenantId: string, f: Filters): Promise<OrderRow[]> {
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, total_twd, source, shipping_recipient, shipping_phone, shipping_method, shipping_fee_twd, payment_reported_at, payment_last5, payment_method, cvs_type, created_at, users(display_name, full_name)',
+      'id, order_no, status, payment_status, total_twd, discount_code, discount_twd, source, shipping_recipient, shipping_phone, shipping_method, shipping_fee_twd, payment_reported_at, payment_last5, payment_method, cvs_type, created_at, users(display_name, full_name)',
     )
     .eq('tenant_id', tenantId);
 
@@ -290,8 +292,9 @@ export default async function OrdersListPage({
                   </div>
 
                   <div className="c-amt od-amt">
-                    NT$ {(o.total_twd + (o.shipping_fee_twd ?? 0)).toLocaleString()}
+                    NT$ {orderPayable(o).toLocaleString()}
                     {(o.shipping_fee_twd ?? 0) > 0 && <span className="od-sub">含運 {o.shipping_fee_twd}</span>}
+                    {(o.discount_twd ?? 0) > 0 && <span className="od-sub">折 {o.discount_twd}</span>}
                   </div>
 
                   <div className="c-st">

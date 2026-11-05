@@ -12,7 +12,7 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, hasFeature, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { IconMessage } from '@/lib/icons';
 
 type Row = {
@@ -21,6 +21,7 @@ type Row = {
   status: string;
   payment_status: string;
   total_twd: number;
+  discount_twd: number | null; // Phase 33
   shipping_fee_twd: number | null;
   linepay_transaction_id: string | null;
   linepay_refunded_twd: number | null;
@@ -32,6 +33,7 @@ type PendingRow = {
   id: string;
   order_no: string;
   total_twd: number;
+  discount_twd: number | null; // Phase 33
   shipping_fee_twd: number | null;
   payment_method: string | null;
   payment_reported_at: string;
@@ -140,7 +142,7 @@ export default async function ReconcilePage({
     // 客人回報了(後五碼 / 掃碼)但還沒確認收款的單,跟總覽的「待核帳」同一條件
     supabaseAdmin
       .from('orders')
-      .select('id, order_no, total_twd, shipping_fee_twd, payment_method, payment_reported_at, payment_last5, payment_note, shipping_recipient, users(display_name)')
+      .select('id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_method, payment_reported_at, payment_last5, payment_note, shipping_recipient, users(display_name)')
       .eq('tenant_id', tenant.id)
       .eq('payment_status', 'pending')
       .not('payment_reported_at', 'is', null)
@@ -151,7 +153,7 @@ export default async function ReconcilePage({
       ? supabaseAdmin
           .from('orders')
           .select(
-            'id, order_no, status, payment_status, total_twd, shipping_fee_twd, linepay_transaction_id, linepay_refunded_twd, paid_at, created_at',
+            'id, order_no, status, payment_status, total_twd, discount_twd, shipping_fee_twd, linepay_transaction_id, linepay_refunded_twd, paid_at, created_at',
           )
           .eq('tenant_id', tenant.id)
           .eq('payment_method', 'line_pay')
@@ -169,7 +171,7 @@ export default async function ReconcilePage({
   const settled = rows.filter((r) => r.payment_status === 'paid' || r.payment_status === 'refunded');
   const unpaid = rows.filter((r) => r.payment_status === 'pending');
 
-  const gross = settled.reduce((s, r) => s + r.total_twd + (r.shipping_fee_twd ?? 0), 0);
+  const gross = settled.reduce((s, r) => s + orderPayable(r), 0); // Phase 33:實收 = 折後含運
   const refunded = settled.reduce((s, r) => s + (r.linepay_refunded_twd ?? 0), 0);
   const net = gross - refunded;
   const fee = Math.round((net * rate) / 100);
@@ -205,7 +207,7 @@ export default async function ReconcilePage({
                 <span />
               </div>
               {pending.map((o) => {
-                const amount = o.total_twd + (o.shipping_fee_twd ?? 0);
+                const amount = orderPayable(o); // Phase 33
                 const who = o.users?.display_name ?? o.shipping_recipient ?? '';
                 return (
                   <div key={o.id} className="lp-row lp-pend">
@@ -310,7 +312,7 @@ export default async function ReconcilePage({
                     <span>LINE Pay 交易序號</span>
                   </div>
                   {settled.map((r) => {
-                    const amount = r.total_twd + (r.shipping_fee_twd ?? 0);
+                    const amount = orderPayable(r); // Phase 33
                     const back = r.linepay_refunded_twd ?? 0;
                     return (
                       <div key={r.id} className="lp-row">

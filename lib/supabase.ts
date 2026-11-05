@@ -763,3 +763,12 @@ export async function buildGiftItems(
   }
   return rows;
 }
+
+// ====================
+// Phase 33(2026-11-06):訂單應付總額。total_twd 是商品小計(trigger 算),折扣另存,運費另存。
+// 全站算「客人要付多少」只能用這一支:金流發動 / 回呼比對 / 退款上限 / 訂單頁 / 後台 / 出貨單 / CSV / 對帳。
+// discount_twd 故意設成必填(可 null),逼每個呼叫端的 select 都補上這欄,漏了 tsc 會叫。
+// ====================
+export function orderPayable(o: { total_twd: number; discount_twd: number | null; shipping_fee_twd: number | null }): number {
+  return Math.max(0, o.total_twd - (o.discount_twd ?? 0)) + (o.shipping_fee_twd ?? 0);
+}

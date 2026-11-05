@@ -468,3 +468,84 @@ NOTIFY pgrst, 'reload schema';
 
 -- Phase 32(2026-11-05)— 商店聲明(品牌關係聲明),頁尾 / 服務條款 / LINE 商店顯示
 alter table tenants add column if not exists disclaimer text;
+
+-- Phase 33(2026-11-06)— 折扣碼(discount_codes + orders.discount_code / discount_twd)
+-- 設計決定:used_count 由 orders 上的 trigger 維護(insert +1 並檢查上限、取消 / 退款 −1、復原 +1、delete −1),app 端不寫計數器;
+--   只折商品小計、不折運費;免運門檻與滿額贈都看「折扣前」的商品小計;應付總額全站只用 lib/supabase.ts 的 orderPayable。
+--   CSV 匯出多兩欄「折扣碼」「折扣」,放在「運費」之後、「合計」之前(欄位順序變了,會計的試算表要知會)。
+--   後台總覽「營收」與客戶「消費金額」改成扣掉折扣的淨額(仍不含運費)。
+-- 待辦:編輯既有碼(碼名不能改,要改條件就停用再開新碼)、延長到期 / 加次數、依碼篩訂單、批次產碼、LIFF 輸入折扣碼、
+--   多特瑞促銷限制提醒(features.discount_max_pct)待 Peter 決定。
+-- 審查後補(同日):「每人一次」加 DB 層保證 — trigger 在 +1 之後(已持有該碼的列鎖)再查同攤位同碼同電話的有效單,
+--   有就 raise DISCOUNT_CODE_USED;電話比對兩邊都去非數字、+886 9xx → 09xx。createOrder 的 2 分鐘防重複檢查搬到驗碼之前,
+--   重送的請求不會被自己的第一張單判成「已用過」。已跑過舊版 trigger 的話,重跑下面 create or replace function 即可。
+create table if not exists discount_codes (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  code text not null check (code ~ '^[A-Z0-9]{3,20}$'),
+  type text not null check (type in ('percent', 'fixed')),
+  value int not null check (value > 0),
+  min_subtotal int check (min_subtotal is null or min_subtotal > 0),
+  starts_at timestamptz,
+  ends_at timestamptz,
+  max_uses int check (max_uses is null or max_uses > 0),
+  used_count int not null default 0 check (used_count >= 0),
+  per_customer_once boolean not null default false,
+  enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (tenant_id, code),
+  check (type <> 'percent' or value between 1 and 99),
+  check (starts_at is null or ends_at is null or ends_at > starts_at)
+);
+create index if not exists discount_codes_tenant_idx on discount_codes(tenant_id, created_at desc);
+alter table discount_codes enable row level security;
+alter table orders add column if not exists discount_code text;
+alter table orders add column if not exists discount_twd int not null default 0 check (discount_twd >= 0);
+create index if not exists orders_discount_code_idx on orders(tenant_id, discount_code) where discount_code is not null;
+create or replace function sync_discount_code_usage()
+returns trigger as $$
+declare
+  v_used int; v_max int; v_once boolean; v_phone text;
+begin
+  if tg_op = 'INSERT' then
+    if new.discount_code is not null then
+      update discount_codes set used_count = used_count + 1
+        where tenant_id = new.tenant_id and code = new.discount_code
+        returning used_count, max_uses, per_customer_once into v_used, v_max, v_once;
+      if v_max is not null and v_used > v_max then raise exception 'DISCOUNT_CODE_EXHAUSTED'; end if;
+      if v_once then
+        v_phone := regexp_replace(regexp_replace(coalesce(new.shipping_phone, ''), '\D', '', 'g'), '^886(9\d{8})$', '0\1');
+        if v_phone <> '' and exists (
+          select 1 from orders o
+          where o.tenant_id = new.tenant_id and o.discount_code = new.discount_code and o.id <> new.id
+            and o.status not in ('cancelled', 'refunded')
+            and regexp_replace(regexp_replace(coalesce(o.shipping_phone, ''), '\D', '', 'g'), '^886(9\d{8})$', '0\1') = v_phone
+        ) then raise exception 'DISCOUNT_CODE_USED'; end if;
+      end if;
+    end if;
+    return null;
+  elsif tg_op = 'UPDATE' then
+    if new.discount_code is not null then
+      if new.status in ('cancelled', 'refunded') and old.status not in ('cancelled', 'refunded') then
+        update discount_codes set used_count = greatest(used_count - 1, 0)
+          where tenant_id = new.tenant_id and code = new.discount_code;
+      elsif old.status in ('cancelled', 'refunded') and new.status not in ('cancelled', 'refunded') then
+        update discount_codes set used_count = used_count + 1
+          where tenant_id = new.tenant_id and code = new.discount_code;
+      end if;
+    end if;
+    return null;
+  else
+    if old.discount_code is not null and old.status not in ('cancelled', 'refunded') then
+      update discount_codes set used_count = greatest(used_count - 1, 0)
+        where tenant_id = old.tenant_id and code = old.discount_code;
+    end if;
+    return null;
+  end if;
+end;
+$$ language plpgsql;
+drop trigger if exists orders_discount_usage on orders;
+create trigger orders_discount_usage
+  after insert or update of status or delete on orders
+  for each row execute function sync_discount_code_usage();
+NOTIFY pgrst, 'reload schema';

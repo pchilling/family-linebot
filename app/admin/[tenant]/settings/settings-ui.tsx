@@ -115,6 +115,18 @@ export const SETTINGS_CSS = `
 .sx-ship select.ui-input{width:100%}
 .sx-ship-head{font-size:11.5px;color:#71717a;font-weight:500;padding:0 2px}
 .sx-filebtn input{display:none}
+/* Phase 33(2026-11-06):折扣碼清單,div grid 不用 table */
+.sx-dc{display:grid;grid-template-columns:1.3fr 1.7fr 1fr 90px auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid #f4f4f5;background:#fff}
+.sx-dc:first-child{border-top:0}
+.sx-dc-head{font-size:11.5px;color:#71717a;font-weight:500;padding:8px 14px 0}
+.sx-dc .code{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600}
+.sx-dc .d{font-size:12.5px;color:#71717a;margin-top:2px;line-height:1.5}
+.sx-dc .per{font-size:13px;color:#52525b}
+.sx-dc .use{text-align:right;font-size:13px}
+.sx-dc .use.full{color:#b45309;font-weight:600}
+.sx-dc .ops{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.sx-dc .ops form{margin:0;display:flex;align-items:center}
+.sx-dc[data-off="true"]{opacity:.6}
 /* 收款方式清單(2026-11-01):每種方式一張可展開的卡 */
 .sx-methods{display:flex;flex-direction:column;gap:10px}
 .sx-method{border:1px solid #e4e4e7;border-radius:10px;background:#fff}
@@ -152,6 +164,13 @@ export const SETTINGS_CSS = `
   .sx-ship{grid-template-columns:1fr 1fr 32px;padding:10px;border:1px solid #e4e4e7;border-radius:8px}
   .sx-ship > :first-child,.sx-ship > :nth-child(2),.sx-ship > :nth-child(5){grid-column:1/-1}
   .sx-ship-head{display:none}
+  .sx-dc{grid-template-columns:1fr auto;row-gap:4px}
+  .sx-dc .code{grid-column:1}.sx-dc .ops{grid-column:2;grid-row:1}
+  .sx-dc .per,.sx-dc .use{grid-column:1/-1;text-align:left}
+  /* 手機版藏掉欄位標題列,期間 / 已用兩欄自己補標籤,不然「不限」「3 / 10」看不出是什麼 */
+  .sx-dc .per::before{content:'期間 ';color:#a1a1aa}
+  .sx-dc .use::before{content:'已用 ';color:#a1a1aa;font-weight:400}
+  .sx-dc-head{display:none}
 }
 `;
 

@@ -24,7 +24,7 @@ import {
   type EcpayFields,
   type EcpayMethod,
 } from '@/lib/ecpay';
-import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
+import { getTenantBySlug, hasFeature, orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +32,7 @@ type OrderRow = {
   id: string;
   order_no: string;
   total_twd: number;
+  discount_twd: number | null; // Phase 33
   shipping_fee_twd: number | null;
   payment_status: string;
   status: string;
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
 
   const { data } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, total_twd, shipping_fee_twd, payment_status, status, payment_method, atm_vaccount, atm_expire_at, access_key')
+    .select('id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, payment_method, atm_vaccount, atm_expire_at, access_key')
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
     .maybeSingle();
@@ -153,7 +154,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(orderUrl('?ecpay=atm'));
   }
 
-  const amount = order.total_twd + (order.shipping_fee_twd ?? 0);
+  // Phase 33:送綠界的金額 = 商品小計 − 折扣 + 運費
+  const amount = orderPayable(order);
   if (!Number.isInteger(amount) || amount <= 0) {
     console.error('[ecpay pay] 金額異常', orderNo, amount);
     return NextResponse.redirect(orderUrl('?ecpay=failed'));
