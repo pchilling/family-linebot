@@ -192,7 +192,8 @@ const CSS = `
 .od-status .ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
 .od-status h1{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em;line-height:1.3}
 .od-status p{margin:4px 0 0;font-size:13px;opacity:.9;line-height:1.5}
-.od-status .no{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:13px;flex-wrap:wrap}
+.od-status .no{display:flex;align-items:baseline;gap:4px;margin-top:8px;font-size:13px;flex-wrap:wrap}
+.od-status .no strong{font-size:14px;letter-spacing:.01em}
 .od-status .no em{font-style:normal;white-space:nowrap}
 .od-tl{list-style:none;margin:0;padding:0}
 .od-tl li{position:relative;display:grid;grid-template-columns:30px 1fr;column-gap:14px;padding-bottom:20px;animation:od-rise .35s ease both}
