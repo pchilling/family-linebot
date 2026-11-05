@@ -120,7 +120,7 @@
 
 - ⚠️ **Service role key 曾出現在本機 chat log**,**正式上線前必 rotate**(Supabase Settings → API → Generate new)
 - ⚠️ **signUp 沒自動建 platform_users**(Phase 11 確認 bug):email / Google 註冊只創 Supabase Auth user。`getUserAllowedTenants` 撈不到 → 「沒有 tenant 權限」。修法:Members 邀請 UI 內 upsert,或 /admin/page.tsx 加 lazy create
-- ⚠️ **RLS 沒 check tenant_members**(`app/admin/[tenant]/settings/actions.ts:19` TODO):任何登入者技術上可改任何 tenant 設定(實務上要猜 slug);staff 開放前必補
+- ✅ **後台 action 驗攤位身分**(2026-11-05 已補,commit 5e54da0):`lib/super-admin.ts` 的 assertTenantAccess / requireAdminTenant / assertRowAccess,所有後台 server action 先驗登入帳號是該攤位成員或超級管理員。角色層級(staff 能做什麼)還沒分。
 
 ### 可緩
 
