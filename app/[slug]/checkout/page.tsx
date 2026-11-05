@@ -7,7 +7,7 @@ import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconCreditCard, IconGift, IconPackage, IconStore, IconTruck, IconWallet } from '@/lib/icons';
 import { CVS_CHAINS } from '@/lib/cvs';
 import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
-import { createOrder, getCartPricingInfo, getGiftRulesPublic, getQrPaymentPublic, getShippingOptions, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type QrPaymentPublic, type ShippingOption } from './actions';
+import { createOrder, getCartPricingInfo, getGiftRulesPublic, getLastShipping, getQrPaymentPublic, getShippingOptions, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type CartPricingInfo, type GiftConfigPublic, type LastShipping, type QrPaymentPublic, type ShippingOption } from './actions';
 
 // 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
 // Phase 27(2026-11-01):加 'qr' 掃碼付款(攤主自己的收款 QR,人工核帳)
@@ -20,20 +20,34 @@ type Props = {
 const money = (n: number) => n.toLocaleString('en-US');
 
 const CSS = `
-.ck-title{padding:4px 0 24px;display:flex;align-items:baseline;justify-content:space-between;gap:16px}
-.ck-title h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em}
-.ck-steps{display:flex;gap:6px;font-size:13px;color:var(--ui-muted);align-items:center}
-.ck-steps b{color:var(--ui-ink);font-weight:500}
-.ck-steps i{width:16px;height:1px;background:var(--ui-line);display:inline-block}
-.ck-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:48px;align-items:start}
-.ck-form{display:flex;flex-direction:column;gap:36px;min-width:0}
-.ck-sec{display:flex;flex-direction:column;gap:12px;scroll-margin-top:80px}
-.ck-sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.ck-sec-h h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em}
-.ck-sec-h span{font-size:12px;color:var(--ui-muted)}
-.ck-opts{display:flex;flex-direction:column;gap:10px}
+.ck-title{padding:4px 0 24px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ck-title h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em;display:inline}
+.ck-back{font-size:13px;color:var(--ui-muted);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:14px;vertical-align:4px;transition:color .15s}
+.ck-back:hover{color:var(--ui-ink);text-decoration:underline;text-underline-offset:3px}
+.ck-steps{display:flex;gap:4px;padding:4px;border-radius:9px;background:var(--ui-line-soft);font-size:12.5px;color:var(--ui-muted)}
+.ck-steps span{padding:6px 12px;border-radius:7px}
+.ck-steps b{padding:6px 12px;border-radius:7px;background:var(--ui-surface);color:var(--ui-ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.ck-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:32px;align-items:start}
+.ck-form{display:flex;flex-direction:column;gap:16px;min-width:0}
+/* 2026-11-06 電腦版改版:左邊三區各自一張卡,跟右邊商品明細同一套;手機版在下面的 media query 還原成原本的排法 */
+.ck-sec{background:var(--ui-surface);border:1px solid var(--ui-line);border-radius:12px;scroll-margin-top:80px;overflow:hidden}
+.ck-sec-h{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--ui-line)}
+.ck-sec-h h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.ck-sec-h span{margin-left:auto;font-size:12px;color:var(--ui-faint)}
+.ck-n{width:22px;height:22px;border-radius:50%;background:var(--ui-accent);color:var(--ui-on-accent);font-size:12px;font-weight:600;display:grid;place-items:center;flex-shrink:0}
+.ck-sec-b{padding:20px;display:flex;flex-direction:column;gap:14px}
+.ck-opts{display:flex;flex-direction:column}
+.ck-opts .ui-opt{border:0;border-radius:0;border-bottom:1px solid var(--ui-line);padding:14px 20px;box-shadow:none;position:relative;align-items:center}
+.ck-opts .ui-opt:last-child{border-bottom:0}
+.ck-opts .ui-opt[data-on="true"]{background:#fafaf8;box-shadow:none;border-color:var(--ui-line)}
+.ck-opts .ui-opt[data-on="true"]::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ui-accent)}
+.ck-alert-in{margin:12px 20px 0}
 .ck-field{display:flex;flex-direction:column;gap:6px}
 .ck-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ck-pick{padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);font-size:13px;color:#52525b;line-height:1.6}
+.ck-chk{display:inline-flex;align-items:center;gap:10px;font-size:14px;cursor:pointer}
+.ck-hint{font-size:12px;color:var(--ui-muted);margin:0;line-height:1.5}
+.ck-last{align-self:flex-start}
 .ck-sum{position:sticky;top:80px;padding:20px}
 .ck-sum h2{margin:0 0 16px;font-size:16px;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
 .ck-sum h2 span{font-size:12px;color:var(--ui-muted);font-weight:400}
@@ -60,6 +74,7 @@ const CSS = `
 .ck-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:10px;margin-top:4px;border-top:1px solid var(--ui-line);color:var(--ui-ink);font-weight:600}
 .ck-tot .g span:last-child{font-size:22px}
 .ck-fine{font-size:12px;color:var(--ui-muted);text-align:center;margin:10px 0 0;line-height:1.6}
+.ck-fine a{color:var(--ui-ink);font-weight:500;text-decoration:none}.ck-fine a:hover{text-decoration:underline;text-underline-offset:3px}
 .ck-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.6;font-weight:500}
 .ck-submit-m{display:none}
 .ck-overlay{position:fixed;inset:0;z-index:1000;background:rgba(255,255,255,.85);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
@@ -72,6 +87,18 @@ const CSS = `
   .ck-row2{grid-template-columns:1fr}
   .ck-submit-d{display:none}
   .ck-submit-m{display:flex;flex-direction:column;gap:10px}
+  /* 手機維持原本的排法:區塊不包卡、選項各自一張卡 */
+  .ck-form{gap:36px}
+  .ck-sec{background:transparent;border:0;border-radius:0;overflow:visible}
+  .ck-sec-h{padding:0 0 12px;border:0;align-items:baseline}
+  .ck-sec-h h2{font-size:16px}
+  .ck-n{display:none}
+  .ck-sec-b{padding:0}
+  .ck-opts{gap:10px}
+  .ck-opts .ui-opt{border:1px solid var(--ui-line);border-radius:8px;padding:14px 16px;align-items:flex-start}
+  .ck-opts .ui-opt[data-on="true"]{border-color:var(--ui-accent);box-shadow:0 0 0 1px var(--ui-accent);background:var(--ui-surface)}
+  .ck-opts .ui-opt[data-on="true"]::before{display:none}
+  .ck-alert-in{margin:0 0 12px}
 }
 @media (prefers-reduced-motion:reduce){.ck-bar div{transition:none}}
 `;
@@ -114,12 +141,26 @@ export default function CheckoutPage({ params }: Props) {
   }, [bankOn, ecpayOn, qrCfg, linePayOn, ecpayAtmOn, payMethod]);
   // Phase 26:已登入就預填收件人與電話,並把信箱帶進訂單(查單、對帳號用);沒登入照舊
   const [member, setMember] = useState<{ name: string | null; email: string | null; phone: string | null } | null>(null);
+  // 2026-11-06:收件欄位的預填值。會員資料載入 → 填姓名電話;按「用上次的收件資料」→ 連地址一起填。
+  // 欄位是 uncontrolled(defaultValue),改 v 讓它們重掛一次才吃得到新值。
+  const [prefill, setPrefill] = useState<{ name: string; phone: string; address: string; v: number }>({ name: '', phone: '', address: '', v: 0 });
+  const [lastShip, setLastShip] = useState<LastShipping | null>(null);
   useEffect(() => {
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((r) => r.json())
-      .then((d: { member: { name: string | null; email: string | null; phone: string | null } | null }) => setMember(d.member ?? null))
+      .then((d: { member: { name: string | null; email: string | null; phone: string | null } | null }) => {
+        const m = d.member ?? null;
+        setMember(m);
+        if (m) setPrefill((p) => ({ name: m.name ?? '', phone: m.phone ?? '', address: '', v: p.v + 1 }));
+      })
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!member) return;
+    getLastShipping(slug).then(setLastShip).catch(() => {});
+  }, [member, slug]);
+  // 2026-11-06:統編發票改成勾選才展開(以前叫客人寫在備註)
+  const [needInvoice, setNeedInvoice] = useState(false);
   useEffect(() => {
     getShippingOptions(slug).then(setShipOptions).catch(() => {});
     getGiftRulesPublic(slug).then(setGiftCfg).catch(() => {});
@@ -146,6 +187,13 @@ export default function CheckoutPage({ params }: Props) {
   const isOnlinePay = isLinePayPay || isEcpayPay;
   // Phase 29:選了超商店到店 → 收件區改填門市
   const cvs = shipOptions.find((o) => o.key === shipKey)?.cvs ?? null;
+  // 2026-11-06:門市自取不用填地址(以前還是必填,客人來拿貨卻要打地址)
+  const isPickup = shipKey === 'pickup';
+  // 區塊編號:有配送才有 1,付款方式只有一種就不顯示那區,編號跟著跳
+  const showShip = shipOptions.length > 0;
+  const showPay = [bankOn, linePayOn, ecpayOn, ecpayAtmOn, !!qrCfg].filter(Boolean).length !== 1;
+  const nPay = showShip ? 2 : 1;
+  const nAddr = (showShip ? 1 : 0) + (showPay ? 1 : 0) + 1;
 
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
   const [pricing, setPricing] = useState<CartPricingInfo>({});
@@ -278,6 +326,11 @@ export default function CheckoutPage({ params }: Props) {
         {submitting ? '處理中,訂單建立中…' : submitLabel}
       </Button>
       <p className="ck-fine">{fine}</p>
+      {/* 2026-11-06:條款同意 + 出貨時程 + 卡號不經本站(有線上付款才講) */}
+      <p className="ck-fine" style={{ marginTop: 4 }}>
+        送出即表示同意<a href={`/${slug}/policy/terms`} target="_blank" rel="noreferrer">服務條款</a>與<a href={`/${slug}/policy/refund`} target="_blank" rel="noreferrer">退款政策</a>。確認付款後 1–3 個工作天出貨。
+        {(linePayOn || ecpayOn) && <>刷卡與 LINE Pay 在金流商頁面完成,本站不會取得您的卡號。</>}
+      </p>
     </div>
   );
 
@@ -286,8 +339,15 @@ export default function CheckoutPage({ params }: Props) {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       <div className="ck-title">
-        <h1>結帳</h1>
-        <div className="ck-steps" aria-label="步驟"><b>1 填寫資料</b><i /><span>2 付款</span><i /><span>3 完成</span></div>
+        <div>
+          <h1>結帳</h1>
+          {/* 購物車跟結帳是同一頁,所以是「繼續購物」不是「回購物車」 */}
+          <a href={`/${slug}`} className="ck-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m15 18-6-6 6-6" /></svg>
+            繼續購物
+          </a>
+        </div>
+        <div className="ck-steps" aria-label="步驟"><b>1 填寫資料</b><span>2 付款</span><span>3 完成</span></div>
       </div>
 
       {/* 2026-10-22:建立訂單期間蓋住整個畫面,按不到別的東西(建好後換成上面的跳轉畫面) */}
@@ -303,10 +363,10 @@ export default function CheckoutPage({ params }: Props) {
         {/* ---------- 左:表單 ---------- */}
         <form id="ck-form" className="ck-form" action={handleSubmit}>
           {/* D#13:配送方式(攤位有設運費規則才顯示) */}
-          {shipOptions.length > 0 && (
+          {showShip && (
             <section id="ship-section" className="ck-sec" aria-labelledby="ship-h">
-              <div className="ck-sec-h"><h2 id="ship-h">配送方式</h2><span>必選</span></div>
-              {shipError && <div className="ck-alert">請先選擇配送方式才能送出訂單</div>}
+              <div className="ck-sec-h"><span className="ck-n" aria-hidden>1</span><h2 id="ship-h">配送方式</h2><span>必選</span></div>
+              {shipError && <div className="ck-alert ck-alert-in">請先選擇配送方式才能送出訂單</div>}
               <div className="ck-opts" role="radiogroup" aria-label="配送方式">
                 {shipOptions.map((opt) => {
                   const isFree = !!opt.free_over && subtotal >= opt.free_over;
@@ -342,9 +402,9 @@ export default function CheckoutPage({ params }: Props) {
 
           {/* 2026-10-15:付款方式;2026-10-22:順序 信用卡 → LINE Pay → ATM 轉帳 → 匯款(人工核帳)
               Phase 28:只有一種(通常是匯款)就不用選、不顯示;兩種以上才顯示;一種都沒有顯示提示 */}
-          {[bankOn, linePayOn, ecpayOn, ecpayAtmOn, !!qrCfg].filter(Boolean).length !== 1 && (
+          {showPay && (
             <section className="ck-sec" aria-labelledby="pay-h">
-              <div className="ck-sec-h"><h2 id="pay-h">付款方式</h2><span>必選</span></div>
+              <div className="ck-sec-h"><span className="ck-n" aria-hidden>{nPay}</span><h2 id="pay-h">付款方式</h2><span>必選</span></div>
               <div className="ck-opts" role="radiogroup" aria-label="付款方式">
                 {ecpayOn && (
                   <OptionCard name="payment_method" value="ecpay_credit" on={payMethod === 'ecpay_credit'} onSelect={() => setPayMethod('ecpay_credit')} icon={<IconCreditCard size={16} />} title="信用卡" trailing={<Badge>立即付款</Badge>} desc="送出後前往綠界刷卡,付款完成訂單自動更新" />
@@ -369,20 +429,43 @@ export default function CheckoutPage({ params }: Props) {
           )}
 
           <section className="ck-sec" aria-labelledby="addr-h">
-            <div className="ck-sec-h"><h2 id="addr-h">{cvs ? '取貨資訊' : '收件資訊'}</h2></div>
+            <div className="ck-sec-h">
+              <span className="ck-n" aria-hidden>{nAddr}</span>
+              <h2 id="addr-h">{cvs || isPickup ? '取貨資訊' : '收件資訊'}</h2>
+              <span>{isPickup ? '來店取貨時核對' : cvs ? '超商取件時核對' : '收件人會收到出貨通知'}</span>
+            </div>
+            <div className="ck-sec-b">
+            {/* 會員有過訂單 → 一鍵帶入上次的收件資料(姓名、電話、地址) */}
+            {member && lastShip && !cvs && (
+              <Button type="button" variant="outline" size="sm" className="ck-last" onClick={() => setPrefill((p) => ({ name: lastShip.recipient, phone: lastShip.phone, address: lastShip.address, v: p.v + 1 }))}>
+                用上次的收件資料:{lastShip.recipient} · {lastShip.address.slice(0, 12)}{lastShip.address.length > 12 ? '…' : ''}
+              </Button>
+            )}
             <div className="ck-row2">
               <div className="ck-field">
-                <label className="ui-label" htmlFor="recipient" style={{ marginBottom: 0 }}>{cvs ? '取件人姓名' : '收件人姓名'} <i>*</i></label>
-                {/* key 跟著會員資料換:資料載進來時重掛一次,把預設值填進去 */}
-                <input key={member ? 'm' : 'g'} id="recipient" name="recipient" type="text" required defaultValue={member?.name ?? ''} className="ui-input" placeholder="王小明" autoComplete="name" />
+                <label className="ui-label" htmlFor="recipient" style={{ marginBottom: 0 }}>{cvs || isPickup ? '取件人姓名' : '收件人姓名'} <i>*</i></label>
+                {/* key 跟著預填版本換:會員資料載進來、按「用上次的」時重掛一次,把預設值填進去 */}
+                <input key={`n${prefill.v}`} id="recipient" name="recipient" type="text" required defaultValue={prefill.name} className="ui-input" placeholder="王小明" autoComplete="name" />
               </div>
               <div className="ck-field">
                 <label className="ui-label" htmlFor="phone" style={{ marginBottom: 0 }}>聯絡電話 <i>*</i></label>
-                <input key={member ? 'm' : 'g'} id="phone" name="phone" type="tel" required defaultValue={member?.phone ?? ''} className="ui-input" placeholder="0912 345 678" autoComplete="tel" />
+                <input key={`p${prefill.v}`} id="phone" name="phone" type="tel" required defaultValue={prefill.phone} className="ui-input" placeholder="0912 345 678" autoComplete="tel" pattern="[0-9+\-() ]{8,20}" title="請填 8 到 20 位的電話號碼" />
               </div>
             </div>
-            {member?.email && <input type="hidden" name="guestEmail" value={member.email} />}
-            {cvs ? (
+            {/* 2026-11-06:訪客可以留 Email — 之後用信箱登入時會把這張單對回會員;會員直接帶自己的 */}
+            {member?.email ? (
+              <input type="hidden" name="guestEmail" value={member.email} />
+            ) : (
+              <div className="ck-field">
+                <label className="ui-label" htmlFor="guest-email" style={{ marginBottom: 0 }}>Email<span className="ui-muted" style={{ fontWeight: 400 }}>(選填)</span></label>
+                <input id="guest-email" name="guestEmail" type="email" className="ui-input" placeholder="name@example.com" autoComplete="email" />
+                <p className="ck-hint">之後用這個信箱登入,就能在「我的訂單」看到這張單。</p>
+              </div>
+            )}
+            {isPickup ? (
+              /* 2026-11-06:門市自取不填地址 */
+              <div className="ck-pick">自取不用填地址。取貨地點與營業時間請看訂單頁和賣家的聯絡資訊,到店時報姓名和電話即可。</div>
+            ) : cvs ? (
               /* Phase 29:超商店到店 — 填取貨門市,不填地址;取件要核對姓名與手機 */
               <>
                 <div className="ck-row2">
@@ -404,14 +487,33 @@ export default function CheckoutPage({ params }: Props) {
             ) : (
               <div className="ck-field">
                 <span className="ui-label" style={{ marginBottom: 0 }}>寄送地址 <i>*</i></span>
-                {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串 */}
-                <TwAddressFields required inputStyle={inputStyle} />
+                {/* 2026-09-11(回饋 #8):縣市/區下拉 + 詳細地址,送出仍是單一 address 字串;key 跟預填版本換 */}
+                <TwAddressFields key={`a${prefill.v}`} required initial={prefill.address} inputStyle={inputStyle} />
               </div>
             )}
+            {/* 2026-11-06:統編發票 — 資料庫早有 invoice_tax_id / invoice_title,表單以前卻叫客人寫在備註 */}
+            <div className="ck-field">
+              <label className="ck-chk">
+                <input type="checkbox" className="ui-check" checked={needInvoice} onChange={(e) => setNeedInvoice(e.target.checked)} />
+                需要統編發票
+              </label>
+              {needInvoice && (
+                <div className="ck-row2" style={{ marginTop: 4 }}>
+                  <div className="ck-field">
+                    <label className="ui-label" htmlFor="inv-tax" style={{ marginBottom: 0 }}>統一編號 <i>*</i></label>
+                    <input id="inv-tax" name="invoice_tax_id" type="text" required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} className="ui-input ui-num" placeholder="8 位數字" title="統一編號是 8 位數字" />
+                  </div>
+                  <div className="ck-field">
+                    <label className="ui-label" htmlFor="inv-title" style={{ marginBottom: 0 }}>發票抬頭 <i>*</i></label>
+                    <input id="inv-title" name="invoice_title" type="text" required maxLength={60} className="ui-input" placeholder="公司名稱" />
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="ck-field">
               <label className="ui-label" htmlFor="note" style={{ marginBottom: 0 }}>備註(選填)</label>
-              {/* 需要統編直接寫在備註 */}
-              <Textarea id="note" name="note" rows={3} placeholder="如需統編發票或有其他需求,請填寫在這裡" />
+              <Textarea id="note" name="note" rows={3} placeholder="有其他需求請寫在這裡,例如指定到貨時段、包裝需求" />
+            </div>
             </div>
           </section>
 

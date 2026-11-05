@@ -167,6 +167,29 @@ export async function isBankTransferAvailable(tenantSlug: string): Promise<boole
   return isBankTransferOffered(bankTransferFromRow(row?.bank_transfer), row?.payment_info ?? null);
 }
 
+/** 2026-11-06:會員上一張訂單的收件資料,結帳頁「用上次的收件資料」用;沒登入或沒宅配過回 null */
+export type LastShipping = { recipient: string; phone: string; address: string };
+export async function getLastShipping(tenantSlug: string): Promise<LastShipping | null> {
+  const member = await getCurrentMember().catch(() => null);
+  if (!member) return null;
+  const tenant = await getTenantBySlug(tenantSlug);
+  if (!tenant) return null;
+  const { data } = await supabaseAdmin
+    .from('orders')
+    .select('shipping_recipient, shipping_phone, shipping_address')
+    .eq('tenant_id', tenant.id)
+    .eq('platform_user_id', member.id)
+    .is('cvs_type', null)
+    .not('shipping_address', 'is', null)
+    .neq('shipping_address', '門市自取')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = data as { shipping_recipient: string | null; shipping_phone: string | null; shipping_address: string | null } | null;
+  if (!row?.shipping_address || !row.shipping_recipient) return null;
+  return { recipient: row.shipping_recipient, phone: row.shipping_phone ?? '', address: row.shipping_address };
+}
+
 export async function getShippingOptions(tenantSlug: string): Promise<ShippingOption[]> {
   const { data } = await supabaseAdmin
     .from('tenants')
@@ -203,14 +226,20 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
           : rawPayment === 'qr' && (await getQrPaymentPublic(tenantSlug))
             ? 'qr'
             : 'bank';
-  // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
+  // 2026-11-06:統編發票回到專用欄位(勾「需要統編發票」才會有);兩個都要填,統編 8 位數字
+  const invoiceTaxId = String(formData.get('invoice_tax_id') ?? '').replace(/\D/g, '');
+  const invoiceTitle = String(formData.get('invoice_title') ?? '').trim().slice(0, 60);
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
 
   if (!tenantSlug) return { ok: false, error: '無攤位資訊' };
   if (!recipient) return { ok: false, error: '請填收件人姓名' };
   if (!phone) return { ok: false, error: '請填聯絡電話' };
-  // 地址:店到店用門市代替,下面決定配送方式時再檢查
-  if (!address && !cvsStoreName) return { ok: false, error: '請填寄送地址' };
+  if (guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) return { ok: false, error: 'Email 格式不對' };
+  if (invoiceTaxId || invoiceTitle) {
+    if (!/^\d{8}$/.test(invoiceTaxId)) return { ok: false, error: '統一編號要 8 位數字' };
+    if (!invoiceTitle) return { ok: false, error: '請填發票抬頭' };
+  }
+  // 地址:店到店用門市代替、自取不用填,下面決定配送方式時再檢查
 
   let cartItems: CartItemInput[];
   try {
@@ -238,7 +267,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const variantIds = cartItems.map((i) => i.variantId);
   const { data: variants, error: vErr } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, tenant_id, price_twd, status, stock, is_bundle')
+    .select('id, product_id, tenant_id, price_twd, status, stock, is_bundle, variant_name, products(name)')
     .in('id', variantIds)
     .eq('tenant_id', tenant.id);
 
@@ -255,16 +284,22 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     status: string;
     stock: number;
     is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
+    variant_name: string | null;
+    products: { name: string } | null;
   };
   const variantMap = new Map<string, DbVariant>(
-    (variants ?? []).map((v) => [(v as DbVariant).id, v as DbVariant]),
+    (variants ?? []).map((v) => [(v as unknown as DbVariant).id, v as unknown as DbVariant]),
   );
 
+  // 2026-11-06:錯誤訊息講清楚是哪一件(以前只有「庫存不足」四個字,客人要自己猜)
+  const nameOf = (v: DbVariant) => `${v.products?.name ?? '商品'}${v.variant_name && v.variant_name !== 'default' ? `(${v.variant_name})` : ''}`;
   for (const item of cartItems) {
     const v = variantMap.get(item.variantId);
-    if (!v) return { ok: false, error: '購物車有商品已下架,請回購物車移除' };
-    if (v.status !== 'active') return { ok: false, error: '購物車有商品已下架' };
-    if (v.stock < item.qty) return { ok: false, error: '庫存不足' };
+    if (!v) return { ok: false, error: '購物車有商品已下架,請從右邊明細移除再送出' };
+    if (v.status !== 'active') return { ok: false, error: `${nameOf(v)} 已下架,請從右邊明細移除再送出` };
+    if (v.stock < item.qty) {
+      return { ok: false, error: v.stock > 0 ? `${nameOf(v)} 只剩 ${v.stock} 件,請把數量改成 ${v.stock} 以下` : `${nameOf(v)} 已售完,請從右邊明細移除` };
+    }
   }
 
   // Phase 9.5/9.9:結帳時用 sale + tier 重算每個 line 的單價
@@ -358,6 +393,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       if (!/^\d{3,10}$/.test(cvsStoreId)) return { ok: false, error: '請填門市店號(3 到 10 位數字)' };
       cvsType = opt.cvs;
       finalAddress = cvsStoreText(opt.cvs, cvsStoreName, cvsStoreId);
+    } else if (opt.key === 'pickup') {
+      // 2026-11-06:門市自取不填地址;存固定字串,出貨單、後台、訂單頁照常顯示
+      finalAddress = finalAddress || '門市自取';
     } else if (!finalAddress) {
       return { ok: false, error: '請填寄送地址' };
     }
@@ -411,6 +449,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       note: note || null,
       guest_email: guestEmail || null,
       guest_phone: phone,
+      // 2026-11-06:統編發票專用欄位
+      invoice_tax_id: invoiceTaxId || null,
+      invoice_title: invoiceTaxId ? invoiceTitle : null,
     })
     .select('id, order_no, access_key')
     .single();
