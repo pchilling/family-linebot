@@ -515,9 +515,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
           : rawPayment === 'qr' && (await getQrPaymentPublic(tenantSlug))
             ? 'qr'
             : 'bank';
-  // 2026-11-06:統編發票回到專用欄位(勾「需要統編發票」才會有);兩個都要填,統編 8 位數字
-  const invoiceTaxId = String(formData.get('invoice_tax_id') ?? '').replace(/\D/g, '');
-  const invoiceTitle = String(formData.get('invoice_title') ?? '').trim().slice(0, 60);
+  // 統編不另開欄位(2026-09-11 Peter 決定,2026-11-07 再次確認):需要統編的客人寫在備註
   // Phase 33:折扣碼只收文字,不收金額;server 重驗重算
   const discountCodeRaw = String(formData.get('discount_code') ?? '');
   const cartItemsRaw = String(formData.get('cartItems') ?? '[]');
@@ -526,10 +524,6 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   if (!recipient) return { ok: false, error: '請填收件人姓名' };
   if (!phone) return { ok: false, error: '請填聯絡電話' };
   if (guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) return { ok: false, error: 'Email 格式不對' };
-  if (invoiceTaxId || invoiceTitle) {
-    if (!/^\d{8}$/.test(invoiceTaxId)) return { ok: false, error: '統一編號要 8 位數字' };
-    if (!invoiceTitle) return { ok: false, error: '請填發票抬頭' };
-  }
   // 地址:店到店用門市代替、自取不用填,下面決定配送方式時再檢查
 
   let cartItems: CartItemInput[];
@@ -641,9 +635,6 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       note: note || null,
       guest_email: guestEmail || null,
       guest_phone: phone,
-      // 2026-11-06:統編發票專用欄位
-      invoice_tax_id: invoiceTaxId || null,
-      invoice_title: invoiceTaxId ? invoiceTitle : null,
       // Phase 33:折扣碼(大寫文字)與折扣金額;total_twd 仍由 trigger 從 items 算,應付 = orderPayable()
       discount_code: discountCode,
       discount_twd: discountTwd,

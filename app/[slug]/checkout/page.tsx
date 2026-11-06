@@ -177,8 +177,6 @@ export default function CheckoutPage({ params }: Props) {
     if (!member) return;
     getLastShipping(slug).then(setLastShip).catch(() => {});
   }, [member, slug]);
-  // 2026-11-06:統編發票改成勾選才展開(以前叫客人寫在備註)
-  const [needInvoice, setNeedInvoice] = useState(false);
   // Phase 33:折扣碼 — 攤位有啟用中的碼才顯示輸入區;套用結果的金額只用來顯示,送單時 server 重算
   const [dcOffered, setDcOffered] = useState(false);
   const [dcInput, setDcInput] = useState('');
@@ -571,28 +569,10 @@ export default function CheckoutPage({ params }: Props) {
                 <TwAddressFields key={`a${prefill.v}`} required initial={prefill.address} inputStyle={inputStyle} />
               </div>
             )}
-            {/* 2026-11-06:統編發票 — 資料庫早有 invoice_tax_id / invoice_title,表單以前卻叫客人寫在備註 */}
-            <div className="ck-field">
-              <label className="ck-chk">
-                <input type="checkbox" className="ui-check" checked={needInvoice} onChange={(e) => setNeedInvoice(e.target.checked)} />
-                需要統編發票
-              </label>
-              {needInvoice && (
-                <div className="ck-row2" style={{ marginTop: 4 }}>
-                  <div className="ck-field">
-                    <label className="ui-label" htmlFor="inv-tax" style={{ marginBottom: 0 }}>統一編號 <i>*</i></label>
-                    <input id="inv-tax" name="invoice_tax_id" type="text" required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} className="ui-input ui-num" placeholder="8 位數字" title="統一編號是 8 位數字" />
-                  </div>
-                  <div className="ck-field">
-                    <label className="ui-label" htmlFor="inv-title" style={{ marginBottom: 0 }}>發票抬頭 <i>*</i></label>
-                    <input id="inv-title" name="invoice_title" type="text" required maxLength={60} className="ui-input" placeholder="公司名稱" />
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* 統編不另開欄位(2026-09-11 Peter 決定,2026-11-07 再次確認):需要統編的客人寫在備註 */}
             <div className="ck-field">
               <label className="ui-label" htmlFor="note" style={{ marginBottom: 0 }}>備註(選填)</label>
-              <Textarea id="note" name="note" rows={3} placeholder="有其他需求請寫在這裡,例如指定到貨時段、包裝需求" />
+              <Textarea id="note" name="note" rows={3} placeholder="如需統編發票或有其他需求,請填寫在這裡" />
             </div>
             </div>
           </section>
