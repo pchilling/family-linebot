@@ -125,7 +125,7 @@ export default function CheckoutPage({ params }: Props) {
   const { slug } = use(params);
   const router = useRouter();
   // 2026-09-11:購物車與結帳併成一頁 — 明細可直接改數量/刪除
-  const { items, totalQty, updateQty, removeItem, clear } = useCart(slug);
+  const { items, ready: cartReady, totalQty, updateQty, removeItem, clear } = useCart(slug);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -305,6 +305,16 @@ export default function CheckoutPage({ params }: Props) {
           {isLinePayPay ? '訂單已成立,正在前往 LINE Pay…' : isEcpayPay ? '訂單已成立,正在前往付款頁…' : '訂單已成立,跳轉中…'}
         </p>
         <p className="ui-muted" style={{ fontSize: 13, margin: 0 }}>請不要重複操作或關閉畫面</p>
+      </div>
+    );
+  }
+
+  // 2026-11-07:購物車在 localStorage,第一次 render 還沒讀到;讀到之前先放一個轉圈,
+  // 不然有東西的購物車也會先閃一下「購物車是空的」
+  if (!cartReady) {
+    return (
+      <div style={{ textAlign: 'center', padding: '4rem 1rem' }} aria-busy="true">
+        <span className="ui-spin" style={{ width: 28, height: 28, borderWidth: 3 }} />
       </div>
     );
   }

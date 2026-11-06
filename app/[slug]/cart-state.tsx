@@ -44,9 +44,12 @@ function write(tenantSlug: string, items: CartItem[]) {
 export function useCart(tenantSlug: string) {
   // 初始 [] = SSR 與第一次 client render 一致(避免 hydration mismatch)
   const [items, setItems] = useState<CartItem[]>([]);
+  // 2026-11-07:localStorage 還沒讀進來之前 ready = false,結帳頁靠這個不要先閃一下「購物車是空的」
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setItems(read(tenantSlug));
+    setReady(true);
 
     const onChange = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -107,7 +110,7 @@ export function useCart(tenantSlug: string) {
   const totalQty = items.reduce((sum, i) => sum + i.qty, 0);
   const totalTwd = items.reduce((sum, i) => sum + i.priceTwd * i.qty, 0);
 
-  return { items, totalQty, totalTwd, addItem, updateQty, removeItem, clear };
+  return { items, ready, totalQty, totalTwd, addItem, updateQty, removeItem, clear };
 }
 
 export function CartLink({ tenantSlug }: { tenantSlug: string }) {
