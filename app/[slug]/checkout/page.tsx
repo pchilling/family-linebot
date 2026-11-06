@@ -569,10 +569,10 @@ export default function CheckoutPage({ params }: Props) {
                 <TwAddressFields key={`a${prefill.v}`} required initial={prefill.address} inputStyle={inputStyle} />
               </div>
             )}
-            {/* 統編不另開欄位(2026-09-11 Peter 決定,2026-11-07 再次確認):需要統編的客人寫在備註 */}
+            {/* 統編不出現在結帳頁,連 placeholder 都不提(2026-09-11 Peter 決定,2026-11-07 再次確認) */}
             <div className="ck-field">
               <label className="ui-label" htmlFor="note" style={{ marginBottom: 0 }}>備註(選填)</label>
-              <Textarea id="note" name="note" rows={3} placeholder="如需統編發票或有其他需求,請填寫在這裡" />
+              <Textarea id="note" name="note" rows={3} placeholder="有其他需求請寫在這裡,例如指定到貨時段、包裝需求" />
             </div>
             </div>
           </section>
