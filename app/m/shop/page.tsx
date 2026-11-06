@@ -903,7 +903,8 @@ export default function ShopPage() {
               </div>
               <div className="ls-field">
                 <label className="ui-label" htmlFor="ck-note" style={{ marginBottom: 0 }}>備註(選填)</label>
-                <Textarea id="ck-note" name="note" rows={2} style={{ fontSize: 16 }} placeholder="如需統編發票或有其他需求,請填寫在這裡" />
+                {/* 2026-11-07 Peter:結帳不提統編,連 placeholder 都不寫 */}
+                <Textarea id="ck-note" name="note" rows={2} style={{ fontSize: 16 }} placeholder="有其他需求請寫在這裡,例如指定到貨時段、包裝需求" />
               </div>
             </Card>
 
