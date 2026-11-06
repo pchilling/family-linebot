@@ -55,6 +55,7 @@ type ExpiringOrder = {
 
 type PendingLinePayOrder = {
   id: string;
+  tenant_id: string; // Phase 34:每筆單帶自己的攤位,用那個攤位的金鑰
   order_no: string;
   total_twd: number;
   discount_twd: number | null; // Phase 33
@@ -75,7 +76,7 @@ async function reconcileLinePay(): Promise<string[]> {
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, discount_twd, shipping_fee_twd, linepay_transaction_id, access_key, tenants(slug), users(line_user_id)',
+      'id, tenant_id, order_no, total_twd, discount_twd, shipping_fee_twd, linepay_transaction_id, access_key, tenants(slug), users(line_user_id)',
     )
     .eq('payment_status', 'pending')
     .eq('status', 'open')
@@ -90,11 +91,12 @@ async function reconcileLinePay(): Promise<string[]> {
 
   const recovered: string[] = [];
   for (const o of (data ?? []) as unknown as PendingLinePayOrder[]) {
-    const status = await checkLinePayPaymentStatus(o.linepay_transaction_id);
+    // Phase 34:一個攤位金鑰壞掉只影響它自己的單(no_config → authorized false → continue)
+    const status = await checkLinePayPaymentStatus(o.tenant_id, o.linepay_transaction_id);
     if (!status.authorized) continue; // 多半是客人根本沒付,略過
 
     const amount = orderPayable(o); // Phase 33:補請款金額同 reserve
-    const confirmed = await confirmLinePayPayment(o.linepay_transaction_id, amount);
+    const confirmed = await confirmLinePayPayment(o.tenant_id, o.linepay_transaction_id, amount);
     if (!confirmed.ok) {
       console.error('[reconcileLinePay] 補請款失敗', o.order_no, confirmed.code, confirmed.error);
       await notifyAdmin('LINE Pay 客人已授權,但補請款失敗', [
@@ -148,6 +150,7 @@ async function reconcileLinePay(): Promise<string[]> {
 
 type PendingEcpayOrder = {
   id: string;
+  tenant_id: string; // Phase 34
   order_no: string;
   ecpay_merchant_trade_no: string;
 };
@@ -161,7 +164,7 @@ async function reconcileEcpay(): Promise<string[]> {
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
   const { data, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, ecpay_merchant_trade_no')
+    .select('id, tenant_id, order_no, ecpay_merchant_trade_no')
     .eq('payment_status', 'pending')
     .eq('status', 'open')
     .not('ecpay_merchant_trade_no', 'is', null)
@@ -177,7 +180,7 @@ async function reconcileEcpay(): Promise<string[]> {
   const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
   const recovered: string[] = [];
   for (const o of (data ?? []) as PendingEcpayOrder[]) {
-    const q = await queryEcpayTrade(o.ecpay_merchant_trade_no);
+    const q = await queryEcpayTrade(o.tenant_id, o.ecpay_merchant_trade_no); // Phase 34:用該攤位的金鑰查
     if (!q.ok) {
       console.warn('[reconcileEcpay] 查詢失敗', o.order_no, q.error);
       continue;

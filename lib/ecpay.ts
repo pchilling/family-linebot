@@ -2,9 +2,11 @@
  * 綠界 ECPay 全方位金流(AIO)串接(2026-10-22)
  *
  * 金鑰(廠商後台「系統開發管理 → 系統介接設定」,用「金流、MPOS」那一列):
- *   ECPAY_MERCHANT_ID / ECPAY_HASH_KEY / ECPAY_HASH_IV
- * 設 ECPAY_ENV=sandbox 走綠界測試站(用綠界文件公開的測試特店,付款是模擬的);
- * 不設就是正式站。
+ *   Phase 34(2026-11-06)起每攤位各自存在 tenants.payment_config.ecpay
+ *  (merchant_id 明文、hash_key_enc / hash_iv_enc 是 lib/secret-box.ts 的密文),所有函式都要帶 tenantId。
+ *   愛油哇(DEFAULT_TENANT_ID)在 DB 還沒有時退回環境變數 ECPAY_MERCHANT_ID / ECPAY_HASH_KEY / ECPAY_HASH_IV(過渡期,匯入後可刪)。
+ *   沙盒仍看 ECPAY_ENV=sandbox(全域環境變數,只給本機):所有攤位走綠界測試站、用文件公開的測試特店、忽略 DB。
+ *   回呼驗簽一律先找訂單 → tenant_id → 用該攤位的金鑰算 CheckMacValue。
  *
  * 流程(跟 LINE Pay 不同:綠界是「瀏覽器表單跳轉」,不是我們呼叫 API):
  *   1. 我們組一份參數 + 檢查碼,讓客人的瀏覽器 POST 到綠界付款頁(/api/ecpay/pay GET 負責)
@@ -19,7 +21,9 @@
  */
 import crypto from 'node:crypto';
 import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
-import { orderPayable, supabaseAdmin } from '@/lib/supabase';
+import { getTenantPaymentConfig, orderPayable, supabaseAdmin } from '@/lib/supabase';
+import { maskTail, openSecret, SecretBoxError } from '@/lib/secret-box';
+import type { PaymentKeyState } from '@/lib/linepay';
 
 const STAGE_HOST = 'https://payment-stage.ecpay.com.tw';
 const PROD_HOST = 'https://payment.ecpay.com.tw';
@@ -42,23 +46,119 @@ type EcpayConfig = {
   sandbox: boolean;
 };
 
-function getConfig(): EcpayConfig | null {
-  const sandbox = (process.env.ECPAY_ENV ?? '').trim().toLowerCase() === 'sandbox';
-  if (sandbox) return { ...STAGE_TEST_MERCHANT, host: STAGE_HOST, sandbox: true };
-  const merchantId = process.env.ECPAY_MERCHANT_ID?.trim();
-  const hashKey = process.env.ECPAY_HASH_KEY?.trim();
-  const hashIV = process.env.ECPAY_HASH_IV?.trim();
-  if (!merchantId || !hashKey || !hashIV) return null;
-  return { merchantId, hashKey, hashIV, host: PROD_HOST, sandbox: false };
-}
-
-/** 金鑰有沒有設好 — 沒設就不顯示綠界的付款選項 */
-export function isEcpayConfigured(): boolean {
-  return getConfig() !== null;
-}
-
+/** 純 env 判斷:ECPAY_ENV=sandbox(全域,只給本機)。不需攤位、不載金鑰 */
 export function isEcpaySandbox(): boolean {
-  return getConfig()?.sandbox === true;
+  return (process.env.ECPAY_ENV ?? '').trim().toLowerCase() === 'sandbox';
+}
+
+/** 只回有沒有正式的環境變數金鑰,不回值;後台匯入按鈕與 action 用 */
+export function hasEcpayEnvKeys(): boolean {
+  return (
+    !!process.env.ECPAY_MERCHANT_ID?.trim() &&
+    !!process.env.ECPAY_HASH_KEY?.trim() &&
+    !!process.env.ECPAY_HASH_IV?.trim()
+  );
+}
+
+/**
+ * Phase 34:依攤位拿金鑰(module 私有,不 export 原始 config)。由上往下第一個命中:
+ *   1. ECPAY_ENV=sandbox → 全攤位用綠界測試特店,忽略 DB
+ *   2. payment_config.ecpay 有完整欄位且解密成功 → 用 DB(包含愛油哇;DB 優先於 env)
+ *   3. payment_config.ecpay 有但解密失敗(任一欄)→ null(不退 env)
+ *   4. 沒子鍵且 tenantId === DEFAULT_TENANT_ID → 讀 env(過渡期退路)
+ *   5. 其他 → null
+ */
+/** 沙盒提示每個 process 印一次就好 */
+let warnedSandbox = false;
+
+async function getConfig(tenantId: string): Promise<EcpayConfig | null> {
+  if (isEcpaySandbox()) {
+    if (!warnedSandbox) {
+      warnedSandbox = true;
+      console.warn('[payment-config] 沙盒模式', 'ecpay');
+    }
+    return { ...STAGE_TEST_MERCHANT, host: STAGE_HOST, sandbox: true };
+  }
+
+  const row = await getTenantPaymentConfig(tenantId);
+  const sealed = row?.ecpay ?? null;
+  if (sealed) {
+    if (!sealed.merchant_id || !sealed.hash_key_enc || !sealed.hash_iv_enc) return null;
+    let field = 'ecpay.hash_key';
+    try {
+      const hashKey = openSecret(sealed.hash_key_enc, `${tenantId}:ecpay.hash_key`);
+      field = 'ecpay.hash_iv';
+      const hashIV = openSecret(sealed.hash_iv_enc, `${tenantId}:ecpay.hash_iv`);
+      return { merchantId: sealed.merchant_id, hashKey, hashIV, host: PROD_HOST, sandbox: false };
+    } catch (e) {
+      if (e instanceof SecretBoxError) {
+        console.error('[payment-config] 解密失敗', tenantId, field, e.code);
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  if (tenantId && tenantId === process.env.DEFAULT_TENANT_ID) {
+    const merchantId = process.env.ECPAY_MERCHANT_ID?.trim();
+    const hashKey = process.env.ECPAY_HASH_KEY?.trim();
+    const hashIV = process.env.ECPAY_HASH_IV?.trim();
+    if (!merchantId || !hashKey || !hashIV) return null;
+    console.warn('[payment-config] 使用環境變數退路', 'ecpay', tenantId);
+    return { merchantId, hashKey, hashIV, host: PROD_HOST, sandbox: false };
+  }
+  return null;
+}
+
+/** 這個攤位的金鑰有沒有設好(DB 解得開,或 DEFAULT_TENANT_ID 的 env 退路)— 沒設就不顯示綠界的付款選項 */
+export async function isEcpayConfigured(tenantId: string): Promise<boolean> {
+  return (await getConfig(tenantId)) !== null;
+}
+
+/** 後台「設定 → 收款」顯示用(Phase 34)。masked 只有 hash_key / hash_iv 的遮罩,永遠不含明文 / 密文 */
+export async function getEcpayKeyState(tenantId: string): Promise<PaymentKeyState> {
+  const sandbox = isEcpaySandbox();
+  const row = await getTenantPaymentConfig(tenantId);
+  const sealed = row?.ecpay ?? null;
+  if (sealed) {
+    try {
+      const hashKey = openSecret(sealed.hash_key_enc, `${tenantId}:ecpay.hash_key`);
+      const hashIV = openSecret(sealed.hash_iv_enc, `${tenantId}:ecpay.hash_iv`);
+      return {
+        state: 'db',
+        id: sealed.merchant_id,
+        masked: { hash_key: maskTail(hashKey), hash_iv: maskTail(hashIV) },
+        sandbox,
+        updatedAt: sealed.updated_at ?? null,
+        source: sealed.source ?? 'form',
+      };
+    } catch (e) {
+      if (!(e instanceof SecretBoxError)) throw e;
+      return {
+        state: 'broken',
+        brokenCode: e.code,
+        id: sealed.merchant_id ?? null,
+        masked: {},
+        sandbox,
+        updatedAt: sealed.updated_at ?? null,
+        source: sealed.source ?? null,
+      };
+    }
+  }
+  if (tenantId && tenantId === process.env.DEFAULT_TENANT_ID && hasEcpayEnvKeys()) {
+    return {
+      state: 'env',
+      id: process.env.ECPAY_MERCHANT_ID!.trim(),
+      masked: {
+        hash_key: maskTail(process.env.ECPAY_HASH_KEY!.trim()),
+        hash_iv: maskTail(process.env.ECPAY_HASH_IV!.trim()),
+      },
+      sandbox,
+      updatedAt: null,
+      source: null,
+    };
+  }
+  return { state: 'empty', id: null, masked: {}, sandbox, updatedAt: null, source: null };
 }
 
 export type EcpayFields = Record<string, string>;
@@ -108,10 +208,16 @@ function verifyWith(fields: EcpayFields, cfg: EcpayConfig): boolean {
   return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
 }
 
-/** 驗綠界送來的通知(Server 端或瀏覽器導回都要驗),沒驗過的資料一律不信 */
-export function verifyEcpayCallback(fields: EcpayFields): boolean {
-  const cfg = getConfig();
-  if (!cfg) return false;
+/**
+ * 驗綠界送來的通知(Server 端或瀏覽器導回都要驗),沒驗過的資料一律不信。
+ * Phase 34:tenantId 必須來自 DB 裡訂單的 tenant_id(先 findEcpayOrder 再驗),不能由請求內容決定。
+ */
+export async function verifyEcpayCallback(tenantId: string, fields: EcpayFields): Promise<boolean> {
+  const cfg = await getConfig(tenantId);
+  if (!cfg) {
+    console.error('[ecpay] 攤位未設定金鑰,無法驗簽', tenantId);
+    return false;
+  }
   return verifyWith(fields, cfg);
 }
 
@@ -150,7 +256,9 @@ export type EcpayCheckout = { action: string; fields: EcpayFields };
  * 組一份要 POST 到綠界付款頁的表單。回 null = 金鑰沒設。
  * 金額一律由呼叫端以 DB 的訂單金額帶進來,不信任前端。
  */
-export function buildEcpayCheckout(params: {
+export async function buildEcpayCheckout(params: {
+  /** Phase 34:訂單所屬攤位,決定用哪組特店與金鑰 */
+  tenantId: string;
   merchantTradeNo: string;
   amount: number;
   method: EcpayMethod;
@@ -166,8 +274,8 @@ export function buildEcpayCheckout(params: {
   browserReturnUrl: string;
   /** 付款頁「返回商店」按鈕 */
   clientBackUrl: string;
-}): EcpayCheckout | null {
-  const cfg = getConfig();
+}): Promise<EcpayCheckout | null> {
+  const cfg = await getConfig(params.tenantId);
   if (!cfg) return null;
   const fields: EcpayFields = {
     MerchantID: cfg.merchantId,
@@ -217,9 +325,9 @@ export type EcpayTradeQuery =
  * 回應是 k=v&k=v 字串,也帶 CheckMacValue,驗過才信。
  * 綠界有頻率限制(太密集會 403 鎖 30 分鐘),cron 逐筆呼叫之間請隔一下。
  */
-export async function queryEcpayTrade(merchantTradeNo: string): Promise<EcpayTradeQuery> {
-  const cfg = getConfig();
-  if (!cfg) return { ok: false, error: '綠界尚未設定' };
+export async function queryEcpayTrade(tenantId: string, merchantTradeNo: string): Promise<EcpayTradeQuery> {
+  const cfg = await getConfig(tenantId);
+  if (!cfg) return { ok: false, error: '這個攤位沒有設定綠界金鑰' };
   const fields: EcpayFields = {
     MerchantID: cfg.merchantId,
     MerchantTradeNo: merchantTradeNo,
@@ -328,13 +436,15 @@ export type EcpayRefundResult =
  * 成功時回用了哪個動作,後台可以告訴老闆這筆有沒有被扣處理費。
  */
 export async function refundEcpayCredit(params: {
+  /** Phase 34:訂單所屬攤位(orders.tenant_id),決定用哪組金鑰 */
+  tenantId: string;
   merchantTradeNo: string;
   tradeNo: string;
   amount: number;
   fullRefund: boolean;
 }): Promise<EcpayRefundResult> {
-  const cfg = getConfig();
-  if (!cfg) return { ok: false, code: 'no_config', message: '綠界尚未設定' };
+  const cfg = await getConfig(params.tenantId);
+  if (!cfg) return { ok: false, code: 'no_config', message: '這個攤位沒有設定綠界金鑰' };
   if (cfg.sandbox) return { ok: false, code: 'sandbox', message: '綠界測試站不支援退款 API' };
   if (!Number.isInteger(params.amount) || params.amount <= 0) {
     return { ok: false, code: 'failed', message: '金額異常' };
@@ -419,6 +529,7 @@ export function paymentMethodLabel(method: string | null | undefined): string {
 
 type EcpayOrderRow = {
   id: string;
+  tenant_id: string; // Phase 34:回呼「先找攤位再驗簽」的唯一依據
   order_no: string;
   total_twd: number;
   discount_twd: number | null; // Phase 33:折扣碼金額,應付用 orderPayable 算
@@ -433,7 +544,7 @@ type EcpayOrderRow = {
 };
 
 const ORDER_SELECT =
-  'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, ecpay_merchant_trade_no, atm_vaccount, access_key, tenants(slug, name), users(line_user_id)';
+  'id, tenant_id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, ecpay_merchant_trade_no, atm_vaccount, access_key, tenants(slug, name), users(line_user_id)';
 
 /**
  * 用通知裡的資料找訂單:先比特店交易編號;對不上(客人後來換過付款方式,
@@ -469,12 +580,14 @@ export type EcpayApplyResult =
  * 付款成功通知(RtnCode=1)→ 標已付款、存綠界交易編號、推 LINE 通知卡。
  * 可重複呼叫:已付款的單直接回 already_paid,不會推第二次。
  * baseUrl 給通知卡的「查看訂單」連結用。
+ *
+ * Phase 34 前提:呼叫端一定已用訂單所屬攤位的金鑰驗過簽(notify / pay POST),
+ * 或資料來自 queryEcpayTrade(回應已用該攤位金鑰驗過 CheckMacValue);新增呼叫端不得跳過驗簽。
+ * 這裡不再自己載金鑰,用同一份 fields 再 findEcpayOrder 必定找到同一筆。
  */
 export async function applyEcpayPaymentResult(fields: EcpayFields, baseUrl: string): Promise<EcpayApplyResult> {
   if (fields.RtnCode !== '1') return 'ignored';
-  const cfg = getConfig();
-  if (!cfg) return 'error';
-  if (fields.SimulatePaid === '1' && !cfg.sandbox) {
+  if (fields.SimulatePaid === '1' && !isEcpaySandbox()) {
     // 正式站的「模擬付款」是廠商後台按的,綠界不會撥款,不能當已付款
     console.warn('[ecpay] 正式站收到模擬付款,忽略', fields.MerchantTradeNo);
     return 'ignored';

@@ -28,7 +28,8 @@ export function isSuperAdmin(email: string | null | undefined): boolean {
 // 登入帳號必須是該攤位的成員(tenant_members,含申請中),或超級管理員,否則直接丟錯。
 // ====================
 
-async function currentAdminEmail(): Promise<string | null> {
+/** 目前登入後台的 email(Phase 34 起 export:金鑰匯入 action 與收款設定頁要判超級管理員) */
+export async function currentAdminEmail(): Promise<string | null> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   return data.user?.email ?? null;

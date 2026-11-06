@@ -104,7 +104,8 @@ export async function GET(req: NextRequest) {
   const orderUrl = (query: string) =>
     new URL(`/${slug}/order/${orderNo}${query}${accessKey ? `${query ? '&' : '?'}k=${accessKey}` : ''}`, req.nextUrl.origin);
 
-  if (!hasFeature(tenant, 'ecpay') || !isEcpayConfigured()) {
+  // Phase 34:flag 開(方案權限)且這個攤位有自己的金鑰
+  if (!hasFeature(tenant, 'ecpay') || !(await isEcpayConfigured(tenant.id))) {
     console.error('[ecpay pay] 此攤位未開放綠界', slug);
     return NextResponse.redirect(orderUrl('?ecpay=failed'));
   }
@@ -176,7 +177,8 @@ export async function GET(req: NextRequest) {
 
   // 綠界要打得到的公開網址;本機開發時 NEXT_PUBLIC_PROD_URL 沒設就退回目前 origin
   const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? req.nextUrl.origin).replace(/\/+$/, '');
-  const checkout = buildEcpayCheckout({
+  const checkout = await buildEcpayCheckout({
+    tenantId: tenant.id, // Phase 34:用這個攤位自己的特店與金鑰
     merchantTradeNo,
     amount,
     method,
@@ -219,7 +221,8 @@ export async function POST(req: NextRequest) {
   const orderUrl = (query: string, withKey = true) =>
     new URL(`/${slug}/order/${order.order_no}${query}${withKey && k ? `${query ? '&' : '?'}k=${k}` : ''}`, req.nextUrl.origin);
 
-  if (!verifyEcpayCallback(fields)) {
+  // Phase 34:用訂單所屬攤位的金鑰驗簽(order 由 DB 找出,不信任表單內容)
+  if (!(await verifyEcpayCallback(order.tenant_id, fields))) {
     console.error('[ecpay pay] 導回檢查碼不符', fields.MerchantTradeNo);
     return NextResponse.redirect(orderUrl('?ecpay=failed', false), 303);
   }

@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 
 type OrderRow = {
   id: string;
+  tenant_id: string; // Phase 34:confirm 用訂單所屬攤位的金鑰
   order_no: string;
   total_twd: number;
   discount_twd: number | null; // Phase 33
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, linepay_transaction_id, access_key, users(line_user_id)',
+      'id, tenant_id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, status, linepay_transaction_id, access_key, users(line_user_id)',
     )
     .eq('tenant_id', tenant.id)
     .eq('order_no', orderNo)
@@ -83,8 +84,17 @@ export async function GET(req: NextRequest) {
 
   // Phase 33:confirm 金額必須等於 reserve 時的金額,兩邊都用 orderPayable
   const amount = orderPayable(order);
-  const confirmed = await confirmLinePayPayment(transactionId, amount);
+  // Phase 34:金鑰由 DB 裡訂單的 tenant_id 決定(查詢已綁 tenant.id,兩者相等),不是由網址的 slug 決定
+  const confirmed = await confirmLinePayPayment(order.tenant_id, transactionId, amount);
   if (!confirmed.ok) {
+    if (confirmed.code === 'no_config') {
+      // 這條已驗過 transactionId 對得上,不是垃圾請求;攤位金鑰被清除 / 解不開,沒 confirm 就不會扣款
+      console.error('[linepay confirm] 攤位沒有金鑰,訂單未請款', order.order_no, order.tenant_id, confirmed.code);
+      await notifyAdmin('LINE Pay 導回但攤位沒有金鑰,訂單未請款', [
+        `訂單 ${order.order_no}`,
+        '客人沒有被扣款。請到該攤位「設定 → 收款」重新填入 LINE Pay 金鑰後,請客人再付一次。',
+      ]);
+    }
     return NextResponse.redirect(orderUrl('?linepay=failed'));
   }
 

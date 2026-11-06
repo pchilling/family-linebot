@@ -549,3 +549,11 @@ create trigger orders_discount_usage
   after insert or update of status or delete on orders
   for each row execute function sync_discount_code_usage();
 NOTIFY pgrst, 'reload schema';
+
+-- Phase 34(2026-11-06)— 每攤位各自的金流金鑰(tenants.payment_config jsonb,channel secret / HashKey / HashIV 用 AES-256-GCM 加密)
+-- 設計決定:channel_id / merchant_id 明文、敏感欄位 _enc 後綴存 secret-box 密文(lib/secret-box.ts,金鑰 PAYMENT_CONFIG_KEY 由 Peter 產生設到 Vercel);
+--   getConfig 改成必帶 tenantId,DB 優先、只有 DEFAULT_TENANT_ID 沒 DB 設定時退回 env(過渡期);解密失敗不退 env;沙盒 env 全攤位覆寫、忽略 DB。
+--   回呼先找訂單再用該攤位金鑰驗簽;綠界 notify 找不到訂單只 log 不推播。超級管理員在 oilswa 後台按「匯入」一次後 Vercel 的 LINEPAY_* / ECPAY_* 可刪。
+-- 待辦:PAYMENT_CONFIG_KEY 輪換工具(現在換了 key 全部要重填)、金鑰操作限 owner/admin(現在任何成員都行)、tenants.line_channel_secret 等明文欄位搬到 secret-box。
+alter table tenants add column if not exists payment_config jsonb;
+NOTIFY pgrst, 'reload schema';

@@ -8,9 +8,13 @@
  * 規矩:檢查碼驗過才處理;處理完回純文字「1|OK」(不能有引號、不能小寫),
  * 不然綠界會當沒收到,5–15 分鐘後重送,一天最多 4 次。
  * 我們這邊 DB 更新失敗時故意不回 1|OK,讓綠界重送再試一次。
+ *
+ * Phase 34(2026-11-06):每攤位各自的金鑰 → 要先用 MerchantTradeNo 找到訂單(→ tenant_id),
+ * 才知道要用哪組 HashKey / HashIV 驗簽。驗簽前的資料「不可信但可以拿來定位」:只能用來找訂單,
+ * 不能改狀態、不能 notifyAdmin(未驗簽前任何人都能 POST 這支,推播會被灌)。
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { applyEcpayAtmInfo, applyEcpayPaymentResult, verifyEcpayCallback, type EcpayFields } from '@/lib/ecpay';
+import { applyEcpayAtmInfo, applyEcpayPaymentResult, findEcpayOrder, verifyEcpayCallback, type EcpayFields } from '@/lib/ecpay';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +40,14 @@ export async function POST(req: NextRequest) {
     return text('0|BadRequest', 400);
   }
 
-  if (!verifyEcpayCallback(fields)) {
+  // 先找訂單決定用哪個攤位的金鑰(只印識別碼,不印金額;不推播)
+  const order = await findEcpayOrder(fields);
+  if (!order) {
+    console.error('[ecpay notify] 找不到訂單,無法驗簽', fields.MerchantTradeNo);
+    return text('0|OrderNotFound', 400);
+  }
+  // 攤位沒金鑰也走這條(verify 回 false)
+  if (!(await verifyEcpayCallback(order.tenant_id, fields))) {
     console.error('[ecpay notify] 檢查碼不符', fields.MerchantTradeNo, fields.RtnCode);
     return text('0|CheckMacValue Error', 400);
   }

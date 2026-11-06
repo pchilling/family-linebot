@@ -2,11 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase';
-import { requireAdminTenant } from '@/lib/super-admin';
+import { hasFeature, supabaseAdmin, type PaymentConfigRow } from '@/lib/supabase';
+import { currentAdminEmail, isSuperAdmin, requireAdminTenant } from '@/lib/super-admin';
 import { BG_STYLE_HEX, type BgStyle } from '@/lib/theme';
 import { parseBankInput } from '@/lib/bank-transfer';
 import { CVS_CHAINS, isCvsChain, type CvsChain } from '@/lib/cvs';
+import { isSecretBoxReady, sealSecret } from '@/lib/secret-box';
 
 export type SettingsState =
   | { status: 'idle' }
@@ -878,4 +879,208 @@ export async function deleteDiscountCode(formData: FormData): Promise<void> {
     throw new Error(exists ? '這組折扣碼已有訂單用過,請改停用' : '折扣碼不存在');
   }
   revalidatePath(`/admin/${slug}/settings`, 'layout');
+}
+
+// ====================
+// Phase 34(2026-11-06):每攤位各自的金流金鑰(設定 → 收款)
+// tenants.payment_config jsonb,敏感欄位用 lib/secret-box.ts 加密(AES-256-GCM,金鑰 PAYMENT_CONFIG_KEY)。
+// 這個檔是 'use server',每個 export 都是公開端點:只 export 三支 action,回傳值只有 {status, error?} / {ok, error?};
+// 讀取 / 解密 / 遮罩的 helper 一律在 lib/(linepay.ts、ecpay.ts、secret-box.ts),不放這裡。
+// 全程不 console.log formData、明文、密文;錯誤訊息只講規則、不回顯輸入值;成功時只 log(tenantId, gateway, 動作)。
+// ====================
+type PaymentGateway = 'linepay' | 'ecpay';
+const GATEWAY_FLAG: Record<PaymentGateway, string> = { linepay: 'line_pay', ecpay: 'ecpay' };
+const GATEWAY_LABEL: Record<PaymentGateway, string> = { linepay: 'LINE Pay', ecpay: '綠界' };
+const SECRET_BOX_NOT_READY = 'NEOP 尚未設定加密金鑰,暫時無法儲存。請聯繫 NEOP。';
+
+function parseGateway(raw: unknown): PaymentGateway | null {
+  const g = String(raw ?? '').trim();
+  return g === 'linepay' || g === 'ecpay' ? g : null;
+}
+
+/** 白名單驗證(trim 後)。回錯誤文案或 null;文案只講規則,絕不回顯輸入值 */
+function validateLinePayKeys(channelId: string, channelSecret: string): string | null {
+  if (!channelId || !channelSecret) return 'Channel ID 和 Channel Secret 都要填';
+  if (!/^\d{6,20}$/.test(channelId)) return 'Channel ID 只能是數字,請從 LINE Pay 商家中心複製';
+  if (!/^[A-Za-z0-9]{16,64}$/.test(channelSecret)) return 'Channel Secret 格式不對,請整段複製、不要有空白';
+  return null;
+}
+function validateEcpayKeys(merchantId: string, hashKey: string, hashIV: string): string | null {
+  if (!merchantId || !hashKey || !hashIV) return '特店編號、HashKey、HashIV 都要填';
+  if (!/^\d{5,10}$/.test(merchantId)) return '特店編號只能是數字';
+  if (!/^[A-Za-z0-9]{16}$/.test(hashKey) || !/^[A-Za-z0-9]{16}$/.test(hashIV)) {
+    return 'HashKey、HashIV 是 16 碼英數字,請從綠界後台整段複製';
+  }
+  return null;
+}
+
+/** 把明文金鑰封好成要寫進 payment_config 的子鍵(明文只活在這個函式的參數裡) */
+function sealGatewayConfig(
+  tenantId: string,
+  gateway: PaymentGateway,
+  plain: Record<string, string>,
+  source: 'form' | 'env_import',
+): PaymentConfigRow['linepay'] | PaymentConfigRow['ecpay'] {
+  const updated_at = new Date().toISOString();
+  if (gateway === 'linepay') {
+    return {
+      channel_id: plain.channel_id,
+      channel_secret_enc: sealSecret(plain.channel_secret, `${tenantId}:linepay.channel_secret`),
+      updated_at,
+      source,
+    };
+  }
+  return {
+    merchant_id: plain.merchant_id,
+    hash_key_enc: sealSecret(plain.hash_key, `${tenantId}:ecpay.hash_key`),
+    hash_iv_enc: sealSecret(plain.hash_iv, `${tenantId}:ecpay.hash_iv`),
+    updated_at,
+    source,
+  };
+}
+
+const READ_CONFIG_FAILED = '讀取目前的金流設定失敗,這次沒有儲存,請稍後再試';
+
+/**
+ * 寫入路徑專用的讀取:分得出「欄位真的是 null」和「DB 讀失敗」。
+ * lib/supabase.ts 的 getTenantPaymentConfig 讀失敗會回 null(付款端要的是退路),但這裡若把讀失敗當成沒設定,
+ * read-modify-write 會把另一個金流的子鍵一起蓋掉、匯入也會繞過「已有金鑰不覆蓋」— 所以讀失敗一律中止、不寫入。
+ */
+async function readPaymentConfigForWrite(
+  tenantId: string,
+): Promise<{ ok: true; row: PaymentConfigRow } | { ok: false; error: string }> {
+  const { data, error } = await supabaseAdmin.from('tenants').select('payment_config').eq('id', tenantId).maybeSingle();
+  if (error) {
+    console.error('[payment-config] 讀取失敗', tenantId, error.code);
+    return { ok: false, error: READ_CONFIG_FAILED };
+  }
+  if (!data) return { ok: false, error: '攤位不存在' };
+  const cfg = (data as { payment_config?: unknown }).payment_config;
+  const row: PaymentConfigRow = cfg && typeof cfg === 'object' ? (cfg as PaymentConfigRow) : { v: 1 };
+  return { ok: true, row };
+}
+
+/** read-modify-write 整份(跟 readQrPayment 同作法),只動自己的子鍵;兩個都 null 時整欄設 null。讀失敗就不寫 */
+async function writeGatewayConfig(
+  tenantId: string,
+  gateway: PaymentGateway,
+  value: PaymentConfigRow['linepay'] | PaymentConfigRow['ecpay'] | null,
+): Promise<string | null> {
+  const read = await readPaymentConfigForWrite(tenantId);
+  if (!read.ok) return read.error;
+  const next: PaymentConfigRow = { ...read.row, v: 1, [gateway]: value };
+  const payload = !next.linepay && !next.ecpay ? null : next;
+  const { error } = await supabaseAdmin.from('tenants').update({ payment_config: payload }).eq('id', tenantId);
+  if (error) {
+    // 只印 error.code:Supabase 的 message 偶爾會回顯寫入值(這裡只有密文與明文 id,但還是不印)
+    console.error('[payment-config] 寫入失敗', tenantId, gateway, error.code);
+    return '儲存失敗,請稍後再試';
+  }
+  return null;
+}
+
+function revalidatePaymentConfig(slug: string) {
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  revalidatePath(`/${slug}/checkout`);
+  revalidatePath(`/${slug}`, 'layout');
+}
+
+/** 攤主填自己的金鑰(useActionState)。成功後表單重掛清空;失敗時 React 會重設 password 欄、要重貼;server 永遠不回傳值 */
+export async function savePaymentGatewayKeys(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  if (!slug) return { status: 'error', error: '無攤位資訊' };
+  const gateway = parseGateway(formData.get('gateway'));
+  if (!gateway) return { status: 'error', error: '金流類型不正確' };
+  if (!isSecretBoxReady()) return { status: 'error', error: SECRET_BOX_NOT_READY };
+
+  const field = (key: string) => String(formData.get(key) ?? '').trim();
+  const plain: Record<string, string> =
+    gateway === 'linepay'
+      ? { channel_id: field('channel_id'), channel_secret: field('channel_secret') }
+      : { merchant_id: field('merchant_id'), hash_key: field('hash_key'), hash_iv: field('hash_iv') };
+  const invalid =
+    gateway === 'linepay'
+      ? validateLinePayKeys(plain.channel_id, plain.channel_secret)
+      : validateEcpayKeys(plain.merchant_id, plain.hash_key, plain.hash_iv);
+  if (invalid) return { status: 'error', error: invalid };
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) return { status: 'error', error: '攤位不存在' };
+  if (!hasFeature(tenant, GATEWAY_FLAG[gateway])) {
+    return { status: 'error', error: `這個攤位還沒開通 ${GATEWAY_LABEL[gateway]},請聯繫 NEOP` };
+  }
+
+  const sealed = sealGatewayConfig(tenant.id, gateway, plain, 'form');
+  const writeErr = await writeGatewayConfig(tenant.id, gateway, sealed);
+  if (writeErr) return { status: 'error', error: writeErr };
+
+  console.log('[payment-config] 已儲存', tenant.id, gateway);
+  revalidatePaymentConfig(slug);
+  return { status: 'success', ts: Date.now() };
+}
+
+/** 清除某個金流的金鑰:子鍵設 null;兩個都 null 時整欄設 null */
+export async function clearPaymentGatewayKeys(formData: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  const gateway = parseGateway(formData.get('gateway'));
+  if (!gateway) return { ok: false, error: '金流類型不正確' };
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const writeErr = await writeGatewayConfig(tenant.id, gateway, null);
+  if (writeErr) return { ok: false, error: writeErr };
+
+  console.log('[payment-config] 已清除', tenant.id, gateway);
+  revalidatePaymentConfig(slug);
+  return { ok: true };
+}
+
+/**
+ * 超級管理員一次性動作:把目前環境變數的正式金鑰匯入 DEFAULT_TENANT_ID 那個攤位(愛油哇),匯入後 Vercel 的 env 可刪。
+ * requireAdminTenant 對超管任何 slug 都放行,所以「只能匯入到預設攤位」這條一定要有,
+ * 否則超管在別的攤位頁硬打 action 就把愛油哇金鑰匯進別人家。只讀正式變數名,不讀 SANDBOX。
+ */
+export async function importPaymentGatewayFromEnv(formData: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  const gateway = parseGateway(formData.get('gateway'));
+  if (!gateway) return { ok: false, error: '金流類型不正確' };
+
+  const email = await currentAdminEmail();
+  if (!isSuperAdmin(email)) return { ok: false, error: '只有超級管理員可以匯入' };
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+  if (!process.env.DEFAULT_TENANT_ID || tenant.id !== process.env.DEFAULT_TENANT_ID) {
+    return { ok: false, error: '只能匯入到預設攤位' };
+  }
+  if (!isSecretBoxReady()) return { ok: false, error: SECRET_BOX_NOT_READY };
+
+  // 讀失敗就中止:不能在不確定 DB 裡有沒有金鑰的情況下覆蓋
+  const read = await readPaymentConfigForWrite(tenant.id);
+  if (!read.ok) return { ok: false, error: read.error };
+  if (read.row[gateway]) return { ok: false, error: '這個攤位已經有自己的金鑰,不覆蓋;要換請先清除' };
+
+  const env = (name: string) => (process.env[name] ?? '').trim();
+  const plain: Record<string, string> =
+    gateway === 'linepay'
+      ? { channel_id: env('LINEPAY_CHANNEL_ID'), channel_secret: env('LINEPAY_CHANNEL_SECRET') }
+      : { merchant_id: env('ECPAY_MERCHANT_ID'), hash_key: env('ECPAY_HASH_KEY'), hash_iv: env('ECPAY_HASH_IV') };
+  if (Object.values(plain).some((v) => !v)) {
+    return { ok: false, error: `環境變數裡沒有正式的 ${GATEWAY_LABEL[gateway]} 金鑰,沒有東西可以匯入` };
+  }
+  const invalid =
+    gateway === 'linepay'
+      ? validateLinePayKeys(plain.channel_id, plain.channel_secret)
+      : validateEcpayKeys(plain.merchant_id, plain.hash_key, plain.hash_iv);
+  if (invalid) return { ok: false, error: `環境變數的金鑰格式不對:${invalid}` };
+
+  const sealed = sealGatewayConfig(tenant.id, gateway, plain, 'env_import');
+  const writeErr = await writeGatewayConfig(tenant.id, gateway, sealed);
+  if (writeErr) return { ok: false, error: writeErr };
+
+  console.log('[payment-config] 已從環境變數匯入', tenant.id, gateway);
+  revalidatePaymentConfig(slug);
+  return { ok: true };
 }

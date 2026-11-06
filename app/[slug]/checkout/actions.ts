@@ -504,8 +504,9 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款,不信任前端
   const rawPayment = String(formData.get('payment_method') ?? '').trim();
   // Phase 27:'qr' 掃碼付款(攤位有開才收,不信任前端)
+  // Phase 34:LINE Pay 也要過可用性(flag 開但攤位沒金鑰時,不要建出永遠付不了的單佔庫存)
   const paymentMethod =
-    rawPayment === 'line_pay'
+    rawPayment === 'line_pay' && (await isLinePayAvailable(tenantSlug))
       ? 'line_pay'
       : rawPayment === 'ecpay_credit' && (await isEcpayAvailable(tenantSlug))
         ? 'ecpay_credit'
@@ -694,24 +695,25 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
 
 // ====================
 // 2026-10-15:LINE Pay 線上付款
-// 金鑰設好 + 該攤位開 line_pay feature flag 才會出現付款選項。
+// Phase 34(2026-11-06):可用 = NEOP 的 feature flag 有開(方案權限)且該攤位有自己的金鑰
+//(tenants.payment_config 解得開,或 DEFAULT_TENANT_ID 的環境變數退路)。flag 先判,沒開不讀 DB、不解密。
 // ====================
 
-/** 這個攤位能不能用 LINE Pay(金鑰已設 + feature flag 開) */
+/** 這個攤位能不能用 LINE Pay(feature flag 開 + 該攤位有金鑰) */
 export async function isLinePayAvailable(tenantSlug: string): Promise<boolean> {
-  if (!isLinePayConfigured()) return false;
   const tenant = await getTenantBySlug(tenantSlug);
-  return hasFeature(tenant, 'line_pay');
+  if (!tenant || !hasFeature(tenant, 'line_pay')) return false;
+  return isLinePayConfigured(tenant.id);
 }
 
 /**
- * 2026-10-22:這個攤位能不能用綠界(信用卡 / ATM 虛擬帳號)— 金鑰已設 + feature flag 開。
+ * 2026-10-22:這個攤位能不能用綠界(信用卡 / ATM 虛擬帳號)— feature flag 開 + 該攤位有金鑰。
  * 綠界的付款是瀏覽器導到 /api/ecpay/pay 再表單跳轉,不像 LINE Pay 需要 server action 發動。
  */
 export async function isEcpayAvailable(tenantSlug: string): Promise<boolean> {
-  if (!isEcpayConfigured()) return false;
   const tenant = await getTenantBySlug(tenantSlug);
-  return hasFeature(tenant, 'ecpay');
+  if (!tenant || !hasFeature(tenant, 'ecpay')) return false;
+  return isEcpayConfigured(tenant.id);
 }
 
 /**
@@ -719,9 +721,9 @@ export async function isEcpayAvailable(tenantSlug: string): Promise<boolean> {
  * 2026-10-22 Peter 決定先只開信用卡(人工匯款保留),ATM 程式留著,要開再把 flag 打開。
  */
 export async function isEcpayAtmAvailable(tenantSlug: string): Promise<boolean> {
-  if (!isEcpayConfigured()) return false;
   const tenant = await getTenantBySlug(tenantSlug);
-  return hasFeature(tenant, 'ecpay') && hasFeature(tenant, 'ecpay_atm');
+  if (!tenant || !hasFeature(tenant, 'ecpay') || !hasFeature(tenant, 'ecpay_atm')) return false;
+  return isEcpayConfigured(tenant.id);
 }
 
 export type StartLinePayResult =
@@ -782,6 +784,7 @@ export async function startLinePay(
 
   const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
   const result = await requestLinePayPayment({
+    tenantId: tenant.id, // Phase 34:用這個攤位自己的金鑰
     orderNo: order.order_no,
     amount,
     productName: `${tenant.name} 訂單 ${order.order_no}`,

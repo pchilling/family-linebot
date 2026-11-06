@@ -158,13 +158,56 @@ export async function userHasTenantAccess(
 }
 
 export async function getTenantByBotUserId(botUserId: string): Promise<Tenant | null> {
+  // Phase 34(2026-11-06):以前 select('*') 會把 payment_config 密文一起撈進 webhook;改成只列 Tenant 的欄位
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('*')
+    .select('id, name, line_channel_id, line_bot_user_id, line_channel_secret, line_channel_access_token, rich_menu_id')
     .eq('line_bot_user_id', botUserId)
     .single();
   if (error) return null;
   return data as Tenant;
+}
+
+// ====================
+// Phase 34(2026-11-06):每攤位各自的金流金鑰 tenants.payment_config jsonb
+// 敏感欄位(_enc 後綴)一律是 lib/secret-box.ts 的密文(自帶 v1. 前綴),沒有 _enc 的欄位是明文、可以顯示。
+// 子鍵 null = 該金流未設定;整欄 null = 兩個都沒設。
+// 故意不把 payment_config 加進 getTenantBySlug 的 select(TenantBySlug 到處傳、有的進 client component)。
+// ====================
+export type SealedLinePayConfig = {
+  channel_id: string;
+  channel_secret_enc: string;
+  updated_at: string;
+  source: 'form' | 'env_import';
+};
+export type SealedEcpayConfig = {
+  merchant_id: string;
+  hash_key_enc: string;
+  hash_iv_enc: string;
+  updated_at: string;
+  source: 'form' | 'env_import';
+};
+export type PaymentConfigRow = {
+  v: 1;
+  linepay?: SealedLinePayConfig | null;
+  ecpay?: SealedEcpayConfig | null;
+};
+
+/** 只撈 payment_config 一欄;欄位 null 或攤位不存在都回 null */
+export async function getTenantPaymentConfig(tenantId: string): Promise<PaymentConfigRow | null> {
+  if (!tenantId) return null;
+  const { data, error } = await supabaseAdmin
+    .from('tenants')
+    .select('payment_config')
+    .eq('id', tenantId)
+    .maybeSingle();
+  if (error) {
+    console.error('[getTenantPaymentConfig]', error.code);
+    return null;
+  }
+  const cfg = (data as { payment_config?: unknown } | null)?.payment_config;
+  if (!cfg || typeof cfg !== 'object') return null;
+  return cfg as PaymentConfigRow;
 }
 
 export async function upsertUser(params: {

@@ -143,6 +143,12 @@ export const SETTINGS_CSS = `
 .sx-method .act svg{transition:transform .15s}
 .sx-method[open] .act svg{transform:rotate(180deg)}
 .sx-method .body{padding:4px 16px 16px;border-top:1px solid #f4f4f5;display:flex;flex-direction:column;gap:14px}
+/* Phase 34(2026-11-06):金流金鑰卡 — 遮罩值、無法讀取狀態、警告 callout、操作列 */
+.sx-mask{letter-spacing:.06em;color:#52525b}
+.sx-method .mst.warn{color:#b45309;font-weight:600}
+.sx-callout.warn{background:#fffbeb;border-color:#fde68a;color:#78350f}
+.sx-callout.warn svg{color:#b45309}
+.sx-gw-ops{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 @media (max-width:767px){
   .sx-method > summary{flex-wrap:wrap;padding:12px 14px}
   .sx-method .body{padding:4px 14px 14px}

@@ -1597,3 +1597,21 @@ create trigger orders_discount_usage
   for each row execute function sync_discount_code_usage();
 
 NOTIFY pgrst, 'reload schema';
+
+-- ====================
+-- Phase 34(2026-11-06):每攤位各自的金流金鑰
+-- 之前 LINE Pay / 綠界金鑰只有一組(環境變數 LINEPAY_* / ECPAY_*,都是愛油哇的帳號),全站共用,
+-- 其他攤位開了 feature flag 也是用愛油哇的帳號收錢。改成每攤位存自己的:tenants.payment_config jsonb
+--   { "v": 1,
+--     "linepay": { "channel_id": "明文", "channel_secret_enc": "v1.<iv>.<ct>.<tag>", "updated_at", "source": "form|env_import" },
+--     "ecpay":   { "merchant_id": "明文", "hash_key_enc": "v1.…", "hash_iv_enc": "v1.…", "updated_at", "source" } }
+-- 敏感欄位(_enc 後綴)用 AES-256-GCM 加密(lib/secret-box.ts),金鑰在環境變數 PAYMENT_CONFIG_KEY(32 bytes base64),
+-- DB 裡沒有明文金鑰,DB 外洩也解不開。子鍵 null = 該金流未設定。
+-- 只有 DEFAULT_TENANT_ID 那個攤位(愛油哇)在這欄還沒有該金流時退回讀環境變數(過渡期,匯入後可刪 env);
+-- 其他攤位一律視為未設定。可用性 = features flag 有開(方案權限,NEOP 開)且有金鑰。
+-- 回呼驗簽一律先找訂單 → tenant_id → 該攤位的金鑰。沙盒切換(LINEPAY_ENV / ECPAY_ENV)維持全域環境變數,只給本機。
+-- 不加 check constraint:結構由 app 端驗。上面 LINE Pay(2026-10-15)/ 綠界(2026-10-22)區塊寫的「金鑰放環境變數」自此只剩愛油哇過渡期適用。
+-- ====================
+alter table tenants add column if not exists payment_config jsonb;
+
+NOTIFY pgrst, 'reload schema';

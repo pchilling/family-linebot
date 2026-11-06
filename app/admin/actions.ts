@@ -1077,12 +1077,13 @@ export async function refundLinePayOrder(formData: FormData) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, payment_method, linepay_transaction_id, linepay_refunded_twd, access_key, users(line_user_id)',
+      'id, tenant_id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, payment_method, linepay_transaction_id, linepay_refunded_twd, access_key, users(line_user_id)',
     )
     .eq('id', id)
     .maybeSingle();
   const order = (data ?? null) as unknown as {
     id: string;
+    tenant_id: string; // Phase 34:退款用訂單所屬攤位的金鑰(不用表單的 tenant_slug)
     order_no: string;
     total_twd: number;
     discount_twd: number | null; // Phase 33
@@ -1115,8 +1116,8 @@ export async function refundLinePayOrder(formData: FormData) {
     return back('refund_over');
   }
 
-  const result = await refundLinePayPayment(order.linepay_transaction_id, amount);
-  if (!result.ok) return back('refund_failed');
+  const result = await refundLinePayPayment(order.tenant_id, order.linepay_transaction_id, amount);
+  if (!result.ok) return back('refund_failed', result.error); // Phase 34:帶原因,攤位沒金鑰時看得出來
 
   const refundedTotal = already + amount;
   const isFullRefund = refundedTotal >= grandTotal;
@@ -1188,12 +1189,13 @@ export async function refundEcpayOrder(formData: FormData) {
   const { data } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, payment_method, ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, access_key, users(line_user_id)',
+      'id, tenant_id, order_no, total_twd, discount_twd, shipping_fee_twd, payment_status, payment_method, ecpay_merchant_trade_no, ecpay_trade_no, ecpay_refunded_twd, access_key, users(line_user_id)',
     )
     .eq('id', id)
     .maybeSingle();
   const order = (data ?? null) as unknown as {
     id: string;
+    tenant_id: string; // Phase 34
     order_no: string;
     total_twd: number;
     discount_twd: number | null; // Phase 33
@@ -1235,6 +1237,7 @@ export async function refundEcpayOrder(formData: FormData) {
 
   // 整筆沒退過而且這次退全額,才有資格走「放棄授權」免手續費
   const result = await refundEcpayCredit({
+    tenantId: order.tenant_id, // Phase 34:用訂單所屬攤位的金鑰
     merchantTradeNo: order.ecpay_merchant_trade_no,
     tradeNo: order.ecpay_trade_no,
     amount,
