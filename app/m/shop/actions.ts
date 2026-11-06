@@ -1,7 +1,7 @@
 'use server';
 
 import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
-import { isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type StartLinePayResult } from '../../[slug]/checkout/actions';
+import { applyDiscountCode, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import { bankTransferFromRow, formatBankTransferText, type BankTransfer } from '@/lib/bank-transfer';
 import type { CvsChain } from '@/lib/cvs';
@@ -96,6 +96,8 @@ export type ShopTenant = {
   // Phase 18(2026-10-16):加 mode / repeat,進度顯示才會跟實際送的一致
   gift_mode: 'stack' | 'highest';
   gift_rules: { threshold_twd: number; qty: number; product_name: string; repeat: boolean }[];
+  // Phase 33 補(2026-11-07):攤位有啟用中的折扣碼才在結帳顯示輸入格
+  has_discount_codes: boolean;
 };
 
 export type ShopData = {
@@ -234,6 +236,14 @@ export async function loadShopData(
       ? [{ type: 'image', url: t.og_image_url }]
       : [];
 
+  // Phase 33 補(2026-11-07):有沒有啟用中的折扣碼(只看有沒有,不把碼送到前端)
+  const { data: dcRows } = await supabaseAdmin
+    .from('discount_codes')
+    .select('id')
+    .eq('tenant_id', TENANT_ID)
+    .eq('enabled', true)
+    .limit(1);
+
   type ProductRow = ShopProduct & {
     product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; image_url: string | null; is_bundle: boolean | null; status: string; sort_order: number | null }[] | null;
   };
@@ -275,6 +285,7 @@ export async function loadShopData(
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],
       // Phase 29:店到店要選門市,LINE 商店還沒做這個畫面,先不給選(網站結帳才有)
       shipping_options: (Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : []).filter((o) => !o.cvs),
+      has_discount_codes: (dcRows?.length ?? 0) > 0,
       gift_mode: (t?.gift_rules?.mode === 'highest' ? 'highest' : 'stack') as 'stack' | 'highest',
       gift_rules: (t?.gift_rules?.rules ?? [])
         .filter((r) => r && r.threshold_twd > 0 && productNameById.has(r.product_id))
@@ -353,6 +364,8 @@ export async function placeOrder(
   const shippingMethod = String(formData.get('shipping_method') || '').trim();
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const note = String(formData.get('note') || '').trim();
+  // Phase 33 補(2026-11-07):折扣碼只收文字,金額 server 重算
+  const discountCodeRaw = String(formData.get('discount_code') || '').trim();
   // 2026-10-16:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
   // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款
   const rawPayment = String(formData.get('payment_method') || '').trim();
@@ -481,9 +494,20 @@ export async function placeOrder(
     shippingKey = opt.key;
   }
 
-  // insert order(order_no / total_twd 由 trigger 自動)
-  // Phase 33(2026-11-06):LIFF 這輪不收折扣碼,discount_code / discount_twd 走預設(null / 0),
-  // 下面 totalForPush 維持 pricedSubtotal + shippingFee,跟 orderPayable 的結果相同
+  // Phase 33 補(2026-11-07):折扣碼 — 走網站結帳同一支驗證與計算(定價邏輯相同,小計一致);
+  // 只折商品小計,免運與滿額贈看折扣前。驗不過整張不建單,錯誤文案直接丟給客人看。
+  let discountCode: string | null = null;
+  let discountTwd = 0;
+  if (discountCodeRaw) {
+    const slug = await tenantSlug();
+    if (!slug) throw new Error('攤位不存在');
+    const dc = await applyDiscountCode(slug, discountCodeRaw, cart.map((c) => ({ variantId: c.variant_id, qty: c.qty })), phone);
+    if (!dc.ok) throw new Error(dc.error);
+    discountCode = dc.code;
+    discountTwd = Math.min(dc.discount_twd, pricedSubtotal);
+  }
+
+  // insert order(order_no / total_twd 由 trigger 自動;折扣另存,應付 = orderPayable)
   const { data: order, error: orderErr } = await supabaseAdmin
     .from('orders')
     .insert({
@@ -498,12 +522,18 @@ export async function placeOrder(
       shipping_method: shippingKey,
       shipping_fee_twd: shippingFee,
       note: note || null,
+      discount_code: discountCode,
+      discount_twd: discountTwd,
     })
     .select('id, order_no, total_twd, access_key')
     .single();
   if (orderErr || !order) {
     console.error('[placeOrder insert order]', orderErr);
-    throw new Error('建單失敗:' + orderErr?.message);
+    // 折扣碼的 trigger 在 insert 時擋超賣與每人一次
+    const msg = orderErr?.message ?? '';
+    if (msg.includes('DISCOUNT_CODE_EXHAUSTED')) throw new Error('這組折扣碼剛好被用完了,請移除折扣碼再送出');
+    if (msg.includes('DISCOUNT_CODE_USED')) throw new Error('這組折扣碼每位客人限用一次,這個電話已經用過了');
+    throw new Error('建單失敗:' + msg);
   }
 
   // Phase 11:insert order_items 帶 variant_id,trigger 自動扣 variant.stock
@@ -539,7 +569,7 @@ export async function placeOrder(
   // 必須 await,push 完才能 return。增加 ~200ms 但保證送出。失敗仍不影響訂單(catch)。
   // ⚠️ order.total_twd 在 INSERT 時是 0(由 refresh_order_total trigger 在 items 後算),
   //    所以這裡用本地 cart × price snapshot 直接算
-  const totalForPush = pricedSubtotal + shippingFee; // 折後小計 + 運費
+  const totalForPush = pricedSubtotal - discountTwd + shippingFee; // 折後小計 − 折扣碼 + 運費(= orderPayable)
   try {
     await pushOrderConfirmation(lineUserId, order.order_no, totalForPush, paymentMethod, order.access_key ?? null);
   } catch (e) {
@@ -747,6 +777,14 @@ async function tenantSlug(): Promise<string | null> {
 export async function isLinePayAvailableLiff(): Promise<boolean> {
   const slug = await tenantSlug();
   return slug ? isLinePayAvailable(slug) : false;
+}
+
+/** Phase 33 補(2026-11-07):LINE 商店套用折扣碼 — 驗完 idToken 後委派給網站結帳同一支,回來的金額只給前端顯示,送單時 server 重算 */
+export async function applyDiscountCodeLiff(idToken: string, code: string, cart: CartItem[], phone: string): Promise<ApplyDiscountResult> {
+  await verifyIdToken(idToken);
+  const slug = await tenantSlug();
+  if (!slug) return { ok: false, error: '攤位不存在' };
+  return applyDiscountCode(slug, code, cart.map((c) => ({ variantId: c.variant_id, qty: c.qty })), phone);
 }
 
 /** Phase 28(2026-11-01):匯款沒設定(或關掉)就不出現在結帳 */

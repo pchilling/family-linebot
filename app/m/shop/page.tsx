@@ -20,6 +20,7 @@ import {
   isLinePayAvailableLiff,
   loadShopData,
   placeOrder,
+  applyDiscountCodeLiff,
   startLinePayLiff,
   reportOrderLast5,
   saveShopProfile,
@@ -80,6 +81,14 @@ const CSS = `
 .ls-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:32px;overflow:hidden;background:var(--ui-surface)}
 .ls-qty button{width:32px;height:32px;border:0;background:transparent;font:inherit;font-size:16px;cursor:pointer;color:var(--ui-ink);padding:0}
 .ls-qty input{width:40px;height:32px;text-align:center;font:inherit;font-size:13px;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;outline:none}
+.ls-dc{margin-top:14px;padding-top:14px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px}
+.ls-dc-row{display:flex;gap:8px}
+.ls-dc-row .ui-input{flex:1;min-width:0;height:44px;font-size:16px;text-transform:uppercase}
+.ls-dc-err{font-size:12.5px;color:#b91c1c;margin:0;line-height:1.5}
+.ls-dc-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;font-size:13px;font-weight:500}
+.ls-dc-chip .t{flex:1;min-width:0}
+.ls-dc-chip .s{display:block;font-size:12px;font-weight:400;margin-top:2px}
+.ls-dc-chip .x{margin-left:auto;width:28px;height:28px;border:0;background:none;color:#15803d;cursor:pointer;display:grid;place-items:center;border-radius:6px;padding:0;flex-shrink:0}
 .ls-tot{margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px;font-size:14px}
 .ls-tot .r{display:flex;justify-content:space-between;gap:12px;color:#52525b}
 .ls-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;margin-top:2px;border-top:1px solid var(--ui-line);font-weight:600}
@@ -134,6 +143,7 @@ export default function ShopPage() {
     shipping_options: [],
     gift_mode: 'stack',
     gift_rules: [],
+    has_discount_codes: false,
   });
   const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
   const [shipError, setShipError] = useState(false); // 沒選配送方式的提示
@@ -155,6 +165,11 @@ export default function ShopPage() {
   // 上一筆訂單的收件資訊,結帳預填
   const [lastShip, setLastShip] = useState<{ recipient: string | null; phone: string | null; address: string | null } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  // Phase 33 補(2026-11-07):折扣碼 — 套用後的金額只給顯示,送單時 server 重算
+  const [dcInput, setDcInput] = useState('');
+  const [dcApplied, setDcApplied] = useState<{ code: string; discount_twd: number } | null>(null);
+  const [dcError, setDcError] = useState('');
+  const [dcBusy, setDcBusy] = useState(false);
   const [filter, setFilter] = useState<string>(''); // '' = 全部 / 'latest' / 'sale' / category name
   const [detailId, setDetailId] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -371,8 +386,43 @@ export default function ShopPage() {
   // 運費(有設定 shipping_options 的攤位才有;滿額免運)
   const shipOption = tenant.shipping_options.find((o) => o.key === shipKey) ?? null;
   const shipFee = shipOption ? (shipOption.free_over && cartTotal >= shipOption.free_over ? 0 : shipOption.fee) : 0;
-  const grandTotal = cartTotal + shipFee;
+  // 折扣碼只折商品小計;免運門檻(上面)與滿額贈(下面)都看折扣前的 cartTotal
+  const discount = dcApplied ? Math.min(dcApplied.discount_twd, cartTotal) : 0;
+  const grandTotal = cartTotal - discount + shipFee;
   const needShipping = tenant.shipping_options.length > 0;
+
+  const phoneNow = () => (document.getElementById('ck-phone') as HTMLInputElement | null)?.value ?? '';
+  async function applyDc(code: string, silent = false) {
+    const raw = code.trim();
+    if (!raw) { setDcError('請先輸入折扣碼'); return; }
+    setDcBusy(true);
+    if (!silent) setDcError('');
+    try {
+      const r = await applyDiscountCodeLiff(idToken, raw, cart, phoneNow());
+      if (r.ok) {
+        setDcApplied({ code: r.code, discount_twd: r.discount_twd });
+        setDcInput(r.code);
+        setDcError('');
+      } else {
+        setDcApplied(null);
+        setDcError(r.error);
+      }
+    } catch {
+      setDcApplied(null);
+      setDcError('確認折扣碼失敗,請再試一次');
+    } finally {
+      setDcBusy(false);
+    }
+  }
+  // 購物車變了就用同一個碼靜默重驗(門檻、折扣金額都可能變)
+  const dcAppliedCode = dcApplied?.code ?? null;
+  useEffect(() => {
+    if (!dcAppliedCode) return;
+    if (cart.length === 0) { setDcApplied(null); return; }
+    const t = window.setTimeout(() => { void applyDc(dcAppliedCode, true); }, 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartTotal, dcAppliedCode]);
 
   // 滿額贈:擇高式只算最高那條;可重複的規則算倍數、也一直有下一個目標
   const gift = useMemo(() => {
@@ -415,6 +465,7 @@ export default function ShopPage() {
     try {
       formData.set('idToken', idToken);
       formData.set('cart', JSON.stringify(cart));
+      formData.set('discount_code', dcApplied?.code ?? '');
       const { order_no } = await placeOrder(formData);
       // 選 LINE Pay → 直接跳付款頁。發動失敗不擋單,退回完成畫面,客人可從訂單頁再付一次。
       if (isLinePayPay) {
@@ -441,7 +492,13 @@ export default function ShopPage() {
       setOrderNo(order_no);
       setStatus('done');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      // 折扣碼驗不過整張沒建單:清掉已套用的碼讓合計恢復,原因也放到折扣碼欄下面
+      if (msg.includes('折扣碼')) {
+        setDcApplied(null);
+        setDcError(msg);
+      }
       setStatus('shop');
     }
   }
@@ -799,8 +856,47 @@ export default function ShopPage() {
                 </div>
               );
             })}
+            {/* Phase 33 補(2026-11-07):折扣碼(攤位有啟用中的碼才顯示;不放進 form,Enter 才不會送出整張訂單) */}
+            {tenant.has_discount_codes && (
+              <div className="ls-dc">
+                {dcApplied ? (
+                  <div className="ls-dc-chip" role="status">
+                    <IconCheck size={14} />
+                    <span className="t">
+                      折扣碼 {dcApplied.code} 已套用
+                      <span className="s ui-num">折抵 NT$ {money(discount)}</span>
+                    </span>
+                    <button type="button" className="x" aria-label="移除折扣碼" onClick={() => { setDcApplied(null); setDcError(''); }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M18 6 6 18M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="ls-dc-row">
+                    <input
+                      className="ui-input"
+                      value={dcInput}
+                      onChange={(e) => { setDcInput(e.target.value); if (dcError) setDcError(''); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void applyDc(dcInput); } }}
+                      placeholder="折扣碼"
+                      aria-label="折扣碼"
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      maxLength={20}
+                    />
+                    <Button type="button" variant="outline" size="md" disabled={dcBusy || !dcInput.trim()} onClick={() => void applyDc(dcInput)} style={{ height: 44 }}>
+                      {dcBusy ? '確認中' : '套用'}
+                    </Button>
+                  </div>
+                )}
+                {dcError && <p className="ls-dc-err" role="alert">{dcError}</p>}
+              </div>
+            )}
             <div className="ls-tot">
               <div className="r"><span>商品小計</span><span className="ui-num" style={{ color: 'var(--ui-ink)' }}>NT$ <CountUp value={cartTotal} /></span></div>
+              {discount > 0 && dcApplied && (
+                <div className="r"><span>折扣碼 {dcApplied.code}</span><span className="ui-num" style={{ color: '#15803d' }}>−NT$ {money(discount)}</span></div>
+              )}
               {needShipping && (
                 <div className="r">
                   <span>運費{shipOption ? `(${shipOption.label})` : ''}</span>
