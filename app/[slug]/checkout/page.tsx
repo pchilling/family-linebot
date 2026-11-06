@@ -51,10 +51,10 @@ const CSS = `
 .ck-chk{display:inline-flex;align-items:center;gap:10px;font-size:14px;cursor:pointer}
 .ck-hint{font-size:12px;color:var(--ui-muted);margin:0;line-height:1.5}
 .ck-last{align-self:flex-start}
-.ck-sum{position:sticky;top:80px;padding:20px}
-.ck-sum h2{margin:0 0 16px;font-size:16px;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
+.ck-sum{position:sticky;top:80px;padding:24px}
+.ck-sum h2{margin:0 0 8px;font-size:16px;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
 .ck-sum h2 span{font-size:12px;color:var(--ui-muted);font-weight:400}
-.ck-item{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--ui-line-soft)}
+.ck-item{display:flex;gap:12px;padding:14px 0;border-top:1px solid var(--ui-line-soft)}
 .ck-item:first-of-type{border-top:0;padding-top:0}
 .ck-th{width:56px;height:70px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-line-soft);overflow:hidden;position:relative;flex-shrink:0;display:grid;place-items:center;color:#d4d4d8}
 .ck-th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -73,7 +73,7 @@ const CSS = `
 .ck-bar{height:6px;border-radius:999px;background:var(--ui-line);overflow:hidden}
 .ck-bar div{height:100%;border-radius:999px;background:var(--ui-accent);transition:width .45s cubic-bezier(.3,.8,.4,1)}
 /* Phase 33(2026-11-06):折扣碼輸入區(滿額贈進度之後、金額區之前) */
-.ck-dc{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.ck-dc{margin-top:18px;padding-top:18px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px}
 .ck-dc-row{display:flex;gap:8px}
 .ck-dc-row .ui-input{flex:1;min-width:0;text-transform:uppercase}
 .ck-dc-err{font-size:12.5px;color:#b91c1c;margin:0;line-height:1.5}
@@ -82,12 +82,17 @@ const CSS = `
 .ck-dc-chip .s{display:block;font-size:12px;font-weight:400;margin-top:2px}
 .ck-dc-chip .x{margin-left:auto;width:24px;height:24px;border:0;background:none;color:#15803d;cursor:pointer;display:grid;place-items:center;border-radius:6px;padding:0;flex-shrink:0}
 .ck-dc-chip .x:hover{background:#dcfce7}
-.ck-tot{margin-top:16px;padding-top:14px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:8px;font-size:14px}
+.ck-tot{margin-top:18px;padding-top:18px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:10px;font-size:14px}
 .ck-tot .r{display:flex;justify-content:space-between;gap:12px;color:#52525b}
-.ck-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:10px;margin-top:4px;border-top:1px solid var(--ui-line);color:var(--ui-ink);font-weight:600}
-.ck-tot .g span:last-child{font-size:22px}
-.ck-fine{font-size:12px;color:var(--ui-muted);text-align:center;margin:10px 0 0;line-height:1.6}
-.ck-fine a{color:var(--ui-ink);font-weight:500;text-decoration:none}.ck-fine a:hover{text-decoration:underline;text-underline-offset:3px}
+.ck-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:16px;margin-top:8px;border-top:1px solid var(--ui-line);color:var(--ui-ink);font-weight:600}
+.ck-tot .g span:first-child{font-size:15px}
+.ck-tot .g span:last-child{font-size:26px;letter-spacing:-.02em}
+.ck-submit-d{margin-top:20px}
+.ck-fine{font-size:13px;color:var(--ui-ink);margin:12px 0 0;line-height:1.6}
+.ck-notes{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--ui-line-soft);display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ui-muted);line-height:1.6}
+.ck-notes li{display:flex;gap:8px;align-items:flex-start}
+.ck-notes li::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--ui-faint);flex-shrink:0;margin-top:8px}
+.ck-notes a{color:var(--ui-ink);font-weight:500;text-decoration:none}.ck-notes a:hover{text-decoration:underline;text-underline-offset:3px}
 .ck-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.6;font-weight:500}
 .ck-submit-m{display:none}
 .ck-overlay{position:fixed;inset:0;z-index:1000;background:rgba(255,255,255,.85);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
@@ -398,11 +403,12 @@ export default function CheckoutPage({ params }: Props) {
         {submitting ? '處理中,訂單建立中…' : submitLabel}
       </Button>
       <p className="ck-fine">{fine}</p>
-      {/* 2026-11-06:條款同意 + 出貨時程 + 卡號不經本站(有線上付款才講) */}
-      <p className="ck-fine" style={{ marginTop: 4 }}>
-        送出即表示同意<a href={`/${slug}/policy/terms`} target="_blank" rel="noreferrer">服務條款</a>與<a href={`/${slug}/policy/refund`} target="_blank" rel="noreferrer">退款政策</a>。確認付款後 1–3 個工作天出貨。
-        {(linePayOn || ecpayOn) && <>刷卡與 LINE Pay 在金流商頁面完成,本站不會取得您的卡號。</>}
-      </p>
+      {/* 2026-11-06:條款同意 + 出貨時程 + 卡號不經本站(有線上付款才講);2026-11-07 改成一行一點,不擠在一段 */}
+      <ul className="ck-notes">
+        <li><span>送出即表示同意<a href={`/${slug}/policy/terms`} target="_blank" rel="noreferrer">服務條款</a>與<a href={`/${slug}/policy/refund`} target="_blank" rel="noreferrer">退款政策</a></span></li>
+        <li><span>確認付款後 1–3 個工作天出貨</span></li>
+        {(linePayOn || ecpayOn) && <li><span>刷卡與 LINE Pay 在金流商頁面完成,本站不會取得您的卡號</span></li>}
+      </ul>
     </div>
   );
 
