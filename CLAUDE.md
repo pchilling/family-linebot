@@ -18,7 +18,7 @@
 - 資料表 schema 一律寫進 `db/`，並在 `docs/progress.md` 留 migration SQL。
 
 ## 這個 repo 的租戶
-- `oilswa`（愛油哇，電商，已上線）、`cyndi`、`kim`。
+- `oilswa`（愛油哇，電商，已上線）、`cyndi`、`kim`（RE:K，朋友的市集品牌，Peter 代管；講 RE:K 就是這個攤位，不要另建）。
 - New Era Oil 的**知識站不在這個 repo**，是獨立專案 `../neraoil`（neraoil.tw）。
   這裡之後只會多一個「New Era Oil 周邊商城」攤位（擴香機、書籍，不賣精油），見 `docs/NEWERA.md`。
 
