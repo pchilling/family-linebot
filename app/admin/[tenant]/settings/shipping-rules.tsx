@@ -155,7 +155,7 @@ export function ShippingRules({ tenantSlug, initial }: { tenantSlug: string; ini
             </div>
           )}
           <span className="sx-hint">
-            店到店一律同一家超商寄、同一家取,所以 7-ELEVEN 和全家是兩種方式。取貨付款要等接綠界物流,現在先只收先付款的單。
+            店到店一律同一家超商寄、同一家取,所以 7-ELEVEN 和全家是兩種方式。要讓客人到店取貨再付款,到「收款」分頁打開「超商取貨付款」。
           </span>
         </div>
 
