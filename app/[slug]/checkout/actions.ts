@@ -643,11 +643,27 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   // Phase 26:已登入就把訂單綁到會員(platform_users),「我的訂單」靠這個找;沒登入維持訪客單
   const member = await getCurrentMember().catch(() => null);
 
+  // 2026-11-08:網頁單也綁 LINE 好友 — 會員有 line_user_id、而且是這個攤位的 LINE 好友(users 有列)就寫 orders.user_id,
+  // 付款成功 / 逾期提醒 / 退款 / 團購到貨這些 LINE 通知都是靠 orders.user_id → users.line_user_id 找人,
+  // 以前只有 LIFF 單有,網頁單一律收不到。不是好友的人 LINE 本來就推不到,維持 null。
+  let lineFriendId: string | null = null;
+  if (member?.line_user_id) {
+    const { data: friend, error: friendErr } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('tenant_id', tenant.id)
+      .eq('line_user_id', member.line_user_id)
+      .maybeSingle();
+    if (friendErr) console.error('[createOrder users]', friendErr);
+    lineFriendId = (friend as { id: string } | null)?.id ?? null;
+  }
+
   // 建 order(order_no / total_twd 由 trigger 處理;total_twd = 商品小計,運費另存)
   const { data: orderRow, error: oErr } = await supabaseAdmin
     .from('orders')
     .insert({
       ...(member ? { platform_user_id: member.id } : {}),
+      ...(lineFriendId ? { user_id: lineFriendId } : {}),
       tenant_id: tenant.id,
       status: 'open',
       payment_status: 'pending',
