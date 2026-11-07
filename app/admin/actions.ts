@@ -7,6 +7,7 @@ import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { refundLinePayPayment } from '@/lib/linepay';
 import { refundEcpayCredit } from '@/lib/ecpay';
 import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
+import { cvsStoreText, isCvsChain } from '@/lib/cvs';
 import { assertRowAccess, assertTenantAccessById, requireAdminTenant } from '@/lib/super-admin';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
@@ -1009,9 +1010,15 @@ export async function markOrderPaid(formData: FormData) {
   const last5 = String(formData.get('payment_last5') || '').trim() || null;
   const method = String(formData.get('payment_method') || 'bank').trim() || 'bank';
 
+  // Phase 36(2026-11-08):超商取貨付款的單,「確認收款」= 客人已到店付款取貨、超商撥款給攤主,
+  // 已寄出的直接變「已取貨」;還沒寄的(少見)照舊變已付款待出貨
+  const { data: cur } = await supabaseAdmin.from('orders').select('payment_method, status').eq('id', id).maybeSingle();
+  const curRow = (cur ?? null) as { payment_method: string | null; status: string } | null;
+  const isCod = method === 'cod' || curRow?.payment_method === 'cod';
+
   // Try with payment_last5 first; if column missing(SQL 沒跑)→ retry without
   const fullPayload: Record<string, unknown> = {
-    status: 'paid',
+    status: isCod && curRow?.status === 'shipped' ? 'delivered' : 'paid',
     payment_status: 'paid',
     payment_method: method,
   };
@@ -1066,6 +1073,52 @@ export async function markOrderShipped(formData: FormData) {
       ...(trackingNo ? { tracking_no: trackingNo } : {}),
     })
     .eq('id', id);
+
+  // Phase 36(2026-11-08):已寄出 LINE 通知 — 有綁 LINE 好友的單推一則(以前按已寄出不會通知客人)。
+  // 店到店帶門市與寄件單號;取貨付款的單講到店要付多少。推不出去不影響出貨狀態。
+  try {
+    const { data: shipped } = await supabaseAdmin
+      .from('orders')
+      .select('order_no, tracking_no, payment_method, payment_status, total_twd, discount_twd, shipping_fee_twd, shipping_method, cvs_type, cvs_store_id, cvs_store_name, access_key, tenants(slug, name), users(line_user_id)')
+      .eq('id', id)
+      .maybeSingle();
+    const s = (shipped ?? null) as unknown as {
+      order_no: string;
+      tracking_no: string | null;
+      payment_method: string | null;
+      payment_status: string;
+      total_twd: number;
+      discount_twd: number | null;
+      shipping_fee_twd: number | null;
+      shipping_method: string | null;
+      cvs_type: string | null;
+      cvs_store_id: string | null;
+      cvs_store_name: string | null;
+      access_key: string | null;
+      tenants: { slug: string; name: string } | null;
+      users: { line_user_id: string | null } | null;
+    } | null;
+    const lineUserId = s?.users?.line_user_id;
+    if (s && lineUserId) {
+      const cvs = isCvsChain(s.cvs_type) ? s.cvs_type : null;
+      const isPickup = s.shipping_method === 'pickup';
+      const isCod = s.payment_method === 'cod' && s.payment_status !== 'paid';
+      const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
+      const orderUrl = s.tenants ? `${baseUrl}/${s.tenants.slug}/order/${s.order_no}${s.access_key ? `?k=${s.access_key}` : ''}` : '';
+      const lines = [
+        isPickup ? '📦 您的訂單已備貨,歡迎來店取貨' : cvs ? '📦 您的訂單已寄出,請等超商到店通知' : '📦 您的訂單已出貨',
+        `訂單編號:${s.order_no}`,
+        cvs ? `取貨門市:${cvsStoreText(cvs, s.cvs_store_name ?? '', s.cvs_store_id ?? '')}` : null,
+        s.tracking_no ? `寄件單號:${s.tracking_no}` : null,
+        isCod ? `到店取貨時付款:NT$ ${orderPayable(s).toLocaleString()}(含運費)` : null,
+        cvs ? '到店後超商會發簡訊,請憑姓名和手機取件,7 天內要領取。' : null,
+        orderUrl ? `查看訂單:${orderUrl}` : null,
+      ].filter((x): x is string => !!x);
+      await lineClient.pushMessage({ to: lineUserId, messages: [{ type: 'text', text: lines.join('\n') }] });
+    }
+  } catch (e) {
+    console.warn('[markOrderShipped push]', e instanceof Error ? e.message : e);
+  }
 
   if (slug) {
     revalidatePath(`/admin/${slug}/orders/${id}`);

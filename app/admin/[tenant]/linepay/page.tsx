@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, hasFeature, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { IconMessage } from '@/lib/icons';
+import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
 
 type Row = {
   id: string;
@@ -39,6 +40,20 @@ type PendingRow = {
   payment_reported_at: string;
   payment_last5: string | null;
   payment_note: string | null;
+  shipping_recipient: string | null;
+  users: { display_name: string | null } | null;
+};
+
+// Phase 36(2026-11-08):到店付款待確認 — 已寄出、等客人到店付款、超商撥款後攤主按確認收款的取貨付款單
+type CodRow = {
+  id: string;
+  order_no: string;
+  total_twd: number;
+  discount_twd: number | null;
+  shipping_fee_twd: number | null;
+  shipped_at: string | null;
+  cvs_type: string | null;
+  cvs_store_name: string | null;
   shipping_recipient: string | null;
   users: { display_name: string | null } | null;
 };
@@ -138,7 +153,7 @@ export default async function ReconcilePage({
   // 含 to 當天:lt 隔天 00:00(台北)
   const toEnd = new Date(new Date(`${to}T00:00:00+08:00`).getTime() + 86400000).toISOString();
 
-  const [{ data: pendingRaw }, { data }] = await Promise.all([
+  const [{ data: pendingRaw }, { data }, { data: codRaw }] = await Promise.all([
     // 客人回報了(後五碼 / 掃碼)但還沒確認收款的單,跟總覽的「待核帳」同一條件
     supabaseAdmin
       .from('orders')
@@ -163,9 +178,21 @@ export default async function ReconcilePage({
           .order('created_at', { ascending: false })
           .limit(500)
       : Promise.resolve({ data: [] as unknown[] }),
+    // Phase 36:取貨付款 — 已寄出、還沒確認收款的單(客人到店付、超商撥款後攤主才按確認)
+    supabaseAdmin
+      .from('orders')
+      .select('id, order_no, total_twd, discount_twd, shipping_fee_twd, shipped_at, cvs_type, cvs_store_name, shipping_recipient, users(display_name)')
+      .eq('tenant_id', tenant.id)
+      .eq('payment_method', 'cod')
+      .eq('payment_status', 'pending')
+      .eq('status', 'shipped')
+      .order('shipped_at', { ascending: true })
+      .limit(100),
   ]);
 
   const pending = ((pendingRaw ?? []) as unknown) as PendingRow[];
+  const codPending = ((codRaw ?? []) as unknown) as CodRow[];
+  const daysSince = (iso: string | null) => (iso ? Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)) : 0);
   const rows = (data ?? []) as unknown as Row[];
   // 只有真的收到錢的才列入對帳(付款成功過 = 已付款或後來退款)
   const settled = rows.filter((r) => r.payment_status === 'paid' || r.payment_status === 'refunded');
@@ -185,6 +212,7 @@ export default async function ReconcilePage({
           <h1>對帳</h1>
           <p>
             匯款和掃碼付款要你自己核對入帳;線上金流(LINE Pay、綠界)付完會自動變已收款,不用核。
+            超商取貨付款的單寄出後會列在下面,等超商撥款給你再確認。
             {hasLinePay && ' 下面另外有 LINE Pay 撥款對帳。'}
           </p>
         </header>
@@ -237,6 +265,52 @@ export default async function ReconcilePage({
             </>
           )}
         </div>
+
+        {/* Phase 36:到店付款待確認(只有有這種單時才出現) */}
+        {codPending.length > 0 && (
+          <div className="lp-card warn">
+            <h3>
+              到店付款待確認
+              <span className="n">{codPending.length} 筆</span>
+            </h3>
+            <div className="lp-row lp-pend head" aria-hidden>
+              <span>訂單</span>
+              <span>門市</span>
+              <span>狀態</span>
+              <span>寄出時間</span>
+              <span className="r">到店付</span>
+              <span />
+            </div>
+            {codPending.map((o) => {
+              const amount = orderPayable(o);
+              const days = daysSince(o.shipped_at);
+              const who = o.users?.display_name ?? o.shipping_recipient ?? '';
+              const chain = isCvsChain(o.cvs_type) ? CVS_CHAINS[o.cvs_type].short : '超商';
+              return (
+                <div key={o.id} className="lp-row lp-pend">
+                  <div>
+                    <Link href={`/admin/${tenant.slug}/orders/${o.id}`} className="lp-no">{o.order_no}</Link>
+                    {who && <div className="lp-sub">{who}</div>}
+                  </div>
+                  <div className="muted">{chain} {o.cvs_store_name ?? ''}</div>
+                  <div className="c-note">
+                    <span className="note" style={days >= 14 ? undefined : { color: '#52525b' }}>
+                      {days >= 14 ? `寄出 ${days} 天,查一下是不是被退回了` : `已寄出 ${days} 天,等客人取貨付款`}
+                    </span>
+                  </div>
+                  <div className="c-time muted">{twDate(o.shipped_at)}</div>
+                  <div className="c-amt r" style={{ fontWeight: 600 }}>NT$ {amount.toLocaleString()}</div>
+                  <div className="c-go" style={{ textAlign: 'right' }}>
+                    <Link href={`/admin/${tenant.slug}/orders/${o.id}`} className="ui-btn ui-btn-primary ui-btn-xs">去確認</Link>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="lp-unpaid" style={{ marginTop: 12 }}>
+              客人到店付款、超商撥款進你的帳戶後,到訂單按「超商已撥款,確認收款」。逾期未取被退回的,把訂單改成已取消,庫存會自動退回。
+            </div>
+          </div>
+        )}
 
         {hasLinePay && (
           <>

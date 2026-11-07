@@ -685,3 +685,8 @@ begin
   return new;
 end;
 $$ language plpgsql;
+
+-- Phase 36(2026-11-08)— 超商取貨付款(docs/CVS_PICKUP.md):tenants.cod_payment jsonb { enabled, note, max_twd };
+--   orders.payment_method 多 'cod'(text 欄位沒 check,不改 schema)。平台不接物流 API,錢由超商直接撥給攤主。
+alter table tenants add column if not exists cod_payment jsonb;
+NOTIFY pgrst, 'reload schema';

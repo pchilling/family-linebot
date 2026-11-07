@@ -6,7 +6,7 @@ import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
 import { isEcpayConfigured } from '@/lib/ecpay';
 import { getCurrentMember } from '@/lib/member-auth';
 import { bankTransferFromRow, isBankTransferOffered } from '@/lib/bank-transfer';
-import { cvsStoreText, type CvsChain } from '@/lib/cvs';
+import { codAllowed, codPaymentPublicFromRow, COD_NOT_ALLOWED_ERROR, cvsStoreText, type CodPaymentPublic, type CvsChain } from '@/lib/cvs';
 import { canViewGroupBuy, checkCartGroupBuy, getGroupBuyProductIds, getGroupBuyState, type GroupBuyPublic } from '@/lib/groupbuy';
 
 // 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
@@ -178,6 +178,15 @@ export async function getQrPaymentPublic(tenantSlug: string): Promise<QrPaymentP
     note: (q.note ?? '').trim() || null,
     link_url: (q.link_url ?? '').trim() || null,
   };
+}
+
+/**
+ * Phase 36(2026-11-08):攤位的超商取貨付款設定(結帳頁用)。攤主沒開回 null;
+ * 開了也只在「配送選了超商店到店、應付沒超上限」時才顯示 — 那個判斷用 lib/cvs 的 codAllowed,前後端同一支。
+ */
+export async function getCodPaymentPublic(tenantSlug: string): Promise<CodPaymentPublic | null> {
+  const { data } = await supabaseAdmin.from('tenants').select('cod_payment').eq('slug', tenantSlug).maybeSingle();
+  return codPaymentPublicFromRow((data as { cod_payment?: unknown } | null)?.cod_payment);
 }
 
 /**
@@ -530,7 +539,8 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   const rawPayment = String(formData.get('payment_method') ?? '').trim();
   // Phase 27:'qr' 掃碼付款(攤位有開才收,不信任前端)
   // Phase 34:LINE Pay 也要過可用性(flag 開但攤位沒金鑰時,不要建出永遠付不了的單佔庫存)
-  const paymentMethod =
+  // Phase 36:'cod' 超商取貨付款要等配送與金額算完才能判,在下面另外處理
+  let paymentMethod: string =
     rawPayment === 'line_pay' && (await isLinePayAvailable(tenantSlug))
       ? 'line_pay'
       : rawPayment === 'ecpay_credit' && (await isEcpayAvailable(tenantSlug))
@@ -638,6 +648,16 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     if (!dc.ok) return { ok: false, error: `${dc.error}。已幫您移除折扣碼,請確認金額後再送出一次`, discountInvalid: true };
     discountCode = dc.row.code;
     discountTwd = dc.discount_twd;
+  }
+
+  // Phase 36(2026-11-08):超商取貨付款 — 只在配送是店到店、攤主有開、應付(含運)沒超上限時收。
+  // 不符就整張擋下,不默默改成匯款(客人以為到店付,結果訂單變成要匯款,會直接流失)。
+  if (rawPayment === 'cod') {
+    const codCfg = await getCodPaymentPublic(tenantSlug);
+    if (!codAllowed(codCfg, !!cvsType, subtotal - discountTwd + shippingFee)) {
+      return { ok: false, error: COD_NOT_ALLOWED_ERROR };
+    }
+    paymentMethod = 'cod';
   }
 
   // Phase 26:已登入就把訂單綁到會員(platform_users),「我的訂單」靠這個找;沒登入維持訪客單

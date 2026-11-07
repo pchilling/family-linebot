@@ -305,6 +305,8 @@ export async function GET(req: NextRequest) {
     .eq('status', 'open')
     .eq('payment_status', 'pending')
     .is('payment_reported_at', null) // 已回報後 5 碼 = 客人已付款在等核帳,不能取消
+    // Phase 36:超商取貨付款是到店才付,未付款是正常狀態,不能當逾期砍掉(payment_method 可能是 null,neq 會把 null 一起濾掉,所以用 or)
+    .or('payment_method.is.null,payment_method.neq.cod')
     .lt('created_at', narrowestCutoff)
     .order('created_at', { ascending: true })
     .limit(200);
@@ -315,6 +317,7 @@ export async function GET(req: NextRequest) {
   }
 
   const candidates = ((data ?? []) as unknown as ExpiringOrder[]).filter((o) => {
+    if (o.payment_method === 'cod') return false; // Phase 36:雙重保險,查詢已排除
     const days = EXPIRE_DAYS[o.payment_method ?? ''] ?? DEFAULT_EXPIRE_DAYS;
     return new Date(o.created_at).getTime() < now - days * 86400000;
   });

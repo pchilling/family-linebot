@@ -5,17 +5,18 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '../cart-state';
 import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconCheck, IconCreditCard, IconGift, IconPackage, IconStore, IconTruck, IconWallet, IconX } from '@/lib/icons';
-import { CVS_CHAINS } from '@/lib/cvs';
+import { CVS_CHAINS, codAllowed, type CodPaymentPublic } from '@/lib/cvs';
 import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
 import { fmtArrivalPhrase, GROUPBUY_CLOSED_ERROR } from '@/lib/groupbuy-shared';
-import { applyDiscountCode, createOrder, getCartPricingInfo, getGiftRulesPublic, getGroupBuyCheckoutInfo, getLastShipping, getQrPaymentPublic, getShippingOptions, hasDiscountCodes, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type CartPricingInfo, type GiftConfigPublic, type GroupBuyCheckoutInfo, type LastShipping, type QrPaymentPublic, type ShippingOption } from './actions';
+import { applyDiscountCode, createOrder, getCartPricingInfo, getCodPaymentPublic, getGiftRulesPublic, getGroupBuyCheckoutInfo, getLastShipping, getQrPaymentPublic, getShippingOptions, hasDiscountCodes, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type CartPricingInfo, type GiftConfigPublic, type GroupBuyCheckoutInfo, type LastShipping, type QrPaymentPublic, type ShippingOption } from './actions';
 
 // Phase 33(2026-11-06):套用成功的折扣碼
 type DiscountApplied = Extract<ApplyDiscountResult, { ok: true }>;
 
 // 2026-10-22:付款方式 — 匯款(人工核帳)/ LINE Pay / 綠界 ATM 虛擬帳號 / 綠界信用卡
 // Phase 27(2026-11-01):加 'qr' 掃碼付款(攤主自己的收款 QR,人工核帳)
-type PayMethod = 'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit' | 'qr';
+// Phase 36(2026-11-08):加 'cod' 超商取貨付款(只在配送是店到店時出現)
+type PayMethod = 'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit' | 'qr' | 'cod';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -157,6 +158,8 @@ export default function CheckoutPage({ params }: Props) {
   const [payMethod, setPayMethod] = useState<PayMethod>('bank');
   // Phase 27:掃碼付款設定(攤位有開 + 有上傳 QR 才會有)
   const [qrCfg, setQrCfg] = useState<QrPaymentPublic | null>(null);
+  // Phase 36:超商取貨付款設定(攤主有開才會有;要不要顯示還要看配送與金額,在下面算)
+  const [codCfg, setCodCfg] = useState<CodPaymentPublic | null>(null);
   // Phase 28:匯款沒設定(或攤主關掉)就不出現;預設 true 免得載入中閃一下
   const [bankOn, setBankOn] = useState(true);
   // 匯款不開時,預設選項往其他方式移;什麼都沒有就維持 bank(下單後由賣家聯絡)
@@ -204,6 +207,7 @@ export default function CheckoutPage({ params }: Props) {
       })
       .catch(() => {});
     isEcpayAtmAvailable(slug).then(setEcpayAtmOn).catch(() => {});
+    getCodPaymentPublic(slug).then(setCodCfg).catch(() => {});
     getQrPaymentPublic(slug)
       .then((q) => {
         setQrCfg(q);
@@ -219,11 +223,9 @@ export default function CheckoutPage({ params }: Props) {
   const cvs = shipOptions.find((o) => o.key === shipKey)?.cvs ?? null;
   // 2026-11-06:門市自取不用填地址(以前還是必填,客人來拿貨卻要打地址)
   const isPickup = shipKey === 'pickup';
-  // 區塊編號:有配送才有 1,付款方式只有一種就不顯示那區,編號跟著跳
+  // 區塊編號:有配送才有 1,付款方式只有一種就不顯示那區,編號跟著跳(showPay / nAddr 要等取貨付款算完,在下面)
   const showShip = shipOptions.length > 0;
-  const showPay = [bankOn, linePayOn, ecpayOn, ecpayAtmOn, !!qrCfg].filter(Boolean).length !== 1;
   const nPay = showShip ? 2 : 1;
-  const nAddr = (showShip ? 1 : 0) + (showPay ? 1 : 0) + 1;
 
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
   const [pricing, setPricing] = useState<CartPricingInfo>({});
@@ -266,6 +268,16 @@ export default function CheckoutPage({ params }: Props) {
   // Phase 33:折扣只折商品小計、不折運費;不得超過小計
   const discount = dcApplied ? Math.min(dcApplied.discount_twd, subtotal) : 0;
   const grandTotal = subtotal - discount + shipFee;
+  // Phase 36(2026-11-08):超商取貨付款 — 配送是店到店 + 攤主有開 + 應付(含運)沒超上限才出現;
+  // 配送切回宅配 / 自取(或金額超上限)時,停在取貨付款的選擇自動清掉,退回預設順序
+  const codOn = codAllowed(codCfg, !!cvs, grandTotal);
+  const isCodPay = codOn && payMethod === 'cod';
+  useEffect(() => {
+    if (payMethod !== 'cod' || codOn) return;
+    setPayMethod(ecpayOn ? 'ecpay_credit' : qrCfg ? 'qr' : linePayOn ? 'line_pay' : ecpayAtmOn ? 'ecpay_atm' : 'bank');
+  }, [payMethod, codOn, ecpayOn, qrCfg, linePayOn, ecpayAtmOn]);
+  const showPay = [bankOn, linePayOn, ecpayOn, ecpayAtmOn, !!qrCfg, codOn].filter(Boolean).length !== 1;
+  const nAddr = (showShip ? 1 : 0) + (showPay ? 1 : 0) + 1;
 
   // Phase 33:按「套用」才打 server(不要每打一字就查)。code 沒給就用目前套用的碼(改數量後靜默重驗)
   async function applyNow(code?: string) {
@@ -445,9 +457,11 @@ export default function CheckoutPage({ params }: Props) {
   const submitLabel = `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '送出訂單'} · NT$ ${money(grandTotal)}`;
   const fine = isOnlinePay
     ? '付款完成後訂單會自動更新,不用回報帳號後 5 碼'
-    : payMethod === 'qr'
-      ? '下單後到訂單頁掃碼付款,付完按「我已付款」,賣家核帳後出貨'
-      : '下單後賣家會私訊匯款方式';
+    : isCodPay
+      ? '到店取貨時付款,不用先匯款;賣家寄出後會通知您'
+      : payMethod === 'qr'
+        ? '下單後到訂單頁掃碼付款,付完按「我已付款」,賣家核帳後出貨'
+        : '下單後賣家會私訊匯款方式';
   const submitBtn = (cls: string) => (
     <div className={cls}>
       {/* Phase 35:團已截止 / 沒開團卻還有團購商品 → 擋在前端,送出鈕停用 */}
@@ -459,7 +473,7 @@ export default function CheckoutPage({ params }: Props) {
       {/* 2026-11-06:條款同意 + 出貨時程 + 卡號不經本站(有線上付款才講);2026-11-07 改成一行一點,不擠在一段 */}
       <ul className="ck-notes">
         <li><span>送出即表示同意<a href={`/${slug}/policy/terms`} target="_blank" rel="noreferrer">服務條款</a>與<a href={`/${slug}/policy/refund`} target="_blank" rel="noreferrer">退款政策</a></span></li>
-        <li><span>確認付款後 1–3 個工作天出貨</span></li>
+        <li><span>{isCodPay ? '下單後 1–3 個工作天寄出,到店取貨時付款' : '確認付款後 1–3 個工作天出貨'}</span></li>
         {(linePayOn || ecpayOn) && <li><span>刷卡與 LINE Pay 在金流商頁面完成,本站不會取得您的卡號</span></li>}
       </ul>
     </div>
@@ -539,6 +553,10 @@ export default function CheckoutPage({ params }: Props) {
             <section className="ck-sec" aria-labelledby="pay-h">
               <div className="ck-sec-h"><span className="ck-n" aria-hidden>{nPay}</span><h2 id="pay-h">付款方式</h2><span>必選</span></div>
               <div className="ck-opts" role="radiogroup" aria-label="付款方式">
+                {/* Phase 36:超商取貨付款 — 只在選了店到店時出現,排第一(選了超商的人多半就是要到店付) */}
+                {codOn && (
+                  <OptionCard name="payment_method" value="cod" on={payMethod === 'cod'} onSelect={() => setPayMethod('cod')} icon={<IconStore size={16} />} title="超商取貨付款" trailing={<Badge>到店付款</Badge>} desc={`到店取貨時付款 NT$ ${money(grandTotal)}(含運費)${codCfg?.note ? `。${codCfg.note}` : ''}`} />
+                )}
                 {ecpayOn && (
                   <OptionCard name="payment_method" value="ecpay_credit" on={payMethod === 'ecpay_credit'} onSelect={() => setPayMethod('ecpay_credit')} icon={<IconCreditCard size={16} />} title="信用卡" trailing={<Badge>立即付款</Badge>} desc="送出後前往綠界刷卡,付款完成訂單自動更新" />
                 )}
@@ -554,7 +572,7 @@ export default function CheckoutPage({ params }: Props) {
                 {bankOn && (
                   <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳" />
                 )}
-                {!bankOn && !ecpayOn && !linePayOn && !ecpayAtmOn && !qrCfg && (
+                {!bankOn && !ecpayOn && !linePayOn && !ecpayAtmOn && !qrCfg && !codOn && (
                   <p className="ui-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>賣家還沒設定收款方式,下單後賣家會聯絡你付款。</p>
                 )}
               </div>

@@ -48,3 +48,67 @@ export function isCvsChain(v: unknown): v is CvsChain {
 export function cvsStoreText(chain: CvsChain, storeName: string, storeId: string): string {
   return `${CVS_CHAINS[chain].short} ${storeName}(店號 ${storeId})`;
 }
+
+// ====================
+// Phase 36(2026-11-08):超商取貨付款(規格 docs/CVS_PICKUP.md)
+// 平台不接物流 API:攤主用自己的賣貨便 / 好賣+ 寄,取貨付款的錢由超商直接撥給攤主。
+// 設定存 tenants.cod_payment jsonb:{ enabled, note, max_twd };訂單 payment_method = 'cod'。
+// ====================
+
+export type CodPayment = {
+  enabled: boolean;
+  /** 給客人的說明(結帳選項下方、訂單頁) */
+  note: string | null;
+  /** 單筆上限(含運),null = 不限;依攤主用的超商規定自己填 */
+  max_twd: number | null;
+};
+
+/** 結帳頁 / LIFF 拿到的公開版本(只有開著才會給) */
+export type CodPaymentPublic = { note: string | null; max_twd: number | null };
+
+export function codPaymentFromRow(raw: unknown): CodPayment | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as { enabled?: unknown; note?: unknown; max_twd?: unknown };
+  const max = typeof r.max_twd === 'number' && Number.isFinite(r.max_twd) && r.max_twd > 0 ? Math.floor(r.max_twd) : null;
+  const note = typeof r.note === 'string' && r.note.trim() ? r.note.trim() : null;
+  return { enabled: r.enabled === true, note, max_twd: max };
+}
+
+/** 攤主有開才回公開版本,沒開回 null(結帳不顯示這個選項) */
+export function codPaymentPublicFromRow(raw: unknown): CodPaymentPublic | null {
+  const cfg = codPaymentFromRow(raw);
+  if (!cfg || !cfg.enabled) return null;
+  return { note: cfg.note, max_twd: cfg.max_twd };
+}
+
+/** 這張單能不能選取貨付款:攤主有開、配送是超商店到店、應付沒超上限 */
+export function codAllowed(cfg: CodPaymentPublic | null, isCvs: boolean, payableTwd: number): boolean {
+  if (!cfg || !isCvs) return false;
+  if (cfg.max_twd !== null && payableTwd > cfg.max_twd) return false;
+  return true;
+}
+
+/** 客人在結帳、訂單頁看到的錯誤 / 提示文案,前後端共用 */
+export const COD_NOT_ALLOWED_ERROR = '這張訂單不能選超商取貨付款(要選超商店到店、金額也不能超過賣家設定的上限),請改選其他付款方式';
+
+/**
+ * 後台「複製寄件資料」:貼進賣貨便 / 好賣+ 用的一段純文字。
+ * codTwd 有值 = 取貨付款(含運的應付);null = 已付款,取貨不付款。
+ */
+export function cvsShipmentText(p: {
+  recipient: string | null;
+  phone: string | null;
+  chain: CvsChain;
+  storeName: string | null;
+  storeId: string | null;
+  codTwd: number | null;
+  orderNo: string;
+}): string {
+  return [
+    `收件人:${p.recipient ?? ''}`,
+    `手機:${p.phone ?? ''}`,
+    `門市:${cvsStoreText(p.chain, p.storeName ?? '', p.storeId ?? '')}`,
+    p.codTwd !== null ? `取貨付款:NT$ ${p.codTwd.toLocaleString('en-US')}(含運)` : '已付款,取貨不付款',
+    `訂單:${p.orderNo}`,
+  ].join('\n');
+}

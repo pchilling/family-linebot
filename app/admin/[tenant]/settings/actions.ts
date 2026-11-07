@@ -352,6 +352,39 @@ export async function removeQrPayment(slug: string): Promise<UploadLogoResult> {
   return { ok: true, url: '' };
 }
 
+// ========================
+// Phase 36(2026-11-08):超商取貨付款設定(docs/CVS_PICKUP.md)
+// 存 tenants.cod_payment jsonb:{ enabled, note, max_twd }。跟匯款 / 掃碼同一張表單、同一顆「儲存變更」。
+// 平台不接物流 API,錢由超商直接撥給攤主;這裡只決定結帳要不要出現這個選項、上限多少、給客人看什麼說明。
+// ========================
+export async function saveCodPayment(formData: FormData): Promise<UploadLogoResult> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  if (!slug) return { ok: false, error: '無攤位資訊' };
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) return { ok: false, error: '攤位不存在' };
+
+  const enabled = formData.get('cod_enabled') === 'on';
+  const note = String(formData.get('cod_note') ?? '').trim().slice(0, 120);
+  const maxRaw = String(formData.get('cod_max_twd') ?? '').trim().replace(/,/g, '');
+  let maxTwd: number | null = null;
+  if (maxRaw) {
+    const n = Math.floor(Number(maxRaw));
+    if (!Number.isFinite(n) || n <= 0) return { ok: false, error: '取貨付款的單筆上限要是正整數,或留空代表不限' };
+    maxTwd = n;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ cod_payment: { enabled, note: note || null, max_twd: maxTwd } })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[saveCodPayment]', error);
+    return { ok: false, error: '儲存失敗' };
+  }
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  return { ok: true, url: '' };
+}
+
 /**
  * 移除 logo:把 tenants.logo_url 設 null。
  * 不刪 Storage 內舊圖(保留歷史,不影響成本因 free tier 量小)。

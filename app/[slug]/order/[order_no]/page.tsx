@@ -4,11 +4,11 @@ import { getTenantPublic, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
 import { reportPaymentLast5, reportQrPaid } from './actions';
 import { startLinePayAndRedirect } from '../../checkout/actions';
-import { IconBank, IconCheck, IconCheckCircle, IconClock, IconCreditCard, IconPackage, IconPencil, IconTruck, IconUndo, IconWallet, IconX } from '@/lib/icons';
+import { IconBank, IconCheck, IconCheckCircle, IconClock, IconCreditCard, IconPackage, IconPencil, IconStore, IconTruck, IconUndo, IconWallet, IconX } from '@/lib/icons';
 import { OtpInput } from '@/lib/otp-input';
 import { Badge, Button, ButtonLink, Card } from '@/lib/ui';
 import { bankDisplayName, bankTransferFromRow } from '@/lib/bank-transfer';
-import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
+import { CVS_CHAINS, codPaymentFromRow, isCvsChain } from '@/lib/cvs';
 import { fmtArrivalPhrase, toGroupBuyPublic, type GroupBuyPublic, type GroupBuyStatus } from '@/lib/groupbuy';
 
 type Props = {
@@ -201,6 +201,7 @@ const METHOD_LABEL: Record<string, string> = {
   ecpay_credit: '信用卡',
   ecpay_atm: 'ATM 轉帳',
   qr: '掃碼付款',
+  cod: '超商取貨付款', // Phase 36
 };
 
 const money = (n: number) => n.toLocaleString('en-US');
@@ -296,7 +297,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   // 額外拉 tenant.contact_info + payment_info + bank_transfer + shipping_rules(沒在 getTenantPublic)
   const { data: tenantExtra } = await supabaseAdmin
     .from('tenants')
-    .select('contact_info, payment_info, bank_transfer, shipping_rules, qr_payment')
+    .select('contact_info, payment_info, bank_transfer, shipping_rules, qr_payment, cod_payment')
     .eq('id', tenant.id)
     .maybeSingle();
   type ExtraRow = {
@@ -305,7 +306,9 @@ export default async function OrderPage({ params, searchParams }: Props) {
     bank_transfer: unknown;
     shipping_rules: { options?: { key: string; label: string }[] } | null;
     qr_payment: { enabled?: boolean; image_url?: string; label?: string; note?: string; link_url?: string } | null;
+    cod_payment: unknown; // Phase 36:取貨付款的說明文字
   } | null;
+  const codCfg = codPaymentFromRow((tenantExtra as ExtraRow)?.cod_payment);
   const contactInfo = (tenantExtra as ExtraRow)?.contact_info ?? null;
   const paymentInfo = (tenantExtra as ExtraRow)?.payment_info ?? null;
   // Phase 28:分欄的匯款資訊;沒填就退回舊的 payment_info 文字
@@ -333,6 +336,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const isOnlinePayOrder = isLinePayOrder || isEcpayAtm || isEcpayCredit;
   // Phase 27:掃碼付款 — 人工核帳,流程同匯款,但回報的是「我已付款」而不是後 5 碼
   const isQrOrder = order.payment_method === 'qr';
+  // Phase 36(2026-11-08):超商取貨付款 — 到店才付,沒有「付款 / 回報 / 核帳」那幾步;寄出 → 到店取貨付款 → 完成
+  const isCodOrder = order.payment_method === 'cod';
   const atmExpired = !!order.atm_expire_at && new Date(order.atm_expire_at).getTime() < Date.now();
   const atmReady = isEcpayAtm && !!order.atm_vaccount && !atmExpired;
   const atmExpireLabel = order.atm_expire_at
@@ -361,6 +366,13 @@ export default async function OrderPage({ params, searchParams }: Props) {
         desc: order.status === 'cancelled' ? '如有疑問請聯絡賣家' : '退款會依原付款方式退回,入帳時間依銀行而定',
         ...tone.gray,
       }
+    : isCodOrder && stage < 3
+      ? {
+          icon: <IconPackage size={20} />,
+          title: '訂單成立,賣家備貨中',
+          desc: `寄出後會通知您,到店取貨時付款 NT$ ${money(orderPayable(order))},不用先匯款`,
+          ...tone.amber,
+        }
     : stage === 0
       ? {
           icon: <IconClock size={20} />,
@@ -384,7 +396,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             ? {
                 icon: isPickup ? <IconPackage size={20} /> : <IconTruck size={20} />,
                 title: isPickup ? '已備貨,歡迎取貨' : cvs ? '已寄出,請等超商到店通知' : '已出貨',
-                desc: isPickup ? '請於營業時間至門市取貨' : cvs ? `到店後 ${CVS_CHAINS[cvs].short} 會發簡訊通知,請憑姓名和手機取件` : '請留意物流通知',
+                desc: isPickup ? '請於營業時間至門市取貨' : cvs ? `到店後 ${CVS_CHAINS[cvs].short} 會發簡訊通知,請憑姓名和手機取件${isCodOrder ? `,取貨時付款 NT$ ${money(grandTotal)}` : ''}` : '請留意物流通知',
                 ...tone.blue,
               }
             : { icon: <IconCheckCircle size={20} />, title: isPickup ? '已取貨,感謝您的訂購' : '已送達,感謝您的訂購', desc: '有任何問題歡迎聯絡我們', ...tone.green };
@@ -400,7 +412,10 @@ export default async function OrderPage({ params, searchParams }: Props) {
   type TlStep = { key: string; done: boolean; title: string; time: string | null; hint: string | null; desc: string | null };
   const timeline: TlStep[] = [
     { key: 'placed', done: true, title: '下單完成', time: fmtT(order.created_at), hint: null, desc: null },
-    ...(isOnlinePayOrder
+    // Phase 36:取貨付款沒有付款 / 回報 / 核帳那幾步,直接到「寄出」
+    ...(isCodOrder
+      ? []
+      : isOnlinePayOrder
       ? [{ key: 'paid', done: isPaid, title: isPaid ? `${payName}付款完成` : `${payName}付款`, time: isPaid ? fmtT(order.paid_at) : null, hint: '等待您完成付款', desc: null }]
       : [
           // 客人沒回報、賣家直接核帳的單,「回報」那步沒有自己的時間,整步省略
@@ -444,15 +459,19 @@ export default async function OrderPage({ params, searchParams }: Props) {
     {
       key: 'done',
       done: isDelivered,
-      title: isDelivered ? (isPickup || cvs ? '已取貨' : '已送達') : isPickup ? '取貨' : cvs ? '到店取貨' : '送達',
-      time: null,
-      hint: cvs ? '等待到店通知' : isPickup ? '請於營業時間至門市取貨' : '運送中',
+      title: isDelivered ? (isPickup || cvs ? (isCodOrder ? '已取貨付款' : '已取貨') : '已送達') : isPickup ? '取貨' : cvs ? (isCodOrder ? '到店取貨付款' : '到店取貨') : '送達',
+      time: isDelivered && isCodOrder ? fmtT(order.paid_at) : null,
+      hint: isCodOrder ? `到店後付 NT$ ${money(grandTotal)},憑姓名和手機取件` : cvs ? '等待到店通知' : isPickup ? '請於營業時間至門市取貨' : '運送中',
       desc: !isDelivered && isShipped && cvs && unlocked ? `憑姓名和手機到${order.cvs_store_name ? ` ${order.cvs_store_name} ` : '門市'}取件` : null,
     },
+    // Phase 36:取貨付款最後一步「完成」— 賣家確認收到超商撥款
+    ...(isCodOrder
+      ? [{ key: 'cod_done', done: isDelivered, title: '完成', time: null, hint: '賣家確認收到超商撥款後完成', desc: null }]
+      : []),
   ];
   const currentIdx = timeline.findIndex((s) => !s.done);
-  const statusShort = isPickup && order.status === 'shipped' ? '已備貨' : isPickup && order.status === 'delivered' ? '已取貨' : order.status === 'open' && order.payment_status === 'pending' ? '待付款' : (STATUS_LABEL[order.status] ?? order.status);
-  const paymentText = `${METHOD_LABEL[order.payment_method ?? 'bank'] ?? '匯款'} · ${order.payment_status === 'pending' && isOnlinePayOrder ? '等待付款' : (PAYMENT_LABEL[order.payment_status] ?? order.payment_status)}`;
+  const statusShort = isPickup && order.status === 'shipped' ? '已備貨' : isPickup && order.status === 'delivered' ? '已取貨' : isCodOrder && order.status === 'open' ? '待出貨' : isCodOrder && order.status === 'shipped' ? '已寄出' : order.status === 'open' && order.payment_status === 'pending' ? '待付款' : (STATUS_LABEL[order.status] ?? order.status);
+  const paymentText = `${METHOD_LABEL[order.payment_method ?? 'bank'] ?? '匯款'} · ${order.payment_status === 'pending' && isCodOrder ? '到店付款' : order.payment_status === 'pending' && isOnlinePayOrder ? '等待付款' : (PAYMENT_LABEL[order.payment_status] ?? order.payment_status)}`;
   const giftCount = order.items.filter((i) => i.price_at_purchase === 0).length;
 
   return (
@@ -614,8 +633,37 @@ export default async function OrderPage({ params, searchParams }: Props) {
         </Card>
       )}
 
+      {/* ---------- 到店付款(Phase 36):取貨付款的單不顯示匯款與回報,只講到店付多少、在哪個門市 ---------- */}
+      {isCodOrder && !isPaid && !isCancelled && (
+        <Card className="od-card">
+          <div className="od-next">
+            <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconStore size={17} /></span>
+            <div>
+              <b>到店取貨時付款 NT$ {money(grandTotal)}</b>
+              <small>{isShipped ? '包裹到店後超商會發簡訊,憑姓名和手機取件並付款' : '賣家寄出後會通知您;不用先匯款'}</small>
+            </div>
+          </div>
+          <div className="od-pay">
+            <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', gap: '8px 12px', fontSize: 14, alignItems: 'center' }}>
+              <span className="ui-muted" style={{ fontSize: 13 }}>金額</span>
+              <span className="ui-num" style={{ fontSize: 19, fontWeight: 600 }}>NT$ {money(grandTotal)}</span>
+              {cvs && (
+                <>
+                  <span className="ui-muted" style={{ fontSize: 13 }}>門市</span>
+                  <span style={{ fontWeight: 500 }}>
+                    {CVS_CHAINS[cvs].short} {order.cvs_store_name}
+                    {order.cvs_store_id && <span className="ui-muted ui-num" style={{ marginLeft: 6, fontSize: 13 }}>店號 {order.cvs_store_id}</span>}
+                  </span>
+                </>
+              )}
+            </div>
+            <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>{codCfg?.note ?? '包裹到店後請在 7 天內領取,逾期會被退回。'}</p>
+          </div>
+        </Card>
+      )}
+
       {/* ---------- 下一步:匯款 + 回報後 5 碼 ---------- */}
-      {!isOnlinePayOrder && !isQrOrder && stage <= 1 && !isCancelled && (
+      {!isOnlinePayOrder && !isQrOrder && !isCodOrder && stage <= 1 && !isCancelled && (
         <Card className="od-card">
           <div className="od-next">
             <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconBank size={17} /></span>

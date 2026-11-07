@@ -1797,3 +1797,15 @@ begin
   return new;
 end;
 $$ language plpgsql;
+
+-- ====================
+-- Phase 36(2026-11-08):超商取貨付款(規格 docs/CVS_PICKUP.md)
+-- 平台不接物流 API,攤主用自己的賣貨便 / 好賣+ 寄;取貨付款的錢由超商直接撥給攤主,平台不經手。
+-- tenants.cod_payment jsonb:{ enabled: boolean, note: text, max_twd: int|null }(寫法比照 qr_payment / bank_transfer)。
+-- 訂單 payment_method 多一個值 'cod'(欄位是 text、沒有 check,不用改);這種單 status 'open' = 待出貨,
+-- 寄出後 'shipped',超商撥款、攤主按「已收款」→ 'delivered' + payment_status 'paid'。
+-- 逾期未付的自動取消排程(app/api/cron/expire-orders)一律跳過 'cod'。
+-- ====================
+alter table tenants add column if not exists cod_payment jsonb;
+
+NOTIFY pgrst, 'reload schema';

@@ -9,7 +9,8 @@ import { TwAddressFields } from '@/lib/tw-districts';
 import { OtpInput } from '@/lib/otp-input';
 import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
 import { bankDisplayName } from '@/lib/bank-transfer';
-import { IconBank, IconCheck, IconCheckCircle, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPackage, IconPencil, IconTruck, IconUsers, IconWallet } from '@/lib/icons';
+import { CVS_CHAINS, codAllowed } from '@/lib/cvs';
+import { IconBank, IconCheck, IconCheckCircle, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPackage, IconPencil, IconStore, IconTruck, IconUsers, IconWallet } from '@/lib/icons';
 import { Badge, Button, Card, OptionCard, Textarea, UI_CSS } from '@/lib/ui';
 import { fmtArrivalPhrase, fmtEndsAt, GROUP_BUY_STATUS_LABEL, GROUPBUY_CLOSED_ERROR, type GroupBuyState, type ProductChannel } from '@/lib/groupbuy-shared';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
@@ -164,6 +165,7 @@ export default function ShopPage() {
     gift_mode: 'stack',
     gift_rules: [],
     has_discount_codes: false,
+    cod_payment: null,
   });
   const [shipKey, setShipKey] = useState(''); // D#13:結帳選的配送方式 key
   const [shipError, setShipError] = useState(false); // 沒選配送方式的提示
@@ -172,7 +174,8 @@ export default function ShopPage() {
   const [ecpayAtmOn, setEcpayAtmOn] = useState(false);
   // Phase 28:匯款沒設定(或攤主關掉)就不出現;預設 true 免得載入中閃一下
   const [bankOn, setBankOn] = useState(true);
-  const [payMethod, setPayMethod] = useState<'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit'>('bank');
+  // Phase 36(2026-11-08):加 'cod' 超商取貨付款(只在配送選了店到店時出現)
+  const [payMethod, setPayMethod] = useState<'bank' | 'line_pay' | 'ecpay_atm' | 'ecpay_credit' | 'cod'>('bank');
   // 匯款不開時,預設選項往線上付款移;什麼都沒有就維持 bank(下單後由賣家聯絡)
   useEffect(() => {
     if (bankOn || payMethod !== 'bank') return;
@@ -180,6 +183,8 @@ export default function ShopPage() {
   }, [bankOn, ecpayOn, linePayOn, ecpayAtmOn, payMethod]);
   // 訂單建好、正在跳去付款頁的那幾秒也要蓋住畫面
   const [leaving, setLeaving] = useState(false);
+  // Phase 36:剛送出的這張是不是取貨付款(完成畫面要講到店付,不講匯款)
+  const [placedCod, setPlacedCod] = useState(false);
   const isLinePayPay = linePayOn && payMethod === 'line_pay';
   const isEcpayPay = ecpayOn && (payMethod === 'ecpay_atm' || payMethod === 'ecpay_credit');
   // 上一筆訂單的收件資訊,結帳預填
@@ -418,6 +423,15 @@ export default function ShopPage() {
   const discount = dcApplied ? Math.min(dcApplied.discount_twd, cartTotal) : 0;
   const grandTotal = cartTotal - discount + shipFee;
   const needShipping = tenant.shipping_options.length > 0;
+  // Phase 36(2026-11-08):店到店 → 收件區改填門市;超商取貨付款只在「店到店 + 攤主有開 + 應付沒超上限」時出現,
+  // 配送切走(或金額超上限)時停在取貨付款的選擇自動清掉
+  const cvs = shipOption?.cvs ?? null;
+  const codOn = codAllowed(tenant.cod_payment, !!cvs, grandTotal);
+  const isCodPay = codOn && payMethod === 'cod';
+  useEffect(() => {
+    if (payMethod !== 'cod' || codOn) return;
+    setPayMethod(ecpayOn ? 'ecpay_credit' : linePayOn ? 'line_pay' : ecpayAtmOn ? 'ecpay_atm' : 'bank');
+  }, [payMethod, codOn, ecpayOn, linePayOn, ecpayAtmOn]);
   // Phase 35:結帳明細分「攤位」「團購」兩組;沒開團卻還有團購品 → 不給送(server 送單時也會再擋一次)
   const isGbCartItem = (c: CartItem) => productMap.get(c.product_id)?.channel === 'groupbuy';
   const stallCart = cart.filter((c) => !isGbCartItem(c));
@@ -537,6 +551,7 @@ export default function ShopPage() {
       formData.set('cart', JSON.stringify(cart));
       formData.set('discount_code', dcApplied?.code ?? '');
       const { order_no } = await placeOrder(formData);
+      setPlacedCod(isCodPay);
       // 選 LINE Pay → 直接跳付款頁。發動失敗不擋單,退回完成畫面,客人可從訂單頁再付一次。
       if (isLinePayPay) {
         setLeaving(true);
@@ -654,11 +669,34 @@ export default function ShopPage() {
           <span className="ic" style={{ background: '#dcfce7' }}><IconCheckCircle size={20} /></span>
           <div style={{ minWidth: 0 }}>
             <h1>訂單已建立</h1>
-            <p>{hasBankInfo ? '匯款後回報帳號後 5 碼,賣家核帳後就會安排出貨' : '客服會盡快聯繫您確認付款與出貨'}</p>
+            <p>{placedCod ? '不用先匯款。賣家寄出後會通知您,到店取貨時再付款' : hasBankInfo ? '匯款後回報帳號後 5 碼,賣家核帳後就會安排出貨' : '客服會盡快聯繫您確認付款與出貨'}</p>
             <div className="no"><em style={{ fontStyle: 'normal', whiteSpace: 'nowrap' }}>訂單編號</em> <strong className="ui-num">{orderNo}</strong><CopyButton text={orderNo} /></div>
           </div>
         </div>
 
+        {/* Phase 36:取貨付款的單 — 只講到店付,不出現匯款資訊與後五碼回報 */}
+        {placedCod ? (
+        <Card className="ls-cardb">
+          <div className="ls-next">
+            <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconStore size={17} /></span>
+            <div><b>下一步:等賣家寄出</b><small>寄出後 LINE 會通知您;包裹到店時付款給店員,不用先匯款</small></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: '8px 12px', fontSize: 14, alignItems: 'center' }}>
+            <span className="ui-muted" style={{ fontSize: 13 }}>到店付款</span>
+            <span className="ui-num" style={{ fontSize: 19, fontWeight: 600 }}>NT$ {money(grandTotal)}</span>
+            {cvs && (
+              <>
+                <span className="ui-muted" style={{ fontSize: 13 }}>取貨超商</span>
+                <span style={{ fontWeight: 500 }}>{CVS_CHAINS[cvs].short}</span>
+              </>
+            )}
+          </div>
+          <p className="ui-muted" style={{ margin: '10px 0 0', fontSize: 12.5, lineHeight: 1.6 }}>
+            {tenant.cod_payment?.note ?? '包裹到店後請在 7 天內領取,逾期會被退回。'}門市與進度都在 LINE 通知的「查看訂單」裡。
+          </p>
+        </Card>
+        ) : (
+        <>
         <Card className="ls-cardb">
           <div className="ls-next">
             <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconBank size={17} /></span>
@@ -719,6 +757,8 @@ export default function ShopPage() {
             </>
           )}
         </Card>
+        </>
+        )}
       </>,
     );
   }
@@ -1035,7 +1075,7 @@ export default function ShopPage() {
                         value={opt.key}
                         on={shipKey === opt.key}
                         onSelect={() => { setShipKey(opt.key); setShipError(false); }}
-                        icon={isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
+                        icon={opt.cvs ? <IconStore size={16} /> : isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
                         title={opt.label}
                         trailing={
                           <span className="ui-num" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
@@ -1052,10 +1092,14 @@ export default function ShopPage() {
             )}
 
             {/* 有兩種以上才需要選;只有匯款(或什麼都沒有)就不顯示這張卡 */}
-            {[bankOn, linePayOn, ecpayOn, ecpayAtmOn].filter(Boolean).length >= 2 && (
+            {[bankOn, linePayOn, ecpayOn, ecpayAtmOn, codOn].filter(Boolean).length >= 2 && (
               <Card className="ls-cardb">
                 <h3>付款方式 <span>必選</span></h3>
                 <div className="ls-opts" role="radiogroup" aria-label="付款方式">
+                  {/* Phase 36:超商取貨付款 — 只在選了店到店時出現,排第一 */}
+                  {codOn && (
+                    <OptionCard name="payment_method" value="cod" on={payMethod === 'cod'} onSelect={() => setPayMethod('cod')} icon={<IconStore size={16} />} title="超商取貨付款" trailing={<Badge>到店付款</Badge>} desc={`到店取貨時付款 NT$ ${money(grandTotal)}(含運費)${tenant.cod_payment?.note ? `。${tenant.cod_payment.note}` : ''}`} />
+                  )}
                   {ecpayOn && (
                     <OptionCard name="payment_method" value="ecpay_credit" on={payMethod === 'ecpay_credit'} onSelect={() => setPayMethod('ecpay_credit')} icon={<IconCreditCard size={16} />} title="信用卡" trailing={<Badge>立即付款</Badge>} desc="送出後前往綠界刷卡,付款完成訂單自動更新" />
                   )}
@@ -1073,20 +1117,39 @@ export default function ShopPage() {
             )}
 
             <Card className="ls-cardb">
-              <h3>收件資訊</h3>
+              <h3>{cvs ? '取貨資訊' : '收件資訊'}</h3>
               {/* 預填上一筆訂單的收件資訊(沒有才 fallback 會員資料),可自由改掉 */}
               <div className="ls-field">
-                <label className="ui-label" htmlFor="ck-recipient" style={{ marginBottom: 0 }}>收件人姓名 <i>*</i></label>
-                <input id="ck-recipient" name="recipient" defaultValue={lastShip?.recipient ?? member?.full_name ?? ''} required className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="收件人姓名" autoComplete="name" />
+                <label className="ui-label" htmlFor="ck-recipient" style={{ marginBottom: 0 }}>{cvs ? '取件人姓名(本名)' : '收件人姓名'} <i>*</i></label>
+                <input id="ck-recipient" name="recipient" defaultValue={lastShip?.recipient ?? member?.full_name ?? ''} required className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder={cvs ? '取件時超商會核對' : '收件人姓名'} autoComplete="name" />
               </div>
               <div className="ls-field">
-                <label className="ui-label" htmlFor="ck-phone" style={{ marginBottom: 0 }}>電話 <i>*</i></label>
+                <label className="ui-label" htmlFor="ck-phone" style={{ marginBottom: 0 }}>{cvs ? '手機' : '電話'} <i>*</i></label>
                 <input id="ck-phone" name="phone" type="tel" defaultValue={lastShip?.phone ?? member?.phone ?? ''} required className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="0900-000-000" autoComplete="tel" />
               </div>
-              <div className="ls-field">
-                <span className="ui-label" style={{ marginBottom: 0 }}>地址 <i>*</i></span>
-                <TwAddressFields required initial={lastShip?.address ?? member?.address ?? ''} inputStyle={inputStyle} />
-              </div>
+              {cvs ? (
+                /* Phase 36:超商店到店 — 填取貨門市,不填地址(跟網站結帳同一套欄位) */
+                <>
+                  <div className="ls-field">
+                    <label className="ui-label" htmlFor="ck-cvs-name" style={{ marginBottom: 0 }}>{CVS_CHAINS[cvs].short} 取貨門市 <i>*</i></label>
+                    <input id="ck-cvs-name" name="cvs_store_name" required maxLength={40} className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="例:大安門市" autoComplete="off" />
+                  </div>
+                  <div className="ls-field">
+                    <label className="ui-label" htmlFor="ck-cvs-id" style={{ marginBottom: 0 }}>店號 <i>*</i></label>
+                    <input id="ck-cvs-id" name="cvs_store_id" required inputMode="numeric" pattern="[0-9]{3,10}" className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="例:123456" autoComplete="off" />
+                  </div>
+                  <p className="ui-muted" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6 }}>
+                    店號可以到{' '}
+                    <a href={CVS_CHAINS[cvs].mapUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--ui-accent-ink)', fontWeight: 500 }}>{CVS_CHAINS[cvs].short} 官方門市查詢</a>
+                    {' '}找。取貨時超商會核對姓名和手機,請填本名。
+                  </p>
+                </>
+              ) : (
+                <div className="ls-field">
+                  <span className="ui-label" style={{ marginBottom: 0 }}>地址 <i>*</i></span>
+                  <TwAddressFields required initial={lastShip?.address ?? member?.address ?? ''} inputStyle={inputStyle} />
+                </div>
+              )}
               <div className="ls-field">
                 <label className="ui-label" htmlFor="ck-note" style={{ marginBottom: 0 }}>備註(選填)</label>
                 {/* 2026-11-07 Peter:結帳不提統編,連 placeholder 都不寫 */}
@@ -1102,7 +1165,7 @@ export default function ShopPage() {
           </form>
 
           <p className="ls-fine">
-            {isLinePayPay ? '送出後會跳到 LINE Pay 完成付款,付款成功訂單會自動更新。' : isEcpayPay ? '送出後會前往綠界完成付款,付款成功訂單會自動更新。' : '送出後客服會盡快聯繫您確認付款與出貨。'}
+            {isLinePayPay ? '送出後會跳到 LINE Pay 完成付款,付款成功訂單會自動更新。' : isEcpayPay ? '送出後會前往綠界完成付款,付款成功訂單會自動更新。' : isCodPay ? '送出後不用先付款,賣家寄出後會通知您,到店取貨時付款。' : '送出後客服會盡快聯繫您確認付款與出貨。'}
           </p>
         </section>
       )}

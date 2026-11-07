@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Switch } from '@/lib/ui';
-import { IconAlert, IconBank, IconCheckCircle, IconChevronDown, IconCreditCard, IconInfo, IconUpload, IconWallet } from '@/lib/icons';
+import { IconAlert, IconBank, IconCheckCircle, IconChevronDown, IconCreditCard, IconInfo, IconStore, IconUpload, IconWallet } from '@/lib/icons';
 import { bankDisplayName, TW_BANKS, type BankTransfer } from '@/lib/bank-transfer';
 import { FlashToast } from '../../../_components/toast';
 import { Field, PanelTitle, SwitchRow } from './settings-ui';
@@ -12,6 +12,7 @@ import {
   clearPaymentGatewayKeys,
   importPaymentGatewayFromEnv,
   removeQrPayment,
+  saveCodPayment,
   savePaymentGatewayKeys,
   saveQrPayment,
   updateTenantSettings,
@@ -51,6 +52,10 @@ type Props = {
   /** 舊版一整段文字的匯款資訊,新欄位填好前客人還是看這段 */
   legacyPaymentInfo: string;
   qr: { enabled: boolean; image_url: string | null; label: string; note: string; link_url: string };
+  /** Phase 36:超商取貨付款(tenants.cod_payment) */
+  cod: { enabled: boolean; note: string; max_twd: number | null };
+  /** 攤位有沒有超商店到店的配送方式(沒有的話取貨付款卡上提示先去加) */
+  hasCvsShipping: boolean;
   gateways: GatewayCard[];
 };
 
@@ -61,7 +66,7 @@ type Props = {
  * LINE Pay / 綠界卡片各自有自己的 <form>,金鑰欄位不會跟「儲存變更」一起送出,也避免巢狀 form。
  * QR 圖片上傳 / 移除、金流金鑰的動作是獨立動作,馬上生效。
  */
-export function PaymentSettings({ tenantSlug, bank, legacyPaymentInfo, qr, gateways }: Props) {
+export function PaymentSettings({ tenantSlug, bank, legacyPaymentInfo, qr, cod, hasCvsShipping, gateways }: Props) {
   const [imageUrl, setImageUrl] = useState<string | null>(qr.image_url);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,6 +88,8 @@ export function PaymentSettings({ tenantSlug, bank, legacyPaymentInfo, qr, gatew
       ? { ok: false, text: '已關閉' }
       : { ok: false, text: '未設定' };
   const bankConfigured = !!bank || !!legacyPaymentInfo;
+  // Phase 36:取貨付款沒有「設定過但關掉」的差別,開著就是已設定
+  const codStatus = cod.enabled ? { ok: true, text: '已設定' } : { ok: false, text: '未設定' };
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -124,9 +131,16 @@ export function PaymentSettings({ tenantSlug, bank, legacyPaymentInfo, qr, gatew
       return;
     }
     const b = await saveQrPayment(formData);
-    setSaving(false);
     if (!b.ok) {
+      setSaving(false);
       setError(b.error);
+      return;
+    }
+    // Phase 36:取貨付款跟匯款 / 掃碼同一張表單一起存
+    const c = await saveCodPayment(formData);
+    setSaving(false);
+    if (!c.ok) {
+      setError(c.error);
       return;
     }
     setToast({ ts: Date.now(), text: '已儲存收款方式' });
@@ -254,6 +268,42 @@ export function PaymentSettings({ tenantSlug, bank, legacyPaymentInfo, qr, gatew
                 />
               </div>
             </details>
+
+            {/* ── 超商取貨付款(Phase 36,docs/CVS_PICKUP.md):平台不接物流,攤主用賣貨便 / 好賣+ 自己寄 ── */}
+            <details className="sx-method">
+              <summary>
+                <span className="mic"><IconStore size={18} /></span>
+                <span className="mt">
+                  <b>超商取貨付款</b>
+                  <span>客人選超商店到店時可以到店取貨再付款。你用賣貨便或好賣+ 寄件時勾取貨付款,超商把錢撥給你,再回後台按已收款。</span>
+                </span>
+                <span className={`mst${codStatus.ok ? ' ok' : ''}`}>
+                  {codStatus.ok && <IconCheckCircle size={16} />}
+                  {codStatus.text}
+                </span>
+                <span className="act">{cod.enabled ? '編輯' : '設定'} <IconChevronDown size={14} /></span>
+              </summary>
+              <div className="body">
+                {!hasCvsShipping && (
+                  <div className="sx-callout">
+                    <span>這個攤位還沒有超商店到店的配送方式。先到「配送」分頁加 7-ELEVEN 或全家店到店,客人才會看到取貨付款。</span>
+                  </div>
+                )}
+                <div className="sx-grid2">
+                  <Field label="單筆上限" optional htmlFor="cod-max" hint="超過這個金額的訂單不給選取貨付款。依你用的超商規定填,例:全家好賣+ 10,000;空白 = 不限。">
+                    <Input id="cod-max" name="cod_max_twd" type="number" inputMode="numeric" min={1} step={1} defaultValue={cod.max_twd ?? ''} placeholder="不限" />
+                  </Field>
+                  <Field label="給客人的說明" optional htmlFor="cod-note">
+                    <Input id="cod-note" name="cod_note" defaultValue={cod.note} placeholder="例:到店取貨時付現給店員,包裹到店後 7 天內要取" maxLength={120} />
+                  </Field>
+                </div>
+                <SwitchRow
+                  title="在結帳顯示超商取貨付款"
+                  desc="只有客人選了超商店到店才會出現。錢由超商直接撥給你,平台不經手;撥款後記得回訂單按「已收款」。"
+                  control={<Switch name="cod_enabled" defaultChecked={cod.enabled} aria-label="在結帳顯示超商取貨付款" />}
+                />
+              </div>
+            </details>
           </form>
 
           {/* ── 線上金流(Phase 34):每攤位自己的金鑰,各自一張卡、各自的表單 ── */}
@@ -278,7 +328,7 @@ export function PaymentSettings({ tenantSlug, bank, legacyPaymentInfo, qr, gatew
       {toast && <FlashToast key={toast.ts} message={toast.text} />}
 
       <div className="sx-foot">
-        <span className="sx-note">QR 圖片與金流金鑰的動作立即生效;匯款、掃碼的欄位要按儲存。</span>
+        <span className="sx-note">QR 圖片與金流金鑰的動作立即生效;匯款、掃碼、取貨付款的欄位要按儲存。</span>
         <Button type="submit" form="pay-main" size="sm" disabled={saving}>
           {saving ? '儲存中…' : '儲存變更'}
         </Button>

@@ -4,7 +4,7 @@ import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTier
 import { applyDiscountCode, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type StartLinePayResult } from '../../[slug]/checkout/actions';
 import { lineClient } from '@/lib/line';
 import { bankTransferFromRow, formatBankTransferText, type BankTransfer } from '@/lib/bank-transfer';
-import type { CvsChain } from '@/lib/cvs';
+import { codAllowed, codPaymentPublicFromRow, COD_NOT_ALLOWED_ERROR, cvsStoreText, type CodPaymentPublic, type CvsChain } from '@/lib/cvs';
 import type { messagingApi } from '@line/bot-sdk';
 import { checkCartGroupBuy, getGroupBuyState, type GroupBuyState, type ProductChannel } from '@/lib/groupbuy';
 
@@ -74,7 +74,7 @@ export type ShopMember = {
 };
 
 // 批次 D #13:運費規則(tenants.shipping_rules jsonb;null = 不收運費)
-// Phase 29:cvs = 超商店到店;LINE 商店第一階段不支援,載入時會濾掉
+// Phase 29:cvs = 超商店到店;Phase 36(2026-11-08)起 LINE 商店也能選(填門市店名 + 店號)
 export type ShippingOption = {
   key: string;
   label: string;
@@ -102,6 +102,8 @@ export type ShopTenant = {
   gift_rules: { threshold_twd: number; qty: number; product_name: string; repeat: boolean }[];
   // Phase 33 補(2026-11-07):攤位有啟用中的折扣碼才在結帳顯示輸入格
   has_discount_codes: boolean;
+  // Phase 36(2026-11-08):超商取貨付款(攤主有開才有;要不要顯示還要看配送與金額,用 lib/cvs 的 codAllowed)
+  cod_payment: CodPaymentPublic | null;
 };
 
 export type ShopData = {
@@ -168,7 +170,7 @@ export async function loadShopData(
       .maybeSingle(),
     supabaseAdmin
       .from('tenants')
-      .select('name, logo_url, og_image_url, banners, payment_info, bank_transfer, contact_info, disclaimer, shop_bg_color, brand_color, category_order, shipping_rules, gift_rules')
+      .select('name, logo_url, og_image_url, banners, payment_info, bank_transfer, contact_info, disclaimer, shop_bg_color, brand_color, category_order, shipping_rules, gift_rules, cod_payment')
       .eq('id', TENANT_ID)
       .maybeSingle(),
     // 2026-09-11(回饋 #9):一次撈整攤的分階定價(量小,免 per-product 查)
@@ -235,6 +237,7 @@ export async function loadShopData(
       mode?: string;
       rules?: { threshold_twd: number; product_id: string; qty: number; repeat?: boolean }[];
     } | null;
+    cod_payment: unknown; // Phase 36
   } | null;
   const t = (tenantRes.data as TenantRow) ?? null;
   // Phase 9.8 多 banner + fallback og_image_url(舊單張)
@@ -295,9 +298,10 @@ export async function loadShopData(
       shop_bg_color: t?.shop_bg_color ?? null,
       brand_color: t?.brand_color ?? null,
       category_order: Array.isArray(t?.category_order) ? t.category_order : [],
-      // Phase 29:店到店要選門市,LINE 商店還沒做這個畫面,先不給選(網站結帳才有)
-      shipping_options: (Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : []).filter((o) => !o.cvs),
+      // Phase 29 第一階段 LIFF 濾掉店到店;Phase 36(2026-11-08)起有選門市的畫面了,全部給
+      shipping_options: Array.isArray(t?.shipping_rules?.options) ? t.shipping_rules.options : [],
       has_discount_codes: (dcRows?.length ?? 0) > 0,
+      cod_payment: codPaymentPublicFromRow(t?.cod_payment),
       gift_mode: (t?.gift_rules?.mode === 'highest' ? 'highest' : 'stack') as 'stack' | 'highest',
       gift_rules: (t?.gift_rules?.rules ?? [])
         .filter((r) => r && r.threshold_twd > 0 && productNameById.has(r.product_id))
@@ -375,14 +379,18 @@ export async function placeOrder(
   const phone = String(formData.get('phone') || '').trim();
   const address = String(formData.get('address') || '').trim();
   const shippingMethod = String(formData.get('shipping_method') || '').trim();
+  // Phase 36(2026-11-08):超商店到店選的門市(跟網站結帳同一套欄位與驗證)
+  const cvsStoreName = String(formData.get('cvs_store_name') || '').trim().slice(0, 40);
+  const cvsStoreId = String(formData.get('cvs_store_id') || '').trim().replace(/\s+/g, '');
   // 2026-09-11 v2:統編專用欄位移除 — 需要統編的客人直接寫在備註
   const note = String(formData.get('note') || '').trim();
   // Phase 33 補(2026-11-07):折扣碼只收文字,金額 server 重算
   const discountCodeRaw = String(formData.get('discount_code') || '').trim();
   // 2026-10-16:付款方式 — 'line_pay' 走線上付款,其餘一律匯款(bank)
   // 2026-10-22:加綠界 'ecpay_atm' / 'ecpay_credit';攤位沒開綠界就退回匯款
+  // Phase 36:'cod' 超商取貨付款要等配送與金額算完才能判,在下面另外處理
   const rawPayment = String(formData.get('payment_method') || '').trim();
-  const paymentMethod =
+  let paymentMethod: string =
     rawPayment === 'line_pay'
       ? 'line_pay'
       : rawPayment === 'ecpay_credit' && (await isEcpayAvailableLiff())
@@ -392,7 +400,8 @@ export async function placeOrder(
           : 'bank';
 
   if (cart.length === 0) throw new Error('購物車是空的');
-  if (!recipient || !phone || !address) throw new Error('收件人 / 電話 / 地址 必填');
+  // 地址:店到店用門市代替,下面決定配送方式時再檢查
+  if (!recipient || !phone) throw new Error('收件人 / 電話 必填');
 
   // 找 user
   const { data: user, error: userErr } = await supabaseAdmin
@@ -494,10 +503,10 @@ export async function placeOrder(
     return sum + (v ? effectivePrice(v, c.qty) : 0) * c.qty;
   }, 0);
 
-  // D#13:運費 server 端重算(不信 client)。tenant 沒設規則 = 0
+  // D#13:運費 server 端重算(不信 client)。tenant 沒設規則 = 0;Phase 36 順便拉 cod_payment 判取貨付款
   const { data: tRow } = await supabaseAdmin
     .from('tenants')
-    .select('shipping_rules')
+    .select('shipping_rules, cod_payment')
     .eq('id', TENANT_ID)
     .maybeSingle();
   const shipOptions =
@@ -505,13 +514,26 @@ export async function placeOrder(
       ?.options ?? []) as ShippingOption[];
   let shippingFee = 0;
   let shippingKey: string | null = null;
+  let cvsType: CvsChain | null = null;
+  let finalAddress = address;
   if (shipOptions.length > 0) {
     const opt = shipOptions.find((o) => o.key === shippingMethod);
     if (!opt) throw new Error('請選擇配送方式');
-    // Phase 29:LINE 商店第一階段還沒有選門市的畫面,店到店只在網站結帳
-    if (opt.cvs) throw new Error('超商店到店請到網站結帳');
     shippingFee = opt.free_over && pricedSubtotal >= opt.free_over ? 0 : opt.fee;
     shippingKey = opt.key;
+    // Phase 36:店到店 — 門市必填,地址用門市字串代替(跟網站結帳 createOrder 同一套)
+    if (opt.cvs) {
+      if (!cvsStoreName) throw new Error('請填取貨門市名稱');
+      if (!/^\d{3,10}$/.test(cvsStoreId)) throw new Error('請填門市店號(3 到 10 位數字)');
+      cvsType = opt.cvs;
+      finalAddress = cvsStoreText(opt.cvs, cvsStoreName, cvsStoreId);
+    } else if (opt.key === 'pickup') {
+      finalAddress = finalAddress || '門市自取';
+    } else if (!finalAddress) {
+      throw new Error('請填寄送地址');
+    }
+  } else if (!finalAddress) {
+    throw new Error('請填寄送地址');
   }
 
   // Phase 33 補(2026-11-07):折扣碼 — 走網站結帳同一支驗證與計算(定價邏輯相同,小計一致);
@@ -527,6 +549,13 @@ export async function placeOrder(
     discountTwd = Math.min(dc.discount_twd, pricedSubtotal);
   }
 
+  // Phase 36:超商取貨付款 — 配送是店到店、攤主有開、應付(含運)沒超上限才收;不符整張擋下,不默默改成匯款
+  if (rawPayment === 'cod') {
+    const codCfg = codPaymentPublicFromRow((tRow as { cod_payment?: unknown } | null)?.cod_payment);
+    if (!codAllowed(codCfg, !!cvsType, pricedSubtotal - discountTwd + shippingFee)) throw new Error(COD_NOT_ALLOWED_ERROR);
+    paymentMethod = 'cod';
+  }
+
   // insert order(order_no / total_twd 由 trigger 自動;折扣另存,應付 = orderPayable)
   const { data: order, error: orderErr } = await supabaseAdmin
     .from('orders')
@@ -538,9 +567,13 @@ export async function placeOrder(
       source: 'liff', // 2026-09-21:原本沒寫入,LIFF 單在後台一直顯示「手動」
       shipping_recipient: recipient,
       shipping_phone: phone,
-      shipping_address: address,
+      shipping_address: finalAddress,
       shipping_method: shippingKey,
       shipping_fee_twd: shippingFee,
+      // Phase 36:店到店的門市(宅配 / 自取為 null)
+      cvs_type: cvsType,
+      cvs_store_id: cvsType ? cvsStoreId : null,
+      cvs_store_name: cvsType ? cvsStoreName : null,
       note: note || null,
       discount_code: discountCode,
       discount_twd: discountTwd,
@@ -671,6 +704,8 @@ async function pushOrderConfirmation(
   const isLinePay = paymentMethod === 'line_pay';
   const isEcpayAtm = paymentMethod === 'ecpay_atm';
   const isEcpayCredit = paymentMethod === 'ecpay_credit';
+  // Phase 36:超商取貨付款 — 不講匯款,講到店付
+  const isCod = paymentMethod === 'cod';
   // 拉 tenant 匯款資訊 + slug(for order URL);Phase 28:分欄的 bank_transfer 優先,沒填退回 payment_info 文字
   const { data: t } = await supabaseAdmin
     .from('tenants')
@@ -712,7 +747,18 @@ async function pushOrderConfirmation(
     },
   ];
 
-  if (isLinePay || isEcpayAtm || isEcpayCredit) {
+  if (isCod) {
+    bodyContents.push({ type: 'separator', margin: 'lg', color: '#e4e4e7' });
+    bodyContents.push({ type: 'text', text: '付款方式:超商取貨付款', weight: 'bold', size: 'sm', margin: 'lg', color: '#92400e' });
+    bodyContents.push({
+      type: 'text',
+      text: `不用先匯款。賣家寄出後會通知您,包裹到店時付 NT$ ${totalTwd.toLocaleString()}(含運費)給店員即可;到店後請在 7 天內領取。`,
+      size: 'xs',
+      color: '#71717a',
+      wrap: true,
+      margin: 'sm',
+    });
+  } else if (isLinePay || isEcpayAtm || isEcpayCredit) {
     bodyContents.push({ type: 'separator', margin: 'lg', color: '#e4e4e7' });
     bodyContents.push({
       type: 'text',

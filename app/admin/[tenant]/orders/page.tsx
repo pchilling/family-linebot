@@ -324,6 +324,12 @@ export default async function OrdersListPage({
                           </span>
                         </div>
                       )}
+                    {/* Phase 36:超商取貨付款 — 到店才付,未付款是正常狀態,不是等你核帳 */}
+                    {o.payment_status === 'pending' && o.payment_method === 'cod' && (
+                      <div>
+                        <span className="ob-wait">取貨付款 · 到店付</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="c-act od-act">

@@ -5,7 +5,7 @@ import { updateOrder, markOrderPaid, markOrderShipped, refundEcpayOrder, refundL
 import { SubmitButton } from '../../../_components/submit-button';
 import { FlashToast } from '../../../../_components/toast';
 import { IconCheck, IconChevronLeft, IconExternal, IconMessage, IconPrinter, IconReceipt, IconStore } from '@/lib/icons';
-import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
+import { CVS_CHAINS, cvsShipmentText, isCvsChain } from '@/lib/cvs';
 import { siteOrigin } from '@/lib/return-to';
 import { CopyButton } from '../../../../[slug]/order/[order_no]/copy-button';
 
@@ -119,6 +119,7 @@ const PAY_METHODS: { value: string; label: string }[] = [
   { value: 'ecpay_credit', label: '信用卡(綠界)' },
   { value: 'ecpay_atm', label: 'ATM 轉帳(綠界)' },
   { value: 'qr', label: '掃碼付款' },
+  { value: 'cod', label: '超商取貨付款' }, // Phase 36
 ];
 function payMethodLabel(s: string): string {
   return PAY_METHODS.find((m) => m.value === s)?.label ?? s;
@@ -209,6 +210,8 @@ export default async function OrderDetailPage({
   // Phase 29:超商店到店 — 出貨時要填寄件單號
   const cvs = isCvsChain(o.cvs_type) ? o.cvs_type : null;
   const grandTotal = orderPayable(o); // Phase 33:商品小計 − 折扣 + 運費
+  // Phase 36:超商取貨付款 — 沒付款就能寄,客人到店付、超商撥款後才按「確認收款」
+  const isCod = o.payment_method === 'cod';
   // 付款方式下拉:資料裡若是沒列的代碼也要顯示出來,不然存檔會被改掉
   const methodOptions =
     o.payment_method && !PAY_METHODS.some((m) => m.value === o.payment_method)
@@ -374,8 +377,8 @@ export default async function OrderDetailPage({
                     <select id="f-status" name="status" defaultValue={o.status} className="ui-input">
                       <option value="open">待付款</option>
                       <option value="paid">已付款</option>
-                      <option value="shipped">{isPickup ? '已備貨(自取)' : '已出貨'}</option>
-                      <option value="delivered">{isPickup ? '已取貨' : '已送達'}</option>
+                      <option value="shipped">{isPickup ? '已備貨(自取)' : cvs ? '已寄出' : '已出貨'}</option>
+                      <option value="delivered">{isPickup || cvs ? '已取貨' : '已送達'}</option>
                       <option value="cancelled">已取消(自動退庫存)</option>
                       <option value="refunded">已退款(自動退庫存)</option>
                     </select>
@@ -452,7 +455,9 @@ export default async function OrderDetailPage({
                     </div>
                   )}
                   <p className="odd-note" style={{ margin: '0 0 14px', color: '#78350f' }}>
-                    核對入帳後標記為已收款,訂單會變成已付款、算進今日營收。
+                    {isCod
+                      ? <>這張是超商取貨付款:先寄出,客人到店付款、超商撥款給你之後再按下方確認,訂單會變成已取貨、算進營收。</>
+                      : <>核對入帳後標記為已收款,訂單會變成已付款、算進今日營收。</>}
                     {((o.shipping_fee_twd ?? 0) > 0 || (o.discount_twd ?? 0) > 0) && (
                       <> 應收 <strong>{money(grandTotal)}</strong>(
                         {(o.shipping_fee_twd ?? 0) > 0 && <>含運費 {o.shipping_fee_twd}</>}
@@ -488,7 +493,7 @@ export default async function OrderDetailPage({
                       </div>
                     </div>
                     <div>
-                      <SubmitButton pendingText="標記中…" confirmText="確定標記這筆訂單為「已收款」?">確認已收款</SubmitButton>
+                      <SubmitButton pendingText="標記中…" confirmText={isCod ? '確定超商已撥款、這筆標為「已收款」?訂單會變成已取貨。' : '確定標記這筆訂單為「已收款」?'}>{isCod ? '超商已撥款,確認收款' : '確認已收款'}</SubmitButton>
                     </div>
                   </form>
                 </>
@@ -519,12 +524,28 @@ export default async function OrderDetailPage({
                     <br />
                     {CVS_CHAINS[cvs].shipHint}
                   </div>
+                  {/* Phase 36:一鍵複製寄件資料,貼進賣貨便 / 好賣+ 就好 */}
+                  <div style={{ marginTop: 10 }}>
+                    <CopyButton
+                      text={cvsShipmentText({
+                        recipient: o.shipping_recipient,
+                        phone: o.shipping_phone,
+                        chain: cvs,
+                        storeName: o.cvs_store_name,
+                        storeId: o.cvs_store_id,
+                        codTwd: isCod && !isPaid ? grandTotal : null,
+                        orderNo: o.order_no,
+                      })}
+                      label="複製寄件資料"
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* 已付款 → 顯示「標已出貨」(2026-09-11 一鍵標出貨;Phase 29 店到店要填寄件單號) */}
-              {isPaid && !isShipped && (
-                <form action={markOrderShipped} className="odd-form" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #bbf7d0' }}>
+              {/* 已付款 → 顯示「標已出貨」(2026-09-11 一鍵標出貨;Phase 29 店到店要填寄件單號)
+                  Phase 36:取貨付款的單沒付款就能寄 */}
+              {(isPaid || isCod) && !isShipped && (
+                <form action={markOrderShipped} className="odd-form" style={{ marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${isPaid ? '#bbf7d0' : '#fde68a'}` }}>
                   <input type="hidden" name="id" value={o.id} />
                   <input type="hidden" name="tenant_slug" value={tenant.slug} />
                   {!isPickup && (

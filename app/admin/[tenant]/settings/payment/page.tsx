@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, hasFeature, supabaseAdmin } from '@/lib/supabase';
 import { bankTransferFromRow } from '@/lib/bank-transfer';
+import { codPaymentFromRow } from '@/lib/cvs';
 import { getLinePayKeyState, hasLinePayEnvKeys } from '@/lib/linepay';
 import { getEcpayKeyState, hasEcpayEnvKeys } from '@/lib/ecpay';
 import { isSecretBoxReady } from '@/lib/secret-box';
@@ -21,13 +22,22 @@ export default async function PaymentSettingsPage({ params }: { params: Promise<
   if (!tenant) notFound();
 
   const [{ data }, linePayKeys, ecpayKeys, email] = await Promise.all([
-    supabaseAdmin.from('tenants').select('payment_info, qr_payment, bank_transfer').eq('slug', slug).maybeSingle(),
+    // Phase 36:cod_payment(取貨付款)+ shipping_rules(有沒有超商店到店,卡上提示用)
+    supabaseAdmin.from('tenants').select('payment_info, qr_payment, bank_transfer, cod_payment, shipping_rules').eq('slug', slug).maybeSingle(),
     getLinePayKeyState(tenant.id),
     getEcpayKeyState(tenant.id),
     currentAdminEmail(),
   ]);
   if (!data) notFound();
-  const t = data as { payment_info: string | null; qr_payment: QrPayment; bank_transfer: unknown };
+  const t = data as {
+    payment_info: string | null;
+    qr_payment: QrPayment;
+    bank_transfer: unknown;
+    cod_payment: unknown;
+    shipping_rules: { options?: { key: string; cvs?: string }[] } | null;
+  };
+  const cod = codPaymentFromRow(t.cod_payment);
+  const hasCvsShipping = (t.shipping_rules?.options ?? []).some((o) => !!o.cvs);
 
   const secretBoxReady = isSecretBoxReady();
   // 匯入按鈕只給超級管理員、只在預設攤位(愛油哇)、只在還走 env 退路時出現;看不到按鈕不是防線,server action 才是
@@ -80,6 +90,8 @@ export default async function PaymentSettingsPage({ params }: { params: Promise<
         note: t.qr_payment?.note ?? '',
         link_url: t.qr_payment?.link_url ?? '',
       }}
+      cod={{ enabled: cod?.enabled ?? false, note: cod?.note ?? '', max_twd: cod?.max_twd ?? null }}
+      hasCvsShipping={hasCvsShipping}
       gateways={gateways}
     />
   );

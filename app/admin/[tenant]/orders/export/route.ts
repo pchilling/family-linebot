@@ -88,7 +88,7 @@ export async function GET(
     delivered: '已送達', cancelled: '已取消', refunded: '已退款',
   };
   const payMap: Record<string, string> = { pending: '未付', paid: '已付', failed: '失敗', refunded: '已退' };
-  const methodMap: Record<string, string> = { bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay', ecpay_credit: '信用卡(綠界)', ecpay_atm: 'ATM 轉帳(綠界)', qr: '掃碼付款' };
+  const methodMap: Record<string, string> = { bank: '銀行轉帳', cash: '現金', line_pay: 'LINE Pay', ecpay_credit: '信用卡(綠界)', ecpay_atm: 'ATM 轉帳(綠界)', qr: '掃碼付款', cod: '超商取貨付款' };
 
   const fmtTw = (iso: string | null) =>
     iso

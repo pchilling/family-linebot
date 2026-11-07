@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { fmtArrival } from '@/lib/groupbuy-shared';
+import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
 
 /**
  * 訂單 A4 出貨單(批次 B #18)。
@@ -48,6 +49,9 @@ type OrderDetail = {
   shipping_recipient: string | null;
   shipping_phone: string | null;
   shipping_address: string | null;
+  cvs_type: string | null; // Phase 36:超商店到店的門市與取貨付款
+  cvs_store_id: string | null;
+  cvs_store_name: string | null;
   note: string | null;
   payment_last5: string | null; // 2026-09-18:客人回報的匯款帳號後五碼,出貨單對帳用
   created_at: string;
@@ -104,7 +108,7 @@ export default async function OrderPrintPage({
     .select(
       `id, order_no, status, payment_status, payment_method, total_twd, discount_code, discount_twd, shipping_fee_twd, shipping_method,
        invoice_tax_id, invoice_title,
-       shipping_recipient, shipping_phone, shipping_address, note, payment_last5, created_at,
+       shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, note, payment_last5, created_at,
        group_buy_id, group_buys(name, expected_arrival_on),
        order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku, channel), product_variants(variant_name, sku))`,
     )
@@ -118,6 +122,9 @@ export default async function OrderPrintPage({
     ((tExtra as TExtra)?.shipping_rules?.options ?? []).find((opt) => opt.key === o.shipping_method)
       ?.label ?? null;
   const grand = orderPayable(o); // Phase 33:商品小計 − 折扣 + 運費
+  // Phase 36:店到店印門市;取貨付款印金額(攤主照這個金額建賣貨便)
+  const cvs = isCvsChain(o.cvs_type) ? o.cvs_type : null;
+  const isCod = o.payment_method === 'cod';
 
   return (
     <div
@@ -195,7 +202,9 @@ export default async function OrderPrintPage({
             <span style={{ color: '#9ca3af' }}>狀態</span>
             <span>{statusMap[o.status] ?? o.status}</span>
             <span style={{ color: '#9ca3af' }}>付款</span>
-            <span>{o.payment_status === 'paid' ? '已收款' : '待付款'}</span>
+            <span style={isCod && o.payment_status !== 'paid' ? { fontWeight: 700 } : undefined}>
+              {isCod && o.payment_status !== 'paid' ? `取貨付款 NT$ ${grand.toLocaleString()}` : o.payment_status === 'paid' ? '已收款' : '待付款'}
+            </span>
             {o.payment_last5 && (
               <>
                 <span style={{ color: '#9ca3af' }}>後五碼</span>
@@ -204,6 +213,12 @@ export default async function OrderPrintPage({
             )}
             <span style={{ color: '#9ca3af' }}>配送</span>
             <span>{shipLabel ?? '—'}</span>
+            {cvs && (
+              <>
+                <span style={{ color: '#9ca3af' }}>門市</span>
+                <span>{CVS_CHAINS[cvs].short} {o.cvs_store_name ?? ''}{o.cvs_store_id && <span className="num">(店號 {o.cvs_store_id})</span>}</span>
+              </>
+            )}
             {/* Phase 35:團購單標團名與預計到貨 */}
             {o.group_buy_id && (
               <>
