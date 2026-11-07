@@ -75,6 +75,8 @@ export function NavLinks({
   const links: LinkDef[] = [
     { key: 'dashboard', label: '總覽', href: `/admin/${tenantSlug}` },
     { key: 'products', label: '商品', href: `/admin/${tenantSlug}/products` },
+    // Phase 35(2026-11-07):團購(開團 / 彙總單 / 到貨通知)
+    { key: 'groupbuy', label: '團購', href: `/admin/${tenantSlug}/groupbuy` },
     { key: 'orders', label: '訂單', href: `/admin/${tenantSlug}/orders`, badge: ordersPending },
     // 2026-11-01:「LINE Pay 對帳」改成「對帳」:匯款 / 掃碼待核帳每個攤位都有,
     // LINE Pay 撥款對帳的區塊頁面內自己依 feature 顯示

@@ -2,9 +2,10 @@ import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { Badge, Input, Switch } from '@/lib/ui';
 import { Field, GroupHead, PanelTitle, SwitchRow } from '../settings-ui';
-import { DeleteIconButton, DiscountCodeForm, DiscountEnabledSwitch, GiftModeControl, SaveButton } from '../settings-client';
+import { CopyButton, DeleteIconButton, DiscountCodeForm, DiscountEnabledSwitch, GiftModeControl, GroupbuyFollowersOnlySwitch, SaveButton } from '../settings-client';
 import { GiftProductPicker, type PickerProduct } from '../gift-product-picker';
 import { IconTrash } from '@/lib/icons';
+import { siteOrigin } from '@/lib/return-to';
 import { addGiftRule, deleteDiscountCode, deleteGiftRule } from '../actions';
 
 type GiftRule = {
@@ -60,9 +61,12 @@ function dcPeriod(r: DiscountCodeRow): string {
  */
 export default async function PromoSettingsPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
-  const { data } = await supabaseAdmin.from('tenants').select('id, gift_rules').eq('slug', slug).maybeSingle();
+  // Phase 35:groupbuy_followers_only(團購只給追蹤者看)
+  const { data } = await supabaseAdmin.from('tenants').select('id, gift_rules, groupbuy_followers_only').eq('slug', slug).maybeSingle();
   if (!data) notFound();
-  const tenant = data as { id: string; gift_rules: { mode?: string; rules?: GiftRule[] } | null };
+  const tenant = data as { id: string; gift_rules: { mode?: string; rules?: GiftRule[] } | null; groupbuy_followers_only: boolean | null };
+  const groupbuyFollowersOnly = !!tenant.groupbuy_followers_only;
+  const inviteUrl = `${siteOrigin()}/${slug}/groupbuy`;
 
   // Phase 33:折扣碼清單,server 端算狀態、排序(進行中 → 未開始 → 已用完 → 已結束 → 停用)
   const { data: dcRows } = await supabaseAdmin
@@ -107,7 +111,7 @@ export default async function PromoSettingsPage({ params }: { params: Promise<{ 
 
   return (
     <div className="sx-body">
-      <PanelTitle title="行銷" desc="滿額贈與折扣碼。" />
+      <PanelTitle title="行銷" desc="滿額贈、折扣碼與團購。" />
 
       <div className="sx-group">
         <GroupHead
@@ -235,6 +239,32 @@ export default async function PromoSettingsPage({ params }: { params: Promise<{ 
         )}
 
         <DiscountCodeForm slug={slug} />
+      </div>
+
+      <hr className="sx-sep" />
+
+      {/* Phase 35(2026-11-07):團購 */}
+      <div className="sx-group">
+        <GroupHead
+          title="團購"
+          desc="開團、彙總單、到貨通知在左側選單的「團購」;這裡只管誰看得到團購分頁。"
+        />
+        <SwitchRow
+          title="團購只給追蹤這家店的人看"
+          desc="開著時沒追蹤的人在團購分頁只看到一扇門,商品與團名不會送到他的瀏覽器;LINE 好友自動算追蹤。"
+          control={<GroupbuyFollowersOnlySwitch slug={slug} enabled={groupbuyFollowersOnly} />}
+        />
+        <dl className="sx-dl">
+          <dt>邀請連結</dt>
+          <dd>
+            <span className="sx-ro" style={{ minWidth: 0 }}>
+              <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inviteUrl}</b>
+              <CopyButton text={inviteUrl} title="複製邀請連結" />
+            </span>
+          </dd>
+          <dt>追蹤要核准</dt>
+          <dd><span className="sx-hint">之後提供</span></dd>
+        </dl>
       </div>
     </div>
   );

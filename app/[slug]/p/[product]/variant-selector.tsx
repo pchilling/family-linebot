@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { IconClock, IconCreditCard, IconFlame, IconGift, IconHeart, IconTruck, IconZap } from '@/lib/icons';
 import { Badge, Button, Stars } from '@/lib/ui';
+import { fmtArrivalPhrase, type GroupBuyPublic, type ProductChannel } from '@/lib/groupbuy-shared';
 import { useCart } from '../../cart-state';
 import { useFavorites } from '../../favorites-state';
 
@@ -39,6 +40,14 @@ type Props = {
   rating?: { avg: number; count: number } | null;
   /** 右欄底下的三行小字:配送 / 付款 / 滿額贈(伺服器照攤位設定算好,沒有就不顯示) */
   notes?: { shipping: string | null; payment: string | null; gift: string | null };
+  /** Phase 35(2026-11-07):攤位 / 團購商品;加入購物車時帶給 CartItem */
+  channel?: ProductChannel;
+  /** Phase 35:false = 不管理庫存,數量上限 999、不顯示售完 / 剩 N 件 */
+  trackStock?: boolean;
+  /** Phase 35:團購商品才有;目前的團(有效狀態),沒開團 = null */
+  groupBuy?: GroupBuyPublic | null;
+  /** Phase 35:false = 沒開團 / 已截止,購買鈕停用 */
+  canBuy?: boolean;
 };
 
 const money = (n: number) => n.toLocaleString('en-US');
@@ -105,6 +114,9 @@ export const PD_CSS = `
 .pd-tier[data-on="true"]{border-color:var(--ui-accent);box-shadow:0 0 0 1px var(--ui-accent)}
 .pd-tier b{font-size:13px;font-weight:600}.pd-tier span{font-size:12px;color:var(--ui-muted)}
 .pd-sale{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px}
+.pd-gb-off{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);color:#52525b;font-size:13px;line-height:1.6}
+.pd-gb-off b{color:var(--ui-ink);font-weight:600}
+.pd-gb-on{display:flex;align-items:center;gap:8px;font-size:13px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.5}
 .pd-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:40px;overflow:hidden;background:var(--ui-surface)}
 .pd-qty button{width:40px;height:40px;border:0;background:transparent;font:inherit;font-size:18px;cursor:pointer;color:var(--ui-ink)}
 .pd-qty button:hover{background:var(--ui-line-soft)}
@@ -147,9 +159,15 @@ export function VariantSelector({
   sale = null,
   rating = null,
   notes,
+  channel = 'stall',
+  trackStock = true,
+  groupBuy = null,
+  canBuy = true,
 }: Props) {
   const router = useRouter();
-  const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
+  // Phase 35:不管理庫存 → 每個規格都算有貨
+  const hasStock = (v: Variant) => !trackStock || v.stock > 0;
+  const firstInStock = variants.find(hasStock) ?? variants[0];
   const [selectedId, setSelectedId] = useState<string>(firstInStock?.id ?? '');
   const [qty, setQty] = useState(1);
   const [qtyText, setQtyText] = useState('1'); // 輸入框允許暫時清空
@@ -160,8 +178,11 @@ export function VariantSelector({
   const fav = isFav(productId);
 
   const selected = variants.find((v) => v.id === selectedId) ?? firstInStock;
-  const selectedInStock = (selected?.stock ?? 0) > 0;
-  const maxQty = selected?.stock ?? 0;
+  const selectedInStock = !!selected && hasStock(selected);
+  const maxQty = trackStock ? (selected?.stock ?? 0) : 999;
+  // Phase 35:團購商品沒開團 / 已截止時不能買;文案照團的狀態
+  const purchasable = selectedInStock && canBuy;
+  const gbBlockedText = groupBuy && !groupBuy.is_open ? '本團已截止' : '目前沒開團';
 
   // ---------- 圖片 ----------
   // 相簿 = 後台 media;沒 media 就用商品主圖。規格自己有圖、又不在相簿裡時,插到最前面。
@@ -214,7 +235,7 @@ export function VariantSelector({
   }
 
   function addToCart(): boolean {
-    if (!selected || !selectedInStock) return false;
+    if (!selected || !purchasable) return false;
     addItem({
       variantId: selected.id,
       productId,
@@ -224,6 +245,7 @@ export function VariantSelector({
       priceTwd: effectivePrice,
       qty,
       imageUrl: variantImg ?? productMedia.find((m) => m.type === 'image')?.url ?? productImageUrl,
+      channel,
     });
     return true;
   }
@@ -239,7 +261,7 @@ export function VariantSelector({
   }
 
   const variantLabel = selected && variants.length > 1 ? selected.variant_name : '';
-  const stockHint = selected && selected.stock > 0 && selected.stock <= 10 ? `剩 ${selected.stock} 件` : '';
+  const stockHint = trackStock && selected && selected.stock > 0 && selected.stock <= 10 ? `剩 ${selected.stock} 件` : '';
 
   return (
     <div>
@@ -312,6 +334,14 @@ export function VariantSelector({
             </div>
           )}
 
+          {/* Phase 35:團購商品沒開團 / 已截止 → 灰卡說明,購買鈕停用 */}
+          {channel === 'groupbuy' && !canBuy && (
+            <div className="pd-gb-off" role="status">
+              <b>{gbBlockedText}</b>
+              <span>{groupBuy && !groupBuy.is_open ? `「${groupBuy.name}」已截止收單,等下一團開團就能再買。` : '這是團購商品,攤主開團後才能加入購物車。'}</span>
+            </div>
+          )}
+
           {variants.length === 0 ? (
             <p className="ui-muted" style={{ margin: 0, fontSize: 14 }}>目前沒有可選的規格。</p>
           ) : (
@@ -322,7 +352,7 @@ export function VariantSelector({
                   <div className="pd-pills" role="radiogroup" aria-label="規格">
                     {variants.map((v) => {
                       const on = v.id === selectedId;
-                      const out = v.stock <= 0;
+                      const out = !hasStock(v);
                       return (
                         <button key={v.id} type="button" className="pd-pill" data-on={on ? 'true' : 'false'} disabled={out} aria-pressed={on} onClick={() => { setSelectedId(v.id); updateQty(1); }}>
                           {v.variant_name}
@@ -389,11 +419,19 @@ export function VariantSelector({
               )}
 
               <div className="pd-buy">
-                <Button type="button" variant="primary" size="lg" className="ui-num" onClick={handleAdd} disabled={!selectedInStock}>
-                  {selectedInStock ? `加入購物車 · NT$ ${money(totalPrice)}` : '此規格已售完'}
+                <Button type="button" variant="primary" size="lg" className="ui-num" onClick={handleAdd} disabled={!purchasable}>
+                  {!canBuy ? gbBlockedText : selectedInStock ? `加入購物車 · NT$ ${money(totalPrice)}` : '此規格已售完'}
                 </Button>
-                <Button type="button" variant="outline" size="lg" onClick={handleBuyNow} disabled={!selectedInStock}>立即購買</Button>
+                <Button type="button" variant="outline" size="lg" onClick={handleBuyNow} disabled={!purchasable}>立即購買</Button>
               </div>
+
+              {/* Phase 35:團購商品且可買 → 標明這是哪一團、預計何時到貨 */}
+              {channel === 'groupbuy' && canBuy && groupBuy && (
+                <div className="pd-gb-on">
+                  <IconClock size={14} />
+                  <span>團購 · {groupBuy.name} · {fmtArrivalPhrase(groupBuy.expected_arrival_on)},整張單等到貨後一起出</span>
+                </div>
+              )}
             </>
           )}
 
@@ -414,8 +452,8 @@ export function VariantSelector({
             <span className="ui-muted" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{variantLabel ? `${variantLabel} × ${qty}` : `× ${qty}`}</span>
             <span className="ui-num" style={{ fontSize: 18, fontWeight: 600 }}>NT$ {money(totalPrice)}</span>
           </div>
-          <Button type="button" variant="primary" size="lg" onClick={handleAdd} disabled={!selectedInStock}>
-            {selectedInStock ? '加入購物車' : '已售完'}
+          <Button type="button" variant="primary" size="lg" onClick={handleAdd} disabled={!purchasable}>
+            {!canBuy ? gbBlockedText : selectedInStock ? '加入購物車' : '已售完'}
           </Button>
         </div>
       )}

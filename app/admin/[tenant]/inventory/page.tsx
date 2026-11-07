@@ -15,7 +15,7 @@ type VariantStock = {
   stock: number;
   price_twd: number;
   status: string;
-  products: { name: string; category: string | null; status: string } | null;
+  products: { name: string; category: string | null; status: string; track_stock: boolean | null } | null; // Phase 35:track_stock=false 顯示「不管理」
 };
 
 type RecentMovement = {
@@ -31,11 +31,14 @@ type RecentMovement = {
 async function getVariants(tenantId: string): Promise<VariantStock[]> {
   const { data } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, variant_name, sku, stock, price_twd, status, products(name, category, status)')
+    .select('id, product_id, variant_name, sku, stock, price_twd, status, products(name, category, status, track_stock)')
     .eq('tenant_id', tenantId)
     .order('stock', { ascending: true });
   return (data ?? []) as unknown as VariantStock[];
 }
+
+/** Phase 35:商品有沒有管理庫存(舊資料沒有這欄當 true) */
+const tracksStock = (v: VariantStock) => v.products?.track_stock !== false;
 
 // 篩選 + 排序(2026-09-02):資料量小,全撈後在記憶體處理
 // 2026-09-08:分類改可複選(對齊商品管理的 chip 篩選)
@@ -209,8 +212,9 @@ export default async function InventoryPage({
   ]);
 
   // 低庫存看全部(不受篩選影響);表格套用篩選 + 排序
+  // Phase 35:不管理庫存的商品不算低庫存
   const lowStock = allVariants.filter(
-    (v) => v.stock <= 3 && v.status === 'active' && v.products?.status === 'active',
+    (v) => tracksStock(v) && v.stock <= 3 && v.status === 'active' && v.products?.status === 'active',
   );
   const categories = Array.from(
     new Set(allVariants.map((v) => v.products?.category ?? '(未分類)')),
@@ -345,7 +349,11 @@ export default async function InventoryPage({
                     <div className="c-sku mono">{v.sku}</div>
                     <div className="c-cat muted">{v.products?.category ?? '—'}</div>
                     <div className="c-price r">NT$ {v.price_twd.toLocaleString()}</div>
-                    <div className={`c-stock r iv-stock ${v.stock === 0 ? 'zero' : v.stock <= 3 ? 'low' : ''}`}>{v.stock}</div>
+                    {tracksStock(v) ? (
+                      <div className={`c-stock r iv-stock ${v.stock === 0 ? 'zero' : v.stock <= 3 ? 'low' : ''}`}>{v.stock}</div>
+                    ) : (
+                      <div className="c-stock r muted" style={{ fontWeight: 400 }}>不管理</div>
+                    )}
                     <div className="c-st">
                       <span className={`ui-badge ${st.cls}`}>{st.label}</span>
                     </div>

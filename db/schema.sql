@@ -1615,3 +1615,150 @@ NOTIFY pgrst, 'reload schema';
 alter table tenants add column if not exists payment_config jsonb;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ====================
+-- Phase 35(2026-11-07):團購
+-- 個人賣家「先收單、截止後統一訂貨、到貨再分送」。商品分攤位 / 團購兩個通路(products.channel),
+-- 一個攤位同時只有一團 open(partial unique index 擋),open 且 ends_at 過期「讀取時」視為已截止,不跑排程。
+-- 團購商品預設不管理庫存(track_stock = false,後台切成團購時由 app 端寫入),扣庫存的 trigger 跳過這類商品。
+-- 追蹤這家店 = tenant_followers(platform 層的人);LINE 好友(users 表)自動算追蹤,不另寫一列。
+-- 規格:docs/GROUPBUY.md。新表 enable row level security、不建 policy(全站慣例,server 一律 service_role)。
+-- ====================
+
+-- 1. 商品:通路與管理庫存開關
+alter table products add column if not exists channel text not null default 'stall'
+  check (channel in ('stall', 'groupbuy'));                                 -- stall = 攤位(預設)/ groupbuy = 團購
+alter table products add column if not exists track_stock boolean not null default true;  -- false = 不檢查、不扣庫存
+create index if not exists products_tenant_channel_idx on products(tenant_id, channel, status);
+
+-- 2. 團
+create table if not exists group_buys (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  name text not null,
+  description text,
+  ends_at timestamptz,                   -- null = 手動截止
+  expected_arrival_on date,              -- 預計到貨日(台北日期),可空
+  status text not null default 'open'
+    check (status in ('draft', 'open', 'closed', 'ordered', 'arrived', 'done')),
+  notify_on_open boolean not null default false,   -- 開團時有沒有勾「推 LINE 通知給全部好友」
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  closed_at timestamptz,
+  ordered_at timestamptz,
+  arrived_at timestamptz,
+  done_at timestamptz
+);
+create index if not exists group_buys_tenant_created_idx on group_buys(tenant_id, created_at desc);
+-- 同一攤位同時只能有一團 open(DB 層保證;重新開放時若已有別團 open 會 23505)
+create unique index if not exists group_buys_one_open_idx on group_buys(tenant_id) where status = 'open';
+alter table group_buys enable row level security;
+create trigger group_buys_updated_at before update on group_buys
+  for each row execute function set_updated_at();
+
+-- 3. 訂單記住屬於哪一團(團刪了訂單留著)
+alter table orders add column if not exists group_buy_id uuid references group_buys(id) on delete set null;
+create index if not exists orders_group_buy_idx on orders(group_buy_id) where group_buy_id is not null;
+
+-- 4. 追蹤這家店(人 = platform_users;LINE 好友自動算追蹤,不寫進這張表)
+create table if not exists tenant_followers (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  platform_user_id uuid not null references platform_users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (tenant_id, platform_user_id)
+);
+create index if not exists tenant_followers_user_idx on tenant_followers(platform_user_id);
+alter table tenant_followers enable row level security;
+
+-- 5. 攤位開關:團購只給追蹤者看
+alter table tenants add column if not exists groupbuy_followers_only boolean not null default false;
+
+-- 6. 扣庫存的 trigger 跳過 track_stock = false 的商品
+-- (三支 function 都是 Phase 11 / 14 帶 variant_id 的版本再加一個判斷;Phase 11 當時直接在 SQL Editor 跑、沒記進 schema,這裡一併補齊)
+-- 扣的時候看「現在的」track_stock;退 / 復活時不看 track_stock,改看這筆明細在 stock_movements 有沒有對應紀錄
+-- (有扣過才退、有退過才再扣)— 商品在下單後切換「賣在哪裡 / 管理庫存」才不會讓庫存帳對不上。
+create or replace function order_item_to_stock_movement()
+returns trigger as $$
+declare
+  v_track boolean;
+begin
+  -- Phase 35:不管理庫存的商品(團購預設)不寫 stock_movements、不扣庫存
+  select track_stock into v_track from products where id = new.product_id;
+  if coalesce(v_track, true) = false then
+    return null;
+  end if;
+  if tg_op = 'INSERT' then
+    insert into stock_movements (tenant_id, product_id, variant_id, qty_delta, reason, reference_id)
+      values (new.tenant_id, new.product_id, new.variant_id, -new.qty, 'order', new.order_id);
+  elsif tg_op = 'UPDATE' then
+    if new.qty != old.qty then
+      insert into stock_movements (tenant_id, product_id, variant_id, qty_delta, reason, reference_id, note)
+        values (new.tenant_id, new.product_id, new.variant_id, old.qty - new.qty, 'manual_adjust', new.order_id,
+                'order_item qty: ' || old.qty || ' -> ' || new.qty);
+    end if;
+  end if;
+  return null;
+end;
+$$ language plpgsql;
+
+create or replace function order_item_reverse_stock_movement()
+returns trigger as $$
+declare
+  current_order_status text;
+begin
+  select status into current_order_status from orders where id = old.order_id;
+  if current_order_status in ('cancelled', 'refunded') then
+    return null;
+  end if;
+  -- Phase 35:這筆明細當初沒扣過(下單時 track_stock = false)就不用退;看 stock_movements 不看現在的 track_stock
+  if not exists (
+    select 1 from stock_movements sm
+     where sm.reference_id = old.order_id
+       and sm.product_id = old.product_id
+       and sm.variant_id is not distinct from old.variant_id
+       and sm.reason = 'order'
+  ) then
+    return null;
+  end if;
+  insert into stock_movements (tenant_id, product_id, variant_id, qty_delta, reason, reference_id, note)
+    values (old.tenant_id, old.product_id, old.variant_id, old.qty, 'order_cancel', old.order_id, 'order_item deleted');
+  return null;
+end;
+$$ language plpgsql;
+
+create or replace function handle_order_cancel()
+returns trigger as $$
+begin
+  if new.status in ('cancelled', 'refunded')
+     and old.status not in ('cancelled', 'refunded') then
+    insert into stock_movements (tenant_id, product_id, variant_id, qty_delta, reason, reference_id, note)
+      select oi.tenant_id, oi.product_id, oi.variant_id, oi.qty, 'order_cancel', oi.order_id, 'order ' || new.status
+        from order_items oi
+        where oi.order_id = new.id
+          and exists (                                      -- Phase 35:這筆明細有扣過(reason='order')才退
+            select 1 from stock_movements sm
+             where sm.reference_id = oi.order_id
+               and sm.product_id = oi.product_id
+               and sm.variant_id is not distinct from oi.variant_id
+               and sm.reason = 'order'
+          );
+  elsif old.status in ('cancelled', 'refunded')
+        and new.status not in ('cancelled', 'refunded') then
+    insert into stock_movements (tenant_id, product_id, variant_id, qty_delta, reason, reference_id, note)
+      select oi.tenant_id, oi.product_id, oi.variant_id, -oi.qty, 'order', oi.order_id, 'order reactivated from ' || old.status
+        from order_items oi
+        where oi.order_id = new.id
+          and exists (                                      -- Phase 35:取消時有退過(reason='order_cancel')才再扣
+            select 1 from stock_movements sm
+             where sm.reference_id = oi.order_id
+               and sm.product_id = oi.product_id
+               and sm.variant_id is not distinct from oi.variant_id
+               and sm.reason = 'order_cancel'
+          );
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+NOTIFY pgrst, 'reload schema';

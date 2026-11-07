@@ -503,11 +503,37 @@ export async function updateProduct(formData: FormData) {
   const status = String(formData.get('status') || 'active');
   const slug = String(formData.get('tenant_slug') || '').trim();
 
+  // Phase 35(2026-11-07):賣在哪裡(攤位 / 團購)與管理庫存開關。
+  // 先讀現值:channel 非法值退回舊值;表單沒帶 track_stock 欄位(別的表單)就維持舊值;
+  // 第一次切成團購時 track_stock 一律寫 false(自動關,忽略表單),攤主之後可再打開。
+  const { data: cur } = await supabaseAdmin
+    .from('products')
+    .select('channel, track_stock')
+    .eq('id', id)
+    .maybeSingle();
+  const oldChannel = (cur as { channel?: string } | null)?.channel === 'groupbuy' ? 'groupbuy' : 'stall';
+  const oldTrack = (cur as { track_stock?: boolean } | null)?.track_stock !== false;
+  const channelRaw = String(formData.get('channel') || '').trim();
+  const channel = channelRaw === 'stall' || channelRaw === 'groupbuy' ? channelRaw : oldChannel;
+  let track_stock: boolean;
+  if (channel === 'groupbuy' && oldChannel !== 'groupbuy') {
+    track_stock = false;
+  } else if (formData.has('track_stock_present')) {
+    track_stock = formData.get('track_stock') === 'on';
+  } else {
+    track_stock = oldTrack;
+  }
+
   await supabaseAdmin
     .from('products')
-    .update({ sku, name, description, price_twd, cost_twd, image_url, category, badge, badge_color, status })
+    .update({ sku, name, description, price_twd, cost_twd, image_url, category, badge, badge_color, status, channel, track_stock })
     .eq('id', id);
   revalidateProductRoutes(formData);
+  // 團購分頁 / 攤位首頁的商品清單跟著變
+  if (slug) {
+    revalidatePath(`/${slug}`);
+    revalidatePath(`/${slug}/groupbuy`);
+  }
 
   // 存後 redirect 帶 saved 參數讓 page 顯示「✓ 已儲存」banner + 滾到該商品
   if (slug) productRedirect(formData, slug, id);

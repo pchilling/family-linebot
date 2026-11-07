@@ -42,6 +42,8 @@ type ProductRow = {
   badge: string | null;
   badge_color: string | null;
   status: string;
+  channel: 'stall' | 'groupbuy' | null; // Phase 35:賣在哪裡
+  track_stock: boolean | null; // Phase 35:管理庫存開關
   product_variants: VariantRowData[] | null;
 };
 
@@ -95,7 +97,7 @@ export default async function ProductEditPage({
     supabaseAdmin
       .from('products')
       .select(
-        `id, sku, slug, name, description, price_twd, cost_twd, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, badge_color, status,
+        `id, sku, slug, name, description, price_twd, cost_twd, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, badge_color, status, channel, track_stock,
          product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, is_bundle, status, sort_order)`,
       )
       .eq('tenant_id', tenant.id)
@@ -117,6 +119,9 @@ export default async function ProductEditPage({
   const totalStock = variants.filter((v) => v.status === 'active').reduce((s, v) => s + (v.stock ?? 0), 0);
   const cover = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url;
   const publicUrl = `/${tenant.slug}/p/${p.slug ?? p.id}`;
+  // Phase 35(2026-11-07):賣在哪裡 / 管理庫存
+  const isGroupBuy = p.channel === 'groupbuy';
+  const trackStock = p.track_stock !== false;
 
   const saleState = (() => {
     if (p.sale_discount_pct === null || !p.sale_start_at || !p.sale_end_at) return null;
@@ -180,8 +185,9 @@ details summary::-webkit-details-marker { display: none; }
           )}
           <div style={{ minWidth: 0 }}>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>{p.name}</h1>
-            <div style={{ ...sub, fontVariantNumeric: 'tabular-nums' }}>
-              {p.category ?? '未分類'} · SKU {p.sku ?? '—'} · {variants.length} 規格 · 庫存 {totalStock}
+            <div style={{ ...sub, fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span className={`ui-badge${isGroupBuy ? ' ui-badge-solid' : ''}`} style={{ padding: '0 8px', fontSize: 11 }}>{isGroupBuy ? '團購' : '攤位'}</span>
+              <span>{p.category ?? '未分類'} · SKU {p.sku ?? '—'} · {variants.length} 規格 · 庫存 {trackStock ? totalStock : '不管理'}</span>
             </div>
           </div>
         </div>
@@ -233,6 +239,38 @@ details summary::-webkit-details-marker { display: none; }
               <textarea name="description" defaultValue={p.description ?? ''} rows={6} style={{ ...input, resize: 'vertical' }} />
             </label>
           </div>
+
+          {/* Phase 35(2026-11-07):賣在哪裡 / 管理庫存 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            <section style={{ ...card, padding: '18px 16px' }}>
+              <h2 style={h2}>賣在哪裡</h2>
+              <p style={{ ...sub, margin: '3px 0 12px' }}>團購商品只出現在團購分頁、只在開團期間能買;切成團購會自動把管理庫存關掉。</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, cursor: 'pointer' }}>
+                  <input type="radio" name="channel" value="stall" defaultChecked={!isGroupBuy} className="ui-radio" />
+                  <span><b style={{ fontWeight: 600 }}>攤位</b><span style={{ color: '#71717a' }}> — 現貨直接出,顯示在攤位分頁</span></span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, cursor: 'pointer' }}>
+                  <input type="radio" name="channel" value="groupbuy" defaultChecked={isGroupBuy} className="ui-radio" />
+                  <span><b style={{ fontWeight: 600 }}>團購</b><span style={{ color: '#71717a' }}> — 先收單、截止後統一訂貨,顯示在團購分頁</span></span>
+                </label>
+              </div>
+            </section>
+            <section style={{ ...card, padding: '18px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <h2 style={h2}>管理庫存</h2>
+                  <p style={{ ...sub, margin: '3px 0 0' }}>關掉後結帳不檢查、下單不扣庫存,庫存頁顯示「不管理」。團購商品預設關,攤主要囤貨再打開。</p>
+                </div>
+                {/* 勾選框沒勾不會送,靠這個隱藏欄位讓 action 分得出「沒勾」跟「別的表單沒帶這欄」 */}
+                <input type="hidden" name="track_stock_present" value="1" />
+                <span className="ui-switch" style={{ marginTop: 2 }}>
+                  <input type="checkbox" name="track_stock" defaultChecked={trackStock} aria-label="管理庫存" />
+                </span>
+              </div>
+            </section>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <SubmitButton pendingText="儲存中…">儲存基本資料</SubmitButton>
           </div>

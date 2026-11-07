@@ -16,7 +16,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 async function getProduct(id: string) {
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, name, price_twd, image_url, share_focus_x, status, tenant_id')
+    .select('id, name, price_twd, image_url, share_focus_x, status, tenant_id, channel')
     .eq('id', id)
     .maybeSingle();
   if (error || !data) return null;
@@ -28,17 +28,21 @@ async function getProduct(id: string) {
     share_focus_x: number | null;
     status: string;
     tenant_id: string;
+    channel: string | null;
   };
   const p = data as Row;
 
   const { data: tData } = await supabaseAdmin
     .from('tenants')
-    .select('slug, name, logo_url, status')
+    .select('slug, name, logo_url, status, groupbuy_followers_only')
     .eq('id', p.tenant_id)
     .maybeSingle();
-  type T = { slug: string; name: string; logo_url: string | null; status: string };
+  type T = { slug: string; name: string; logo_url: string | null; status: string; groupbuy_followers_only: boolean | null };
   const tenant = tData as T | null;
   if (!tenant || tenant.status !== 'active') return null;
+  // Phase 35(2026-11-07):「團購只給追蹤者看」開著時,團購商品不走這個公開分享頁(連 OG 預覽都不給);
+  // 追蹤者要分享請貼 /{slug}/p/{product},那條路有追蹤者的門
+  if (p.channel === 'groupbuy' && tenant.groupbuy_followers_only) return null;
 
   return { ...p, tenant };
 }

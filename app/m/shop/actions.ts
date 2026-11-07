@@ -6,6 +6,7 @@ import { lineClient } from '@/lib/line';
 import { bankTransferFromRow, formatBankTransferText, type BankTransfer } from '@/lib/bank-transfer';
 import type { CvsChain } from '@/lib/cvs';
 import type { messagingApi } from '@line/bot-sdk';
+import { checkCartGroupBuy, getGroupBuyState, type GroupBuyState, type ProductChannel } from '@/lib/groupbuy';
 
 const LIFF_CHANNEL_ID = process.env.LIFF_CHANNEL_ID!;
 const TENANT_ID = process.env.DEFAULT_TENANT_ID!;
@@ -61,6 +62,9 @@ export type ShopProduct = {
   sort_order: number | null;
   // 2026-09-18:「最新」chip 照上架時間排(原本 LIFF 查詢是分類序,最新跟全部長一樣)
   created_at: string;
+  // Phase 35(2026-11-07):攤位 / 團購分頁用;track_stock=false 時庫存當無限
+  channel: ProductChannel;
+  track_stock: boolean;
 };
 
 export type ShopMember = {
@@ -106,6 +110,8 @@ export type ShopData = {
   tenant: ShopTenant;
   // 2026-09-11(回饋 #10):這個客人上一筆訂單的收件資訊,結帳預填(不動會員資料)
   lastShipping: { recipient: string | null; phone: string | null; address: string | null } | null;
+  // Phase 35(2026-11-07):目前的團 / 上一團(LINE 好友自動算追蹤,LIFF 不做門)
+  groupBuy: GroupBuyState;
 };
 
 /**
@@ -146,10 +152,10 @@ export async function loadShopData(
   const lineUserId = await verifyIdToken(idToken);
   await ensureUser(lineUserId, displayName, pictureUrl);
 
-  const [productsRes, memberRes, tenantRes, tiersRes] = await Promise.all([
+  const [productsRes, memberRes, tenantRes, tiersRes, groupBuy] = await Promise.all([
     supabaseAdmin
       .from('products')
-      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, created_at, stock, product_variants(id, variant_name, price_twd, stock, image_url, is_bundle, status, sort_order)')
+      .select('id, name, description, price_twd, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, created_at, stock, channel, track_stock, product_variants(id, variant_name, price_twd, stock, image_url, is_bundle, status, sort_order)')
       .eq('tenant_id', TENANT_ID)
       .eq('status', 'active')
       .order('category', { ascending: true })
@@ -171,6 +177,8 @@ export async function loadShopData(
       .select('product_id, min_qty, price_twd')
       .eq('tenant_id', TENANT_ID)
       .order('min_qty', { ascending: true }),
+    // Phase 35:團購狀態
+    getGroupBuyState(TENANT_ID),
   ]);
 
   // 2026-09-11(回饋 #10):抓這個客人最近一筆有地址的訂單,結帳預填
@@ -244,7 +252,9 @@ export async function loadShopData(
     .eq('enabled', true)
     .limit(1);
 
-  type ProductRow = ShopProduct & {
+  type ProductRow = Omit<ShopProduct, 'channel' | 'track_stock'> & {
+    channel: string | null;
+    track_stock: boolean | null;
     product_variants?: { id: string; variant_name: string; price_twd: number; stock: number; image_url: string | null; is_bundle: boolean | null; status: string; sort_order: number | null }[] | null;
   };
   return {
@@ -270,6 +280,8 @@ export async function loadShopData(
       tiers: tiersByProduct.get(p.id) ?? [],
       sort_order: p.sort_order ?? null,
       created_at: p.created_at,
+      channel: p.channel === 'groupbuy' ? 'groupbuy' : 'stall',
+      track_stock: p.track_stock !== false,
     })),
     member: (memberRes.data as ShopMember | null) ?? null,
     tenant: {
@@ -298,6 +310,7 @@ export async function loadShopData(
         .sort((a, b) => a.threshold_twd - b.threshold_twd),
     },
     lastShipping,
+    groupBuy,
   };
 }
 
@@ -418,25 +431,32 @@ export async function placeOrder(
   }
   const { data: variants, error: variantsErr } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, price_twd, status, stock, is_bundle')
+    .select('id, product_id, price_twd, status, stock, is_bundle, products(channel, track_stock)')
     .in('id', variantIds)
     .eq('tenant_id', TENANT_ID);
   if (variantsErr || !variants) throw new Error('讀取變體失敗');
   if (variants.length !== variantIds.length) throw new Error('部分變體不存在');
-  type VRow = { id: string; product_id: string; price_twd: number; status: string; stock: number; is_bundle: boolean };
-  for (const v of variants as VRow[]) {
+  // Phase 35:track_stock=false 的商品不檢查庫存(trigger 也不扣)
+  type VRow = { id: string; product_id: string; price_twd: number; status: string; stock: number; is_bundle: boolean; products: { channel: string | null; track_stock: boolean | null } | null };
+  for (const v of variants as unknown as VRow[]) {
     if (v.status !== 'active') throw new Error('部分變體已下架');
+    if (v.products?.track_stock === false) continue;
     const cartItem = cart.find((c) => c.variant_id === v.id);
     if (cartItem && cartItem.qty > v.stock) {
       throw new Error(`規格庫存不足(剩 ${v.stock})`);
     }
   }
 
+  // Phase 35(2026-11-07):有團購商品 → 團必須還在收單中,否則整張擋下(錯誤文案直接給客人看);通過就記下屬於哪一團
+  const gbCheck = await checkCartGroupBuy(TENANT_ID, [...new Set((variants as unknown as VRow[]).map((v) => v.product_id))]);
+  if (!gbCheck.ok) throw new Error(gbCheck.error);
+  const groupBuyId = gbCheck.groupBuyId;
+
   // 2026-09-03:結帳單價套 sale + tier(跟公開商城 createOrder 同邏輯,原本 LIFF 照原價收錢)
   // 優先級:sale 生效 → % off 通殺;否則 tier(同 product 整單 qty 算)
   const qtyByProduct = new Map<string, number>();
   for (const c of cart) {
-    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
+    const v = (variants as unknown as VRow[]).find((vv) => vv.id === c.variant_id);
     // Phase 16.4:組合品數量不計入分階門檻
     if (v && !v.is_bundle) qtyByProduct.set(v.product_id, (qtyByProduct.get(v.product_id) ?? 0) + c.qty);
   }
@@ -470,7 +490,7 @@ export async function placeOrder(
   };
   // 折後小計(免運門檻與通知金額都用這個)
   const pricedSubtotal = cart.reduce((sum, c) => {
-    const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id);
+    const v = (variants as unknown as VRow[]).find((vv) => vv.id === c.variant_id);
     return sum + (v ? effectivePrice(v, c.qty) : 0) * c.qty;
   }, 0);
 
@@ -524,6 +544,8 @@ export async function placeOrder(
       note: note || null,
       discount_code: discountCode,
       discount_twd: discountTwd,
+      // Phase 35:有團購商品就記當時收單中的團
+      group_buy_id: groupBuyId,
     })
     .select('id, order_no, total_twd, access_key')
     .single();
@@ -542,7 +564,7 @@ export async function placeOrder(
   const giftItems = await buildGiftItems(TENANT_ID, pricedSubtotal);
   const itemsToInsert = [
     ...cart.map((c) => {
-      const v = (variants as VRow[]).find((vv) => vv.id === c.variant_id)!;
+      const v = (variants as unknown as VRow[]).find((vv) => vv.id === c.variant_id)!;
       return {
         tenant_id: TENANT_ID,
         order_id: order.id,

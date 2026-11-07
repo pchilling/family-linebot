@@ -7,7 +7,8 @@ import { TwAddressFields } from '@/lib/tw-districts';
 import { IconBank, IconCheck, IconCreditCard, IconGift, IconPackage, IconStore, IconTruck, IconWallet, IconX } from '@/lib/icons';
 import { CVS_CHAINS } from '@/lib/cvs';
 import { Badge, Button, ButtonLink, Card, OptionCard, Textarea } from '@/lib/ui';
-import { applyDiscountCode, createOrder, getCartPricingInfo, getGiftRulesPublic, getLastShipping, getQrPaymentPublic, getShippingOptions, hasDiscountCodes, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type CartPricingInfo, type GiftConfigPublic, type LastShipping, type QrPaymentPublic, type ShippingOption } from './actions';
+import { fmtArrivalPhrase, GROUPBUY_CLOSED_ERROR } from '@/lib/groupbuy-shared';
+import { applyDiscountCode, createOrder, getCartPricingInfo, getGiftRulesPublic, getGroupBuyCheckoutInfo, getLastShipping, getQrPaymentPublic, getShippingOptions, hasDiscountCodes, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type CartPricingInfo, type GiftConfigPublic, type GroupBuyCheckoutInfo, type LastShipping, type QrPaymentPublic, type ShippingOption } from './actions';
 
 // Phase 33(2026-11-06):套用成功的折扣碼
 type DiscountApplied = Extract<ApplyDiscountResult, { ok: true }>;
@@ -56,6 +57,12 @@ const CSS = `
 .ck-sum h2 span{font-size:12px;color:var(--ui-muted);font-weight:400}
 .ck-item{display:flex;gap:12px;padding:14px 0;border-top:1px solid var(--ui-line-soft)}
 .ck-item:first-of-type{border-top:0;padding-top:0}
+/* Phase 35(2026-11-07):有團購商品時明細分「攤位」「團購」兩組 */
+.ck-grp{display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding-top:14px;border-top:1px solid var(--ui-line);font-size:12.5px;font-weight:600;color:var(--ui-ink)}
+.ck-grp:first-of-type{margin-top:0;padding-top:0;border-top:0}
+.ck-grp span{font-weight:400;color:var(--ui-muted)}
+.ck-grp + .ck-item{border-top:0;padding-top:8px}
+.ck-grp-hint{margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.6}
 .ck-th{width:56px;height:70px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-line-soft);overflow:hidden;position:relative;flex-shrink:0;display:grid;place-items:center;color:#d4d4d8}
 .ck-th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ck-it{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
@@ -221,11 +228,21 @@ export default function CheckoutPage({ params }: Props) {
   // 2026-09-18:購物車顯示也套分階價(同商品跨規格合併計量;特價生效時分階暫停)
   const [pricing, setPricing] = useState<CartPricingInfo>({});
   const productIdsKey = [...new Set(items.map((i) => i.productId))].sort().join(',');
+  // Phase 35(2026-11-07):哪些是團購商品、目前的團 — 以 server 為準,localStorage 的 channel 只是回來前的預設
+  const [gbInfo, setGbInfo] = useState<GroupBuyCheckoutInfo | null>(null);
   useEffect(() => {
     const ids = productIdsKey ? productIdsKey.split(',') : [];
     if (ids.length === 0) return;
     getCartPricingInfo(slug, ids).then(setPricing).catch(() => {});
+    getGroupBuyCheckoutInfo(slug, ids).then(setGbInfo).catch(() => {});
   }, [slug, productIdsKey]);
+  const isGroupBuyItem = (item: (typeof items)[number]) =>
+    gbInfo ? gbInfo.groupBuyProductIds.includes(item.productId) : item.channel === 'groupbuy';
+  const stallItems = items.filter((i) => !isGroupBuyItem(i));
+  const gbItems = items.filter((i) => isGroupBuyItem(i));
+  const currentGb = gbInfo?.current ?? null;
+  // server 回來說沒開團(或已截止)卻還有團購商品 → 不給送,請客人移除
+  const gbBlocked = gbItems.length > 0 && !!gbInfo && !currentGb;
 
   function unitPriceOf(item: (typeof items)[number]): number {
     const info = pricing[item.productId];
@@ -389,6 +406,42 @@ export default function CheckoutPage({ params }: Props) {
     background: 'var(--ui-surface)', color: 'var(--ui-ink)', width: '100%', boxSizing: 'border-box',
   };
 
+  // 明細一列(Phase 35 抽成函式:攤位 / 團購兩組都用同一個長相)
+  const renderItem = (item: (typeof items)[number]) => (
+    <div key={item.variantId} className="ck-item">
+      <div className="ck-th">
+        {item.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.imageUrl} alt="" />
+        ) : (
+          <IconPackage size={20} />
+        )}
+      </div>
+      <div className="ck-it">
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="ck-it-n">{item.productName}</div>
+            {item.variantName && item.variantName !== 'default' && <div className="ck-it-v">{item.variantName}</div>}
+            {unitPriceOf(item) < item.priceTwd && (
+              <div className="ck-it-v ui-num" style={{ color: '#15803d', fontWeight: 500 }}>量購價 NT$ {money(unitPriceOf(item))}/件</div>
+            )}
+          </div>
+          <button type="button" className="ck-rm" onClick={() => removeItem(item.variantId)} aria-label={`移除 ${item.productName}`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="ck-it-row">
+          <div className="ck-qty">
+            <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)} aria-label="減少">−</button>
+            <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
+            <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)} aria-label="增加">+</button>
+          </div>
+          <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unitPriceOf(item) * item.qty)}</span>
+        </div>
+      </div>
+    </div>
+  );
+
   const submitLabel = `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '送出訂單'} · NT$ ${money(grandTotal)}`;
   const fine = isOnlinePay
     ? '付款完成後訂單會自動更新,不用回報帳號後 5 碼'
@@ -397,7 +450,9 @@ export default function CheckoutPage({ params }: Props) {
       : '下單後賣家會私訊匯款方式';
   const submitBtn = (cls: string) => (
     <div className={cls}>
-      <Button type="submit" form="ck-form" variant="primary" size="lg" className="ui-num" style={{ width: '100%' }} disabled={submitting}>
+      {/* Phase 35:團已截止 / 沒開團卻還有團購商品 → 擋在前端,送出鈕停用 */}
+      {gbBlocked && <div className="ck-alert" role="alert" style={{ marginBottom: 10 }}>{GROUPBUY_CLOSED_ERROR}</div>}
+      <Button type="submit" form="ck-form" variant="primary" size="lg" className="ui-num" style={{ width: '100%' }} disabled={submitting || gbBlocked}>
         {submitting ? '處理中,訂單建立中…' : submitLabel}
       </Button>
       <p className="ck-fine">{fine}</p>
@@ -585,40 +640,26 @@ export default function CheckoutPage({ params }: Props) {
         {/* ---------- 右:摘要 ---------- */}
         <Card className="ck-sum">
           <h2>商品明細 <span className="ui-num">{totalQty} 件</span></h2>
-          {items.map((item) => (
-            <div key={item.variantId} className="ck-item">
-              <div className="ck-th">
-                {item.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.imageUrl} alt="" />
-                ) : (
-                  <IconPackage size={20} />
-                )}
+          {/* Phase 35:有團購商品才分兩組;沒有就照舊一串列到底 */}
+          {gbItems.length > 0 ? (
+            <>
+              {stallItems.length > 0 && (
+                <>
+                  <div className="ck-grp">攤位 <span>· 下單後 1–3 個工作天出貨</span></div>
+                  {stallItems.map(renderItem)}
+                </>
+              )}
+              <div className="ck-grp">
+                團購
+                {/* gbInfo 還沒回來前只印「團購」,不先閃一下「目前沒開團」 */}
+                <span>{!gbInfo ? '' : currentGb ? `· ${currentGb.name} · ${fmtArrivalPhrase(currentGb.expected_arrival_on)}` : '· 目前沒開團'}</span>
               </div>
-              <div className="ck-it">
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="ck-it-n">{item.productName}</div>
-                    {item.variantName && item.variantName !== 'default' && <div className="ck-it-v">{item.variantName}</div>}
-                    {unitPriceOf(item) < item.priceTwd && (
-                      <div className="ck-it-v ui-num" style={{ color: '#15803d', fontWeight: 500 }}>量購價 NT$ {money(unitPriceOf(item))}/件</div>
-                    )}
-                  </div>
-                  <button type="button" className="ck-rm" onClick={() => removeItem(item.variantId)} aria-label={`移除 ${item.productName}`}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M18 6 6 18M6 6l12 12" /></svg>
-                  </button>
-                </div>
-                <div className="ck-it-row">
-                  <div className="ck-qty">
-                    <button type="button" onClick={() => updateQty(item.variantId, item.qty - 1)} aria-label="減少">−</button>
-                    <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
-                    <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)} aria-label="增加">+</button>
-                  </div>
-                  <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unitPriceOf(item) * item.qty)}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+              {gbItems.map(renderItem)}
+              <p className="ck-grp-hint">整張單會等到貨後一起出,想先拿現貨請分開下單</p>
+            </>
+          ) : (
+            items.map(renderItem)
+          )}
 
           {gift && (
             <div className="ck-gift">

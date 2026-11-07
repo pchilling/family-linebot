@@ -26,6 +26,7 @@ const CSS = `
 .lm-brand span.i{background:var(--ui-accent);color:var(--ui-on-accent);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;border:0}
 .lm h2{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
 .lm p.d{margin:6px 0 0;font-size:14px;line-height:1.7;color:var(--ui-muted)}
+.lm-note{margin:8px 0 0;font-size:13px;line-height:1.6;color:var(--ui-ink);font-weight:500}
 .lm-alert{margin:0;padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.6}
 .lm-btns{display:flex;flex-direction:column;gap:10px}
 .lm-btn{display:flex;align-items:center;justify-content:center;gap:10px;height:50px;border-radius:8px;font-size:15px;font-weight:500;text-decoration:none;box-sizing:border-box;transition:opacity .15s,background .15s,border-color .15s}
@@ -55,6 +56,8 @@ type Props = {
   ready: boolean;
   /** 有設 RESEND_API_KEY 才顯示信箱登入 */
   emailOn: boolean;
+  /** Phase 35(2026-11-07):說明底下多一行小字(例:「登入後會自動追蹤這家店」) */
+  note?: string;
   onClose: () => void;
 };
 
@@ -63,7 +66,7 @@ type Props = {
  * LINE / Google 兩顆鈕(信箱登入有開才多一段),登入完回到同一頁。手機版從底部滑上來。
  * Esc、點背景、右上角 X 都會關。
  */
-export function LoginModal({ slug, tenantName, logoUrl, returnTo, error, ready, emailOn, onClose }: Props) {
+export function LoginModal({ slug, tenantName, logoUrl, returnTo, error, ready, emailOn, note, onClose }: Props) {
   // 開著的時候鎖住底層捲動
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -104,6 +107,7 @@ export function LoginModal({ slug, tenantName, logoUrl, returnTo, error, ready, 
           <div>
             <h2 id="lm-h2">登入</h2>
             <p className="d">查看訂單進度、同步收藏,結帳時自動帶入收件資料。不登入也可以直接購買。</p>
+            {note && <p className="lm-note">{note}</p>}
           </div>
 
           {errorMessage && <p role="alert" className="lm-alert">{errorMessage}</p>}

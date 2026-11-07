@@ -395,3 +395,27 @@ export function IconDownload({ size = 16, color = 'currentColor', style }: IconP
     </svg>
   );
 }
+
+// ── Phase 35(2026-11-07):團購 / 追蹤這家店用 ──
+
+/** 兩個人形輪廓:追蹤者、人數 */
+export function IconUsers({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+      <path d="M16 4.5a3.5 3.5 0 0 1 0 7" />
+      <path d="M17.5 14a6 6 0 0 1 4 6" />
+    </svg>
+  );
+}
+
+/** 鈴鐺:推播通知 */
+export function IconBell({ size = 16, color = 'currentColor', style }: IconProps) {
+  return (
+    <svg {...svgProps(size, color, style)}>
+      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z" />
+      <path d="M10 21a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}

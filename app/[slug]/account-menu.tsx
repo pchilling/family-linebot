@@ -106,8 +106,10 @@ export function AccountMenu({ slug, tenantName, logoUrl, ready, emailOn }: Props
     setLogin({ returnTo: safeReturnTo(window.location.pathname + window.location.search, `/${slug}`), error: null });
   }
 
+  // Phase 35:從團購分頁的「登入並追蹤這家店」過來(return_to 帶 follow=1)→ 視窗多一句說明
+  const loginNote = login && /[?&]follow=1(&|$)/.test(login.returnTo) ? '登入後會自動追蹤這家店' : undefined;
   const modal = login ? (
-    <LoginModal slug={slug} tenantName={tenantName} logoUrl={logoUrl} returnTo={login.returnTo} error={login.error} ready={ready} emailOn={emailOn} onClose={() => setLogin(null)} />
+    <LoginModal slug={slug} tenantName={tenantName} logoUrl={logoUrl} returnTo={login.returnTo} error={login.error} ready={ready} emailOn={emailOn} note={loginNote} onClose={() => setLogin(null)} />
   ) : null;
 
   if (me === undefined) return <span aria-hidden style={{ width: 36, height: 36, display: 'inline-block' }} />;

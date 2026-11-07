@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { canViewGroupBuy, getGroupBuyState, type GroupBuyPublic } from '@/lib/groupbuy';
+import { getCurrentMember } from '@/lib/member-auth';
 import { getProductBySlug, getProductTiers, getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { Stars } from '@/lib/ui';
 import { getGiftRulesPublic, getShippingOptions, isEcpayAvailable, isLinePayAvailable } from '../../checkout/actions';
@@ -52,6 +54,18 @@ export default async function ProductDetailPage({ params }: Props) {
   if (!tenant) notFound();
   const item = await getProductBySlug(tenant.id, product);
   if (!item) notFound();
+
+  // Phase 35(2026-11-07):團購商品 — 只給追蹤者看時,沒追蹤的人導回團購分頁(那邊有門);
+  // 攤位商品不讀 cookie,頁面維持可快取
+  const isGroupBuyItem = item.channel === 'groupbuy';
+  let groupBuy: GroupBuyPublic | null = null;
+  if (isGroupBuyItem) {
+    const member = await getCurrentMember();
+    if (!(await canViewGroupBuy(tenant, member))) redirect(`/${slug}/groupbuy`);
+    groupBuy = (await getGroupBuyState(tenant.id)).current;
+  }
+  const canBuy = !isGroupBuyItem || !!groupBuy;
+
   const [tiers, reviewsResp, shipOptions, giftCfg, ecpayOn, linePayOn] = await Promise.all([
     getProductTiers(item.id),
     // Phase 25:顯示中的評價,新到舊,最多 50 則
@@ -88,7 +102,8 @@ export default async function ProductDetailPage({ params }: Props) {
   // schema.org Product JSON-LD(Google rich result)— 沒 active variant 時不放 offers
   const activeVariants = item.variants;
   const prices = activeVariants.map((v) => v.price_twd);
-  const anyInStock = activeVariants.some((v) => v.stock > 0);
+  // Phase 35:不管理庫存的商品一律算有貨
+  const anyInStock = !item.track_stock || activeVariants.some((v) => v.stock > 0);
   const structuredData: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -124,11 +139,12 @@ export default async function ProductDetailPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
 
       <nav className="pdp-crumb" aria-label="路徑">
-        <a href={`/${slug}`}>商品</a>
+        {/* Phase 35:第一節照商品賣在哪裡 — 團購連 /groupbuy,攤位連首頁 */}
+        {isGroupBuyItem ? <a href={`/${slug}/groupbuy`}>團購</a> : <a href={`/${slug}`}>攤位</a>}
         {item.category && (
           <>
             <span className="sep">/</span>
-            <a href={`/${slug}?cat=${encodeURIComponent(item.category)}`}>{item.category}</a>
+            <a href={`/${slug}${isGroupBuyItem ? '/groupbuy' : ''}?cat=${encodeURIComponent(item.category)}`}>{item.category}</a>
           </>
         )}
         <span className="sep">/</span>
@@ -152,6 +168,10 @@ export default async function ProductDetailPage({ params }: Props) {
         }
         rating={reviewCount > 0 ? { avg: reviewAvg, count: reviewCount } : null}
         notes={{ shipping: shippingNote, payment: paymentNote, gift: giftNote }}
+        channel={item.channel}
+        trackStock={item.track_stock}
+        groupBuy={groupBuy}
+        canBuy={canBuy}
       />
 
       {item.description && (

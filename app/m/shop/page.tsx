@@ -9,8 +9,9 @@ import { TwAddressFields } from '@/lib/tw-districts';
 import { OtpInput } from '@/lib/otp-input';
 import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
 import { bankDisplayName } from '@/lib/bank-transfer';
-import { IconBank, IconCheck, IconCheckCircle, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPackage, IconPencil, IconTruck, IconWallet } from '@/lib/icons';
+import { IconBank, IconCheck, IconCheckCircle, IconChevronLeft, IconCreditCard, IconFlame, IconGift, IconPackage, IconPencil, IconTruck, IconUsers, IconWallet } from '@/lib/icons';
 import { Badge, Button, Card, OptionCard, Textarea, UI_CSS } from '@/lib/ui';
+import { fmtArrivalPhrase, fmtEndsAt, GROUP_BUY_STATUS_LABEL, GROUPBUY_CLOSED_ERROR, type GroupBuyState, type ProductChannel } from '@/lib/groupbuy-shared';
 import { ProductDetailModal, badgeFg, pctToZhe, saleActiveOf } from './product-detail-modal';
 import {
   ecpayPayUrlLiff,
@@ -115,6 +116,25 @@ const CSS = `
 .ls-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.9;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);white-space:pre-wrap;overflow-wrap:anywhere}
 .ls-report{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .ls-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:70vh;text-align:center}
+/* Phase 35(2026-11-07):攤位 / 團購分頁(等寬兩格底線 tab)與團購狀態卡 */
+.ls-tabs{display:flex;border-bottom:1px solid var(--ui-line);margin:14px 0 14px}
+.ls-tab{flex:1;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;background:none;font:inherit;font-size:14px;font-weight:500;color:var(--ui-muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ls-tab[data-on="true"]{color:var(--ui-ink);font-weight:600;border-bottom-color:var(--ui-accent)}
+.ls-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;flex-shrink:0}
+.ls-gb{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border-radius:10px;border:1px solid;margin-bottom:14px}
+.ls-gb h2{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ls-gb h2 .st{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px}
+.ls-gb p{margin:0;font-size:13px;line-height:1.65;white-space:pre-wrap}
+.ls-gb-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px}
+.ls-gb-open{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.ls-gb-open .st{background:#dcfce7;color:#15803d}
+.ls-gb-idle{background:#fafafa;border-color:var(--ui-line);color:#52525b}
+.ls-gb-idle h2{color:var(--ui-ink)}
+.ls-grp{display:flex;align-items:center;gap:6px;margin:12px 0 2px;padding-top:12px;border-top:1px solid var(--ui-line);font-size:12.5px;font-weight:600}
+.ls-grp:first-of-type{margin-top:0;padding-top:0;border-top:0}
+.ls-grp span{font-weight:400;color:var(--ui-muted)}
+.ls-grp + .ls-item{border-top:0;padding-top:8px}
+.ls-grp-hint{margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.6}
 `;
 
 /**
@@ -171,6 +191,10 @@ export default function ShopPage() {
   const [dcError, setDcError] = useState('');
   const [dcBusy, setDcBusy] = useState(false);
   const [filter, setFilter] = useState<string>(''); // '' = 全部 / 'latest' / 'sale' / category name
+  // Phase 35(2026-11-07):攤位 / 團購分頁與目前的團;LINE 好友自動算追蹤,不做門
+  const [tab, setTab] = useState<ProductChannel>('stall');
+  const [groupBuy, setGroupBuy] = useState<GroupBuyState>({ current: null, last: null });
+  const currentGb = groupBuy.current;
   const [detailId, setDetailId] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
@@ -227,6 +251,7 @@ export default function ShopPage() {
         setMember(data.member);
         setTenant(data.tenant);
         setLastShip(data.lastShipping);
+        setGroupBuy(data.groupBuy);
         isLinePayAvailableLiff().then(setLinePayOn).catch(() => {});
         isBankTransferAvailableLiff().then(setBankOn).catch(() => {});
         isEcpayAvailableLiff()
@@ -286,16 +311,19 @@ export default function ShopPage() {
   }
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  // Phase 35:列表先依分頁過濾(攤位 / 團購),分類膠囊、特價 chip 都只看這個分頁的商品
+  const tabProducts = useMemo(() => products.filter((p) => p.channel === tab), [products, tab]);
 
   // chip filter:全部 / 最新 / 特價中 / 各 category(照 tenant.category_order,沒列的照筆劃排後面)
   const categories = useMemo(() => {
-    const found = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))];
+    const found = [...new Set(tabProducts.map((p) => p.category).filter((c): c is string => !!c))];
     const ordered = tenant.category_order.filter((c) => found.includes(c));
     const rest = found.filter((c) => !tenant.category_order.includes(c)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
     return [...ordered, ...rest];
-  }, [products, tenant.category_order]);
-  const hasSale = useMemo(() => products.some((p) => saleActiveOf(p, Date.now())), [products]);
+  }, [tabProducts, tenant.category_order]);
+  const hasSale = useMemo(() => tabProducts.some((p) => saleActiveOf(p, Date.now())), [tabProducts]);
   const visibleProducts = useMemo(() => {
+    const products = tabProducts;
     const nowMs = Date.now();
     const isCat = !!filter && categories.includes(filter);
     if (filter === 'latest') {
@@ -336,7 +364,7 @@ export default function ShopPage() {
       if (ia !== ib) return ia - ib;
       return bySortOrder(a, b);
     });
-  }, [products, filter, categories]);
+  }, [tabProducts, filter, categories]);
 
   // variantId → variant info(含 product 反查);price_twd 存「折後價」
   const variantMap = useMemo(() => {
@@ -390,6 +418,13 @@ export default function ShopPage() {
   const discount = dcApplied ? Math.min(dcApplied.discount_twd, cartTotal) : 0;
   const grandTotal = cartTotal - discount + shipFee;
   const needShipping = tenant.shipping_options.length > 0;
+  // Phase 35:結帳明細分「攤位」「團購」兩組;沒開團卻還有團購品 → 不給送(server 送單時也會再擋一次)
+  const isGbCartItem = (c: CartItem) => productMap.get(c.product_id)?.channel === 'groupbuy';
+  const stallCart = cart.filter((c) => !isGbCartItem(c));
+  const gbCart = cart.filter(isGbCartItem);
+  const gbBlocked = gbCart.length > 0 && !currentGb;
+  // 團購分頁沒開團 / 已截止 → 商品詳情的加入鈕停用並說明
+  const gbDisabledReason = currentGb ? undefined : groupBuy.last && groupBuy.last.status === 'closed' ? '本團已截止' : '目前沒開團';
 
   const phoneNow = () => (document.getElementById('ck-phone') as HTMLInputElement | null)?.value ?? '';
   async function applyDc(code: string, silent = false) {
@@ -452,6 +487,41 @@ export default function ShopPage() {
     setCart((prev) => prev.map((c) => (c.variant_id === variantId ? { ...c, qty } : c)).filter((c) => c.qty > 0));
   }
 
+  // 結帳明細一列(Phase 35 抽成函式:攤位 / 團購兩組同一個長相);track_stock=false 的商品數量上限 999
+  const renderCartItem = (c: CartItem) => {
+    const v = variantMap.get(c.variant_id);
+    const p = productMap.get(c.product_id);
+    if (!v || !p) return null;
+    const unit = unitPriceOf(c.variant_id);
+    const img = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? null;
+    const max = !p.track_stock ? 999 : v.stock > 0 ? v.stock : 9999;
+    return (
+      <div key={c.variant_id} className="ls-item">
+        <div className="ls-th">
+          {img ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={img} alt="" />
+          ) : (
+            <IconPackage size={20} />
+          )}
+        </div>
+        <div className="ls-it">
+          <div className="ls-it-n">{p.name}</div>
+          {p.variants.length > 1 && <div className="ls-it-v">{v.variant_name}</div>}
+          {unit < v.price_twd && <div className="ls-it-v ui-num" style={{ color: '#15803d', fontWeight: 500 }}>量購價 NT$ {money(unit)}/件</div>}
+          <div className="ls-it-row">
+            <div className="ls-qty">
+              <button type="button" onClick={() => changeQty(c.variant_id, -1)} aria-label="減少">−</button>
+              <CartQtyInput qty={c.qty} max={max} onCommit={(n) => setQtyExact(c.variant_id, n)} />
+              <button type="button" onClick={() => changeQty(c.variant_id, 1)} aria-label="增加">+</button>
+            </div>
+            <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unit * c.qty)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   async function onSubmitOrder(formData: FormData) {
     setError('');
     // 沒選配送方式時自己擋下並捲回該區塊(LIFF 不顯示原生必填氣泡,看起來像沒反應)
@@ -495,6 +565,7 @@ export default function ShopPage() {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
       // 折扣碼驗不過整張沒建單:清掉已套用的碼讓合計恢復,原因也放到折扣碼欄下面
+      // (Phase 35:團購的「本團已截止 / 目前沒開團」錯誤不含「折扣碼」三個字,只走上面的 setError)
       if (msg.includes('折扣碼')) {
         setDcApplied(null);
         setDcError(msg);
@@ -685,6 +756,13 @@ export default function ShopPage() {
             </div>
           </div>
           {tenant.banners.length > 0 && <BannerHero banners={tenant.banners} tenantName={tenant.name} />}
+          {/* Phase 35:攤位 / 團購分頁(有開團時團購旁一個綠點);切分頁時分類篩選歸零 */}
+          <div className="ls-tabs" role="tablist" aria-label="攤位 / 團購">
+            <button type="button" role="tab" className="ls-tab" data-on={tab === 'stall' ? 'true' : 'false'} aria-selected={tab === 'stall'} onClick={() => { setTab('stall'); setFilter(''); }}>攤位</button>
+            <button type="button" role="tab" className="ls-tab" data-on={tab === 'groupbuy' ? 'true' : 'false'} aria-selected={tab === 'groupbuy'} onClick={() => { setTab('groupbuy'); setFilter(''); }}>
+              團購{currentGb && <span className="ls-dot" aria-label="收單中" />}
+            </button>
+          </div>
         </header>
       )}
 
@@ -692,7 +770,29 @@ export default function ShopPage() {
 
       {!showCheckout && !detailId && (
         <>
-          {tenant.gift_rules.length > 0 && (
+          {/* Phase 35:團購分頁頂端狀態卡 */}
+          {tab === 'groupbuy' && (
+            currentGb ? (
+              <div className="ls-gb ls-gb-open ui-swap">
+                <h2>{currentGb.name}<span className="st">收單中</span></h2>
+                {currentGb.description && <p>{currentGb.description}</p>}
+                <div className="ls-gb-meta">
+                  <span>截止 {fmtEndsAt(currentGb.ends_at)}</span>
+                  <span>{fmtArrivalPhrase(currentGb.expected_arrival_on)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="ls-gb ls-gb-idle ui-swap">
+                <h2><IconUsers size={15} /> 目前沒開團</h2>
+                <p>
+                  {groupBuy.last ? `上一團:${groupBuy.last.name} · ${GROUP_BUY_STATUS_LABEL[groupBuy.last.status]}。` : '這家店還沒開過團。'}
+                  開團後商品就能加入購物車。
+                </p>
+              </div>
+            )
+          )}
+
+          {tab === 'stall' && tenant.gift_rules.length > 0 && (
             <div className="ls-note">
               <IconGift size={15} />
               <span>
@@ -705,7 +805,7 @@ export default function ShopPage() {
             </div>
           )}
 
-          {products.length > 0 && categories.length > 0 && (
+          {tabProducts.length > 0 && categories.length > 0 && (
             <div className="ls-pills" aria-label="分類">
               {[
                 { key: '', label: '全部' as React.ReactNode },
@@ -721,17 +821,18 @@ export default function ShopPage() {
           )}
 
           <div className="ls-sec">
-            <span style={{ fontSize: 14, color: 'var(--ui-ink)', fontWeight: 500 }}>{filter === 'latest' ? '最新商品' : filter === 'sale' ? '特價中' : filter || '所有商品'}</span>
+            <span style={{ fontSize: 14, color: 'var(--ui-ink)', fontWeight: 500 }}>{filter === 'latest' ? '最新商品' : filter === 'sale' ? '特價中' : filter || (tab === 'groupbuy' ? '團購商品' : '所有商品')}</span>
             <span className="ui-num">{visibleProducts.length} 件</span>
           </div>
 
-          {products.length === 0 ? (
+          {tabProducts.length === 0 ? (
             <Card style={{ padding: '48px 24px', textAlign: 'center' }}>
               <div style={{ marginBottom: 10, color: '#d4d4d8' }}><IconPackage size={40} /></div>
-              <p style={{ fontSize: 15, margin: 0, fontWeight: 500 }}>商品建置中</p>
+              <p style={{ fontSize: 15, margin: 0, fontWeight: 500 }}>{tab === 'groupbuy' ? '還沒有團購商品' : '商品建置中'}</p>
+              {tab === 'groupbuy' && <p className="ui-muted" style={{ fontSize: 13, margin: '6px 0 0' }}>攤主把商品設成團購後就會出現在這裡。</p>}
             </Card>
           ) : (
-            <section key={filter || 'all'} className="ls-grid" style={{ paddingBottom: cart.length > 0 ? 80 : 0 }}>
+            <section key={`${tab}-${filter || 'all'}`} className="ls-grid" style={{ paddingBottom: cart.length > 0 ? 80 : 0 }}>
               {visibleProducts.map((p, cardIdx) => {
                 const img = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? null;
                 const nowMs = Date.now();
@@ -740,13 +841,15 @@ export default function ShopPage() {
                 const minPrice = Math.min(...prices);
                 const maxPrice = Math.max(...prices);
                 const salePrice = onSale ? Math.round((minPrice * (100 - p.sale_discount_pct!)) / 100) : null;
-                const allOut = p.variants.length > 0 && p.variants.every((v) => v.stock === 0);
+                // Phase 35:不管理庫存的商品不會售完;團購分頁沒開團 → 圖灰掉(仍可點進去看)
+                const allOut = p.track_stock && p.variants.length > 0 && p.variants.every((v) => v.stock === 0);
+                const dim = allOut || (p.channel === 'groupbuy' && !currentGb);
                 return (
                   <button key={p.id} type="button" className="ls-card" onClick={() => setDetailId(p.id)} style={{ animationDelay: `${Math.min(cardIdx, 11) * 45}ms` }}>
                     <div className="ls-ph">
                       {img ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={img} alt="" data-dim={allOut ? 'true' : 'false'} loading={cardIdx < 6 ? 'eager' : 'lazy'} />
+                        <img src={img} alt="" data-dim={dim ? 'true' : 'false'} loading={cardIdx < 6 ? 'eager' : 'lazy'} />
                       ) : (
                         <IconPackage size={28} />
                       )}
@@ -824,38 +927,25 @@ export default function ShopPage() {
 
           <Card className="ls-cardb">
             <h3>商品明細 <span className="ui-num">{cartCount} 件</span></h3>
-            {cart.map((c) => {
-              const v = variantMap.get(c.variant_id);
-              const p = productMap.get(c.product_id);
-              if (!v || !p) return null;
-              const unit = unitPriceOf(c.variant_id);
-              const img = (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url ?? null;
-              return (
-                <div key={c.variant_id} className="ls-item">
-                  <div className="ls-th">
-                    {img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={img} alt="" />
-                    ) : (
-                      <IconPackage size={20} />
-                    )}
-                  </div>
-                  <div className="ls-it">
-                    <div className="ls-it-n">{p.name}</div>
-                    {p.variants.length > 1 && <div className="ls-it-v">{v.variant_name}</div>}
-                    {unit < v.price_twd && <div className="ls-it-v ui-num" style={{ color: '#15803d', fontWeight: 500 }}>量購價 NT$ {money(unit)}/件</div>}
-                    <div className="ls-it-row">
-                      <div className="ls-qty">
-                        <button type="button" onClick={() => changeQty(c.variant_id, -1)} aria-label="減少">−</button>
-                        <CartQtyInput qty={c.qty} max={v.stock > 0 ? v.stock : 9999} onCommit={(n) => setQtyExact(c.variant_id, n)} />
-                        <button type="button" onClick={() => changeQty(c.variant_id, 1)} aria-label="增加">+</button>
-                      </div>
-                      <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unit * c.qty)}</span>
-                    </div>
-                  </div>
+            {/* Phase 35:有團購品才分兩組(攤位 / 團購 · 團名 · 預計到貨);沒有就照舊 */}
+            {gbCart.length > 0 ? (
+              <>
+                {stallCart.length > 0 && (
+                  <>
+                    <div className="ls-grp">攤位 <span>· 下單後 1–3 個工作天出貨</span></div>
+                    {stallCart.map(renderCartItem)}
+                  </>
+                )}
+                <div className="ls-grp">
+                  團購
+                  <span>{currentGb ? `· ${currentGb.name} · ${fmtArrivalPhrase(currentGb.expected_arrival_on)}` : '· 目前沒開團'}</span>
                 </div>
-              );
-            })}
+                {gbCart.map(renderCartItem)}
+                <p className="ls-grp-hint">整張單會等到貨後一起出,想先拿現貨請分開下單</p>
+              </>
+            ) : (
+              cart.map(renderCartItem)
+            )}
             {/* Phase 33 補(2026-11-07):折扣碼(攤位有啟用中的碼才顯示;不放進 form,Enter 才不會送出整張訂單) */}
             {tenant.has_discount_codes && (
               <div className="ls-dc">
@@ -1004,7 +1094,9 @@ export default function ShopPage() {
               </div>
             </Card>
 
-            <Button type="submit" variant="primary" size="lg" className="ui-num" disabled={status === 'submitting'} style={{ width: '100%' }}>
+            {/* Phase 35:團已截止 / 沒開團卻還有團購品 → 送出鈕停用 */}
+            {gbBlocked && <div className="ls-alert" role="alert">{GROUPBUY_CLOSED_ERROR}</div>}
+            <Button type="submit" variant="primary" size="lg" className="ui-num" disabled={status === 'submitting' || gbBlocked} style={{ width: '100%' }}>
               {status === 'submitting' ? '處理中,訂單建立中…' : `${isLinePayPay ? '前往 LINE Pay 付款' : isEcpayPay ? '送出並前往付款' : '確認送出'} · NT$ ${money(grandTotal)}`}
             </Button>
           </form>
@@ -1019,7 +1111,8 @@ export default function ShopPage() {
       {detailId && (() => {
         const dp = productMap.get(detailId);
         if (!dp) return null;
-        return <ProductDetailModal product={dp} onClose={() => setDetailId(null)} onAdd={addToCart} />;
+        // Phase 35:團購商品沒開團 / 已截止 → 加入鈕停用並說明
+        return <ProductDetailModal product={dp} onClose={() => setDetailId(null)} onAdd={addToCart} buyDisabledReason={dp.channel === 'groupbuy' ? gbDisabledReason : undefined} />;
       })()}
     </>,
   );

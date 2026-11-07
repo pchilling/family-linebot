@@ -80,7 +80,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
   // 拆 2 個 query 比 join 穩定(Supabase nested select FK 推不出時整個 null)
   const { data: pData, error: pErr } = await supabaseAdmin
     .from('products')
-    .select('id, name, price_twd, image_url, media, share_focus_x, tenant_id')
+    .select('id, name, price_twd, image_url, media, share_focus_x, tenant_id, channel')
     .eq('id', id)
     .maybeSingle();
 
@@ -98,6 +98,7 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
     media: MediaItem[] | null;
     share_focus_x: number | null;
     tenant_id: string;
+    channel: string | null;
   };
   const p = pData as ProductRow;
   // 縮圖優先 media 第一張 image,fallback image_url
@@ -110,10 +111,14 @@ async function renderOg(params: Promise<{ id: string }>, origin: string) {
 
   const { data: tData } = await supabaseAdmin
     .from('tenants')
-    .select('name, logo_url')
+    .select('name, logo_url, groupbuy_followers_only')
     .eq('id', p.tenant_id)
     .maybeSingle();
-  const tenant = tData as { name: string; logo_url: string | null } | null;
+  const tenant = tData as { name: string; logo_url: string | null; groupbuy_followers_only: boolean | null } | null;
+  // Phase 35(2026-11-07):「團購只給追蹤者看」開著時,團購商品的名稱 / 價格不出現在公開 OG 圖
+  if (p.channel === 'groupbuy' && tenant?.groupbuy_followers_only) {
+    return new Response('Product not found', { status: 404 });
+  }
 
   const product = {
     id: p.id,

@@ -5,8 +5,10 @@ import { bgStyleFromLegacy, derivePalette, paletteCssVars } from '@/lib/theme';
 import { UI_CSS } from '@/lib/ui';
 import { hasEmailEnv } from '@/lib/login-email';
 import { hasSessionSecret } from '@/lib/member-auth';
+import { getGroupBuyState } from '@/lib/groupbuy';
 import { AccountMenu } from './account-menu';
 import { CartLink } from './cart-state';
+import { ShopTabs } from './shop-tabs';
 
 type Props = {
   children: React.ReactNode;
@@ -39,10 +41,13 @@ export default async function TenantLayout({ children, params }: Props) {
 
   // 2026-09-11(回饋 #13):footer 顯示攤位對外聯絡資訊(getTenantPublic 沒帶,另撈)
   // Phase 30(2026-11-01):頁首店名旁顯示店家評價(只算顯示中的),量小在程式裡算平均
-  const [{ data: extraRow }, { data: storeReviews }] = await Promise.all([
+  // Phase 35(2026-11-07):有沒有開團 → 選單 / 分頁「團購」旁的綠點(不讀 cookie,layout 維持可快取)
+  const [{ data: extraRow }, { data: storeReviews }, groupBuy] = await Promise.all([
     supabaseAdmin.from('tenants').select('contact_info, disclaimer').eq('slug', slug).maybeSingle(),
     supabaseAdmin.from('tenant_reviews').select('rating').eq('tenant_id', tenant.id).eq('status', 'visible'),
+    getGroupBuyState(tenant.id),
   ]);
+  const hasOpenGroupBuy = !!groupBuy.current;
   const extra = (extraRow as { contact_info: string | null; disclaimer: string | null } | null) ?? null;
   const contactInfo = extra?.contact_info ?? null;
   // Phase 32:商店聲明(攤主說明跟所賣品牌的關係),空白不顯示
@@ -83,11 +88,16 @@ export default async function TenantLayout({ children, params }: Props) {
 .shop-rating b{color:var(--ui-ink);font-weight:600;font-variant-numeric:tabular-nums}
 @media (max-width:420px){.shop-rating{display:none}}
 .shop-nav{display:flex;gap:20px;font-size:14px;font-weight:500}
-.shop-nav a{text-decoration:none;color:var(--ui-muted)}.shop-nav a:hover{color:var(--ui-ink)}
+.shop-nav a{text-decoration:none;color:var(--ui-muted);display:inline-flex;align-items:center;gap:6px}.shop-nav a:hover{color:var(--ui-ink)}
+.shop-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;flex-shrink:0}
+.shop-tabs{display:none;border-bottom:1px solid var(--ui-line);background:var(--ui-header)}
+.shop-tabs-in{display:flex}
+.shop-tab{flex:1;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:500;color:var(--ui-muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.shop-tab[data-on="true"]{color:var(--ui-ink);font-weight:600;border-bottom-color:var(--ui-accent)}
 .shop-main{width:100%;padding-top:24px;padding-bottom:64px}
 .shop-foot{border-top:1px solid var(--ui-line);padding:28px 0;font-size:12px;color:var(--ui-muted);background:var(--ui-header)}
 .shop-foot a{color:var(--ui-muted);text-decoration:none}.shop-foot a:hover{color:var(--ui-ink)}
-@media (max-width:1024px){.shop-nav{display:none}.shop-main{padding-top:16px;padding-bottom:48px}}
+@media (max-width:1024px){.shop-nav{display:none}.shop-tabs{display:block}.shop-main{padding-top:16px;padding-bottom:48px}}
           `,
         }}
       />
@@ -121,8 +131,10 @@ export default async function TenantLayout({ children, params }: Props) {
               </span>
             )}
           </div>
+          {/* Phase 35:電腦版選單「攤位 · 團購 · 查訂單」;有開團時團購旁一個綠點 */}
           <nav className="shop-nav" aria-label="主選單">
-            <a href={`/${slug}`}>商品</a>
+            <a href={`/${slug}`}>攤位</a>
+            <a href={`/${slug}/groupbuy`}>團購{hasOpenGroupBuy && <span className="shop-dot" aria-label="收單中" />}</a>
             <a href={`/${slug}/order-lookup`}>查訂單</a>
           </nav>
           {/* Phase 26:購物車 icon + 帳號(未登入「登入」/ 登入後頭像選單) */}
@@ -132,6 +144,9 @@ export default async function TenantLayout({ children, params }: Props) {
           </div>
         </div>
       </header>
+
+      {/* Phase 35:手機版「攤位 / 團購」分頁(只在這兩頁顯示,元件自己判斷) */}
+      <ShopTabs slug={slug} hasOpen={hasOpenGroupBuy} />
 
       <main className="ui-wrap shop-main">{children}</main>
 

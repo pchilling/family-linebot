@@ -38,6 +38,10 @@ export type ListingProduct = {
   rank: number;
   /** Phase 25:平均星數與評價數;沒評價 = null(卡片上就不畫星星,不放假的) */
   rating: { avg: number; count: number } | null;
+  /** Phase 35(2026-11-07):管理庫存開關;false = 庫存當無限,不顯示售完 / 剩 N 件 */
+  trackStock: boolean;
+  /** Phase 35:攤位 / 團購商品,加入購物車時帶給 CartItem */
+  channel: 'stall' | 'groupbuy';
 };
 
 type Sort = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'rating';
@@ -132,11 +136,22 @@ export function ShopListing({
   slug,
   products,
   categories,
+  canBuy = true,
+  mode = 'stall',
+  headerSlot,
 }: {
   slug: string;
   products: ListingProduct[];
   categories: string[];
+  /** Phase 35:false = 沒開團,卡片圖灰掉、不渲染加入購物車 / 選規格鈕(價格照常顯示) */
+  canBuy?: boolean;
+  /** Phase 35:團購分頁空狀態文案不同 */
+  mode?: 'stall' | 'groupbuy';
+  /** Phase 35:列表上方的狀態卡(團購分頁由 page 傳進來,元件本身不管團的狀態) */
+  headerSlot?: React.ReactNode;
 }) {
+  // Phase 35:不管理庫存的商品永遠算有貨
+  const inStockOf = (p: ListingProduct) => !p.trackStock || p.stock > 0;
   const priceMax = useMemo(() => {
     const top = Math.max(0, ...products.map((p) => p.hi));
     return Math.max(100, Math.ceil(top / 100) * 100);
@@ -179,7 +194,7 @@ export function ShopListing({
       (ignoreCat || f.cats.length === 0 || f.cats.includes(p.category)) &&
       p.hi >= f.min &&
       p.lo <= f.max &&
-      (!f.inStock || p.stock > 0) &&
+      (!f.inStock || inStockOf(p)) &&
       (!f.onSale || p.saleActive) &&
       (!f.fav || isFav(p.id)) &&
       (!q || p.name.toLowerCase().includes(q))
@@ -231,6 +246,7 @@ export function ShopListing({
       priceTwd: p.saleActive ? Math.round((p.single.price * (100 - p.salePct)) / 100) : p.single.price,
       qty: 1,
       imageUrl: p.single.image ?? p.image,
+      channel: p.channel,
     });
     showToast({ text: `已加入購物車:${p.name}`, action: { label: '去結帳', href: `/${slug}/checkout` } });
   }
@@ -306,6 +322,8 @@ export function ShopListing({
   return (
     <div>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
+
+      {headerSlot}
 
       <div className="sl-layout">
         <aside className="sl-side ui-hide-mobile" aria-label="篩選">
@@ -386,6 +404,11 @@ export function ShopListing({
                   </div>
                   <Button variant="outline" onClick={() => update({ fav: false })}>看全部商品</Button>
                 </>
+              ) : products.length === 0 && mode === 'groupbuy' ? (
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>還沒有團購商品</h3>
+                  <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>攤主把商品設成團購後就會出現在這裡。</p>
+                </div>
               ) : (
                 <>
                   <div>
@@ -400,13 +423,14 @@ export function ShopListing({
             <div className="sl-grid">
               {visible.map((p, i) => {
                 const salePrice = p.saleActive ? Math.round((p.lo * (100 - p.salePct)) / 100) : p.lo;
-                const soldOut = p.stock <= 0;
+                // Phase 35:不管理庫存的商品不會售完;沒開團(canBuy=false)圖灰掉、不給加入
+                const soldOut = p.trackStock && p.stock <= 0;
                 const fav = isFav(p.id);
                 return (
                   <a key={p.id} href={`/${slug}/p/${p.slug}`} className="sl-card ui-swap" style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
                     <div className="sl-ph">
                       <span className="ui-muted" style={{ fontSize: 13 }}>{p.category}</span>
-                      {p.image && <img src={p.image} alt="" loading={i < 6 ? 'eager' : 'lazy'} data-fit={p.fit} data-dim={soldOut ? 'true' : 'false'} />}
+                      {p.image && <img src={p.image} alt="" loading={i < 6 ? 'eager' : 'lazy'} data-fit={p.fit} data-dim={soldOut || !canBuy ? 'true' : 'false'} />}
                       {p.badge && (
                         <Badge className="sl-on" style={{ background: p.badgeColor ?? '#18181b', color: badgeFg(p.badgeColor ?? '#18181b'), borderColor: 'transparent' }}>{p.badge}</Badge>
                       )}
@@ -423,7 +447,7 @@ export function ShopListing({
                       </button>
                       {soldOut && <Badge className="sl-on b">售完</Badge>}
                       {p.saleActive && !soldOut && <Badge className="sl-on b">限時{pctToZhe(p.salePct)}</Badge>}
-                      {!soldOut && (
+                      {!soldOut && canBuy && (
                         p.single ? (
                           <Button variant="primary" size="sm" className="sl-qa" onClick={(e) => quickAdd(e, p)} aria-label={`加入購物車:${p.name}`}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>
@@ -454,7 +478,7 @@ export function ShopListing({
                       )}
                       <div className="sl-meta">
                         <span>{p.variantCount > 1 ? `${p.variantCount} 種規格` : p.tierHint ?? ''}</span>
-                        {p.stock > 0 && p.stock <= 5 && <span className="ui-num" style={{ color: '#b45309', fontWeight: 500 }}>剩 {p.stock} 件</span>}
+                        {p.trackStock && p.stock > 0 && p.stock <= 5 && <span className="ui-num" style={{ color: '#b45309', fontWeight: 500 }}>剩 {p.stock} 件</span>}
                       </div>
                     </div>
                   </a>

@@ -21,7 +21,7 @@ import {
   IconTruck,
   IconWallet,
 } from '@/lib/icons';
-import { addDiscountCode, setDiscountCodeEnabled, setGiftMode, type SettingsState } from './actions';
+import { addDiscountCode, setDiscountCodeEnabled, setGiftMode, setGroupbuyFollowersOnly, type SettingsState } from './actions';
 
 const ITEMS = [
   { href: '', label: '基本資料', icon: IconStore },
@@ -154,6 +154,22 @@ export function DiscountEnabledSwitch({ slug, id, enabled }: { slug: string; id:
       <input type="hidden" name="tenant_slug" value={slug} />
       <input type="hidden" name="id" value={id} />
       <Switch name="enabled" defaultChecked={enabled} aria-label="啟用" onChange={() => ref.current?.requestSubmit()} />
+      <ModeSaving />
+    </form>
+  );
+}
+
+// ====================
+// Phase 35(2026-11-07):團購只給追蹤這家店的人看(設定 → 行銷 → 團購)
+// ====================
+
+/** 開關切了直接送出,不用另外按儲存(同 DiscountEnabledSwitch) */
+export function GroupbuyFollowersOnlySwitch({ slug, enabled }: { slug: string; enabled: boolean }) {
+  const ref = useRef<HTMLFormElement>(null);
+  return (
+    <form ref={ref} action={setGroupbuyFollowersOnly} className="sx-segwrap">
+      <input type="hidden" name="tenant_slug" value={slug} />
+      <Switch name="enabled" defaultChecked={enabled} aria-label="團購只給追蹤這家店的人看" onChange={() => ref.current?.requestSubmit()} />
       <ModeSaving />
     </form>
   );

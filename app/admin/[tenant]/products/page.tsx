@@ -37,6 +37,8 @@ type Product = {
   category: string | null;
   badge: string | null;
   status: string;
+  channel: 'stall' | 'groupbuy' | null; // Phase 35:賣在哪裡
+  track_stock: boolean | null; // Phase 35:管理庫存開關
   product_variants: Variant[];
 };
 
@@ -55,7 +57,7 @@ async function getProducts(tenantId: string): Promise<Product[]> {
   const { data } = await supabaseAdmin
     .from('products')
     .select(
-      `id, sku, name, price_twd, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, category, badge, status,
+      `id, sku, name, price_twd, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, category, badge, status, channel, track_stock,
        product_variants(id, variant_name, price_twd, stock, status, sort_order)`,
     )
     .eq('tenant_id', tenantId)
@@ -153,7 +155,8 @@ export default async function ProductsPage({
   if (selFlags.includes('badge')) filtered = filtered.filter((p) => !!p.badge);
   if (selFlags.includes('sale')) filtered = filtered.filter((p) => isSaleActive(p, now));
   if (selFlags.includes('out')) {
-    filtered = filtered.filter((p) => p.product_variants.length > 0 && p.product_variants.every((v) => (v.stock ?? 0) <= 0));
+    // Phase 35:不管理庫存的商品不算缺貨
+    filtered = filtered.filter((p) => p.track_stock !== false && p.product_variants.length > 0 && p.product_variants.every((v) => (v.stock ?? 0) <= 0));
   }
   if (selFlags.includes('off')) filtered = filtered.filter((p) => p.status !== 'active');
   const hasFilter = !!q || selCats.length > 0 || selFlags.length > 0;
@@ -289,9 +292,13 @@ details[open] .chev { transform: rotate(90deg); }
                             <div style={{ width: 44, height: 56, borderRadius: 6, background: c.borderSubtle, flexShrink: 0 }} />
                           )}
                           <div style={{ minWidth: 0 }}>
-                            <Link href={editHref} style={{ display: 'block', fontSize: 14, fontWeight: 600, color: c.text, textDecoration: 'none', lineHeight: 1.35 }}>
-                              {p.name}
-                            </Link>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <Link href={editHref} style={{ display: 'block', fontSize: 14, fontWeight: 600, color: c.text, textDecoration: 'none', lineHeight: 1.35 }}>
+                                {p.name}
+                              </Link>
+                              {/* Phase 35:團購商品標出來,攤位商品不另標 */}
+                              {p.channel === 'groupbuy' && <span className="ui-badge ui-badge-solid" style={{ padding: '0 8px', fontSize: 11 }}>團購</span>}
+                            </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 12, color: c.textMuted, marginTop: 3 }}>
                               <span>{p.category ?? '未分類'}</span>
                               <span>·</span>
@@ -304,7 +311,12 @@ details[open] .chev { transform: rotate(90deg); }
                       </td>
                       <td data-label="售價" style={{ ...td, textAlign: 'right', fontSize: 13.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{priceRange(p)}</td>
                       <td data-label="庫存" style={{ ...td, padding: '10px 14px' }}>
-                        <StockCell tenantSlug={tenant.slug} variants={stockRows} />
+                        {/* Phase 35:不管理庫存的商品不給輸入框 */}
+                        {p.track_stock === false ? (
+                          <span style={{ fontSize: 13, color: c.textMuted }}>不管理</span>
+                        ) : (
+                          <StockCell tenantSlug={tenant.slug} variants={stockRows} />
+                        )}
                       </td>
                       <td data-label="狀態" style={td}>
                         <ProductStatusToggle tenantSlug={tenant.slug} productId={p.id} initialActive={p.status === 'active'} />

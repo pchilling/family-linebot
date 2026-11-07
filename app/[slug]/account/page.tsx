@@ -5,9 +5,11 @@ import { getCurrentMember } from '@/lib/member-auth';
 import { SIGNOUT_URL, loginHref } from '@/lib/return-to';
 import { getTenantPublic, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { Badge, ButtonLink } from '@/lib/ui';
+import { getFollowRow, isFollowing } from '@/lib/groupbuy';
 import { FlashToast } from '../../_components/toast';
+import { followThisStore, unfollowThisStore } from '../groupbuy/actions';
 
-type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ saved?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ saved?: string; followed?: string; unfollowed?: string }> };
 
 /**
  * 個人設定 → 暱稱(2026-11-01 Peter):存在 platform_users.display_name,
@@ -70,11 +72,15 @@ const ORDER_SELECT = 'id, order_no, status, payment_status, payment_method, tota
  */
 export default async function AccountPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const saved = (searchParams ? await searchParams : undefined)?.saved;
+  const sp = searchParams ? await searchParams : undefined;
+  const saved = sp?.saved;
   const tenant = await getTenantPublic(slug);
   if (!tenant) notFound();
   const member = await getCurrentMember();
   if (!member) redirect(loginHref(slug, `/${slug}/account`));
+
+  // Phase 35(2026-11-07):追蹤這家店 — tenant_followers 有列(顯示起始日、可取消);LINE 好友自動算追蹤(沒按鈕)
+  const [followRow, following] = await Promise.all([getFollowRow(tenant.id, member.id), isFollowing(tenant.id, member)]);
 
   const base = () =>
     supabaseAdmin.from('orders').select(ORDER_SELECT).eq('tenant_id', tenant.id).order('created_at', { ascending: false }).limit(50);
@@ -122,6 +128,8 @@ export default async function AccountPage({ params, searchParams }: Props) {
 
       {saved === '1' && <FlashToast message="已儲存暱稱" />}
       {saved === '0' && <FlashToast tone="error" message="暱稱沒存成功,請再試一次" />}
+      {sp?.followed === '1' && <FlashToast message={`已追蹤 ${tenant.name}`} />}
+      {sp?.unfollowed === '1' && <FlashToast message={`已取消追蹤 ${tenant.name}`} />}
 
       {/* 2026-11-01:個人設定 — 暱稱(評價和頁首都用這個名字) */}
       <div className="ui-card" style={{ padding: 18, marginBottom: 16 }}>
@@ -132,6 +140,33 @@ export default async function AccountPage({ params, searchParams }: Props) {
           <input name="nickname" defaultValue={member.display_name ?? ''} maxLength={30} required className="ui-input" style={{ flex: '1 1 200px', maxWidth: 320 }} placeholder="例:小美" aria-label="暱稱" />
           <button type="submit" className="ui-btn ui-btn-primary ui-btn-md">儲存</button>
         </form>
+      </div>
+
+      {/* Phase 35:追蹤卡 */}
+      <div className="ui-card" style={{ padding: 18, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>追蹤這家店</h2>
+          <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+            {followRow
+              ? `追蹤中 · 自 ${fmtDate(followRow.created_at)}`
+              : following
+                ? '追蹤中 · LINE 好友自動追蹤'
+                : '追蹤這家店,開團時會在團購分頁第一時間看到。'}
+          </p>
+        </div>
+        {followRow ? (
+          <form action={unfollowThisStore}>
+            <input type="hidden" name="tenant_slug" value={slug} />
+            <input type="hidden" name="return_to" value={`/${slug}/account`} />
+            <button type="submit" className="ui-btn ui-btn-ghost ui-btn-sm">取消追蹤</button>
+          </form>
+        ) : following ? null : (
+          <form action={followThisStore}>
+            <input type="hidden" name="tenant_slug" value={slug} />
+            <input type="hidden" name="return_to" value={`/${slug}/account`} />
+            <button type="submit" className="ui-btn ui-btn-primary ui-btn-md">追蹤這家店</button>
+          </form>
+        )}
       </div>
 
       {orders.length === 0 ? (

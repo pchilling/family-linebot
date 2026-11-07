@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
+import { fmtArrival } from '@/lib/groupbuy-shared';
 
 /**
  * 訂單 A4 出貨單(批次 B #18)。
@@ -25,7 +26,7 @@ type OrderItem = {
   qty: number;
   price_at_purchase: number;
   subtotal_twd: number;
-  products: { name: string; sku: string | null } | null;
+  products: { name: string; sku: string | null; channel: string | null } | null; // Phase 35:channel=groupbuy 印「團購」
   product_variants: { variant_name: string; sku: string } | null;
 };
 
@@ -33,6 +34,8 @@ type OrderDetail = {
   id: string;
   order_no: string;
   status: string;
+  group_buy_id: string | null; // Phase 35:屬於哪一團
+  group_buys: { name: string; expected_arrival_on: string | null } | null;
   payment_status: string;
   payment_method: string | null;
   total_twd: number;
@@ -102,7 +105,8 @@ export default async function OrderPrintPage({
       `id, order_no, status, payment_status, payment_method, total_twd, discount_code, discount_twd, shipping_fee_twd, shipping_method,
        invoice_tax_id, invoice_title,
        shipping_recipient, shipping_phone, shipping_address, note, payment_last5, created_at,
-       order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
+       group_buy_id, group_buys(name, expected_arrival_on),
+       order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku, channel), product_variants(variant_name, sku))`,
     )
     .eq('tenant_id', tenant.id)
     .eq('id', id)
@@ -200,6 +204,16 @@ export default async function OrderPrintPage({
             )}
             <span style={{ color: '#9ca3af' }}>配送</span>
             <span>{shipLabel ?? '—'}</span>
+            {/* Phase 35:團購單標團名與預計到貨 */}
+            {o.group_buy_id && (
+              <>
+                <span style={{ color: '#9ca3af' }}>團購</span>
+                <span>
+                  {o.group_buys?.name ?? '—'}
+                  {o.group_buys?.expected_arrival_on && `(預計 ${fmtArrival(o.group_buys.expected_arrival_on)} 到貨)`}
+                </span>
+              </>
+            )}
             {o.invoice_tax_id && (
               <>
                 <span style={{ color: '#9ca3af' }}>統一編號</span>
@@ -236,6 +250,10 @@ export default async function OrderPrintPage({
                   <div style={{ fontWeight: 600 }}>
                     {it.products?.name ?? '(已刪)'}
                     {vn && vn !== 'default' && <span style={{ fontWeight: 400, color: '#6b7280' }}> · {vn}</span>}
+                    {/* Phase 35:團購品標出來,包貨不會跟現貨混 */}
+                    {it.products?.channel === 'groupbuy' && (
+                      <span style={{ display: 'inline-block', border: '1px solid #111827', fontSize: 10, padding: '0 4px', marginLeft: 6, fontWeight: 600, lineHeight: 1.5, verticalAlign: 'middle' }}>團購</span>
+                    )}
                   </div>
                   {sku && (
                     <div className="num" style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{sku}</div>

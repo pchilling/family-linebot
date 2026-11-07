@@ -882,6 +882,31 @@ export async function deleteDiscountCode(formData: FormData): Promise<void> {
 }
 
 // ====================
+// Phase 35(2026-11-07):團購只給追蹤這家店的人看(設定 → 行銷 → 團購)
+// tenants.groupbuy_followers_only;開著時 /[slug]/groupbuy server 端不把團購商品送給沒追蹤的人。
+// ====================
+/** 清單上的開關:hidden tenant_slug,enabled 是 checkbox('on' = 開) */
+export async function setGroupbuyFollowersOnly(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const enabled = formData.get('enabled') === 'on';
+  if (!slug) throw new Error('無攤位資訊');
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ groupbuy_followers_only: enabled })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[setGroupbuyFollowersOnly]', error);
+    throw new Error('儲存失敗:' + error.message);
+  }
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  revalidatePath(`/${slug}/groupbuy`);
+}
+
+// ====================
 // Phase 34(2026-11-06):每攤位各自的金流金鑰(設定 → 收款)
 // tenants.payment_config jsonb,敏感欄位用 lib/secret-box.ts 加密(AES-256-GCM,金鑰 PAYMENT_CONFIG_KEY)。
 // 這個檔是 'use server',每個 export 都是公開端點:只 export 三支 action,回傳值只有 {status, error?} / {ok, error?};

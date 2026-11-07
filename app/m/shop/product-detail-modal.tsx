@@ -51,6 +51,8 @@ type Props = {
   product: ShopProduct;
   onClose: () => void; // 「返回」按鈕觸發
   onAdd: (productId: string, variantId: string, qty: number) => void;
+  /** Phase 35(2026-11-07):團購商品沒開團 / 已截止 → 顯示這句並停用加入鈕(例「目前沒開團」) */
+  buyDisabledReason?: string;
 };
 
 /**
@@ -60,9 +62,12 @@ type Props = {
  *  - 名稱 + 類別 + 價格 + 限時優惠 + 量購 + 規格膠囊 + 數量 + 說明
  *  - 底部固定「加入購物車」(成功後 onClose 自動回列表)
  */
-export function ProductDetailModal({ product, onClose, onAdd }: Props) {
+export function ProductDetailModal({ product, onClose, onAdd, buyDisabledReason }: Props) {
   const variants = product.variants;
-  const firstInStock = variants.find((v) => v.stock > 0) ?? variants[0];
+  // Phase 35:不管理庫存的商品每個規格都算有貨,數量上限 999
+  const trackStock = product.track_stock !== false;
+  const hasStock = (v: { stock: number }) => !trackStock || v.stock > 0;
+  const firstInStock = variants.find(hasStock) ?? variants[0];
   const [selectedId, setSelectedId] = useState(firstInStock?.id ?? '');
   const [qty, setQty] = useState(1);
   const [qtyText, setQtyText] = useState('1'); // 輸入框允許暫時清空
@@ -70,8 +75,9 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const selected = variants.find((v) => v.id === selectedId) ?? firstInStock;
-  const inStock = (selected?.stock ?? 0) > 0;
-  const maxQty = selected?.stock ?? 1;
+  const inStock = !!selected && hasStock(selected);
+  const maxQty = trackStock ? (selected?.stock ?? 1) : 999;
+  const canAdd = inStock && !buyDisabledReason;
   const hasMulti = variants.length > 1;
 
   // 限時優惠 — 每秒 tick 更新倒數,單價 / 總價用折後價
@@ -144,12 +150,12 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
   }, [qty, maxQty]);
 
   function handleAdd() {
-    if (!selected || !inStock) return;
+    if (!selected || !canAdd) return;
     onAdd(product.id, selected.id, qty);
     onClose();
   }
 
-  const stockHint = selected && selected.stock > 0 && selected.stock <= 10 ? `剩 ${selected.stock} 件` : '';
+  const stockHint = trackStock && selected && selected.stock > 0 && selected.stock <= 10 ? `剩 ${selected.stock} 件` : '';
 
   return (
     <section className="ui-swap" style={{ paddingBottom: 96 }}>
@@ -215,12 +221,20 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
           </div>
         )}
 
+        {/* Phase 35:團購商品沒開團 / 已截止 */}
+        {buyDisabledReason && (
+          <div className="pd-gb-off" role="status">
+            <b>{buyDisabledReason}</b>
+            <span>這是團購商品,開團期間才能加入購物車。</span>
+          </div>
+        )}
+
         {hasMulti && (
           <div>
             <div className="pd-lbl">規格 {selected && <span>已選:{selected.variant_name}</span>}</div>
             <div className="pd-pills" role="radiogroup" aria-label="規格">
               {variants.map((v) => {
-                const isOut = v.stock === 0;
+                const isOut = !hasStock(v);
                 const on = selectedId === v.id;
                 return (
                   <button key={v.id} type="button" className="pd-pill" data-on={on ? 'true' : 'false'} disabled={isOut} aria-pressed={on} onClick={() => { setSelectedId(v.id); updateQty(1); }}>
@@ -304,8 +318,8 @@ export function ProductDetailModal({ product, onClose, onAdd }: Props) {
           </span>
           <span className="ui-num" style={{ fontSize: 18, fontWeight: 600, color: onSale ? '#b91c1c' : undefined }}>NT$ {money(total)}</span>
         </div>
-        <Button type="button" variant="primary" size="lg" onClick={handleAdd} disabled={!inStock}>
-          {inStock ? '加入購物車' : '已售完'}
+        <Button type="button" variant="primary" size="lg" onClick={handleAdd} disabled={!canAdd}>
+          {buyDisabledReason ? buyDisabledReason : inStock ? '加入購物車' : '已售完'}
         </Button>
       </div>
     </section>

@@ -19,7 +19,7 @@ type OrderItem = {
   qty: number;
   price_at_purchase: number;
   subtotal_twd: number;
-  products: { name: string; sku: string | null } | null;
+  products: { name: string; sku: string | null; channel: string | null } | null; // Phase 35:channel=groupbuy 標「團購」
   product_variants: { variant_name: string; sku: string } | null;
 };
 
@@ -27,6 +27,8 @@ type OrderDetail = {
   id: string;
   order_no: string;
   status: string;
+  group_buy_id: string | null; // Phase 35:屬於哪一團
+  group_buys: { name: string } | null;
   payment_status: string;
   payment_method: string | null;
   payment_last5: string | null;
@@ -85,8 +87,9 @@ async function getOrder(tenantId: string, id: string): Promise<OrderDetail | nul
        total_twd, discount_code, discount_twd, shipping_method, shipping_fee_twd, source,
        shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note,
        guest_email, guest_phone, paid_at, shipped_at, created_at, updated_at, access_key,
+       group_buy_id, group_buys(name),
        users(line_user_id, display_name, full_name, phone),
-       order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku), product_variants(variant_name, sku))`,
+       order_items(id, qty, price_at_purchase, subtotal_twd, products(name, sku, channel), product_variants(variant_name, sku))`,
     )
     .eq('tenant_id', tenantId)
     .eq('id', id)
@@ -243,6 +246,15 @@ export default async function OrderDetailPage({
         </div>
         <p className="odd-meta">
           建立 {formatTw(o.created_at)} · 最後更新 {formatTw(o.updated_at)}
+          {/* Phase 35:團購單顯示團名,連到團詳情 */}
+          {o.group_buy_id && (
+            <>
+              {' · '}團購{' '}
+              <Link href={`/admin/${tenant.slug}/groupbuy/${o.group_buy_id}`} style={{ color: '#18181b', fontWeight: 600 }}>
+                {o.group_buys?.name ?? '看這一團'}
+              </Link>
+            </>
+          )}
         </p>
 
         <div className="odd-grid">
@@ -277,6 +289,8 @@ export default async function OrderDetailPage({
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 500 }}>{it.products?.name ?? '(已刪除的商品)'}</span>
                         {variantName && variantName !== 'default' && <span className="ui-badge">{variantName}</span>}
+                        {/* Phase 35:團購品 */}
+                        {it.products?.channel === 'groupbuy' && <span className="ui-badge ui-badge-solid">團購</span>}
                       </div>
                       {displaySku && <div className="sku">SKU {displaySku}</div>}
                     </div>

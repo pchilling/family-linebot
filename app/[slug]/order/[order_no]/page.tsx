@@ -9,6 +9,7 @@ import { OtpInput } from '@/lib/otp-input';
 import { Badge, Button, ButtonLink, Card } from '@/lib/ui';
 import { bankDisplayName, bankTransferFromRow } from '@/lib/bank-transfer';
 import { CVS_CHAINS, isCvsChain } from '@/lib/cvs';
+import { fmtArrivalPhrase, toGroupBuyPublic, type GroupBuyPublic, type GroupBuyStatus } from '@/lib/groupbuy';
 
 type Props = {
   params: Promise<{ slug: string; order_no: string }>;
@@ -25,6 +26,7 @@ type OrderItemRow = {
   variant_name: string | null;
   product_name: string;
   image_url: string | null;
+  is_groupbuy: boolean; // Phase 35:團購品名旁標「團購」
 };
 
 type OrderDetail = {
@@ -59,6 +61,7 @@ type OrderDetail = {
   paid_at: string | null; // 2026-11-05:進度時間軸用(trigger 自動填)
   shipped_at: string | null;
   access_key: string | null; // Phase 22:訂單存取碼(網址 ?k=),對得上才看得到個資
+  groupBuy: GroupBuyPublic | null; // Phase 35(2026-11-07):這張單屬於哪一團(時間軸多一步「等待團購到貨」)
   items: OrderItemRow[];
 };
 
@@ -96,7 +99,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
   const { data, error } = await supabaseAdmin
     .from('orders')
     .select(
-      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, discount_code, discount_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note, guest_email, created_at, paid_at, shipped_at, access_key, order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media), product_variants(variant_name, image_url))',
+      'id, order_no, status, payment_status, payment_method, atm_bank_code, atm_vaccount, atm_expire_at, total_twd, discount_code, discount_twd, shipping_method, shipping_fee_twd, payment_last5, payment_reported_at, payment_note, invoice_tax_id, invoice_title, shipping_recipient, shipping_phone, shipping_address, cvs_type, cvs_store_id, cvs_store_name, tracking_no, note, guest_email, created_at, paid_at, shipped_at, access_key, group_buy_id, group_buys(id, name, description, status, ends_at, expected_arrival_on, arrived_at), order_items(qty, price_at_purchase, subtotal_twd, products(name, image_url, media, channel), product_variants(variant_name, image_url))',
     )
     .eq('tenant_id', tenantId)
     .eq('order_no', orderNo)
@@ -104,12 +107,22 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
 
   if (error || !data) return null;
 
-  type Row = Omit<OrderDetail, 'items'> & {
+  type Row = Omit<OrderDetail, 'items' | 'groupBuy'> & {
+    group_buy_id: string | null;
+    group_buys: {
+      id: string;
+      name: string;
+      description: string | null;
+      status: GroupBuyStatus;
+      ends_at: string | null;
+      expected_arrival_on: string | null;
+      arrived_at: string | null;
+    } | null;
     order_items: {
       qty: number;
       price_at_purchase: number;
       subtotal_twd: number;
-      products: { name: string; image_url: string | null; media: { type: string; url: string }[] | null } | null;
+      products: { name: string; image_url: string | null; media: { type: string; url: string }[] | null; channel: string | null } | null;
       product_variants: { variant_name: string; image_url: string | null } | null;
     }[] | null;
   };
@@ -120,6 +133,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     subtotal_twd: i.subtotal_twd,
     product_name: i.products?.name ?? '(已下架商品)',
     variant_name: i.product_variants?.variant_name ?? null,
+    is_groupbuy: i.products?.channel === 'groupbuy',
     // 縮圖:規格圖 → 商品 media 第一張圖 → 舊的 image_url
     image_url:
       i.product_variants?.image_url ??
@@ -160,6 +174,7 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     paid_at: row.paid_at ?? null,
     shipped_at: row.shipped_at ?? null,
     access_key: row.access_key ?? null,
+    groupBuy: row.group_buys ? toGroupBuyPublic(row.group_buys) : null,
     items,
   };
 }
@@ -201,7 +216,7 @@ const CSS = `
 .od-status .no em{font-style:normal;white-space:nowrap}
 .od-tl{list-style:none;margin:0;padding:0}
 .od-tl li{position:relative;display:grid;grid-template-columns:30px 1fr;column-gap:14px;padding-bottom:20px;animation:od-rise .35s ease both}
-.od-tl li:nth-child(1){animation-delay:.05s}.od-tl li:nth-child(2){animation-delay:.15s}.od-tl li:nth-child(3){animation-delay:.25s}.od-tl li:nth-child(4){animation-delay:.35s}.od-tl li:nth-child(5){animation-delay:.45s}
+.od-tl li:nth-child(1){animation-delay:.05s}.od-tl li:nth-child(2){animation-delay:.15s}.od-tl li:nth-child(3){animation-delay:.25s}.od-tl li:nth-child(4){animation-delay:.35s}.od-tl li:nth-child(5){animation-delay:.45s}.od-tl li:nth-child(6){animation-delay:.55s}
 .od-tl li:last-child{padding-bottom:0}
 .od-tl li::before{content:"";position:absolute;left:14px;top:30px;bottom:-2px;width:2px;background:var(--ui-line)}
 .od-tl li:last-child::before{display:none}
@@ -401,6 +416,21 @@ export default async function OrderPage({ params, searchParams }: Props) {
             : []),
           { key: 'paid', done: isPaid, title: isPaid ? '賣家已收款' : '賣家核帳', time: isPaid ? fmtT(order.paid_at) : null, hint: '賣家核對中,通常一個工作天內', desc: null },
         ]),
+    // Phase 35(2026-11-07):團購單在「收款」與「出貨」之間多一步「等待團購到貨」,團 arrived / done 後打勾
+    ...(order.groupBuy
+      ? (() => {
+          const gb = order.groupBuy;
+          const arrived = gb.status === 'arrived' || gb.status === 'done';
+          return [{
+            key: 'groupbuy',
+            done: arrived,
+            title: arrived ? '團購商品已到貨' : '等待團購到貨',
+            time: arrived ? fmtT(gb.arrived_at) : null,
+            hint: `${fmtArrivalPhrase(gb.expected_arrival_on)},到貨後一起出`,
+            desc: gb.name,
+          }];
+        })()
+      : []),
     {
       key: 'shipped',
       done: isShipped,
@@ -675,6 +705,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
           <dt>狀態</dt><dd><Badge style={{ borderColor: banner.bd, color: banner.fg, background: banner.bg }}>{statusShort}</Badge></dd>
           <dt>付款</dt><dd>{paymentText}</dd>
           <dt>配送</dt><dd>{shipLabel ?? (isPickup ? '門市自取' : order.shipping_method ? order.shipping_method : '—')}</dd>
+          {/* Phase 35:團購單標明哪一團 */}
+          {order.groupBuy && (<><dt>團購</dt><dd>{order.groupBuy.name}</dd></>)}
           {order.tracking_no && (
             <>
               <dt>寄件單號</dt>
@@ -708,6 +740,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
               <div className="od-it-n">
                 {item.product_name}
                 {item.price_at_purchase === 0 && giftCount > 0 && <Badge style={{ marginLeft: 6, fontSize: 11, padding: '1px 8px' }}>滿額贈</Badge>}
+                {item.is_groupbuy && <Badge style={{ marginLeft: 6, fontSize: 11, padding: '1px 8px', borderColor: '#bbf7d0', color: '#15803d', background: '#f0fdf4' }}>團購</Badge>}
               </div>
               <div className="od-it-v ui-num">{item.variant_name ? `${item.variant_name} · ` : ''}NT$ {money(item.price_at_purchase)} × {item.qty}</div>
             </div>

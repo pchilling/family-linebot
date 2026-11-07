@@ -1,12 +1,13 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { buildGiftItems, getTenantBySlug, getProductTiers, hasFeature, isSaleActive, orderPayable, pickPriceFromTiers, supabaseAdmin, type TenantBySlug } from '@/lib/supabase';
+import { buildGiftItems, getTenantBySlug, getTenantPublic, getProductTiers, hasFeature, isSaleActive, orderPayable, pickPriceFromTiers, supabaseAdmin, type TenantBySlug } from '@/lib/supabase';
 import { isLinePayConfigured, requestLinePayPayment } from '@/lib/linepay';
 import { isEcpayConfigured } from '@/lib/ecpay';
 import { getCurrentMember } from '@/lib/member-auth';
 import { bankTransferFromRow, isBankTransferOffered } from '@/lib/bank-transfer';
 import { cvsStoreText, type CvsChain } from '@/lib/cvs';
+import { canViewGroupBuy, checkCartGroupBuy, getGroupBuyProductIds, getGroupBuyState, type GroupBuyPublic } from '@/lib/groupbuy';
 
 // 2026-09-18:購物車顯示分階價用 — 每個商品的分階表 + 是否特價生效中
 // (原本網頁版購物車照原價顯示,後端實收卻套分階,金額對不上)
@@ -64,6 +65,27 @@ export async function getCartPricingInfo(
     (out[b.product_id] ??= blank()).bundle_variant_ids.push(b.id);
   }
   return out;
+}
+
+/**
+ * Phase 35(2026-11-07):結帳頁分組用 — 購物車裡哪些是團購商品、目前的團(有效狀態)。
+ * 以 server 為準,不信任 localStorage 裡的 channel 欄。
+ */
+export type GroupBuyCheckoutInfo = { groupBuyProductIds: string[]; current: GroupBuyPublic | null };
+
+export async function getGroupBuyCheckoutInfo(tenantSlug: string, productIds: string[]): Promise<GroupBuyCheckoutInfo> {
+  const empty: GroupBuyCheckoutInfo = { groupBuyProductIds: [], current: null };
+  const tenant = await getTenantPublic(tenantSlug);
+  if (!tenant || productIds.length === 0) return empty;
+  // 購物車沒有團購商品就不撈團,團名等資訊不外流
+  const gbIds = await getGroupBuyProductIds(tenant.id);
+  const groupBuyProductIds = [...new Set(productIds)].filter((id) => gbIds.has(id));
+  if (groupBuyProductIds.length === 0) return empty;
+  // 「團購只給追蹤者看」開著 → 沒追蹤的人連團名都不給(規格第七節,server 端擋);createOrder 仍是最後一道
+  const member = await getCurrentMember().catch(() => null);
+  if (!(await canViewGroupBuy(tenant, member))) return empty;
+  const state = await getGroupBuyState(tenant.id);
+  return { groupBuyProductIds, current: state.current };
 }
 
 type CartItemInput = {
@@ -223,7 +245,7 @@ async function priceCart(tenant: TenantBySlug, cartItems: CartItemInput[]): Prom
   const variantIds = cartItems.map((i) => i.variantId);
   const { data: variants, error: vErr } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, tenant_id, price_twd, status, stock, is_bundle, variant_name, products(name)')
+    .select('id, product_id, tenant_id, price_twd, status, stock, is_bundle, variant_name, products(name, channel, track_stock)')
     .in('id', variantIds)
     .eq('tenant_id', tenant.id);
 
@@ -241,7 +263,8 @@ async function priceCart(tenant: TenantBySlug, cartItems: CartItemInput[]): Prom
     stock: number;
     is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
     variant_name: string | null;
-    products: { name: string } | null;
+    // Phase 35:channel / track_stock 跟商品走;track_stock=false 不檢查庫存(trigger 也不扣)
+    products: { name: string; channel: string | null; track_stock: boolean | null } | null;
   };
   const variantMap = new Map<string, DbVariant>(
     (variants ?? []).map((v) => [(v as unknown as DbVariant).id, v as unknown as DbVariant]),
@@ -253,6 +276,8 @@ async function priceCart(tenant: TenantBySlug, cartItems: CartItemInput[]): Prom
     const v = variantMap.get(item.variantId);
     if (!v) return { ok: false, error: '購物車有商品已下架,請從右邊明細移除再送出' };
     if (v.status !== 'active') return { ok: false, error: `${nameOf(v)} 已下架,請從右邊明細移除再送出` };
+    // Phase 35:不管理庫存的商品跳過庫存檢查
+    if (v.products?.track_stock === false) continue;
     if (v.stock < item.qty) {
       return { ok: false, error: v.stock > 0 ? `${nameOf(v)} 只剩 ${v.stock} 件,請把數量改成 ${v.stock} 以下` : `${nameOf(v)} 已售完,請從右邊明細移除` };
     }
@@ -545,6 +570,11 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   if (!priced.ok) return { ok: false, error: priced.error };
   const { pricedItems, subtotal } = priced;
 
+  // Phase 35(2026-11-07):有團購商品 → 團必須還在收單中,否則整張擋下;通過就記下屬於哪一團
+  const gbCheck = await checkCartGroupBuy(tenant.id, [...new Set(pricedItems.map((i) => i.product_id))]);
+  if (!gbCheck.ok) return { ok: false, error: gbCheck.error };
+  const groupBuyId = gbCheck.groupBuyId;
+
   // D#13:運費 server 端計算(免運門檻用特價 / 量購價後、折扣碼折抵前的商品小計)
   const shipOptions = await getShippingOptions(tenantSlug);
   let shippingFee = 0;
@@ -638,6 +668,8 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
       // Phase 33:折扣碼(大寫文字)與折扣金額;total_twd 仍由 trigger 從 items 算,應付 = orderPayable()
       discount_code: discountCode,
       discount_twd: discountTwd,
+      // Phase 35:有團購商品就記當時收單中的團(沒有 → null)
+      group_buy_id: groupBuyId,
     })
     .select('id, order_no, access_key')
     .single();

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { ProductChannel } from './groupbuy-shared';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -394,6 +395,7 @@ export type TenantPublic = {
   og_image_url: string | null;
   logo_url: string | null;
   banners: MediaItem[]; // Phase 9.8:多媒體 banner,empty 時 fallback og_image_url
+  groupbuy_followers_only: boolean; // Phase 35(2026-11-07):團購只給追蹤這家店的人看
 };
 
 /**
@@ -403,7 +405,7 @@ export type TenantPublic = {
 export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, description, brand_color, shop_bg_color, header_bg_color, category_order, og_image_url, logo_url, banners, status')
+    .select('id, slug, name, plan, description, brand_color, shop_bg_color, header_bg_color, category_order, og_image_url, logo_url, banners, groupbuy_followers_only, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
@@ -414,6 +416,7 @@ export async function getTenantPublic(slug: string): Promise<TenantPublic | null
     ...tp,
     banners: Array.isArray(tp.banners) ? tp.banners : [],
     category_order: Array.isArray(tp.category_order) ? tp.category_order : [],
+    groupbuy_followers_only: !!tp.groupbuy_followers_only,
   };
 }
 
@@ -434,6 +437,9 @@ export type ProductPublic = {
   sale_end_at: string | null;
   // Phase 16.2(2026-09-18):手動排序值(拖曳頁寫入;null = 沒排過,排最後)
   sort_order: number | null;
+  // Phase 35(2026-11-07):賣在哪裡(攤位 / 團購)與管理庫存開關;track_stock=false 時所有畫面把庫存當無限
+  channel: ProductChannel;
+  track_stock: boolean;
 };
 
 /**
@@ -463,14 +469,19 @@ export function applySaleDiscount(basePrice: number, pct: number): number {
 /**
  * 列出某 tenant 所有 active product,順便算出每個 product 的 variant 最低價。
  * 沒 active variant 的 product → min_price_twd = 0(在 UI 上 hide 價格)。
+ * Phase 35:channel 預設 'all'(行為不變);攤位首頁傳 'stall'、團購頁傳 'groupbuy'。
  */
-export async function getActiveProducts(tenantId: string): Promise<ProductPublic[]> {
-  const { data, error } = await supabaseAdmin
+export async function getActiveProducts(
+  tenantId: string,
+  channel: ProductChannel | 'all' = 'all',
+): Promise<ProductPublic[]> {
+  let query = supabaseAdmin
     .from('products')
-    .select('id, slug, name, description, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, product_variants(price_twd, status)')
+    .select('id, slug, name, description, image_url, media, category, badge, badge_color, sale_discount_pct, sale_start_at, sale_end_at, sort_order, channel, track_stock, product_variants(price_twd, status)')
     .eq('tenant_id', tenantId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false });
+    .eq('status', 'active');
+  if (channel !== 'all') query = query.eq('channel', channel);
+  const { data, error } = await query.order('created_at', { ascending: false });
   if (error) {
     console.error('[getActiveProducts]', error);
     return [];
@@ -489,6 +500,8 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
     badge: string | null;
     badge_color: string | null;
     sort_order: number | null;
+    channel: ProductChannel | null;
+    track_stock: boolean | null;
     product_variants: { price_twd: number; status: string }[] | null;
   };
   return (data as Row[] | null ?? []).map((p) => {
@@ -509,6 +522,8 @@ export async function getActiveProducts(tenantId: string): Promise<ProductPublic
       sale_start_at: p.sale_start_at ?? null,
       sale_end_at: p.sale_end_at ?? null,
       sort_order: p.sort_order ?? null,
+      channel: p.channel === 'groupbuy' ? 'groupbuy' : 'stall',
+      track_stock: p.track_stock !== false,
     };
   });
 }
@@ -556,6 +571,9 @@ export type ProductDetail = {
   sale_discount_pct: number | null;
   sale_start_at: string | null;
   sale_end_at: string | null;
+  // Phase 35(2026-11-07):賣在哪裡與管理庫存開關
+  channel: ProductChannel;
+  track_stock: boolean;
 };
 
 /**
@@ -567,7 +585,7 @@ export async function getProductBySlug(
   slugOrId: string,
 ): Promise<ProductDetail | null> {
   const cols =
-    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, is_bundle, status, sort_order)';
+    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, channel, track_stock, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, is_bundle, status, sort_order)';
   // 先試 slug
   let { data } = await supabaseAdmin
     .from('products')
@@ -601,6 +619,8 @@ export async function getProductBySlug(
     sale_discount_pct: number | null;
     sale_start_at: string | null;
     sale_end_at: string | null;
+    channel: ProductChannel | null;
+    track_stock: boolean | null;
     product_variants: VariantPublic[] | null;
   };
   const row = data as Row;
@@ -620,6 +640,8 @@ export async function getProductBySlug(
     sale_discount_pct: row.sale_discount_pct ?? null,
     sale_start_at: row.sale_start_at ?? null,
     sale_end_at: row.sale_end_at ?? null,
+    channel: row.channel === 'groupbuy' ? 'groupbuy' : 'stall',
+    track_stock: row.track_stock !== false,
   };
 }
 

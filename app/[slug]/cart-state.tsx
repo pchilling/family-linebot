@@ -13,6 +13,8 @@ export type CartItem = {
   priceTwd: number;
   qty: number;
   imageUrl: string | null;
+  /** Phase 35(2026-11-07):攤位 / 團購商品。選填:舊的 localStorage 資料沒有這欄;結帳頁分組以 server 回傳為準,這欄只是先用的預設 */
+  channel?: 'stall' | 'groupbuy';
 };
 
 const STORAGE_PREFIX = 'stall-cart-';
