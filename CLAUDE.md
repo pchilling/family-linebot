@@ -7,6 +7,7 @@
 - `docs/SPEC.md`、`docs/progress.md` — 規格與進度（progress 末段有歷次 migration SQL）。
 - `docs/NEWERA.md` — New Era Oil 這個租戶的規則（法規紅線、資料表、路由、前端規格、用詞）。
 - `docs/GROUPBUY.md` — 團購（攤位 / 團購兩個分頁、追蹤這家店、開團到結團）的定案規格。
+- `docs/CVS_PICKUP.md` — 超商取貨第二階段（LINE 商店店到店、取貨付款、後台寄件）的定案規格；平台不接物流 API。
 
 ## 平台慣例（照做，不要自創）
 - 公開頁 `app/[slug]/...`、LIFF `app/m/...`、後台 `app/admin/[tenant]/...`。slug 來自 `tenants.slug`。
