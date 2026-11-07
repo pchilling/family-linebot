@@ -200,6 +200,10 @@ export default function ShopPage() {
   const [tab, setTab] = useState<ProductChannel>('stall');
   const [groupBuy, setGroupBuy] = useState<GroupBuyState>({ current: null, last: null });
   const currentGb = groupBuy.current;
+  // 2026-11-08:沒有收單中的團就沒有分頁列;停在團購分頁的人(例如團剛截止)退回攤位
+  useEffect(() => {
+    if (tab === 'groupbuy' && !currentGb) setTab('stall');
+  }, [tab, currentGb]);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderNo, setOrderNo] = useState('');
@@ -796,13 +800,15 @@ export default function ShopPage() {
             </div>
           </div>
           {tenant.banners.length > 0 && <BannerHero banners={tenant.banners} tenantName={tenant.name} />}
-          {/* Phase 35:攤位 / 團購分頁(有開團時團購旁一個綠點);切分頁時分類篩選歸零 */}
-          <div className="ls-tabs" role="tablist" aria-label="攤位 / 團購">
-            <button type="button" role="tab" className="ls-tab" data-on={tab === 'stall' ? 'true' : 'false'} aria-selected={tab === 'stall'} onClick={() => { setTab('stall'); setFilter(''); }}>攤位</button>
-            <button type="button" role="tab" className="ls-tab" data-on={tab === 'groupbuy' ? 'true' : 'false'} aria-selected={tab === 'groupbuy'} onClick={() => { setTab('groupbuy'); setFilter(''); }}>
-              團購{currentGb && <span className="ls-dot" aria-label="收單中" />}
-            </button>
-          </div>
+          {/* Phase 35:攤位 / 團購分頁;2026-11-08 Peter:沒有收單中的團就整列不顯示(開團才出現);切分頁時分類篩選歸零 */}
+          {currentGb && (
+            <div className="ls-tabs" role="tablist" aria-label="攤位 / 團購">
+              <button type="button" role="tab" className="ls-tab" data-on={tab === 'stall' ? 'true' : 'false'} aria-selected={tab === 'stall'} onClick={() => { setTab('stall'); setFilter(''); }}>攤位</button>
+              <button type="button" role="tab" className="ls-tab" data-on={tab === 'groupbuy' ? 'true' : 'false'} aria-selected={tab === 'groupbuy'} onClick={() => { setTab('groupbuy'); setFilter(''); }}>
+                團購<span className="ls-dot" aria-label="收單中" />
+              </button>
+            </div>
+          )}
         </header>
       )}
 

@@ -131,10 +131,10 @@ export default async function TenantLayout({ children, params }: Props) {
               </span>
             )}
           </div>
-          {/* Phase 35:電腦版選單「攤位 · 團購 · 查訂單」;有開團時團購旁一個綠點 */}
+          {/* Phase 35:電腦版選單「攤位 · 團購 · 查訂單」;2026-11-08 Peter:沒有收單中的團就不顯示「團購」 */}
           <nav className="shop-nav" aria-label="主選單">
             <a href={`/${slug}`}>攤位</a>
-            <a href={`/${slug}/groupbuy`}>團購{hasOpenGroupBuy && <span className="shop-dot" aria-label="收單中" />}</a>
+            {hasOpenGroupBuy && <a href={`/${slug}/groupbuy`}>團購<span className="shop-dot" aria-label="收單中" /></a>}
             <a href={`/${slug}/order-lookup`}>查訂單</a>
           </nav>
           {/* Phase 26:購物車 icon + 帳號(未登入「登入」/ 登入後頭像選單) */}
