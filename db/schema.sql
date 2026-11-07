@@ -1762,3 +1762,38 @@ end;
 $$ language plpgsql;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ====================
+-- Phase 31 補丁(2026-11-08):generate_order_no() 的變數名跟欄位撞名,所有下單都失敗
+-- Phase 31 宣告了 PL/pgSQL 變數 ym,而 order_counters 也有欄位 ym;
+-- 「on conflict (tenant_id, ym)」Postgres 分不出是變數還是欄位 → 42702 column reference "ym" is ambiguous。
+-- 影響:11/5 跑完 Phase 31 之後,網站 / LIFF / LINE Pay / 綠界所有建單都在 insert orders 時被擋(前台看到「建立訂單失敗」),
+-- 到 11/8 團購實測才發現;期間沒有任何訂單成功建立。
+-- 修法:變數一律加 v_ 前綴,不再與任何欄位同名。
+-- 教訓:改 orders 的 trigger 之後一定要實際下一張測試單,不能只看頁面有沒有壞。
+-- ====================
+create or replace function generate_order_no()
+returns trigger as $$
+declare
+  v_ym text;
+  v_prefix text;
+  v_cnt int;
+begin
+  if new.order_no is null or new.order_no = '' then
+    v_ym := to_char(now() at time zone 'Asia/Taipei', 'YYYYMM');
+
+    select order_prefix into v_prefix from tenants where id = new.tenant_id;
+    if v_prefix is null then
+      raise exception 'tenant % missing order_prefix', new.tenant_id;
+    end if;
+
+    insert into order_counters (tenant_id, ym, last_seq)
+      values (new.tenant_id, v_ym, 1)
+      on conflict (tenant_id, ym) do update set last_seq = order_counters.last_seq + 1
+      returning last_seq into v_cnt;
+
+    new.order_no := v_prefix || '-' || v_ym || '-' || lpad(v_cnt::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;

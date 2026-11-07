@@ -661,3 +661,27 @@ begin
 end;
 $$ language plpgsql;
 NOTIFY pgrst, 'reload schema';
+
+-- Phase 31 補丁(2026-11-08)— generate_order_no() 的 PL/pgSQL 變數 ym 跟 order_counters.ym 撞名,
+--   「on conflict (tenant_id, ym)」→ 42702 column reference "ym" is ambiguous;11/5 跑完 Phase 31 後所有建單(網站 / LIFF / LINE Pay / 綠界)
+--   都在 insert orders 失敗(前台「建立訂單失敗」),11/8 團購實測才發現。變數改 v_ 前綴。教訓:改 orders trigger 後要實際下一張測試單。
+create or replace function generate_order_no()
+returns trigger as $$
+declare
+  v_ym text;
+  v_prefix text;
+  v_cnt int;
+begin
+  if new.order_no is null or new.order_no = '' then
+    v_ym := to_char(now() at time zone 'Asia/Taipei', 'YYYYMM');
+    select order_prefix into v_prefix from tenants where id = new.tenant_id;
+    if v_prefix is null then raise exception 'tenant % missing order_prefix', new.tenant_id; end if;
+    insert into order_counters (tenant_id, ym, last_seq)
+      values (new.tenant_id, v_ym, 1)
+      on conflict (tenant_id, ym) do update set last_seq = order_counters.last_seq + 1
+      returning last_seq into v_cnt;
+    new.order_no := v_prefix || '-' || v_ym || '-' || lpad(v_cnt::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
