@@ -86,6 +86,7 @@ export default async function TenantLayout({ children, params }: Props) {
 .shop-brand-wrap{display:flex;align-items:center;gap:10px;min-width:0}
 .shop-rating{display:inline-flex;align-items:center;gap:3px;font-size:12.5px;color:var(--ui-muted);white-space:nowrap;flex-shrink:0}
 .shop-rating b{color:var(--ui-ink);font-weight:600;font-variant-numeric:tabular-nums}
+a.shop-rating{text-decoration:none}a.shop-rating:hover b{text-decoration:underline;text-underline-offset:3px}
 @media (max-width:420px){.shop-rating{display:none}}
 .shop-nav{display:flex;gap:20px;font-size:14px;font-weight:500}
 .shop-nav a{text-decoration:none;color:var(--ui-muted);display:inline-flex;align-items:center;gap:6px}.shop-nav a:hover{color:var(--ui-ink)}
@@ -122,13 +123,13 @@ export default async function TenantLayout({ children, params }: Props) {
               )}
               <span className="n">{tenant.name}</span>
             </a>
-            {/* Phase 30:店家評價平均星數(客人出貨後給的) */}
+            {/* Phase 30:店家評價平均星數(客人出貨後給的);2026-11-08:點進去是顧客評價公開頁 */}
             {storeRating && (
-              <span className="shop-rating" title={`${storeRating.count} 位客人評價這家店`} aria-label={`店家評價 ${storeRating.avg.toFixed(1)} 顆星,共 ${storeRating.count} 則`}>
+              <a href={`/${slug}/reviews`} className="shop-rating" title={`${storeRating.count} 位客人評價這家店,點進去看留言`} aria-label={`店家評價 ${storeRating.avg.toFixed(1)} 顆星,共 ${storeRating.count} 則,看顧客評價`}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" aria-hidden><path d="M12 2.5l2.9 6.1 6.7.8-4.9 4.6 1.3 6.6L12 17.3l-6 3.3 1.3-6.6L2.4 9.4l6.7-.8z" /></svg>
                 <b>{storeRating.avg.toFixed(1)}</b>
                 <span>({storeRating.count})</span>
-              </span>
+              </a>
             )}
           </div>
           {/* Phase 35:電腦版選單「攤位 · 團購 · 查訂單」;2026-11-08 Peter:沒有收單中的團就不顯示「團購」 */}
@@ -165,6 +166,7 @@ export default async function TenantLayout({ children, params }: Props) {
             {/* 法規連結(2026-09-08:查訂單併入此列;2026-10-22:政策頁改成攤位自己的) */}
             <span style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               <a href={`/${slug}/order-lookup`}>查訂單</a>
+              <a href={`/${slug}/reviews`}>顧客評價</a>
               <a href={`/${slug}/policy/terms`}>服務條款</a>
               <a href={`/${slug}/policy/privacy`}>隱私權</a>
               <a href={`/${slug}/policy/refund`}>退款</a>
