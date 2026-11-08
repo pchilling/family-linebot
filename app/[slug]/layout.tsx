@@ -81,22 +81,22 @@ export default async function TenantLayout({ children, params }: Props) {
           __html: `
 .shop-hdr{position:sticky;top:0;z-index:20;height:56px;border-bottom:1px solid var(--ui-line);background:var(--ui-header)}
 .shop-hdr-in{height:100%;display:flex;align-items:center;justify-content:space-between;gap:24px}
-.shop-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ui-ink);font-weight:600;font-size:15px;letter-spacing:-.01em;min-width:0}
+.shop-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ui-ink);font-weight:600;font-size:.9375rem;letter-spacing:-.01em;min-width:0}
 .shop-brand span.n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shop-brand-wrap{display:flex;align-items:center;gap:10px;min-width:0}
-.shop-rating{display:inline-flex;align-items:center;gap:3px;font-size:12.5px;color:var(--ui-muted);white-space:nowrap;flex-shrink:0}
+.shop-rating{display:inline-flex;align-items:center;gap:3px;font-size:.7813rem;color:var(--ui-muted);white-space:nowrap;flex-shrink:0}
 .shop-rating b{color:var(--ui-ink);font-weight:600;font-variant-numeric:tabular-nums}
 a.shop-rating{text-decoration:none}a.shop-rating:hover b{text-decoration:underline;text-underline-offset:3px}
 @media (max-width:420px){.shop-rating{display:none}}
-.shop-nav{display:flex;gap:20px;font-size:14px;font-weight:500}
+.shop-nav{display:flex;gap:20px;font-size:.875rem;font-weight:500}
 .shop-nav a{text-decoration:none;color:var(--ui-muted);display:inline-flex;align-items:center;gap:6px}.shop-nav a:hover{color:var(--ui-ink)}
 .shop-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;flex-shrink:0}
 .shop-tabs{display:none;border-bottom:1px solid var(--ui-line);background:var(--ui-header)}
 .shop-tabs-in{display:flex}
-.shop-tab{flex:1;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:500;color:var(--ui-muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.shop-tab{flex:1;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:.875rem;font-weight:500;color:var(--ui-muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
 .shop-tab[data-on="true"]{color:var(--ui-ink);font-weight:600;border-bottom-color:var(--ui-accent)}
 .shop-main{width:100%;padding-top:24px;padding-bottom:64px}
-.shop-foot{border-top:1px solid var(--ui-line);padding:28px 0;font-size:12px;color:var(--ui-muted);background:var(--ui-header)}
+.shop-foot{border-top:1px solid var(--ui-line);padding:28px 0;font-size:.75rem;color:var(--ui-muted);background:var(--ui-header)}
 .shop-foot a{color:var(--ui-muted);text-decoration:none}.shop-foot a:hover{color:var(--ui-ink)}
 @media (max-width:1024px){.shop-nav{display:none}.shop-tabs{display:block}.shop-main{padding-top:16px;padding-bottom:48px}}
           `,
@@ -116,7 +116,7 @@ a.shop-rating{text-decoration:none}a.shop-rating:hover b{text-decoration:underli
               ) : (
                 <span
                   aria-hidden
-                  style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--ui-accent)', color: 'var(--ui-on-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 }}
+                  style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--ui-accent)', color: 'var(--ui-on-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.75rem', fontWeight: 600, flexShrink: 0 }}
                 >
                   {tenant.name.slice(0, 1)}
                 </span>
@@ -155,11 +155,11 @@ a.shop-rating{text-decoration:none}a.shop-rating:hover b{text-decoration:underli
         <div className="ui-wrap" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Phase 32:商店聲明 */}
           {disclaimer && (
-            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 12.5 }}>{disclaimer}</p>
+            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '.7813rem' }}>{disclaimer}</p>
           )}
           {/* 2026-09-11(回饋 #13):對外聯絡資訊 */}
           {contactInfo && (
-            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 13 }}>{contactInfo}</div>
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '.8125rem' }}>{contactInfo}</div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <span>© {new Date().getFullYear()} {tenant.name}</span>
@@ -173,7 +173,7 @@ a.shop-rating{text-decoration:none}a.shop-rating:hover b{text-decoration:underli
               <a href={`/${slug}/policy/shipping`}>寄送</a>
             </span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--ui-faint)' }}>
+          <div style={{ fontSize: '.6875rem', color: 'var(--ui-faint)' }}>
             Made with <strong style={{ color: 'var(--ui-muted)', letterSpacing: '0.08em' }}>NEOP STALL</strong>
           </div>
         </div>

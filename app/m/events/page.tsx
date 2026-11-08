@@ -185,7 +185,7 @@ export default function EventsPage() {
     const fillPct = cap > 0 ? Math.min(100, (e.confirmed_count / cap) * 100) : 0;
     return (
       <div style={{ marginTop: 8, marginBottom: 10 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.textSec, marginBottom: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.6875rem', color: c.textSec, marginBottom: 4 }}>
           <span>
             已報 <strong style={{ color: isFull ? c.danger : c.text }}>{e.confirmed_count}</strong>
             {' / '}
@@ -309,7 +309,7 @@ export default function EventsPage() {
       <main style={page}>
         <div style={centered}>
           <div style={spinner} />
-          <p style={{ color: c.textMuted, fontSize: 14 }}>載入中…</p>
+          <p style={{ color: c.textMuted, fontSize: '.875rem' }}>載入中…</p>
         </div>
         <style dangerouslySetInnerHTML={{ __html: spinKeyframes }} />
       </main>
@@ -320,7 +320,7 @@ export default function EventsPage() {
     return (
       <main style={page}>
         <div style={centered}>
-          <p style={{ color: c.danger, fontSize: 14, fontWeight: 600 }}>發生錯誤:{error}</p>
+          <p style={{ color: c.danger, fontSize: '.875rem', fontWeight: 600 }}>發生錯誤:{error}</p>
         </div>
       </main>
     );
@@ -380,7 +380,7 @@ export default function EventsPage() {
           )}
           <div style={{ padding: '18px 16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, lineHeight: 1.3 }}>{e.name}</h1>
+              <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, lineHeight: 1.3 }}>{e.name}</h1>
               {isMine && (
                 <span
                   style={{
@@ -388,7 +388,7 @@ export default function EventsPage() {
                     background: isConfirmed ? c.successBg : c.warningBg,
                     color: isConfirmed ? c.success : c.warning,
                     borderRadius: 4,
-                    fontSize: 11,
+                    fontSize: '.6875rem',
                     fontWeight: 700,
                     letterSpacing: '0.04em',
                   }}
@@ -408,7 +408,7 @@ export default function EventsPage() {
                 display: 'grid',
                 gridTemplateColumns: '52px 1fr',
                 rowGap: 8,
-                fontSize: 13,
+                fontSize: '.8125rem',
                 lineHeight: 1.5,
               }}
             >
@@ -435,7 +435,7 @@ export default function EventsPage() {
             {renderCapacity(e)}
 
             {e.description && (
-              <p style={{ margin: '12px 0 16px', fontSize: 14, color: c.textSec, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              <p style={{ margin: '12px 0 16px', fontSize: '.875rem', color: c.textSec, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                 {e.description}
               </p>
             )}
@@ -480,14 +480,14 @@ ${spinKeyframes}
                 width: 56, height: 56, borderRadius: '50%',
                 background: c.border, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: c.textMuted, fontSize: 22, fontWeight: 700,
+                color: c.textMuted, fontSize: '1.375rem', fontWeight: 700,
               }}
             >
               {tenant.name.slice(0, 1).toUpperCase()}
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '.6875rem', color: c.textMuted, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               {tenant.name} · 活動報名
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -499,7 +499,7 @@ ${spinKeyframes}
                   style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${c.border}`, flexShrink: 0 }}
                 />
               )}
-              <span style={{ fontSize: 14, fontWeight: 600, color: c.text }}>
+              <span style={{ fontSize: '.875rem', fontWeight: 600, color: c.text }}>
                 {lineName}
               </span>
             </div>
@@ -527,8 +527,8 @@ ${spinKeyframes}
 
       {/* Section title */}
       <div style={{ marginBottom: 12, display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>近期活動</h2>
-        <span style={{ fontSize: 12, color: c.textMuted }}>
+        <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>近期活動</h2>
+        <span style={{ fontSize: '.75rem', color: c.textMuted }}>
           {events.length > 0 ? `${events.length} 場` : ''}
         </span>
       </div>
@@ -546,8 +546,8 @@ ${spinKeyframes}
           <div style={{ marginBottom: 10, color: '#d4d4d8' }}>
             <IconCalendar size={44} />
           </div>
-          <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500 }}>近期沒有活動</p>
-          <p style={{ margin: 0, fontSize: 12, color: c.textMuted }}>
+          <p style={{ margin: '0 0 4px', fontSize: '.9375rem', fontWeight: 500 }}>近期沒有活動</p>
+          <p style={{ margin: 0, fontSize: '.75rem', color: c.textMuted }}>
             老師建立活動後會出現在這裡
           </p>
         </div>
@@ -600,13 +600,13 @@ ${spinKeyframes}
                       textAlign: 'center',
                     }}
                   >
-                    <div style={{ fontSize: 10, color: c.textMuted, fontWeight: 600, letterSpacing: '0.04em' }}>
+                    <div style={{ fontSize: '.625rem', color: c.textMuted, fontWeight: 600, letterSpacing: '0.04em' }}>
                       {new Date(e.scheduled_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', month: 'short' })}
                     </div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: c.text, fontFamily: 'ui-monospace, monospace', lineHeight: 1.1, marginTop: 2 }}>
+                    <div style={{ fontSize: '1.375rem', fontWeight: 700, color: c.text, fontFamily: 'ui-monospace, monospace', lineHeight: 1.1, marginTop: 2 }}>
                       {new Date(e.scheduled_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', day: 'numeric' })}
                     </div>
-                    <div style={{ fontSize: 10, color: c.textMuted, marginTop: 2 }}>
+                    <div style={{ fontSize: '.625rem', color: c.textMuted, marginTop: 2 }}>
                       {formatDate(e.scheduled_at).match(/\(([^)]+)\)|（([^）]+)）|週./)?.[0] ?? ''}
                     </div>
                   </div>
@@ -614,7 +614,7 @@ ${spinKeyframes}
                   {/* 主資訊 — 右 */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: c.text, lineHeight: 1.3 }}>
+                      <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: c.text, lineHeight: 1.3 }}>
                         {e.name}
                       </h3>
                       {isMine && (
@@ -624,7 +624,7 @@ ${spinKeyframes}
                             background: isConfirmed ? c.successBg : c.warningBg,
                             color: isConfirmed ? c.success : c.warning,
                             borderRadius: 4,
-                            fontSize: 10,
+                            fontSize: '.625rem',
                             fontWeight: 700,
                             letterSpacing: '0.04em',
                           }}
@@ -633,7 +633,7 @@ ${spinKeyframes}
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 12, color: c.textMuted, marginBottom: 6 }}>
+                    <div style={{ fontSize: '.75rem', color: c.textMuted, marginBottom: 6 }}>
                       {formatTime(e.scheduled_at)}
                       {e.region_name && <> · {e.region_name}</>}
                       {e.instructor && <> · {e.instructor}</>}
@@ -655,7 +655,7 @@ ${spinKeyframes}
         </div>
       )}
 
-      <p style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: c.textMuted, lineHeight: 1.6 }}>
+      <p style={{ marginTop: 24, textAlign: 'center', fontSize: '.75rem', color: c.textMuted, lineHeight: 1.6 }}>
         報名後想取消請點上方按鈕。<br />
         若課程已滿,你會被加到候補名單,前面取消時自動候補上。
       </p>
@@ -673,7 +673,7 @@ function ExpandableText({ text }: { text: string }) {
       <p
         style={{
           margin: 0,
-          fontSize: 13,
+          fontSize: '.8125rem',
           color: c.textSec,
           lineHeight: 1.65,
           whiteSpace: 'pre-wrap',
@@ -691,7 +691,7 @@ function ExpandableText({ text }: { text: string }) {
             background: 'none',
             border: 0,
             color: c.textMuted,
-            fontSize: 12,
+            fontSize: '.75rem',
             fontWeight: 600,
             cursor: 'pointer',
             fontFamily: 'inherit',
@@ -741,7 +741,7 @@ const backPill: React.CSSProperties = {
   border: '1px solid #e4e4e7',
   borderRadius: 999,
   cursor: 'pointer',
-  fontSize: 14,
+  fontSize: '.875rem',
   fontWeight: 600,
   color: '#374151',
   fontFamily: 'inherit',
@@ -754,7 +754,7 @@ const btnBase: React.CSSProperties = {
   boxSizing: 'border-box',
   padding: '10px 14px',
   borderRadius: 7,
-  fontSize: 14,
+  fontSize: '.875rem',
   fontWeight: 600,
   cursor: 'pointer',
   fontFamily: 'inherit',

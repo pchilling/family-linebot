@@ -15,22 +15,22 @@ export const UI_CSS = `
 .ui-muted{color:var(--ui-muted)}
 .ui-wrap{width:100%;max-width:1360px;box-sizing:border-box;margin:0 auto;padding:0 40px}
 @media (max-width:1024px){.ui-wrap{padding:0 20px}}
-.ui-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font:inherit;font-size:14px;font-weight:500;line-height:1;cursor:pointer;border:1px solid transparent;text-decoration:none;transition:background .15s,color .15s,border-color .15s,opacity .15s;-webkit-tap-highlight-color:transparent}
+.ui-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font:inherit;font-size:.875rem;font-weight:500;line-height:1;cursor:pointer;border:1px solid transparent;text-decoration:none;transition:background .15s,color .15s,border-color .15s,opacity .15s;-webkit-tap-highlight-color:transparent}
 .ui-btn:disabled,.ui-btn[aria-disabled="true"]{pointer-events:none;opacity:.5}
 .ui-btn:focus-visible{outline:2px solid var(--ui-faint);outline-offset:2px}
 .ui-btn-primary{background:var(--ui-accent);color:var(--ui-on-accent)}.ui-btn-primary:hover{opacity:.9}
 .ui-btn-outline{border-color:var(--ui-line);background:var(--ui-surface);color:var(--ui-ink)}.ui-btn-outline:hover{background:var(--ui-line-soft)}
 .ui-btn-ghost{background:transparent;color:var(--ui-muted)}.ui-btn-ghost:hover{background:var(--ui-line-soft);color:var(--ui-ink)}
 .ui-btn-link{background:transparent;color:var(--ui-muted);text-underline-offset:4px;padding:0;height:auto}.ui-btn-link:hover{text-decoration:underline;color:var(--ui-ink)}
-.ui-btn-xs{height:28px;padding:0 8px;font-size:12px}
+.ui-btn-xs{height:28px;padding:0 8px;font-size:.75rem}
 .ui-btn-sm{height:36px;padding:0 12px}
 .ui-btn-md{height:40px;padding:0 16px}
-.ui-btn-lg{height:48px;padding:0 24px;font-size:15px}
+.ui-btn-lg{height:48px;padding:0 24px;font-size:.9375rem}
 .ui-btn-icon{width:36px;padding:0}
-.ui-badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid var(--ui-line);padding:2px 10px;font-size:12px;font-weight:600;line-height:1.4;color:var(--ui-ink);background:var(--ui-surface);white-space:nowrap}
+.ui-badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid var(--ui-line);padding:2px 10px;font-size:.75rem;font-weight:600;line-height:1.4;color:var(--ui-ink);background:var(--ui-surface);white-space:nowrap}
 .ui-badge-solid{border-color:transparent;background:var(--ui-accent);color:var(--ui-on-accent)}
 .ui-badge-wash{border-color:var(--ui-wash-line);background:var(--ui-wash);color:var(--ui-accent-ink)}
-.ui-input{height:40px;padding:0 12px;border:1px solid var(--ui-line);border-radius:6px;font:inherit;font-size:14px;background:var(--ui-surface);color:var(--ui-ink);width:100%;box-sizing:border-box;transition:border-color .15s}
+.ui-input{height:40px;padding:0 12px;border:1px solid var(--ui-line);border-radius:6px;font:inherit;font-size:.875rem;background:var(--ui-surface);color:var(--ui-ink);width:100%;box-sizing:border-box;transition:border-color .15s}
 .ui-input::placeholder{color:var(--ui-faint)}
 .ui-input:hover{border-color:#d4d4d8}
 .ui-input:focus-visible{outline:2px solid var(--ui-faint);outline-offset:2px}
@@ -38,7 +38,7 @@ export const UI_CSS = `
 textarea.ui-input{height:auto;padding:10px 12px;resize:vertical;min-height:88px;line-height:1.5}
 select.ui-input{appearance:none;-webkit-appearance:none;padding-right:32px;background:var(--ui-surface) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") no-repeat right 10px center;cursor:pointer}
 .ui-input-sm{height:36px}
-.ui-label{display:block;font-size:13px;font-weight:500;color:var(--ui-ink);margin-bottom:6px}
+.ui-label{display:block;font-size:.8125rem;font-weight:500;color:var(--ui-ink);margin-bottom:6px}
 .ui-label i{color:#b91c1c;font-style:normal;margin-left:2px}
 .ui-cb{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin:0;border-radius:4px;border:1px solid var(--ui-accent);background:var(--ui-surface);display:inline-grid;place-items:center;cursor:pointer;flex-shrink:0;vertical-align:middle}
 .ui-cb:checked{background:var(--ui-accent);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");background-size:12px;background-repeat:no-repeat;background-position:center}
@@ -61,8 +61,8 @@ select.ui-input{appearance:none;-webkit-appearance:none;padding-right:32px;backg
 .ui-sheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:40;animation:ui-fade .2s ease both}
 .ui-sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;max-height:85svh;overflow:auto;background:var(--ui-surface);border-radius:12px 12px 0 0;border-top:1px solid var(--ui-line);padding:0 24px;box-shadow:0 -10px 30px rgba(0,0,0,.12);animation:ui-up .3s cubic-bezier(.22,1,.36,1) both}
 .ui-sheet-head{display:flex;flex-direction:column;gap:6px;padding:20px 0 16px;border-bottom:1px solid var(--ui-line)}
-.ui-sheet-head h3{margin:0;font-size:18px;font-weight:600}
-.ui-sheet-head p{margin:0;font-size:14px;color:var(--ui-muted)}
+.ui-sheet-head h3{margin:0;font-size:1.125rem;font-weight:600}
+.ui-sheet-head p{margin:0;font-size:.875rem;color:var(--ui-muted)}
 .ui-sheet-foot{display:flex;gap:8px;position:sticky;bottom:0;background:var(--ui-surface);padding:16px 0 20px;border-top:1px solid var(--ui-line)}
 .ui-spin{display:inline-block;width:16px;height:16px;border:2px solid var(--ui-line);border-top-color:var(--ui-ink);border-radius:50%;animation:ui-spin .8s linear infinite}
 /* fill-mode 用 backwards 不用 both:both 會在動畫結束後留一個單位矩陣的 transform,
@@ -228,12 +228,12 @@ export function OptionCard({
         </span>
       )}
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <span style={{ fontSize: 14, fontWeight: 500, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <span style={{ fontSize: '.875rem', fontWeight: 500, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
           <span>{title}</span>
           {trailing}
         </span>
-        {desc && <span style={{ fontSize: 12.5, color: 'var(--ui-muted)', lineHeight: 1.55 }}>{desc}</span>}
-        {note && <span style={{ fontSize: 12, color: '#b45309', lineHeight: 1.55 }}>{note}</span>}
+        {desc && <span style={{ fontSize: '.7813rem', color: 'var(--ui-muted)', lineHeight: 1.55 }}>{desc}</span>}
+        {note && <span style={{ fontSize: '.75rem', color: '#b45309', lineHeight: 1.55 }}>{note}</span>}
       </span>
     </button>
   );

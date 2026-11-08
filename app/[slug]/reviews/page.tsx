@@ -30,14 +30,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 const CSS = `
 .rv{max-width:720px;margin:0 auto}
 .rv-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:4px 0 20px}
-.rv-head h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em}
-.rv-head p{margin:4px 0 0;font-size:13px;color:var(--ui-muted)}
+.rv-head h1{margin:0;font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.rv-head p{margin:4px 0 0;font-size:.8125rem;color:var(--ui-muted)}
 .rv-sum{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;padding:20px 22px;margin-bottom:20px}
 .rv-avg{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:96px}
-.rv-avg b{font-size:40px;font-weight:600;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.rv-avg small{font-size:12px;color:var(--ui-muted)}
+.rv-avg b{font-size:2.5rem;font-weight:600;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.rv-avg small{font-size:.75rem;color:var(--ui-muted)}
 .rv-dist{display:flex;flex-direction:column;gap:6px;min-width:0}
-.rv-bar{display:grid;grid-template-columns:34px 1fr 32px;align-items:center;gap:10px;font-size:12.5px;color:var(--ui-muted);font-variant-numeric:tabular-nums}
+.rv-bar{display:grid;grid-template-columns:34px 1fr 32px;align-items:center;gap:10px;font-size:.7813rem;color:var(--ui-muted);font-variant-numeric:tabular-nums}
 .rv-bar i{display:block;height:8px;border-radius:999px;background:var(--ui-line-soft);overflow:hidden}
 .rv-bar i span{display:block;height:100%;background:#f59e0b;border-radius:999px}
 .rv-bar em{font-style:normal;text-align:right}
@@ -45,12 +45,12 @@ const CSS = `
 .rv-item{padding:16px 0;border-top:1px solid var(--ui-line)}
 .rv-item:first-child{border-top:0;padding-top:4px}
 .rv-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.rv-top b{font-size:14px;font-weight:600}
-.rv-top time{font-size:12px;color:var(--ui-muted);margin-left:auto;font-variant-numeric:tabular-nums}
-.rv-item p{margin:8px 0 0;font-size:14.5px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
-.rv-empty{padding:40px 24px;text-align:center;color:var(--ui-muted);font-size:14px;line-height:1.7}
-.rv-note{margin:20px 0 0;font-size:12px;color:var(--ui-faint);line-height:1.6}
-@media (max-width:560px){.rv-sum{grid-template-columns:1fr;gap:16px}.rv-avg{flex-direction:row;justify-content:center;gap:12px}.rv-avg b{font-size:32px}}
+.rv-top b{font-size:.875rem;font-weight:600}
+.rv-top time{font-size:.75rem;color:var(--ui-muted);margin-left:auto;font-variant-numeric:tabular-nums}
+.rv-item p{margin:8px 0 0;font-size:.9063rem;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.rv-empty{padding:40px 24px;text-align:center;color:var(--ui-muted);font-size:.875rem;line-height:1.7}
+.rv-note{margin:20px 0 0;font-size:.75rem;color:var(--ui-faint);line-height:1.6}
+@media (max-width:560px){.rv-sum{grid-template-columns:1fr;gap:16px}.rv-avg{flex-direction:row;justify-content:center;gap:12px}.rv-avg b{font-size:2rem}}
 `;
 
 export default async function StoreReviewsPage({ params }: Props) {

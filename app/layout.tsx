@@ -50,6 +50,13 @@ export default function RootLayout({
             'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif',
         }}
       >
+        {/* Phase 39(2026-11-08):字級跟隨系統設定 — html 字級 100%(跟瀏覽器 / Android 的字型大小設定走),
+            iOS Safari 要用 -apple-system-body 才會吃「放大文字」;顧客頁的字級已全部改成 rem,admin 維持 px 不受影響 */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: 'html{font-size:100%}@supports (font:-apple-system-body){html{font:-apple-system-body}}',
+          }}
+        />
         {children}
       </body>
     </html>

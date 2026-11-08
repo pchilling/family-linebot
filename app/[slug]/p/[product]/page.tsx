@@ -34,13 +34,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 const money = (n: number) => n.toLocaleString('en-US');
 
 const PAGE_CSS = `
-.pdp-crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ui-muted);padding:0 0 20px;flex-wrap:wrap}
+.pdp-crumb{display:flex;align-items:center;gap:8px;font-size:.8125rem;color:var(--ui-muted);padding:0 0 20px;flex-wrap:wrap}
 .pdp-crumb a{color:var(--ui-muted);text-decoration:none}.pdp-crumb a:hover{color:var(--ui-ink)}
 .pdp-crumb .sep{color:#d4d4d8}
 .pdp-crumb .cur{color:var(--ui-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
 .pdp-desc{margin-top:56px;max-width:720px}
-.pdp-desc h2{font-size:16px;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
-.pdp-desc p{margin:0;font-size:14px;line-height:1.8;color:#3f3f46;white-space:pre-wrap}
+.pdp-desc h2{font-size:1rem;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
+.pdp-desc p{margin:0;font-size:.875rem;line-height:1.8;color:#3f3f46;white-space:pre-wrap}
 @media (max-width:1024px){.pdp-desc{margin-top:36px}.pdp-bottom{padding-bottom:72px}}
 `;
 
@@ -184,24 +184,24 @@ export default async function ProductDetailPage({ params }: Props) {
       {/* Phase 25(2026-10-23):商品評價 — 只放客人真的給的,沒有就老實說沒有 */}
       <section id="reviews" aria-labelledby="reviews-h" style={{ marginTop: '3rem', maxWidth: 720, scrollMarginTop: 80 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <h2 id="reviews-h" style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: '-.01em' }}>商品評價</h2>
-          {reviewCount > 0 && <span className="ui-muted ui-num" style={{ fontSize: 13 }}>{reviewCount} 則</span>}
+          <h2 id="reviews-h" style={{ margin: 0, fontSize: '1rem', fontWeight: 600, letterSpacing: '-.01em' }}>商品評價</h2>
+          {reviewCount > 0 && <span className="ui-muted ui-num" style={{ fontSize: '.8125rem' }}>{reviewCount} 則</span>}
         </div>
         {reviewCount === 0 ? (
-          <div className="ui-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--ui-muted)', fontSize: 14, lineHeight: 1.7 }}>
+          <div className="ui-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--ui-muted)', fontSize: '.875rem', lineHeight: 1.7 }}>
             還沒有評價。買過的客人會在收到商品後收到評價邀請,第一則評價就會出現在這裡。
           </div>
         ) : (
           <>
             <div className="ui-card" style={{ padding: '1.25rem', display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 96 }}>
-                <span className="ui-num" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1, letterSpacing: '-.02em' }}>{reviewAvg.toFixed(1)}</span>
+                <span className="ui-num" style={{ fontSize: '2.5rem', fontWeight: 600, lineHeight: 1, letterSpacing: '-.02em' }}>{reviewAvg.toFixed(1)}</span>
                 <Stars value={reviewAvg} size={16} />
-                <span className="ui-muted ui-num" style={{ fontSize: 12 }}>{reviewCount} 則評價</span>
+                <span className="ui-muted ui-num" style={{ fontSize: '.75rem' }}>{reviewCount} 則評價</span>
               </div>
               <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {dist.map((d) => (
-                  <div key={d.n} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 32px', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--ui-muted)' }}>
+                  <div key={d.n} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 32px', alignItems: 'center', gap: 10, fontSize: '.75rem', color: 'var(--ui-muted)' }}>
                     <span className="ui-num">{d.n} 星</span>
                     <span style={{ height: 8, borderRadius: 999, background: 'var(--ui-line-soft)', overflow: 'hidden' }}>
                       <span style={{ display: 'block', height: '100%', width: `${(d.count / reviewCount) * 100}%`, background: '#f59e0b', borderRadius: 999 }} />
@@ -214,12 +214,12 @@ export default async function ProductDetailPage({ params }: Props) {
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
               {reviews.map((r, i) => (
                 <li key={i} style={{ padding: '14px 0', borderTop: i === 0 ? 0 : '1px solid var(--ui-line)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '.8125rem' }}>
                     <Stars value={r.rating} size={13} />
                     <span style={{ fontWeight: 500 }}>{r.display_name || '匿名'}</span>
                     <span className="ui-muted ui-num">{new Date(r.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric' })}</span>
                   </div>
-                  {r.comment && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: '#3f3f46', whiteSpace: 'pre-wrap' }}>{r.comment}</p>}
+                  {r.comment && <p style={{ margin: 0, fontSize: '.875rem', lineHeight: 1.7, color: '#3f3f46', whiteSpace: 'pre-wrap' }}>{r.comment}</p>}
                 </li>
               ))}
             </ul>

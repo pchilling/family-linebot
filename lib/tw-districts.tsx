@@ -82,7 +82,7 @@ export function TwAddressFields({
     flex: 1,
     minWidth: 0,
     padding: '10px 8px',
-    fontSize: 14,
+    fontSize: '.875rem',
     border: '1px solid #d4d4d8',
     borderRadius: 8,
     background: '#fff',
@@ -133,7 +133,7 @@ export function TwAddressFields({
         onChange={(e) => setRest(e.target.value)}
         style={{
           padding: '10px 12px',
-          fontSize: 14,
+          fontSize: '.875rem',
           border: '1px solid #d4d4d8',
           borderRadius: 8,
           background: '#fff',

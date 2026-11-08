@@ -159,7 +159,7 @@ input:focus { outline: none; border-color: #18181b !important; }
                 color: '#fff',
                 border: 0,
                 borderRadius: 8,
-                fontSize: 16,
+                fontSize: '1rem',
                 fontWeight: 600,
                 cursor: saving ? 'not-allowed' : 'pointer',
                 fontFamily: 'inherit',
@@ -170,7 +170,7 @@ input:focus { outline: none; border-color: #18181b !important; }
           </form>
 
           {message && (
-            <p style={{ marginTop: 12, fontSize: 13, color: '#dc2626' }}>{message}</p>
+            <p style={{ marginTop: 12, fontSize: '.8125rem', color: '#dc2626' }}>{message}</p>
           )}
         </div>
       )}
@@ -202,8 +202,8 @@ const page: React.CSSProperties = {
   minHeight: '70vh',
 };
 const topBar: React.CSSProperties = { marginBottom: 24, textAlign: 'center' };
-const h1: React.CSSProperties = { fontSize: 22, margin: 0, color: '#18181b' };
-const hello: React.CSSProperties = { fontSize: 14, color: '#52525b', marginTop: 6 };
+const h1: React.CSSProperties = { fontSize: '1.375rem', margin: 0, color: '#18181b' };
+const hello: React.CSSProperties = { fontSize: '.875rem', color: '#52525b', marginTop: 6 };
 const card: React.CSSProperties = {
   padding: '2.5rem 1.5rem',
   background: '#fff',
@@ -222,16 +222,16 @@ const errCard: React.CSSProperties = {
   background: '#fef2f2',
   border: '1px solid #fecaca',
 };
-const icon: React.CSSProperties = { fontSize: 48, marginBottom: 12 };
-const msg: React.CSSProperties = { fontSize: 16, color: '#374151', margin: 0 };
+const icon: React.CSSProperties = { fontSize: '3rem', marginBottom: 12 };
+const msg: React.CSSProperties = { fontSize: '1rem', color: '#374151', margin: 0 };
 const msgBold: React.CSSProperties = {
-  fontSize: 18,
+  fontSize: '1.125rem',
   fontWeight: 600,
   color: '#18181b',
   margin: '0 0 12px',
 };
 const hint: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: '.8125rem',
   color: '#71717a',
   margin: '4px 0 0',
   lineHeight: 1.6,
@@ -242,13 +242,13 @@ const fieldLabel: React.CSSProperties = {
   gap: 5,
 };
 const labelText: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: '.8125rem',
   fontWeight: 500,
   color: '#18181b',
 };
 const input: React.CSSProperties = {
   padding: '12px 14px',
-  fontSize: 16,
+  fontSize: '1rem',
   border: '1px solid #e4e4e7',
   borderRadius: 8,
   width: '100%',

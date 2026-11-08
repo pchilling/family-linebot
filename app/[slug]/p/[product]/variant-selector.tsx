@@ -85,7 +85,7 @@ export const PD_CSS = `
 .pd-main{position:relative;aspect-ratio:3/4;border-radius:8px;overflow:hidden;border:1px solid var(--ui-line);background:var(--ui-line-soft)}
 .pd-main img,.pd-main video,.pd-main iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;display:block}
 .pd-main img[data-fit="contain"]{object-fit:contain;padding:8%}
-.pd-main .empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--ui-faint);font-size:13px}
+.pd-main .empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--ui-faint);font-size:.8125rem}
 .pd-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:1px solid var(--ui-line);background:rgba(255,255,255,.85);backdrop-filter:blur(6px);color:var(--ui-ink);cursor:pointer;display:grid;place-items:center;padding:0;z-index:2}
 .pd-arrow.l{left:10px}.pd-arrow.r{right:10px}
 .pd-count{position:absolute;top:10px;right:10px;z-index:2}
@@ -95,15 +95,15 @@ export const PD_CSS = `
 .pd-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .pd-thumb[data-on="true"]{outline:2px solid var(--ui-accent);outline-offset:1px}
 .pd-info{display:flex;flex-direction:column;gap:20px}
-.pd-h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
-.pd-price{font-size:28px;font-weight:600;letter-spacing:-.01em}
-.pd-old{font-size:14px;color:var(--ui-muted);text-decoration:line-through}
-.pd-lbl{font-size:13px;font-weight:500;display:flex;justify-content:space-between;gap:12px;margin-bottom:10px}
+.pd-h1{margin:0;font-size:1.75rem;font-weight:600;letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
+.pd-price{font-size:1.75rem;font-weight:600;letter-spacing:-.01em}
+.pd-old{font-size:.875rem;color:var(--ui-muted);text-decoration:line-through}
+.pd-lbl{font-size:.8125rem;font-weight:500;display:flex;justify-content:space-between;gap:12px;margin-bottom:10px}
 .pd-lbl span{color:var(--ui-muted);font-weight:400}
 .pd-pills{display:flex;flex-wrap:wrap;gap:8px}
-.pd-pill{min-height:40px;padding:0 14px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;color:var(--ui-ink);transition:background .15s,border-color .15s}
+.pd-pill{min-height:40px;padding:0 14px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:.875rem;cursor:pointer;display:inline-flex;align-items:center;gap:8px;color:var(--ui-ink);transition:background .15s,border-color .15s}
 .pd-pill:hover{background:var(--ui-line-soft)}
-.pd-pill .pp{color:var(--ui-muted);font-size:12px}
+.pd-pill .pp{color:var(--ui-muted);font-size:.75rem}
 .pd-pill[data-on="true"]{background:var(--ui-accent);border-color:var(--ui-accent);color:var(--ui-on-accent)}
 .pd-pill[data-on="true"] .pp{color:rgba(255,255,255,.75)}
 .pd-pill:disabled{opacity:.45;cursor:not-allowed;text-decoration:line-through}
@@ -112,28 +112,28 @@ export const PD_CSS = `
 .pd-tier{flex-shrink:0;min-width:96px;padding:8px 12px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ui-ink);transition:background .15s,border-color .15s}
 .pd-tier:hover{background:var(--ui-line-soft)}
 .pd-tier[data-on="true"]{border-color:var(--ui-accent);box-shadow:0 0 0 1px var(--ui-accent)}
-.pd-tier b{font-size:13px;font-weight:600}.pd-tier span{font-size:12px;color:var(--ui-muted)}
-.pd-sale{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px}
-.pd-gb-off{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);color:#52525b;font-size:13px;line-height:1.6}
+.pd-tier b{font-size:.8125rem;font-weight:600}.pd-tier span{font-size:.75rem;color:var(--ui-muted)}
+.pd-sale{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:.8125rem}
+.pd-gb-off{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);color:#52525b;font-size:.8125rem;line-height:1.6}
 .pd-gb-off b{color:var(--ui-ink);font-weight:600}
-.pd-gb-on{display:flex;align-items:center;gap:8px;font-size:13px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.5}
+.pd-gb-on{display:flex;align-items:center;gap:8px;font-size:.8125rem;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.5}
 .pd-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:40px;overflow:hidden;background:var(--ui-surface)}
-.pd-qty button{width:40px;height:40px;border:0;background:transparent;font:inherit;font-size:18px;cursor:pointer;color:var(--ui-ink)}
+.pd-qty button{width:40px;height:40px;border:0;background:transparent;font:inherit;font-size:1.125rem;cursor:pointer;color:var(--ui-ink)}
 .pd-qty button:hover{background:var(--ui-line-soft)}
 .pd-qty button:disabled{color:var(--ui-faint);cursor:not-allowed;background:transparent}
-.pd-qty input{width:56px;height:40px;text-align:center;font:inherit;font-size:14px;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;outline:none;box-sizing:border-box}
+.pd-qty input{width:56px;height:40px;text-align:center;font:inherit;font-size:.875rem;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;outline:none;box-sizing:border-box}
 .pd-buy{display:flex;gap:10px;align-items:center}
 .pd-buy .ui-btn{flex:1}
-.pd-meta{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--ui-line);border-radius:8px;font-size:13px;color:#52525b;background:#fafafa}
+.pd-meta{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--ui-line);border-radius:8px;font-size:.8125rem;color:#52525b;background:#fafafa}
 .pd-meta div{display:flex;gap:10px;align-items:flex-start;line-height:1.5}
 .pd-meta svg{flex-shrink:0;margin-top:2px;color:var(--ui-muted)}
 .pd-sticky{display:none}
-.pd-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;background:var(--ui-ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:ui-swap .25s ease both;white-space:nowrap}
+.pd-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;background:var(--ui-ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:.875rem;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:ui-swap .25s ease both;white-space:nowrap}
 .pd-toast a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
 @media (max-width:1024px){
   .pd{grid-template-columns:1fr;gap:24px}
   .pd-gal{position:static}
-  .pd-h1{font-size:22px}.pd-price{font-size:24px}
+  .pd-h1{font-size:1.375rem}.pd-price{font-size:1.5rem}
   .pd-buy{display:none}
   .pd-sticky{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--ui-surface);border-top:1px solid var(--ui-line);padding:10px 20px calc(10px + env(safe-area-inset-bottom));gap:12px;align-items:center}
   .pd-sticky .ui-btn{flex:1}
@@ -313,7 +313,7 @@ export function VariantSelector({
             </div>
             <h1 className="pd-h1">{productName}</h1>
             {rating && (
-              <a href="#reviews" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--ui-muted)', textDecoration: 'none' }}>
+              <a href="#reviews" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8125rem', color: 'var(--ui-muted)', textDecoration: 'none' }}>
                 <Stars value={rating.avg} size={14} />
                 <span className="ui-num">{rating.avg.toFixed(1)}</span>
                 <span className="ui-num">({rating.count} 則評價)</span>
@@ -322,8 +322,8 @@ export function VariantSelector({
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
               <span className="pd-price ui-num" style={saleActive ? { color: '#b91c1c' } : undefined}>NT$ {money(effectivePrice)}</span>
               {savedPerUnit > 0 && <span className="pd-old ui-num">NT$ {money(basePrice)}</span>}
-              {variantLabel && <span className="ui-muted" style={{ fontSize: 14 }}>{variantLabel}</span>}
-              {!saleActive && savedPerUnit > 0 && <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>量購價,省 NT$ {money(savedPerUnit)}/件</span>}
+              {variantLabel && <span className="ui-muted" style={{ fontSize: '.875rem' }}>{variantLabel}</span>}
+              {!saleActive && savedPerUnit > 0 && <span style={{ fontSize: '.75rem', color: '#15803d', fontWeight: 600 }}>量購價,省 NT$ {money(savedPerUnit)}/件</span>}
             </div>
           </div>
 
@@ -343,7 +343,7 @@ export function VariantSelector({
           )}
 
           {variants.length === 0 ? (
-            <p className="ui-muted" style={{ margin: 0, fontSize: 14 }}>目前沒有可選的規格。</p>
+            <p className="ui-muted" style={{ margin: 0, fontSize: '.875rem' }}>目前沒有可選的規格。</p>
           ) : (
             <>
               {variants.length > 1 && (
@@ -449,8 +449,8 @@ export function VariantSelector({
       {variants.length > 0 && selected && (
         <div className="pd-sticky">
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <span className="ui-muted" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{variantLabel ? `${variantLabel} × ${qty}` : `× ${qty}`}</span>
-            <span className="ui-num" style={{ fontSize: 18, fontWeight: 600 }}>NT$ {money(totalPrice)}</span>
+            <span className="ui-muted" style={{ fontSize: '.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{variantLabel ? `${variantLabel} × ${qty}` : `× ${qty}`}</span>
+            <span className="ui-num" style={{ fontSize: '1.125rem', fontWeight: 600 }}>NT$ {money(totalPrice)}</span>
           </div>
           <Button type="button" variant="primary" size="lg" onClick={handleAdd} disabled={!purchasable}>
             {!canBuy ? gbBlockedText : selectedInStock ? '加入購物車' : '已售完'}

@@ -114,8 +114,8 @@ export default async function AccountPage({ params, searchParams }: Props) {
     <div className="ui-enter" style={{ maxWidth: 720, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: '-.02em' }}>我的訂單</h1>
-          <p className="ui-muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-.02em' }}>我的訂單</h1>
+          <p className="ui-muted" style={{ margin: '4px 0 0', fontSize: '.8125rem' }}>
             {label}
             {member.email ? ` · ${member.email}` : ''}
           </p>
@@ -134,8 +134,8 @@ export default async function AccountPage({ params, searchParams }: Props) {
 
       {/* 2026-11-01:個人設定 — 暱稱(評價和頁首都用這個名字) */}
       <div className="ui-card" style={{ padding: 18, marginBottom: 16 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>個人設定</h2>
-        <p className="ui-muted" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6 }}>暱稱會顯示在你的評價上,不想用本名就改這裡。</p>
+        <h2 style={{ margin: '0 0 4px', fontSize: '.9375rem', fontWeight: 600 }}>個人設定</h2>
+        <p className="ui-muted" style={{ margin: '0 0 12px', fontSize: '.8125rem', lineHeight: 1.6 }}>暱稱會顯示在你的評價上,不想用本名就改這裡。</p>
         <form action={saveNickname} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="hidden" name="slug" value={slug} />
           <input name="nickname" defaultValue={member.display_name ?? ''} maxLength={30} required className="ui-input" style={{ flex: '1 1 200px', maxWidth: 320 }} placeholder="例:小美" aria-label="暱稱" />
@@ -146,8 +146,8 @@ export default async function AccountPage({ params, searchParams }: Props) {
       {/* Phase 35:追蹤卡 */}
       <div className="ui-card" style={{ padding: 18, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <h2 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>追蹤這家店</h2>
-          <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+          <h2 style={{ margin: '0 0 4px', fontSize: '.9375rem', fontWeight: 600 }}>追蹤這家店</h2>
+          <p className="ui-muted" style={{ margin: 0, fontSize: '.8125rem', lineHeight: 1.6 }}>
             {followRow?.status === 'pending'
               ? `申請中 · ${fmtDate(followRow.created_at)} 送出,等店主核准`
               : followRow
@@ -177,8 +177,8 @@ export default async function AccountPage({ params, searchParams }: Props) {
       {orders.length === 0 ? (
         <div className="ui-card" style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
           <div>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 500 }}>還沒有訂單</p>
-            <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.7 }}>
+            <p style={{ margin: 0, fontSize: '1rem', fontWeight: 500 }}>還沒有訂單</p>
+            <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: '.875rem', lineHeight: 1.7 }}>
               用這個帳號下的單會出現在這裡。以前用訪客身分買的,留同一個信箱也會對得起來。
             </p>
           </div>
@@ -194,12 +194,12 @@ export default async function AccountPage({ params, searchParams }: Props) {
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}
               >
                 <span style={{ minWidth: 0 }}>
-                  <span className="ui-num" style={{ display: 'block', fontSize: 14, fontWeight: 600 }}>{o.order_no}</span>
-                  <span className="ui-muted ui-num" style={{ display: 'block', fontSize: 12, marginTop: 2 }}>{fmtDate(o.created_at)}</span>
+                  <span className="ui-num" style={{ display: 'block', fontSize: '.875rem', fontWeight: 600 }}>{o.order_no}</span>
+                  <span className="ui-muted ui-num" style={{ display: 'block', fontSize: '.75rem', marginTop: 2 }}>{fmtDate(o.created_at)}</span>
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                   <Badge>{statusOf(o)}</Badge>
-                  <span className="ui-num" style={{ fontSize: 14, fontWeight: 600 }}>NT$ {orderPayable(o).toLocaleString('en-US')}</span>
+                  <span className="ui-num" style={{ fontSize: '.875rem', fontWeight: 600 }}>NT$ {orderPayable(o).toLocaleString('en-US')}</span>
                 </span>
               </a>
             </li>

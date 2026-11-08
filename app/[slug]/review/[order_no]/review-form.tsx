@@ -39,7 +39,7 @@ function StarPicker({ value, onChange, name }: { value: number; onChange: (v: nu
           </button>
         ))}
       </div>
-      <span style={{ fontSize: 13, color: shown ? 'var(--ui-ink)' : 'var(--ui-muted)', minWidth: 56 }}>{LABELS[shown] || '點星星'}</span>
+      <span style={{ fontSize: '.8125rem', color: shown ? 'var(--ui-ink)' : 'var(--ui-muted)', minWidth: 56 }}>{LABELS[shown] || '點星星'}</span>
     </div>
   );
 }
@@ -91,8 +91,8 @@ export function ReviewForm({
         <span style={{ width: 48, height: 48, borderRadius: '50%', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
         </span>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>謝謝您的評價</h2>
-        <p className="ui-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>已收到{what}的評價,會顯示在商店裡讓其他客人參考。</p>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>謝謝您的評價</h2>
+        <p className="ui-muted" style={{ margin: 0, fontSize: '.875rem', lineHeight: 1.6 }}>已收到{what}的評價,會顯示在商店裡讓其他客人參考。</p>
         <a href={`/${slug}`} className="ui-btn ui-btn-outline ui-btn-md" style={{ marginTop: 8 }}>回商店逛逛</a>
       </div>
     );
@@ -105,7 +105,7 @@ export function ReviewForm({
       <input type="hidden" name="k" value={accessKey} />
 
       {alreadyReviewed && (
-        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--ui-wash)', border: '1px solid var(--ui-wash-line)', fontSize: 13, color: 'var(--ui-accent-ink)' }}>
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--ui-wash)', border: '1px solid var(--ui-wash-line)', fontSize: '.8125rem', color: 'var(--ui-accent-ink)' }}>
           這筆訂單您已經評價過了,可以修改後再送出一次。
         </div>
       )}
@@ -114,7 +114,7 @@ export function ReviewForm({
       <div className="ui-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, borderColor: 'var(--ui-accent)' }}>
         <div>
           <span className="ui-label" style={{ marginBottom: 2 }}>這家店整體</span>
-          <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>給 <b style={{ color: 'var(--ui-ink)', fontWeight: 500 }}>{tenantName}</b> 打個分數:出貨速度、包裝、服務的整體感覺。</p>
+          <p className="ui-muted" style={{ margin: 0, fontSize: '.8125rem', lineHeight: 1.6 }}>給 <b style={{ color: 'var(--ui-ink)', fontWeight: 500 }}>{tenantName}</b> 打個分數:出貨速度、包裝、服務的整體感覺。</p>
         </div>
         <StarPicker name="rating_store" value={storeRating} onChange={setStoreRating} />
         <Textarea name="comment_store" defaultValue={store.comment ?? ''} rows={2} maxLength={300} placeholder="對這家店想說的話(選填)" style={{ minHeight: 64 }} />
@@ -126,7 +126,7 @@ export function ReviewForm({
             <span style={{ width: 56, height: 70, borderRadius: 6, border: '1px solid var(--ui-line)', background: 'var(--ui-line-soft)', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
               {it.image && <img src={it.image} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
             </span>
-            <span style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.4 }}>{it.name}</span>
+            <span style={{ fontSize: '.9375rem', fontWeight: 500, lineHeight: 1.4 }}>{it.name}</span>
           </div>
           <StarPicker name={`rating_${it.productId}`} value={ratings[it.productId] ?? 0} onChange={(v) => setRatings((r) => ({ ...r, [it.productId]: v }))} />
           <Textarea name={`comment_${it.productId}`} defaultValue={it.comment ?? ''} rows={2} maxLength={300} placeholder="想多說一點嗎?(選填)例如:味道、質感、使用上的感想" style={{ minHeight: 64 }} />
@@ -137,37 +137,37 @@ export function ReviewForm({
         <span className="ui-label" style={{ marginBottom: 0 }}>評價用什麼名字顯示</span>
         {defaultName ? (
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '.875rem', cursor: 'pointer' }}>
               <input type="radio" className="ui-radio" name="name_mode" checked={useDefault} onChange={() => setUseDefault(true)} />
               用 <b>{defaultName}</b>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '.875rem', cursor: 'pointer' }}>
               <input type="radio" className="ui-radio" name="name_mode" checked={!useDefault} onChange={() => setUseDefault(false)} />
               另外打一個暱稱
             </label>
           </>
         ) : (
-          <span className="ui-muted" style={{ fontSize: 13 }}>打一個暱稱,會跟評價一起顯示在商品頁。</span>
+          <span className="ui-muted" style={{ fontSize: '.8125rem' }}>打一個暱稱,會跟評價一起顯示在商品頁。</span>
         )}
         {useDefault ? (
           <input type="hidden" name="display_name" value={defaultName} />
         ) : (
           <Input name="display_name" required maxLength={30} placeholder="例:小美" autoFocus={!!defaultName} style={defaultName ? { marginLeft: 26, width: 'calc(100% - 26px)' } : undefined} />
         )}
-        <p className="ui-muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
+        <p className="ui-muted" style={{ margin: 0, fontSize: '.75rem', lineHeight: 1.6 }}>
           想換預設的名字,到<a href={`/${slug}/account`} style={{ color: 'var(--ui-accent-ink)', fontWeight: 500 }}>我的訂單</a>改暱稱。
         </p>
       </div>
 
       {error && (
-        <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 14 }}>{error}</div>
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '.875rem' }}>{error}</div>
       )}
 
       <Button type="submit" variant="primary" size="lg" disabled={pending} style={{ width: '100%' }}>
         {pending ? <span className="ui-spin" style={{ borderTopColor: '#fff' }} /> : null}
         {pending ? '送出中…' : alreadyReviewed ? '更新評價' : '送出評價'}
       </Button>
-      <p className="ui-muted" style={{ margin: 0, fontSize: 12, textAlign: 'center', lineHeight: 1.6 }}>沒打星的不會送出。評價內容由您提供,店家不會修改分數。</p>
+      <p className="ui-muted" style={{ margin: 0, fontSize: '.75rem', textAlign: 'center', lineHeight: 1.6 }}>沒打星的不會送出。評價內容由您提供,店家不會修改分數。</p>
     </form>
   );
 }

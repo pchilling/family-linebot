@@ -39,18 +39,18 @@ const CSS = `
 .ls{max-width:520px;margin:0 auto;padding:12px 16px 40px;min-height:100vh;color:var(--ui-ink);font-family:Inter,"Noto Sans TC",ui-sans-serif,system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;-webkit-font-smoothing:antialiased;box-sizing:border-box}
 .ls *{box-sizing:border-box}
 .ls-brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.ls-logo{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--ui-line);flex-shrink:0;background:var(--ui-accent);color:var(--ui-on-accent);display:grid;place-items:center;font-size:16px;font-weight:600}
-.ls-brand h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ls-brand p{margin:2px 0 0;font-size:12px;color:var(--ui-muted);display:flex;align-items:center;gap:6px}
+.ls-logo{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--ui-line);flex-shrink:0;background:var(--ui-accent);color:var(--ui-on-accent);display:grid;place-items:center;font-size:1rem;font-weight:600}
+.ls-brand h1{margin:0;font-size:1.0625rem;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ls-brand p{margin:2px 0 0;font-size:.75rem;color:var(--ui-muted);display:flex;align-items:center;gap:6px}
 .ls-brand p img{width:16px;height:16px;border-radius:50%;border:1px solid var(--ui-line)}
-.ls-note{margin:0 0 12px;padding:10px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:12.5px;line-height:1.7;color:#52525b;display:flex;gap:8px;align-items:flex-start}
+.ls-note{margin:0 0 12px;padding:10px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:.7813rem;line-height:1.7;color:#52525b;display:flex;gap:8px;align-items:flex-start}
 .ls-note svg{flex-shrink:0;margin-top:3px;color:var(--ui-muted)}
 .ls-pills{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .ls-pills::-webkit-scrollbar{display:none}
-.ls-pill{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:13px;font-weight:500;color:var(--ui-ink);cursor:pointer;white-space:nowrap}
+.ls-pill{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:.8125rem;font-weight:500;color:var(--ui-ink);cursor:pointer;white-space:nowrap}
 .ls-pill[data-on="true"]{background:var(--ui-accent);color:var(--ui-on-accent);border-color:var(--ui-accent)}
-.ls-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:2px 0 12px;font-size:14px;font-weight:500}
-.ls-sec span{font-size:12px;color:var(--ui-muted);font-weight:400}
+.ls-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:2px 0 12px;font-size:.875rem;font-weight:500}
+.ls-sec span{font-size:.75rem;color:var(--ui-muted);font-weight:400}
 .ls-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px}
 .ls-card{display:flex;flex-direction:column;gap:8px;text-align:left;background:none;border:0;padding:0;font:inherit;color:var(--ui-ink);cursor:pointer;animation:ui-swap .3s ease backwards;-webkit-tap-highlight-color:transparent}
 .ls-card:active .ls-ph{transform:scale(.98)}
@@ -59,83 +59,83 @@ const CSS = `
 .ls-ph img[data-dim="true"]{opacity:.6}
 .ls-on{position:absolute;top:8px;left:8px;z-index:2;display:flex;flex-direction:column;gap:4px;align-items:flex-start}
 .ls-out{position:absolute;left:8px;bottom:8px;z-index:2;background:rgba(255,255,255,.88)}
-.ls-name{font-size:13px;font-weight:500;line-height:1.4;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ls-price{font-size:14px;font-weight:600;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
-.ls-old{font-size:12px;color:var(--ui-muted);text-decoration:line-through;font-weight:400}
-.ls-hint{font-size:11.5px;color:var(--ui-muted)}
+.ls-name{font-size:.8125rem;font-weight:500;line-height:1.4;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ls-price{font-size:.875rem;font-weight:600;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.ls-old{font-size:.75rem;color:var(--ui-muted);text-decoration:line-through;font-weight:400}
+.ls-hint{font-size:.7188rem;color:var(--ui-muted)}
 .ls-cartbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));width:calc(100% - 32px);max-width:488px;z-index:50}
 .ls-cartbar .ui-btn{width:100%;justify-content:space-between;box-shadow:0 8px 24px rgba(0,0,0,.18)}
-.ls-foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--ui-line);font-size:12.5px;color:var(--ui-muted);white-space:pre-wrap;line-height:1.7}
-.ls-foot b{display:block;font-size:12px;color:var(--ui-ink);margin-bottom:4px;font-weight:500}
+.ls-foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--ui-line);font-size:.7813rem;color:var(--ui-muted);white-space:pre-wrap;line-height:1.7}
+.ls-foot b{display:block;font-size:.75rem;color:var(--ui-ink);margin-bottom:4px;font-weight:500}
 .ls-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.ls-head h2{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.ls-head h2{margin:0;font-size:1.25rem;font-weight:600;letter-spacing:-.02em}
 .ls-cardb{padding:16px;margin-bottom:12px}
-.ls-cardb h3{margin:0 0 12px;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.ls-cardb h3 span{font-size:12px;color:var(--ui-muted);font-weight:400}
+.ls-cardb h3{margin:0 0 12px;font-size:.875rem;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ls-cardb h3 span{font-size:.75rem;color:var(--ui-muted);font-weight:400}
 .ls-item{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--ui-line-soft)}
 .ls-item:first-of-type{border-top:0;padding-top:0}
 .ls-th{width:56px;height:70px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-line-soft);overflow:hidden;position:relative;flex-shrink:0;display:grid;place-items:center;color:#d4d4d8}
 .ls-th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ls-it{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.ls-it-n{font-size:14px;font-weight:500;line-height:1.4}
-.ls-it-v{font-size:12px;color:var(--ui-muted)}
+.ls-it-n{font-size:.875rem;font-weight:500;line-height:1.4}
+.ls-it-v{font-size:.75rem;color:var(--ui-muted)}
 .ls-it-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
 .ls-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:32px;overflow:hidden;background:var(--ui-surface)}
-.ls-qty button{width:32px;height:32px;border:0;background:transparent;font:inherit;font-size:16px;cursor:pointer;color:var(--ui-ink);padding:0}
-.ls-qty input{width:40px;height:32px;text-align:center;font:inherit;font-size:13px;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;outline:none}
+.ls-qty button{width:32px;height:32px;border:0;background:transparent;font:inherit;font-size:1rem;cursor:pointer;color:var(--ui-ink);padding:0}
+.ls-qty input{width:40px;height:32px;text-align:center;font:inherit;font-size:.8125rem;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;outline:none}
 .ls-dc{margin-top:14px;padding-top:14px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px}
 .ls-dc-row{display:flex;gap:8px}
-.ls-dc-row .ui-input{flex:1;min-width:0;height:44px;font-size:16px;text-transform:uppercase}
-.ls-dc-err{font-size:12.5px;color:#b91c1c;margin:0;line-height:1.5}
-.ls-dc-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;font-size:13px;font-weight:500}
+.ls-dc-row .ui-input{flex:1;min-width:0;height:44px;font-size:1rem;text-transform:uppercase}
+.ls-dc-err{font-size:.7813rem;color:#b91c1c;margin:0;line-height:1.5}
+.ls-dc-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;font-size:.8125rem;font-weight:500}
 .ls-dc-chip .t{flex:1;min-width:0}
-.ls-dc-chip .s{display:block;font-size:12px;font-weight:400;margin-top:2px}
+.ls-dc-chip .s{display:block;font-size:.75rem;font-weight:400;margin-top:2px}
 .ls-dc-chip .x{margin-left:auto;width:28px;height:28px;border:0;background:none;color:#15803d;cursor:pointer;display:grid;place-items:center;border-radius:6px;padding:0;flex-shrink:0}
-.ls-tot{margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px;font-size:14px}
+.ls-tot{margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px;font-size:.875rem}
 .ls-tot .r{display:flex;justify-content:space-between;gap:12px;color:#52525b}
 .ls-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;margin-top:2px;border-top:1px solid var(--ui-line);font-weight:600}
-.ls-tot .g span:last-child{font-size:22px}
-.ls-gift{padding:12px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:13px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.ls-tot .g span:last-child{font-size:1.375rem}
+.ls-gift{padding:12px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:.8125rem;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
 .ls-gift-t{display:flex;justify-content:space-between;gap:12px;font-weight:500;align-items:center}
 .ls-bar{height:6px;border-radius:999px;background:var(--ui-line);overflow:hidden}
 .ls-bar div{height:100%;border-radius:999px;background:var(--ui-accent);transition:width .45s cubic-bezier(.3,.8,.4,1)}
 .ls-opts{display:flex;flex-direction:column;gap:10px}
 .ls-field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .ls-field:last-child{margin-bottom:0}
-.ls-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.6;font-weight:500;margin-bottom:12px}
-.ls-fine{font-size:12px;color:var(--ui-muted);text-align:center;margin:12px 0 0;line-height:1.6}
+.ls-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:.8125rem;line-height:1.6;font-weight:500;margin-bottom:12px}
+.ls-fine{font-size:.75rem;color:var(--ui-muted);text-align:center;margin:12px 0 0;line-height:1.6}
 .ls-overlay{position:fixed;inset:0;z-index:1000;background:rgba(255,255,255,.85);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
 .ls-status{padding:18px 20px;border-radius:10px;border:1px solid;display:flex;align-items:center;gap:14px;margin-bottom:14px}
 .ls-status .ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
-.ls-status h1{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em}
-.ls-status p{margin:4px 0 0;font-size:13px;line-height:1.5}
-.ls-status .no{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:13px;flex-wrap:wrap}
+.ls-status h1{margin:0;font-size:1.125rem;font-weight:600;letter-spacing:-.01em}
+.ls-status p{margin:4px 0 0;font-size:.8125rem;line-height:1.5}
+.ls-status .no{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:.8125rem;flex-wrap:wrap}
 .ls-next{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .ls-next .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;flex-shrink:0}
-.ls-next b{display:block;font-size:15px;font-weight:600}
-.ls-next small{display:block;font-size:12px;color:var(--ui-muted);margin-top:1px}
-.ls-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.9;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);white-space:pre-wrap;overflow-wrap:anywhere}
+.ls-next b{display:block;font-size:.9375rem;font-weight:600}
+.ls-next small{display:block;font-size:.75rem;color:var(--ui-muted);margin-top:1px}
+.ls-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.875rem;line-height:1.9;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);white-space:pre-wrap;overflow-wrap:anywhere}
 .ls-report{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .ls-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:70vh;text-align:center}
 /* Phase 35(2026-11-07):攤位 / 團購分頁(等寬兩格底線 tab)與團購狀態卡 */
 .ls-tabs{display:flex;border-bottom:1px solid var(--ui-line);margin:14px 0 14px}
-.ls-tab{flex:1;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;background:none;font:inherit;font-size:14px;font-weight:500;color:var(--ui-muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ls-tab{flex:1;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;background:none;font:inherit;font-size:.875rem;font-weight:500;color:var(--ui-muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .ls-tab[data-on="true"]{color:var(--ui-ink);font-weight:600;border-bottom-color:var(--ui-accent)}
 .ls-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;flex-shrink:0}
 .ls-gb{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border-radius:10px;border:1px solid;margin-bottom:14px}
-.ls-gb h2{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ls-gb h2 .st{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px}
-.ls-gb p{margin:0;font-size:13px;line-height:1.65;white-space:pre-wrap}
-.ls-gb-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px}
+.ls-gb h2{margin:0;font-size:.9375rem;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ls-gb h2 .st{font-size:.7188rem;font-weight:600;padding:2px 8px;border-radius:999px}
+.ls-gb p{margin:0;font-size:.8125rem;line-height:1.65;white-space:pre-wrap}
+.ls-gb-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:.7813rem}
 .ls-gb-open{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
 .ls-gb-open .st{background:#dcfce7;color:#15803d}
 .ls-gb-idle{background:#fafafa;border-color:var(--ui-line);color:#52525b}
 .ls-gb-idle h2{color:var(--ui-ink)}
-.ls-grp{display:flex;align-items:center;gap:6px;margin:12px 0 2px;padding-top:12px;border-top:1px solid var(--ui-line);font-size:12.5px;font-weight:600}
+.ls-grp{display:flex;align-items:center;gap:6px;margin:12px 0 2px;padding-top:12px;border-top:1px solid var(--ui-line);font-size:.7813rem;font-weight:600}
 .ls-grp:first-of-type{margin-top:0;padding-top:0;border-top:0}
 .ls-grp span{font-weight:400;color:var(--ui-muted)}
 .ls-grp + .ls-item{border-top:0;padding-top:8px}
-.ls-grp-hint{margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.6}
+.ls-grp-hint{margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.75rem;line-height:1.6}
 `;
 
 /**
@@ -533,7 +533,7 @@ export default function ShopPage() {
               <CartQtyInput qty={c.qty} max={max} onCommit={(n) => setQtyExact(c.variant_id, n)} />
               <button type="button" onClick={() => changeQty(c.variant_id, 1)} aria-label="增加">+</button>
             </div>
-            <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unit * c.qty)}</span>
+            <span className="ui-num" style={{ fontSize: '.875rem', fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unit * c.qty)}</span>
           </div>
         </div>
       </div>
@@ -603,7 +603,7 @@ export default function ShopPage() {
 
   // 地址元件吃 inline style,給它一組跟 .ui-input 一樣的樣式
   const inputStyle: React.CSSProperties = {
-    height: 44, padding: '0 12px', border: '1px solid var(--ui-line)', borderRadius: 6, fontSize: 16, fontFamily: 'inherit',
+    height: 44, padding: '0 12px', border: '1px solid var(--ui-line)', borderRadius: 6, fontSize: '1rem', fontFamily: 'inherit',
     background: 'var(--ui-surface)', color: 'var(--ui-ink)', width: '100%', boxSizing: 'border-box',
   };
 
@@ -611,8 +611,8 @@ export default function ShopPage() {
     return shell(
       <div className="ls-center">
         <span className="ui-spin" style={{ width: 38, height: 38, borderWidth: 3 }} />
-        <div style={{ fontSize: 15, fontWeight: 600 }}>商品專區載入中</div>
-        <div className="ui-muted" style={{ fontSize: 12 }}>正在準備商品與圖片…</div>
+        <div style={{ fontSize: '.9375rem', fontWeight: 600 }}>商品專區載入中</div>
+        <div className="ui-muted" style={{ fontSize: '.75rem' }}>正在準備商品與圖片…</div>
       </div>,
     );
   }
@@ -627,30 +627,30 @@ export default function ShopPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={linePic} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--ui-line)', margin: '0 auto 10px', display: 'block' }} />
           )}
-          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 600, letterSpacing: '-.02em' }}>歡迎,{lineName}</h1>
-          <p className="ui-muted" style={{ fontSize: 14, margin: '8px 0 0' }}>第一次來?先填一下基本資料就能開始逛。</p>
+          <h1 style={{ fontSize: '1.375rem', margin: 0, fontWeight: 600, letterSpacing: '-.02em' }}>歡迎,{lineName}</h1>
+          <p className="ui-muted" style={{ fontSize: '.875rem', margin: '8px 0 0' }}>第一次來?先填一下基本資料就能開始逛。</p>
         </header>
         <Card style={{ padding: 20 }}>
           <form action={onSubmitProfile}>
             <div className="ls-field">
               <label className="ui-label" htmlFor="pf-name" style={{ marginBottom: 0 }}>真實姓名 <i>*</i></label>
-              <input id="pf-name" name="full_name" required autoFocus defaultValue={member?.full_name ?? ''} placeholder="您的真實姓名" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+              <input id="pf-name" name="full_name" required autoFocus defaultValue={member?.full_name ?? ''} placeholder="您的真實姓名" className="ui-input" style={{ height: 44, fontSize: '1rem' }} />
             </div>
             <div className="ls-field">
               <label className="ui-label" htmlFor="pf-phone" style={{ marginBottom: 0 }}>電話 <i>*</i></label>
-              <input id="pf-phone" name="phone" type="tel" required defaultValue={member?.phone ?? ''} placeholder="0900-000-000" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+              <input id="pf-phone" name="phone" type="tel" required defaultValue={member?.phone ?? ''} placeholder="0900-000-000" className="ui-input" style={{ height: 44, fontSize: '1rem' }} />
             </div>
             <div className="ls-field">
               <label className="ui-label" htmlFor="pf-addr" style={{ marginBottom: 0 }}>地址(出貨用,選填)</label>
-              <input id="pf-addr" name="address" defaultValue={member?.address ?? ''} placeholder="出貨 / 通訊地址" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+              <input id="pf-addr" name="address" defaultValue={member?.address ?? ''} placeholder="出貨 / 通訊地址" className="ui-input" style={{ height: 44, fontSize: '1rem' }} />
             </div>
             <div className="ls-field">
               <label className="ui-label" htmlFor="pf-mid" style={{ marginBottom: 0 }}>ID(會員編號,選填)</label>
-              <input id="pf-mid" name="member_id" placeholder="例:1234567" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+              <input id="pf-mid" name="member_id" placeholder="例:1234567" className="ui-input" style={{ height: 44, fontSize: '1rem' }} />
             </div>
             <div className="ls-field">
               <label className="ui-label" htmlFor="pf-ref" style={{ marginBottom: 0 }}>介紹人 ID(選填)</label>
-              <input id="pf-ref" name="referrer_member_id" placeholder="介紹你來的人的 ID" className="ui-input" style={{ height: 44, fontSize: 16 }} />
+              <input id="pf-ref" name="referrer_member_id" placeholder="介紹你來的人的 ID" className="ui-input" style={{ height: 44, fontSize: '1rem' }} />
             </div>
             <Button type="submit" variant="primary" size="lg" disabled={savingProfile} style={{ width: '100%', marginTop: 16 }}>
               {savingProfile ? '儲存中…' : '建立會員資料,開始逛'}
@@ -685,17 +685,17 @@ export default function ShopPage() {
             <span className="ic" style={{ background: '#fef3c7', color: '#b45309' }}><IconStore size={17} /></span>
             <div><b>下一步:等賣家寄出</b><small>寄出後 LINE 會通知您;包裹到店時付款給店員,不用先匯款</small></div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: '8px 12px', fontSize: 14, alignItems: 'center' }}>
-            <span className="ui-muted" style={{ fontSize: 13 }}>到店付款</span>
-            <span className="ui-num" style={{ fontSize: 19, fontWeight: 600 }}>NT$ {money(grandTotal)}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: '8px 12px', fontSize: '.875rem', alignItems: 'center' }}>
+            <span className="ui-muted" style={{ fontSize: '.8125rem' }}>到店付款</span>
+            <span className="ui-num" style={{ fontSize: '1.1875rem', fontWeight: 600 }}>NT$ {money(grandTotal)}</span>
             {cvs && (
               <>
-                <span className="ui-muted" style={{ fontSize: 13 }}>取貨超商</span>
+                <span className="ui-muted" style={{ fontSize: '.8125rem' }}>取貨超商</span>
                 <span style={{ fontWeight: 500 }}>{CVS_CHAINS[cvs].short}</span>
               </>
             )}
           </div>
-          <p className="ui-muted" style={{ margin: '10px 0 0', fontSize: 12.5, lineHeight: 1.6 }}>
+          <p className="ui-muted" style={{ margin: '10px 0 0', fontSize: '.7813rem', lineHeight: 1.6 }}>
             {tenant.cod_payment?.note ?? '包裹到店後請在 7 天內領取,逾期會被退回。'}門市與進度都在 LINE 通知的「查看訂單」裡。
           </p>
         </Card>
@@ -710,40 +710,40 @@ export default function ShopPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {bank ? (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: '8px 12px', fontSize: 14, alignItems: 'center' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: '8px 12px', fontSize: '.875rem', alignItems: 'center' }}>
                     {bankDisplayName(bank) && (
                       <>
-                        <span className="ui-muted" style={{ fontSize: 13 }}>銀行</span>
+                        <span className="ui-muted" style={{ fontSize: '.8125rem' }}>銀行</span>
                         <span style={{ fontWeight: 500 }}>{bankDisplayName(bank)}</span>
                       </>
                     )}
-                    <span className="ui-muted" style={{ fontSize: 13 }}>帳號</span>
-                    <span className="ui-num" style={{ fontSize: 19, fontWeight: 600, letterSpacing: '.04em' }}>{bank.account}</span>
+                    <span className="ui-muted" style={{ fontSize: '.8125rem' }}>帳號</span>
+                    <span className="ui-num" style={{ fontSize: '1.1875rem', fontWeight: 600, letterSpacing: '.04em' }}>{bank.account}</span>
                     {bank.holder && (
                       <>
-                        <span className="ui-muted" style={{ fontSize: 13 }}>戶名</span>
+                        <span className="ui-muted" style={{ fontSize: '.8125rem' }}>戶名</span>
                         <span style={{ fontWeight: 500 }}>{bank.holder}</span>
                       </>
                     )}
                   </div>
-                  {bank.note && <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>{bank.note}</p>}
+                  {bank.note && <p className="ui-muted" style={{ margin: 0, fontSize: '.8125rem', lineHeight: 1.6 }}>{bank.note}</p>}
                 </>
               ) : (
                 <div className="ls-mono">{tenant.payment_info}</div>
               )}
               {acct && <CopyButton big text={acct} label={`複製帳號 ${acct}`} />}
-              <p className="ui-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>晚點匯也沒關係,LINE 通知裡的按鈕隨時可以回報。</p>
+              <p className="ui-muted" style={{ margin: 0, fontSize: '.7813rem', lineHeight: 1.6 }}>晚點匯也沒關係,LINE 通知裡的按鈕隨時可以回報。</p>
             </div>
           )}
         </Card>
 
         <Card className="ls-cardb">
           {reportState === 'done' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '.875rem' }}>
               <span style={{ color: '#16a34a', display: 'inline-flex' }}><IconCheck size={16} /></span>
               <span style={{ fontWeight: 500 }}>已回報後 5 碼</span>
-              <span className="ui-muted" style={{ fontSize: 12 }}>等待賣家核帳</span>
-              <span className="ui-num" style={{ marginLeft: 'auto', fontSize: 20, fontWeight: 600, letterSpacing: '.2em', color: '#15803d' }}>{last5}</span>
+              <span className="ui-muted" style={{ fontSize: '.75rem' }}>等待賣家核帳</span>
+              <span className="ui-num" style={{ marginLeft: 'auto', fontSize: '1.25rem', fontWeight: 600, letterSpacing: '.2em', color: '#15803d' }}>{last5}</span>
             </div>
           ) : (
             <>
@@ -773,8 +773,8 @@ export default function ShopPage() {
       {(status === 'submitting' || leaving) && (
         <div className="ls-overlay" aria-busy="true" aria-live="polite">
           <span className="ui-spin" style={{ width: 38, height: 38, borderWidth: 3 }} />
-          <div style={{ fontSize: 15, fontWeight: 600 }}>{leaving ? '訂單已成立,正在前往付款…' : '訂單建立中,請稍候…'}</div>
-          <div className="ui-muted" style={{ fontSize: 12 }}>請不要重複按送出或關閉畫面</div>
+          <div style={{ fontSize: '.9375rem', fontWeight: 600 }}>{leaving ? '訂單已成立,正在前往付款…' : '訂單建立中,請稍候…'}</div>
+          <div className="ui-muted" style={{ fontSize: '.75rem' }}>請不要重複按送出或關閉畫面</div>
         </div>
       )}
 
@@ -867,15 +867,15 @@ export default function ShopPage() {
           )}
 
           <div className="ls-sec">
-            <span style={{ fontSize: 14, color: 'var(--ui-ink)', fontWeight: 500 }}>{filter === 'latest' ? '最新商品' : filter === 'sale' ? '特價中' : filter || (tab === 'groupbuy' ? '團購商品' : '所有商品')}</span>
+            <span style={{ fontSize: '.875rem', color: 'var(--ui-ink)', fontWeight: 500 }}>{filter === 'latest' ? '最新商品' : filter === 'sale' ? '特價中' : filter || (tab === 'groupbuy' ? '團購商品' : '所有商品')}</span>
             <span className="ui-num">{visibleProducts.length} 件</span>
           </div>
 
           {tabProducts.length === 0 ? (
             <Card style={{ padding: '48px 24px', textAlign: 'center' }}>
               <div style={{ marginBottom: 10, color: '#d4d4d8' }}><IconPackage size={40} /></div>
-              <p style={{ fontSize: 15, margin: 0, fontWeight: 500 }}>{tab === 'groupbuy' ? '還沒有團購商品' : '商品建置中'}</p>
-              {tab === 'groupbuy' && <p className="ui-muted" style={{ fontSize: 13, margin: '6px 0 0' }}>攤主把商品設成團購後就會出現在這裡。</p>}
+              <p style={{ fontSize: '.9375rem', margin: 0, fontWeight: 500 }}>{tab === 'groupbuy' ? '還沒有團購商品' : '商品建置中'}</p>
+              {tab === 'groupbuy' && <p className="ui-muted" style={{ fontSize: '.8125rem', margin: '6px 0 0' }}>攤主把商品設成團購後就會出現在這裡。</p>}
             </Card>
           ) : (
             <section key={`${tab}-${filter || 'all'}`} className="ls-grid" style={{ paddingBottom: cart.length > 0 ? 80 : 0 }}>
@@ -1084,7 +1084,7 @@ export default function ShopPage() {
                         icon={opt.cvs ? <IconStore size={16} /> : isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
                         title={opt.label}
                         trailing={
-                          <span className="ui-num" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
+                          <span className="ui-num" style={{ fontSize: '.875rem', fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
                             {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${money(opt.fee)}`}
                           </span>
                         }
@@ -1127,24 +1127,24 @@ export default function ShopPage() {
               {/* 預填上一筆訂單的收件資訊(沒有才 fallback 會員資料),可自由改掉 */}
               <div className="ls-field">
                 <label className="ui-label" htmlFor="ck-recipient" style={{ marginBottom: 0 }}>{cvs ? '取件人姓名(本名)' : '收件人姓名'} <i>*</i></label>
-                <input id="ck-recipient" name="recipient" defaultValue={lastShip?.recipient ?? member?.full_name ?? ''} required className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder={cvs ? '取件時超商會核對' : '收件人姓名'} autoComplete="name" />
+                <input id="ck-recipient" name="recipient" defaultValue={lastShip?.recipient ?? member?.full_name ?? ''} required className="ui-input" style={{ height: 44, fontSize: '1rem' }} placeholder={cvs ? '取件時超商會核對' : '收件人姓名'} autoComplete="name" />
               </div>
               <div className="ls-field">
                 <label className="ui-label" htmlFor="ck-phone" style={{ marginBottom: 0 }}>{cvs ? '手機' : '電話'} <i>*</i></label>
-                <input id="ck-phone" name="phone" type="tel" defaultValue={lastShip?.phone ?? member?.phone ?? ''} required className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="0900-000-000" autoComplete="tel" />
+                <input id="ck-phone" name="phone" type="tel" defaultValue={lastShip?.phone ?? member?.phone ?? ''} required className="ui-input" style={{ height: 44, fontSize: '1rem' }} placeholder="0900-000-000" autoComplete="tel" />
               </div>
               {cvs ? (
                 /* Phase 36:超商店到店 — 填取貨門市,不填地址(跟網站結帳同一套欄位) */
                 <>
                   <div className="ls-field">
                     <label className="ui-label" htmlFor="ck-cvs-name" style={{ marginBottom: 0 }}>{CVS_CHAINS[cvs].short} 取貨門市 <i>*</i></label>
-                    <input id="ck-cvs-name" name="cvs_store_name" required maxLength={40} className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="例:大安門市" autoComplete="off" />
+                    <input id="ck-cvs-name" name="cvs_store_name" required maxLength={40} className="ui-input" style={{ height: 44, fontSize: '1rem' }} placeholder="例:大安門市" autoComplete="off" />
                   </div>
                   <div className="ls-field">
                     <label className="ui-label" htmlFor="ck-cvs-id" style={{ marginBottom: 0 }}>店號 <i>*</i></label>
-                    <input id="ck-cvs-id" name="cvs_store_id" required inputMode="numeric" pattern="[0-9]{3,10}" className="ui-input" style={{ height: 44, fontSize: 16 }} placeholder="例:123456" autoComplete="off" />
+                    <input id="ck-cvs-id" name="cvs_store_id" required inputMode="numeric" pattern="[0-9]{3,10}" className="ui-input" style={{ height: 44, fontSize: '1rem' }} placeholder="例:123456" autoComplete="off" />
                   </div>
-                  <p className="ui-muted" style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6 }}>
+                  <p className="ui-muted" style={{ margin: '0 0 12px', fontSize: '.8125rem', lineHeight: 1.6 }}>
                     店號可以到{' '}
                     <a href={CVS_CHAINS[cvs].mapUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--ui-accent-ink)', fontWeight: 500 }}>{CVS_CHAINS[cvs].short} 官方門市查詢</a>
                     {' '}找。取貨時超商會核對姓名和手機,請填本名。
@@ -1159,7 +1159,7 @@ export default function ShopPage() {
               <div className="ls-field">
                 <label className="ui-label" htmlFor="ck-note" style={{ marginBottom: 0 }}>備註(選填)</label>
                 {/* 2026-11-07 Peter:結帳不提統編,連 placeholder 都不寫 */}
-                <Textarea id="ck-note" name="note" rows={2} style={{ fontSize: 16 }} placeholder="有其他需求請寫在這裡,例如指定到貨時段、包裝需求" />
+                <Textarea id="ck-note" name="note" rows={2} style={{ fontSize: '1rem' }} placeholder="有其他需求請寫在這裡,例如指定到貨時段、包裝需求" />
               </div>
             </Card>
 

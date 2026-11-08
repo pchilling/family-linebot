@@ -11,13 +11,13 @@ const CSS = `
 .am{position:relative;display:inline-flex}
 .am-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--ui-line);background:var(--ui-surface);padding:0;cursor:pointer;display:grid;place-items:center;overflow:hidden}
 .am-btn img{width:100%;height:100%;object-fit:cover;display:block}
-.am-ini{width:100%;height:100%;display:grid;place-items:center;background:var(--ui-accent);color:var(--ui-on-accent);font-size:13px;font-weight:600}
+.am-ini{width:100%;height:100%;display:grid;place-items:center;background:var(--ui-accent);color:var(--ui-on-accent);font-size:.8125rem;font-weight:600}
 .am-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:60;width:min(260px,calc(100vw - 32px));background:#fff;border:1px solid var(--ui-line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.14);padding:8px;text-align:left;animation:ui-swap .18s ease backwards}
 .am-head{display:flex;align-items:center;gap:10px;padding:8px 10px 12px;border-bottom:1px solid var(--ui-line);margin-bottom:6px}
 .am-head .am-btn{width:40px;height:40px;cursor:default}
-.am-head b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.am-head small{display:block;font-size:12px;color:var(--ui-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.am-item{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:8px 10px;border:0;border-radius:8px;background:none;font:inherit;font-size:14px;color:var(--ui-ink);text-decoration:none;cursor:pointer;text-align:left;box-sizing:border-box}
+.am-head b{display:block;font-size:.875rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.am-head small{display:block;font-size:.75rem;color:var(--ui-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.am-item{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:8px 10px;border:0;border-radius:8px;background:none;font:inherit;font-size:.875rem;color:var(--ui-ink);text-decoration:none;cursor:pointer;text-align:left;box-sizing:border-box}
 .am-item:hover{background:var(--ui-line-soft)}
 .am-item svg{width:17px;height:17px;flex-shrink:0;color:var(--ui-muted)}
 .am-sep{border-top:1px solid var(--ui-line);margin:6px 0}

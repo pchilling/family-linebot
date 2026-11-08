@@ -140,7 +140,7 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: c.textMuted,
-                fontSize: 22,
+                fontSize: '1.375rem',
                 fontWeight: 600,
               }}
             >
@@ -148,10 +148,10 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: c.textMuted, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '.6875rem', color: c.textMuted, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               三合一愛油哇
             </div>
-            <h1 style={{ margin: '2px 0 0', fontSize: 19, fontWeight: 700, color: c.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <h1 style={{ margin: '2px 0 0', fontSize: '1.1875rem', fontWeight: 700, color: c.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               嗨,{lineName} 👋
             </h1>
           </div>
@@ -162,7 +162,7 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
       {savedAt && (
         <div style={{ ...banner, background: c.successBg, border: `1px solid ${c.successBorder}`, color: c.success, animation: 'fadein 0.25s ease' }}>
           ✓ 已儲存{' '}
-          <span style={{ fontWeight: 400, fontSize: 12, opacity: 0.8 }}>
+          <span style={{ fontWeight: 400, fontSize: '.75rem', opacity: 0.8 }}>
             {savedAt.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
@@ -218,7 +218,7 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
 
         {/* 介紹關係 */}
         <section style={card}>
-          <h2 style={sectionTitle}>介紹關係 <span style={{ color: c.textMuted, fontWeight: 400, fontSize: 13 }}>(選填)</span></h2>
+          <h2 style={sectionTitle}>介紹關係 <span style={{ color: c.textMuted, fontWeight: 400, fontSize: '.8125rem' }}>(選填)</span></h2>
 
           <Field label="ID(會員編號)" hint="如果你有自己的會員編號可以填,方便對帳 / 連結組織關係">
             <input
@@ -273,7 +273,7 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
             borderRadius: 12,
             textDecoration: 'none',
             color: c.text,
-            fontSize: 14,
+            fontSize: '.875rem',
             fontWeight: 500,
             boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
           }}
@@ -287,7 +287,7 @@ input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; ap
             </svg>
             查我的訂單
           </span>
-          <span style={{ color: c.textMuted, fontSize: 16 }}>›</span>
+          <span style={{ color: c.textMuted, fontSize: '1rem' }}>›</span>
         </a>
       )}
     </div>
@@ -307,13 +307,13 @@ function Field({
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>
-      <span style={{ fontSize: 13, fontWeight: 500, color: c.text }}>
+      <span style={{ fontSize: '.8125rem', fontWeight: 500, color: c.text }}>
         {label}
         {required && <span style={{ color: c.danger, marginLeft: 3 }}>*</span>}
       </span>
       {children}
       {hint && (
-        <span style={{ fontSize: 11.5, color: c.textMuted, lineHeight: 1.5, marginTop: 2 }}>
+        <span style={{ fontSize: '.7188rem', color: c.textMuted, lineHeight: 1.5, marginTop: 2 }}>
           {hint}
         </span>
       )}
@@ -363,7 +363,7 @@ const card: React.CSSProperties = {
 
 const sectionTitle: React.CSSProperties = {
   margin: 0,
-  fontSize: 14,
+  fontSize: '.875rem',
   fontWeight: 600,
   color: c.text,
   letterSpacing: '-0.005em',
@@ -371,7 +371,7 @@ const sectionTitle: React.CSSProperties = {
 
 const input: React.CSSProperties = {
   padding: '12px 14px',
-  fontSize: 16,
+  fontSize: '1rem',
   border: `1px solid ${c.border}`,
   borderRadius: 8,
   width: '100%',
@@ -388,7 +388,7 @@ const submitBtn: React.CSSProperties = {
   color: '#fff',
   border: 0,
   borderRadius: 10,
-  fontSize: 16,
+  fontSize: '1rem',
   fontWeight: 600,
   fontFamily: 'inherit',
   transition: 'background 0.15s',
@@ -397,7 +397,7 @@ const submitBtn: React.CSSProperties = {
 const banner: React.CSSProperties = {
   padding: '12px 14px',
   borderRadius: 8,
-  fontSize: 14,
+  fontSize: '.875rem',
   fontWeight: 500,
   marginBottom: 16,
   lineHeight: 1.5,
@@ -405,7 +405,7 @@ const banner: React.CSSProperties = {
 
 const footer: React.CSSProperties = {
   marginTop: 8,
-  fontSize: 12,
+  fontSize: '.75rem',
   color: c.textMuted,
   textAlign: 'center',
   lineHeight: 1.6,

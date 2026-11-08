@@ -44,11 +44,11 @@ const CSS = `
 .mo{max-width:520px;margin:0 auto;padding:16px 16px 40px;min-height:100vh;background:var(--ui-bg);color:var(--ui-ink);font-family:Inter,"Noto Sans TC",ui-sans-serif,system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;-webkit-font-smoothing:antialiased}
 .mo-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
 .mo-head img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid var(--ui-line);flex-shrink:0}
-.mo-head h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em}
-.mo-head p{margin:2px 0 0;font-size:13px;color:var(--ui-muted)}
+.mo-head h1{margin:0;font-size:1.25rem;font-weight:600;letter-spacing:-.02em}
+.mo-head p{margin:2px 0 0;font-size:.8125rem;color:var(--ui-muted)}
 .mo-item{display:block;padding:14px 16px;text-decoration:none;color:inherit}
 .mo-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.mo-sum{font-size:13px;color:#52525b;margin:6px 0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mo-sum{font-size:.8125rem;color:#52525b;margin:6px 0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 `;
 
 /**
@@ -101,14 +101,14 @@ export default function MyOrdersPage() {
     return shell(
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: '70vh' }}>
         <span className="ui-spin" style={{ width: 32, height: 32, borderWidth: 3 }} />
-        <p className="ui-muted" style={{ fontSize: 14, margin: 0 }}>載入訂單中…</p>
+        <p className="ui-muted" style={{ fontSize: '.875rem', margin: 0 }}>載入訂單中…</p>
       </div>,
     );
   }
 
   if (status === 'error') {
     return shell(
-      <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13, lineHeight: 1.6 }}>{error}</div>,
+      <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '.8125rem', lineHeight: 1.6 }}>{error}</div>,
     );
   }
 
@@ -133,8 +133,8 @@ export default function MyOrdersPage() {
               <path d="M8 8h8M8 12h8M8 16h5" />
             </svg>
           </div>
-          <p style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500 }}>還沒有訂單</p>
-          <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>到主選單「商品專區」開始逛</p>
+          <p style={{ margin: '0 0 4px', fontSize: '.9375rem', fontWeight: 500 }}>還沒有訂單</p>
+          <p className="ui-muted" style={{ margin: 0, fontSize: '.8125rem', lineHeight: 1.6 }}>到主選單「商品專區」開始逛</p>
         </div>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -144,13 +144,13 @@ export default function MyOrdersPage() {
               <li key={o.id}>
                 <a href={tenantSlug ? `/${tenantSlug}/order/${o.order_no}${o.access_key ? `?k=${o.access_key}` : ''}` : '#'} className="ui-card mo-item">
                   <div className="mo-row">
-                    <span className="ui-num" style={{ fontSize: 14, fontWeight: 600 }}>{o.order_no}</span>
-                    <span className="ui-muted ui-num" style={{ fontSize: 12 }}>{formatTw(o.created_at)}</span>
+                    <span className="ui-num" style={{ fontSize: '.875rem', fontWeight: 600 }}>{o.order_no}</span>
+                    <span className="ui-muted ui-num" style={{ fontSize: '.75rem' }}>{formatTw(o.created_at)}</span>
                   </div>
                   <div className="mo-sum">{o.items_summary}</div>
                   <div className="mo-row" style={{ alignItems: 'center' }}>
                     <Badge style={{ background: tone.bg, borderColor: tone.bd, color: tone.fg }}>{statusLabel(o.status)}</Badge>
-                    <span className="ui-num" style={{ fontSize: 16, fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString('en-US')}</span>
+                    <span className="ui-num" style={{ fontSize: '1rem', fontWeight: 600 }}>NT$ {o.total_twd.toLocaleString('en-US')}</span>
                   </div>
                 </a>
               </li>
@@ -159,7 +159,7 @@ export default function MyOrdersPage() {
         </ul>
       )}
 
-      <p className="ui-muted" style={{ marginTop: 24, textAlign: 'center', fontSize: 12, lineHeight: 1.6 }}>點訂單可看付款資訊與進度</p>
+      <p className="ui-muted" style={{ marginTop: 24, textAlign: 'center', fontSize: '.75rem', lineHeight: 1.6 }}>點訂單可看付款資訊與進度</p>
     </>,
   );
 }

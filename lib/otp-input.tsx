@@ -68,7 +68,7 @@ export function OtpInput({
           opacity: 0,
           border: 0,
           padding: 0,
-          fontSize: 16,
+          fontSize: '1rem',
           background: 'transparent',
           caretColor: 'transparent',
         }}
@@ -89,7 +89,7 @@ export function OtpInput({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 22,
+              fontSize: '1.375rem',
               fontWeight: 700,
               fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
               color: '#18181b',

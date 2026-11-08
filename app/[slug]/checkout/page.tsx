@@ -26,10 +26,10 @@ const money = (n: number) => n.toLocaleString('en-US');
 
 const CSS = `
 .ck-title{padding:4px 0 24px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.ck-title h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em;display:inline}
-.ck-back{font-size:13px;color:var(--ui-muted);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:14px;vertical-align:4px;transition:color .15s}
+.ck-title h1{margin:0;font-size:1.75rem;font-weight:600;letter-spacing:-.02em;display:inline}
+.ck-back{font-size:.8125rem;color:var(--ui-muted);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:14px;vertical-align:4px;transition:color .15s}
 .ck-back:hover{color:var(--ui-ink);text-decoration:underline;text-underline-offset:3px}
-.ck-steps{display:flex;gap:4px;padding:4px;border-radius:9px;background:var(--ui-line-soft);font-size:12.5px;color:var(--ui-muted)}
+.ck-steps{display:flex;gap:4px;padding:4px;border-radius:9px;background:var(--ui-line-soft);font-size:.7813rem;color:var(--ui-muted)}
 .ck-steps span{padding:6px 12px;border-radius:7px}
 .ck-steps b{padding:6px 12px;border-radius:7px;background:var(--ui-surface);color:var(--ui-ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .ck-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:32px;align-items:start}
@@ -37,9 +37,9 @@ const CSS = `
 /* 2026-11-06 電腦版改版:左邊三區各自一張卡,跟右邊商品明細同一套;手機版在下面的 media query 還原成原本的排法 */
 .ck-sec{background:var(--ui-surface);border:1px solid var(--ui-line);border-radius:12px;scroll-margin-top:80px;overflow:hidden}
 .ck-sec-h{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--ui-line)}
-.ck-sec-h h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
-.ck-sec-h span:not(.ck-n){margin-left:auto;font-size:12px;color:var(--ui-faint)}
-.ck-n{width:22px;height:22px;border-radius:50%;background:var(--ui-accent);color:var(--ui-on-accent);font-size:12px;font-weight:600;display:grid;place-items:center;flex-shrink:0}
+.ck-sec-h h2{margin:0;font-size:.9375rem;font-weight:600;letter-spacing:-.01em}
+.ck-sec-h span:not(.ck-n){margin-left:auto;font-size:.75rem;color:var(--ui-faint)}
+.ck-n{width:22px;height:22px;border-radius:50%;background:var(--ui-accent);color:var(--ui-on-accent);font-size:.75rem;font-weight:600;display:grid;place-items:center;flex-shrink:0}
 .ck-sec-b{padding:20px;display:flex;flex-direction:column;gap:14px}
 .ck-opts{display:flex;flex-direction:column}
 .ck-opts .ui-opt{border:0;border-radius:0;border-bottom:1px solid var(--ui-line);padding:14px 20px;box-shadow:none;position:relative;align-items:center}
@@ -49,34 +49,34 @@ const CSS = `
 .ck-alert-in{margin:12px 20px 0}
 .ck-field{display:flex;flex-direction:column;gap:6px}
 .ck-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.ck-pick{padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);font-size:13px;color:#52525b;line-height:1.6}
-.ck-chk{display:inline-flex;align-items:center;gap:10px;font-size:14px;cursor:pointer}
-.ck-hint{font-size:12px;color:var(--ui-muted);margin:0;line-height:1.5}
+.ck-pick{padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);font-size:.8125rem;color:#52525b;line-height:1.6}
+.ck-chk{display:inline-flex;align-items:center;gap:10px;font-size:.875rem;cursor:pointer}
+.ck-hint{font-size:.75rem;color:var(--ui-muted);margin:0;line-height:1.5}
 .ck-last{align-self:flex-start}
 .ck-sum{position:sticky;top:80px;padding:24px}
-.ck-sum h2{margin:0 0 8px;font-size:16px;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
-.ck-sum h2 span{font-size:12px;color:var(--ui-muted);font-weight:400}
+.ck-sum h2{margin:0 0 8px;font-size:1rem;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
+.ck-sum h2 span{font-size:.75rem;color:var(--ui-muted);font-weight:400}
 .ck-item{display:flex;gap:12px;padding:14px 0;border-top:1px solid var(--ui-line-soft)}
 .ck-item:first-of-type{border-top:0;padding-top:0}
 /* Phase 35(2026-11-07):有團購商品時明細分「攤位」「團購」兩組 */
-.ck-grp{display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding-top:14px;border-top:1px solid var(--ui-line);font-size:12.5px;font-weight:600;color:var(--ui-ink)}
+.ck-grp{display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding-top:14px;border-top:1px solid var(--ui-line);font-size:.7813rem;font-weight:600;color:var(--ui-ink)}
 .ck-grp:first-of-type{margin-top:0;padding-top:0;border-top:0}
 .ck-grp span{font-weight:400;color:var(--ui-muted)}
 .ck-grp + .ck-item{border-top:0;padding-top:8px}
-.ck-grp-hint{margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.6}
+.ck-grp-hint{margin:6px 0 0;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.75rem;line-height:1.6}
 .ck-th{width:56px;height:70px;border-radius:6px;border:1px solid var(--ui-line);background:var(--ui-line-soft);overflow:hidden;position:relative;flex-shrink:0;display:grid;place-items:center;color:#d4d4d8}
 .ck-th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ck-it{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.ck-it-n{font-size:14px;font-weight:500;line-height:1.4}
-.ck-it-v{font-size:12px;color:var(--ui-muted)}
+.ck-it-n{font-size:.875rem;font-weight:500;line-height:1.4}
+.ck-it-v{font-size:.75rem;color:var(--ui-muted)}
 .ck-it-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
 .ck-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:30px;overflow:hidden;background:var(--ui-surface)}
-.ck-qty button{width:30px;height:30px;border:0;background:transparent;font:inherit;font-size:16px;cursor:pointer;color:var(--ui-ink);padding:0}
+.ck-qty button{width:30px;height:30px;border:0;background:transparent;font:inherit;font-size:1rem;cursor:pointer;color:var(--ui-ink);padding:0}
 .ck-qty button:hover{background:var(--ui-line-soft)}
-.ck-qty input{width:36px;height:30px;text-align:center;font:inherit;font-size:13px;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;box-sizing:border-box;outline:none}
+.ck-qty input{width:36px;height:30px;text-align:center;font:inherit;font-size:.8125rem;font-weight:500;border:0;border-left:1px solid var(--ui-line);border-right:1px solid var(--ui-line);background:transparent;box-sizing:border-box;outline:none}
 .ck-rm{width:26px;height:26px;border:0;background:none;color:var(--ui-faint);border-radius:6px;cursor:pointer;display:grid;place-items:center;flex-shrink:0;padding:0}
 .ck-rm:hover{background:#fef2f2;color:#b91c1c}
-.ck-gift{margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:13px;display:flex;flex-direction:column;gap:8px}
+.ck-gift{margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid var(--ui-line);background:#fafafa;font-size:.8125rem;display:flex;flex-direction:column;gap:8px}
 .ck-gift-t{display:flex;justify-content:space-between;gap:12px;font-weight:500;align-items:center}
 .ck-bar{height:6px;border-radius:999px;background:var(--ui-line);overflow:hidden}
 .ck-bar div{height:100%;border-radius:999px;background:var(--ui-accent);transition:width .45s cubic-bezier(.3,.8,.4,1)}
@@ -84,24 +84,24 @@ const CSS = `
 .ck-dc{margin-top:18px;padding-top:18px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:6px}
 .ck-dc-row{display:flex;gap:8px}
 .ck-dc-row .ui-input{flex:1;min-width:0;text-transform:uppercase}
-.ck-dc-err{font-size:12.5px;color:#b91c1c;margin:0;line-height:1.5}
-.ck-dc-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;font-size:13px;font-weight:500}
+.ck-dc-err{font-size:.7813rem;color:#b91c1c;margin:0;line-height:1.5}
+.ck-dc-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;font-size:.8125rem;font-weight:500}
 .ck-dc-chip .t{flex:1;min-width:0}
-.ck-dc-chip .s{display:block;font-size:12px;font-weight:400;margin-top:2px}
+.ck-dc-chip .s{display:block;font-size:.75rem;font-weight:400;margin-top:2px}
 .ck-dc-chip .x{margin-left:auto;width:24px;height:24px;border:0;background:none;color:#15803d;cursor:pointer;display:grid;place-items:center;border-radius:6px;padding:0;flex-shrink:0}
 .ck-dc-chip .x:hover{background:#dcfce7}
-.ck-tot{margin-top:18px;padding-top:18px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:10px;font-size:14px}
+.ck-tot{margin-top:18px;padding-top:18px;border-top:1px solid var(--ui-line);display:flex;flex-direction:column;gap:10px;font-size:.875rem}
 .ck-tot .r{display:flex;justify-content:space-between;gap:12px;color:#52525b}
 .ck-tot .g{display:flex;justify-content:space-between;align-items:baseline;padding-top:16px;margin-top:8px;border-top:1px solid var(--ui-line);color:var(--ui-ink);font-weight:600}
-.ck-tot .g span:first-child{font-size:15px}
-.ck-tot .g span:last-child{font-size:26px;letter-spacing:-.02em}
+.ck-tot .g span:first-child{font-size:.9375rem}
+.ck-tot .g span:last-child{font-size:1.625rem;letter-spacing:-.02em}
 .ck-submit-d{margin-top:20px}
-.ck-fine{font-size:13px;color:var(--ui-ink);margin:12px 0 0;line-height:1.6}
-.ck-notes{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--ui-line-soft);display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ui-muted);line-height:1.6}
+.ck-fine{font-size:.8125rem;color:var(--ui-ink);margin:12px 0 0;line-height:1.6}
+.ck-notes{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--ui-line-soft);display:flex;flex-direction:column;gap:5px;font-size:.75rem;color:var(--ui-muted);line-height:1.6}
 .ck-notes li{display:flex;gap:8px;align-items:flex-start}
 .ck-notes li::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--ui-faint);flex-shrink:0;margin-top:8px}
 .ck-notes a{color:var(--ui-ink);font-weight:500;text-decoration:none}.ck-notes a:hover{text-decoration:underline;text-underline-offset:3px}
-.ck-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.6;font-weight:500}
+.ck-alert{padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:.8125rem;line-height:1.6;font-weight:500}
 .ck-submit-m{display:none}
 .ck-overlay{position:fixed;inset:0;z-index:1000;background:rgba(255,255,255,.85);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
 .ck-overlay .big{width:38px;height:38px;border-width:3px}
@@ -109,7 +109,7 @@ const CSS = `
   .ck-layout{grid-template-columns:1fr;gap:28px}
   .ck-sum{position:static;order:-1}
   .ck-title{padding:0 0 16px;flex-direction:column;align-items:flex-start;gap:8px}
-  .ck-title h1{font-size:24px}
+  .ck-title h1{font-size:1.5rem}
   .ck-row2{grid-template-columns:1fr}
   .ck-submit-d{display:none}
   .ck-submit-m{display:flex;flex-direction:column;gap:10px}
@@ -117,7 +117,7 @@ const CSS = `
   .ck-form{gap:36px}
   .ck-sec{background:transparent;border:0;border-radius:0;overflow:visible}
   .ck-sec-h{padding:0 0 12px;border:0;align-items:baseline}
-  .ck-sec-h h2{font-size:16px}
+  .ck-sec-h h2{font-size:1rem}
   .ck-n{display:none}
   .ck-sec-b{padding:0}
   .ck-opts{gap:10px}
@@ -333,10 +333,10 @@ export default function CheckoutPage({ params }: Props) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
         <span className="ui-spin" style={{ width: 38, height: 38, borderWidth: 3 }} />
-        <p style={{ fontSize: 17, margin: 0, fontWeight: 600 }}>
+        <p style={{ fontSize: '1.0625rem', margin: 0, fontWeight: 600 }}>
           {isLinePayPay ? '訂單已成立,正在前往 LINE Pay…' : isEcpayPay ? '訂單已成立,正在前往付款頁…' : '訂單已成立,跳轉中…'}
         </p>
-        <p className="ui-muted" style={{ fontSize: 13, margin: 0 }}>請不要重複操作或關閉畫面</p>
+        <p className="ui-muted" style={{ fontSize: '.8125rem', margin: 0 }}>請不要重複操作或關閉畫面</p>
       </div>
     );
   }
@@ -357,8 +357,8 @@ export default function CheckoutPage({ params }: Props) {
       <div className="ui-card ui-enter" style={{ maxWidth: 520, margin: '24px auto 0', padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div style={{ color: '#d4d4d8' }}><IconPackage size={40} /></div>
         <div>
-          <p style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>購物車是空的</p>
-          <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14 }}>挑幾樣喜歡的商品再回來。</p>
+          <p style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 600 }}>購物車是空的</p>
+          <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: '.875rem' }}>挑幾樣喜歡的商品再回來。</p>
         </div>
         <ButtonLink href={`/${slug}`} variant="primary" size="md">繼續購物</ButtonLink>
       </div>
@@ -414,7 +414,7 @@ export default function CheckoutPage({ params }: Props) {
 
   // 地址元件吃 inline style,給它一組跟 .ui-input 一樣的樣式
   const inputStyle: React.CSSProperties = {
-    height: 40, padding: '0 12px', border: '1px solid var(--ui-line)', borderRadius: 6, fontSize: 14, fontFamily: 'inherit',
+    height: 40, padding: '0 12px', border: '1px solid var(--ui-line)', borderRadius: 6, fontSize: '.875rem', fontFamily: 'inherit',
     background: 'var(--ui-surface)', color: 'var(--ui-ink)', width: '100%', boxSizing: 'border-box',
   };
 
@@ -448,7 +448,7 @@ export default function CheckoutPage({ params }: Props) {
             <QtyInput qty={item.qty} onCommit={(n) => updateQty(item.variantId, n)} />
             <button type="button" onClick={() => updateQty(item.variantId, item.qty + 1)} aria-label="增加">+</button>
           </div>
-          <span className="ui-num" style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unitPriceOf(item) * item.qty)}</span>
+          <span className="ui-num" style={{ fontSize: '.875rem', fontWeight: 600, whiteSpace: 'nowrap' }}>NT$ {money(unitPriceOf(item) * item.qty)}</span>
         </div>
       </div>
     </div>
@@ -499,8 +499,8 @@ export default function CheckoutPage({ params }: Props) {
       {submitting && (
         <div className="ck-overlay" aria-busy="true" aria-live="polite">
           <span className="ui-spin big" />
-          <div style={{ fontSize: 15, fontWeight: 600 }}>訂單建立中,請稍候…</div>
-          <div className="ui-muted" style={{ fontSize: 12 }}>請不要重複按送出或關閉畫面</div>
+          <div style={{ fontSize: '.9375rem', fontWeight: 600 }}>訂單建立中,請稍候…</div>
+          <div className="ui-muted" style={{ fontSize: '.75rem' }}>請不要重複按送出或關閉畫面</div>
         </div>
       )}
 
@@ -528,7 +528,7 @@ export default function CheckoutPage({ params }: Props) {
                       icon={opt.cvs ? <IconStore size={16} /> : isPickupOpt ? <IconPackage size={16} /> : <IconTruck size={16} />}
                       title={opt.label}
                       trailing={
-                        <span className="ui-num" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
+                        <span className="ui-num" style={{ fontSize: '.875rem', fontWeight: 500, whiteSpace: 'nowrap', color: isFree || opt.fee === 0 ? '#15803d' : 'var(--ui-ink)' }}>
                           {opt.fee === 0 ? '免運費' : isFree ? '免運' : `NT$ ${money(opt.fee)}`}
                         </span>
                       }
@@ -573,7 +573,7 @@ export default function CheckoutPage({ params }: Props) {
                   <OptionCard name="payment_method" value="bank" on={payMethod === 'bank'} onSelect={() => setPayMethod('bank')} icon={<IconBank size={16} />} title="匯款至店家帳戶" desc="匯款後到訂單頁回報帳號後 5 碼,等待人工核帳" />
                 )}
                 {!bankOn && !ecpayOn && !linePayOn && !ecpayAtmOn && !qrCfg && !codOn && (
-                  <p className="ui-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>賣家還沒設定收款方式,下單後賣家會聯絡你付款。</p>
+                  <p className="ui-muted" style={{ margin: 0, fontSize: '.875rem', lineHeight: 1.6 }}>賣家還沒設定收款方式,下單後賣家會聯絡你付款。</p>
                 )}
               </div>
             </section>
@@ -629,7 +629,7 @@ export default function CheckoutPage({ params }: Props) {
                     <input id="cvs-store-id" name="cvs_store_id" type="text" required inputMode="numeric" pattern="[0-9]{3,10}" className="ui-input" placeholder="例:123456" autoComplete="off" />
                   </div>
                 </div>
-                <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+                <p className="ui-muted" style={{ margin: 0, fontSize: '.8125rem', lineHeight: 1.6 }}>
                   店號可以到{' '}
                   <a href={CVS_CHAINS[cvs].mapUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--ui-accent-ink)', fontWeight: 500 }}>{CVS_CHAINS[cvs].short} 官方門市查詢</a>
                   {' '}找。取貨時超商會核對姓名和手機,請填本名。

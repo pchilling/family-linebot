@@ -48,8 +48,8 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
     return (
       <div style={{ maxWidth: 560, margin: '2rem auto' }}>
         <div className="ui-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{invalid ? '這個連結無效' : '出貨後才能評價'}</h1>
-          <p className="ui-muted" style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.7 }}>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>{invalid ? '這個連結無效' : '出貨後才能評價'}</h1>
+          <p className="ui-muted" style={{ margin: '10px 0 0', fontSize: '.875rem', lineHeight: 1.7 }}>
             {invalid
               ? '請從 LINE 通知裡的「給個評價」按鈕進入,或等出貨後我們再邀請您。'
               : '商品送到之後我們會透過 LINE 邀請您評價,到時再來給星星。'}
@@ -95,8 +95,8 @@ export default async function ReviewOrderPage({ params, searchParams }: Props) {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <div style={{ padding: '8px 0 20px' }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: '-.02em' }}>這次買的東西還滿意嗎?</h1>
-        <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-.02em' }}>這次買的東西還滿意嗎?</h1>
+        <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: '.875rem', lineHeight: 1.6 }}>
           訂單 <span className="ui-num" style={{ color: 'var(--ui-ink)', fontWeight: 500 }}>{order_no}</span> · 點星星打分數,想多說一點也可以。
         </p>
       </div>

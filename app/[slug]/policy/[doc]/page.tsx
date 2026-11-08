@@ -79,7 +79,7 @@ export default async function TenantPolicyPage({ params }: Props) {
               style={{
                 padding: '6px 12px',
                 borderRadius: 999,
-                fontSize: 13,
+                fontSize: '.8125rem',
                 textDecoration: 'none',
                 background: active ? '#18181b' : '#f4f4f5',
                 color: active ? '#fff' : '#52525b',
@@ -394,9 +394,9 @@ export default async function TenantPolicyPage({ params }: Props) {
   );
 }
 
-const prose: React.CSSProperties = { fontSize: 14, lineHeight: 1.8, color: '#3f3f46' };
-const h1: React.CSSProperties = { fontSize: 26, fontWeight: 700, color: '#18181b', margin: '0 0 6px', letterSpacing: '-0.01em' };
-const meta: React.CSSProperties = { fontSize: 12, color: '#a1a1aa', margin: '0 0 28px' };
-const h2: React.CSSProperties = { fontSize: 16, fontWeight: 600, color: '#18181b', margin: '32px 0 12px' };
+const prose: React.CSSProperties = { fontSize: '.875rem', lineHeight: 1.8, color: '#3f3f46' };
+const h1: React.CSSProperties = { fontSize: '1.625rem', fontWeight: 700, color: '#18181b', margin: '0 0 6px', letterSpacing: '-0.01em' };
+const meta: React.CSSProperties = { fontSize: '.75rem', color: '#a1a1aa', margin: '0 0 28px' };
+const h2: React.CSSProperties = { fontSize: '1rem', fontWeight: 600, color: '#18181b', margin: '32px 0 12px' };
 const ul: React.CSSProperties = { paddingLeft: 22, margin: '0 0 12px' };
-const small: React.CSSProperties = { fontSize: 12, color: '#71717a', background: '#fafafa', padding: '10px 14px', borderRadius: 6, border: '1px solid #e4e4e7' };
+const small: React.CSSProperties = { fontSize: '.75rem', color: '#71717a', background: '#fafafa', padding: '10px 14px', borderRadius: 6, border: '1px solid #e4e4e7' };

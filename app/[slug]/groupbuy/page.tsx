@@ -33,10 +33,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 const CSS = `
 .gb-card{display:flex;flex-direction:column;gap:6px;padding:16px 18px;border-radius:10px;border:1px solid;margin-bottom:24px}
-.gb-card h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.gb-card h2 .st{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
-.gb-card p{margin:0;font-size:13.5px;line-height:1.7;white-space:pre-wrap}
-.gb-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:2px}
+.gb-card h2{margin:0;font-size:1rem;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gb-card h2 .st{font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:999px}
+.gb-card p{margin:0;font-size:.8438rem;line-height:1.7;white-space:pre-wrap}
+.gb-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:.8125rem;margin-top:2px}
 .gb-meta span{display:inline-flex;align-items:center;gap:5px}
 .gb-open{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
 .gb-open .st{background:#dcfce7;color:#15803d}
@@ -44,11 +44,11 @@ const CSS = `
 .gb-idle h2{color:var(--ui-ink)}
 .gb-gate{max-width:440px;margin:24px auto 0;padding:40px 28px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
 .gb-gate .ic{width:52px;height:52px;border-radius:50%;background:var(--ui-line-soft);display:grid;place-items:center;color:var(--ui-muted)}
-.gb-gate h2{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.3}
-.gb-gate p{margin:0;font-size:14px;line-height:1.7;color:var(--ui-muted)}
+.gb-gate h2{margin:0;font-size:1.25rem;font-weight:600;letter-spacing:-.02em;line-height:1.3}
+.gb-gate p{margin:0;font-size:.875rem;line-height:1.7;color:var(--ui-muted)}
 .gb-notify{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
 .gb-notify form{margin:0;display:inline-flex}
-.gb-notify small{font-size:12.5px;color:var(--ui-muted)}
+.gb-notify small{font-size:.7813rem;color:var(--ui-muted)}
 @media (max-width:640px){.gb-gate{padding:32px 20px}}
 `;
 

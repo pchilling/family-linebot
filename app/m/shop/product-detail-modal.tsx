@@ -209,8 +209,8 @@ export function ProductDetailModal({ product, onClose, onAdd, buyDisabledReason 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
             <span className="pd-price ui-num" style={onSale ? { color: '#b91c1c' } : undefined}>NT$ {money(effPrice)}</span>
             {saved > 0 && <span className="pd-old ui-num">NT$ {money(price)}</span>}
-            {hasMulti && selected && <span className="ui-muted" style={{ fontSize: 14 }}>{selected.variant_name}</span>}
-            {!onSale && saved > 0 && <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>量購價,省 NT$ {money(saved)}/件</span>}
+            {hasMulti && selected && <span className="ui-muted" style={{ fontSize: '.875rem' }}>{selected.variant_name}</span>}
+            {!onSale && saved > 0 && <span style={{ fontSize: '.75rem', color: '#15803d', fontWeight: 600 }}>量購價,省 NT$ {money(saved)}/件</span>}
           </div>
         </div>
 
@@ -264,7 +264,7 @@ export function ProductDetailModal({ product, onClose, onAdd, buyDisabledReason 
                 );
               })}
             </div>
-            {product.variants.some((v) => v.is_bundle) && <p className="ui-muted" style={{ margin: '8px 0 0', fontSize: 12 }}>組合規格為固定價,不再折。</p>}
+            {product.variants.some((v) => v.is_bundle) && <p className="ui-muted" style={{ margin: '8px 0 0', fontSize: '.75rem' }}>組合規格為固定價,不再折。</p>}
           </div>
         )}
 
@@ -305,7 +305,7 @@ export function ProductDetailModal({ product, onClose, onAdd, buyDisabledReason 
         {product.description && (
           <div>
             <div className="pd-lbl">商品說明</div>
-            <p style={{ margin: 0, fontSize: 14, color: '#3f3f46', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{product.description}</p>
+            <p style={{ margin: 0, fontSize: '.875rem', color: '#3f3f46', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{product.description}</p>
           </div>
         )}
       </div>
@@ -313,10 +313,10 @@ export function ProductDetailModal({ product, onClose, onAdd, buyDisabledReason 
       {/* 底部固定:總價 + 加入購物車 */}
       <div className="pd-sticky" style={{ display: 'flex' }}>
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <span className="ui-muted" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span className="ui-muted" style={{ fontSize: '.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {hasMulti && selected ? `${selected.variant_name} × ${qty}` : `× ${qty}`}
           </span>
-          <span className="ui-num" style={{ fontSize: 18, fontWeight: 600, color: onSale ? '#b91c1c' : undefined }}>NT$ {money(total)}</span>
+          <span className="ui-num" style={{ fontSize: '1.125rem', fontWeight: 600, color: onSale ? '#b91c1c' : undefined }}>NT$ {money(total)}</span>
         </div>
         <Button type="button" variant="primary" size="lg" onClick={handleAdd} disabled={!canAdd}>
           {buyDisabledReason ? buyDisabledReason : inStock ? '加入購物車' : '已售完'}

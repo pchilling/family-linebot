@@ -63,13 +63,13 @@ const toggleIn = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) =>
 const CSS = `
 .sl-layout{display:grid;grid-template-columns:15rem minmax(0,1fr);gap:56px;align-items:start}
 .sl-side{position:sticky;top:88px}
-.sl-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--ui-line);font-size:14px;font-weight:500}
+.sl-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--ui-line);font-size:.875rem;font-weight:500}
 .sl-fset{display:flex;flex-direction:column;gap:12px;padding:24px 0;border:0;border-bottom:1px solid var(--ui-line);margin:0;min-width:0}
 .sl-fset:last-child{border-bottom:0}
-.sl-legend{font-size:12px;color:var(--ui-muted);letter-spacing:.06em;padding:0;margin-bottom:2px}
-.sl-field{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;min-height:20px}
+.sl-legend{font-size:.75rem;color:var(--ui-muted);letter-spacing:.06em;padding:0;margin-bottom:2px}
+.sl-field{display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer;min-height:20px}
 .sl-field[data-dis="true"]{opacity:.5;cursor:default}
-.sl-cnt{margin-left:auto;font-size:12px;color:var(--ui-muted)}
+.sl-cnt{margin-left:auto;font-size:.75rem;color:var(--ui-muted)}
 .sl-slider{position:relative;height:20px;display:flex;align-items:center}
 .sl-slider .t{position:absolute;left:0;right:0;height:8px;border-radius:999px;background:var(--ui-line-soft);overflow:hidden}
 .sl-slider .r{position:absolute;height:8px;border-radius:999px;background:var(--ui-accent)}
@@ -103,21 +103,21 @@ const CSS = `
 .sl-fav:hover{transform:scale(1.08)}
 .sl-fav:active{transform:scale(.9)}
 .sl-fav[data-on="true"]{color:#e11d48}
-.sl-qa{position:absolute;left:10px;right:10px;bottom:10px;height:36px;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;z-index:2;font-size:13px}
+.sl-qa{position:absolute;left:10px;right:10px;bottom:10px;height:36px;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;z-index:2;font-size:.8125rem}
 .sl-card:hover .sl-qa,.sl-qa:focus-visible{opacity:1;transform:none}
-.sl-name{font-size:14px;font-weight:500;line-height:1.45;margin:0;text-wrap:pretty}
-.sl-price{font-size:14px;font-weight:600;white-space:nowrap;flex-shrink:0}
-.sl-old{font-size:12px;color:var(--ui-muted);text-decoration:line-through;margin-right:6px;font-weight:400}
-.sl-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ui-muted);min-height:16px}
+.sl-name{font-size:.875rem;font-weight:500;line-height:1.45;margin:0;text-wrap:pretty}
+.sl-price{font-size:.875rem;font-weight:600;white-space:nowrap;flex-shrink:0}
+.sl-old{font-size:.75rem;color:var(--ui-muted);text-decoration:line-through;margin-right:6px;font-weight:400}
+.sl-meta{display:flex;justify-content:space-between;gap:8px;font-size:.75rem;color:var(--ui-muted);min-height:16px}
 .sl-empty{margin-top:24px;padding:64px 24px;border:1px solid var(--ui-line);border-radius:8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px}
-.sl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;background:var(--ui-ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:ui-swap .25s ease both}
+.sl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;background:var(--ui-ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:.875rem;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:ui-swap .25s ease both}
 .sl-toast a,.sl-toast button{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px;background:none;border:0;padding:0;font:inherit;cursor:pointer}
 @media (max-width:1024px){
   .sl-layout{display:block}
   .sl-side{position:static}
   .sl-cats{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .sl-cats::-webkit-scrollbar{display:none}
-  .sl-pill{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:13px;font-weight:500;color:var(--ui-ink);cursor:pointer;white-space:nowrap}
+  .sl-pill{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--ui-line);background:var(--ui-surface);font:inherit;font-size:.8125rem;font-weight:500;color:var(--ui-ink);cursor:pointer;white-space:nowrap}
   .sl-pill[data-on="true"]{background:var(--ui-accent);color:var(--ui-on-accent);border-color:var(--ui-accent)}
   .sl-filterbtn{display:inline-flex}
   .sl-search{width:36px;padding-left:34px;padding-right:0;transition:width .2s}
@@ -292,7 +292,7 @@ export function ShopListing({
           <input type="range" min={0} max={priceMax} step={10} value={f.min} aria-label="最低價格" onChange={(e) => update({ min: Math.min(Number(e.target.value), f.max - 10) })} />
           <input type="range" min={0} max={priceMax} step={10} value={f.max} aria-label="最高價格" onChange={(e) => update({ max: Math.max(Number(e.target.value), f.min + 10) })} />
         </div>
-        <div className="ui-num" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+        <div className="ui-num" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.875rem' }}>
           <span>NT$ {money(f.min)}</span>
           <span>NT$ {money(f.max)}{f.max === priceMax ? '+' : ''}</span>
         </div>
@@ -300,7 +300,7 @@ export function ShopListing({
       <fieldset className="sl-fset">
         <label className="sl-field">
           <span>只看收藏</span>
-          {favCount > 0 && <span className="ui-num" style={{ fontSize: 12, color: 'var(--ui-muted)' }}>({favCount})</span>}
+          {favCount > 0 && <span className="ui-num" style={{ fontSize: '.75rem', color: 'var(--ui-muted)' }}>({favCount})</span>}
           <span style={{ marginLeft: 'auto', display: 'inline-flex' }}><Switch checked={f.fav} onChange={(e) => update({ fav: e.target.checked })} aria-label="只看收藏" /></span>
         </label>
       </fieldset>
@@ -353,7 +353,7 @@ export function ShopListing({
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="21" x2="14" y1="4" y2="4" /><line x1="10" x2="3" y1="4" y2="4" /><line x1="21" x2="12" y1="12" y2="12" /><line x1="8" x2="3" y1="12" y2="12" /><line x1="21" x2="16" y1="20" y2="20" /><line x1="12" x2="3" y1="20" y2="20" /><line x1="14" x2="14" y1="2" y2="6" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="16" x2="16" y1="18" y2="22" /></svg>
                   篩選{chips.length > 0 && <span className="ui-num">({chips.length})</span>}
                 </Button>
-                <span className="ui-num ui-muted" style={{ fontSize: 14 }} aria-live="polite">{filtered.length} 件商品</span>
+                <span className="ui-num ui-muted" style={{ fontSize: '.875rem' }} aria-live="polite">{filtered.length} 件商品</span>
               </div>
               <div className="sl-right">
                 <Input
@@ -399,21 +399,21 @@ export function ShopListing({
                 <>
                   <div style={{ color: 'var(--ui-line)' }}><IconHeart size={40} /></div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>還沒有收藏的商品</h3>
-                    <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>點商品圖右上角的愛心,就會收在這裡。</p>
+                    <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 500 }}>還沒有收藏的商品</h3>
+                    <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: '.875rem', lineHeight: 1.6 }}>點商品圖右上角的愛心,就會收在這裡。</p>
                   </div>
                   <Button variant="outline" onClick={() => update({ fav: false })}>看全部商品</Button>
                 </>
               ) : products.length === 0 && mode === 'groupbuy' ? (
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>還沒有團購商品</h3>
-                  <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>攤主把商品設成團購後就會出現在這裡。</p>
+                  <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 500 }}>還沒有團購商品</h3>
+                  <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: '.875rem', lineHeight: 1.6 }}>攤主把商品設成團購後就會出現在這裡。</p>
                 </div>
               ) : (
                 <>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500 }}>沒有符合條件的商品</h3>
-                    <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.6 }}>把價格範圍放寬一點,或少勾幾個分類試試。</p>
+                    <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 500 }}>沒有符合條件的商品</h3>
+                    <p className="ui-muted" style={{ margin: '6px 0 0', fontSize: '.875rem', lineHeight: 1.6 }}>把價格範圍放寬一點,或少勾幾個分類試試。</p>
                   </div>
                   <Button variant="outline" onClick={clearAll}>清除篩選</Button>
                 </>
@@ -429,7 +429,7 @@ export function ShopListing({
                 return (
                   <a key={p.id} href={`/${slug}/p/${p.slug}`} className="sl-card ui-swap" style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
                     <div className="sl-ph">
-                      <span className="ui-muted" style={{ fontSize: 13 }}>{p.category}</span>
+                      <span className="ui-muted" style={{ fontSize: '.8125rem' }}>{p.category}</span>
                       {p.image && <img src={p.image} alt="" loading={i < 6 ? 'eager' : 'lazy'} data-fit={p.fit} data-dim={soldOut || !canBuy ? 'true' : 'false'} />}
                       {p.badge && (
                         <Badge className="sl-on" style={{ background: p.badgeColor ?? '#18181b', color: badgeFg(p.badgeColor ?? '#18181b'), borderColor: 'transparent' }}>{p.badge}</Badge>
@@ -470,7 +470,7 @@ export function ShopListing({
                         </span>
                       </div>
                       {p.rating && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ui-muted)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.75rem', color: 'var(--ui-muted)' }}>
                           <Stars value={p.rating.avg} size={13} />
                           <span className="ui-num">{p.rating.avg.toFixed(1)}</span>
                           <span className="ui-num">({p.rating.count})</span>
