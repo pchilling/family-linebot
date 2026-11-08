@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconChevronLeft, IconClock, IconFlame, IconZap } from '@/lib/icons';
+import { ProductDescription } from '@/lib/product-description';
 import { Badge, Button } from '@/lib/ui';
 import type { ShopProduct } from './actions';
 
@@ -305,7 +306,8 @@ export function ProductDetailModal({ product, onClose, onAdd, buyDisabledReason 
         {product.description && (
           <div>
             <div className="pd-lbl">商品說明</div>
-            <p style={{ margin: 0, fontSize: '.875rem', color: '#3f3f46', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{product.description}</p>
+            {/* 2026-11-09:跟網頁商品頁同一套排版(lib/product-description.tsx) */}
+            <ProductDescription text={product.description} />
           </div>
         )}
       </div>

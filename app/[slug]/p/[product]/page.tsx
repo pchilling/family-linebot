@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { canViewGroupBuy, getGroupBuyState, type GroupBuyPublic } from '@/lib/groupbuy';
 import { getCurrentMember } from '@/lib/member-auth';
+import { ProductDescription } from '@/lib/product-description';
 import { getProductBySlug, getProductTiers, getTenantPublic, supabaseAdmin } from '@/lib/supabase';
 import { Stars } from '@/lib/ui';
 import { getGiftRulesPublic, getShippingOptions, isEcpayAvailable, isLinePayAvailable } from '../../checkout/actions';
@@ -40,7 +41,6 @@ const PAGE_CSS = `
 .pdp-crumb .cur{color:var(--ui-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
 .pdp-desc{margin-top:56px;max-width:720px}
 .pdp-desc h2{font-size:1rem;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
-.pdp-desc p{margin:0;font-size:.875rem;line-height:1.8;color:#3f3f46;white-space:pre-wrap}
 @media (max-width:1024px){.pdp-desc{margin-top:36px}.pdp-bottom{padding-bottom:72px}}
 `;
 
@@ -177,7 +177,8 @@ export default async function ProductDetailPage({ params }: Props) {
       {item.description && (
         <section className="pdp-desc" aria-labelledby="desc-h">
           <h2 id="desc-h">商品說明</h2>
-          <p>{item.description}</p>
+          {/* 2026-11-09:照 Phase 24 原型排版(小標 / 規格表 / 條列 / 可收合框),規則在 lib/product-description.tsx */}
+          <ProductDescription text={item.description} />
         </section>
       )}
 

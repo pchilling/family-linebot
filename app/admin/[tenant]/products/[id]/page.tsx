@@ -237,6 +237,10 @@ details summary::-webkit-details-marker { display: none; }
             <label style={{ gridColumn: '1 / -1' }}>
               <span style={label}>商品說明</span>
               <textarea name="description" defaultValue={p.description ?? ''} rows={6} style={{ ...input, resize: 'vertical' }} />
+              {/* 2026-11-09:商品頁會照這些規則自動排版(lib/product-description.tsx) */}
+              <span style={{ ...sub, display: 'block', marginTop: 6 }}>
+                空一行分段。單獨一行的短標題(例:商品特色、商品規格、使用方式)會變成小標;小標底下每行「名稱:內容」會排成表格、多行會排成條列;「注意事項」「保固」會收成一個可展開的框。
+              </span>
             </label>
           </div>
 
