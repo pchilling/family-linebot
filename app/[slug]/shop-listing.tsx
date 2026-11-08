@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from './cart-state';
 import { useFavorites } from './favorites-state';
 import { IconHeart } from '@/lib/icons';
-import { Badge, Button, ButtonLink, Checkbox, Input, Select, Stars, Switch } from '@/lib/ui';
+import { Badge, Button, Checkbox, Input, Select, Stars, Switch } from '@/lib/ui';
 
 export type ListingProduct = {
   id: string;
@@ -454,10 +454,23 @@ export function ShopListing({
                             <span>加入購物車</span>
                           </Button>
                         ) : (
-                          <ButtonLink href={`/${slug}/p/${p.slug}`} variant="primary" size="sm" className="sl-qa" aria-label={`選規格:${p.name}`}>
+                          /* 2026-11-08:整張卡片已經是 <a>,這裡不能再放 <a>(巢狀 <a> 瀏覽器會自己拆開,
+                             伺服器 HTML 跟 React 對不上 → React #418 hydration 錯誤)。改成按鈕,點了自己跳商品頁。 */
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            className="sl-qa"
+                            aria-label={`選規格:${p.name}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.location.assign(`/${slug}/p/${p.slug}`);
+                            }}
+                          >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>
                             <span>選規格</span>
-                          </ButtonLink>
+                          </Button>
                         )
                       )}
                     </div>
