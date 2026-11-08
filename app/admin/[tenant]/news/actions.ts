@@ -76,7 +76,7 @@ export async function createNews(formData: FormData): Promise<void> {
         image_ratio: imageUrl ? imageRatio : null,
         links,
         published_at: publishedAt ?? new Date().toISOString(),
-      });
+      }, tenantId); // Phase 38:用這個攤位自己的 LINE 帳號廣播
     } catch (e) {
       console.error('[createNews broadcast]', e);
     }
@@ -121,7 +121,7 @@ export async function pushNews(formData: FormData): Promise<void> {
     image_ratio: n.image_ratio,
     links: n.links,
     published_at: n.published_at ?? new Date().toISOString(),
-  });
+  }, tenantId); // Phase 38:用這個攤位自己的 LINE 帳號廣播
 
   redirect(`/admin/${slug}/news?saved=${id}`);
 }

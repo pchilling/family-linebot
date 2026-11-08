@@ -25,7 +25,7 @@
  * 安全:只有帶對 CRON_SECRET 的請求能呼叫(這支會取消訂單,不能公開)。
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { buildPaymentFlexMessage, buildReviewInviteFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
+import { buildPaymentFlexMessage, buildReviewInviteFlexMessage, lineClientFor, notifyAdmin } from '@/lib/line';
 import { checkLinePayPaymentStatus, confirmLinePayPayment } from '@/lib/linepay';
 import { applyEcpayPaymentResult, queryEcpayTrade } from '@/lib/ecpay';
 import { orderPayable, supabaseAdmin } from '@/lib/supabase';
@@ -46,6 +46,7 @@ const DEFAULT_EXPIRE_DAYS = 3;
 
 type ExpiringOrder = {
   id: string;
+  tenant_id: string; // Phase 38:用這張單所屬攤位的 LINE 帳號推
   order_no: string;
   payment_method: string | null;
   created_at: string;
@@ -129,7 +130,8 @@ async function reconcileLinePay(): Promise<string[]> {
     if (lineUserId && slug) {
       const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
       try {
-        await lineClient.pushMessage({
+        const client = await lineClientFor(o.tenant_id); // Phase 38
+        await client.pushMessage({
           to: lineUserId,
           messages: [
             buildPaymentFlexMessage({
@@ -219,6 +221,7 @@ async function reconcileEcpay(): Promise<string[]> {
 
 type ReviewInviteOrder = {
   id: string;
+  tenant_id: string; // Phase 38
   order_no: string;
   access_key: string | null;
   tenants: { slug: string } | null;
@@ -236,7 +239,7 @@ async function inviteReviews(): Promise<string[]> {
   const shippedCutoff = new Date(Date.now() - 3 * 86400000).toISOString();
   const { data, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, access_key, tenants(slug), users(line_user_id), order_items(price_at_purchase, products(name))')
+    .select('id, tenant_id, order_no, access_key, tenants(slug), users(line_user_id), order_items(price_at_purchase, products(name))')
     .in('status', ['shipped', 'delivered'])
     .is('review_invited_at', null)
     .gte('created_at', since)
@@ -257,7 +260,8 @@ async function inviteReviews(): Promise<string[]> {
     const names = (o.order_items ?? []).filter((i) => i.price_at_purchase > 0).map((i) => i.products?.name ?? '').filter(Boolean);
     if (lineUserId && slug && o.access_key && names.length > 0) {
       try {
-        await lineClient.pushMessage({
+        const client = await lineClientFor(o.tenant_id); // Phase 38
+        await client.pushMessage({
           to: lineUserId,
           messages: [
             buildReviewInviteFlexMessage({
@@ -301,7 +305,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_no, payment_method, created_at, tenants(slug), users(line_user_id)')
+    .select('id, tenant_id, order_no, payment_method, created_at, tenants(slug), users(line_user_id)')
     .eq('status', 'open')
     .eq('payment_status', 'pending')
     .is('payment_reported_at', null) // 已回報後 5 碼 = 客人已付款在等核帳,不能取消
@@ -341,7 +345,8 @@ export async function GET(req: NextRequest) {
     if (lineUserId) {
       const days = EXPIRE_DAYS[o.payment_method ?? ''] ?? DEFAULT_EXPIRE_DAYS;
       try {
-        await lineClient.pushMessage({
+        const client = await lineClientFor(o.tenant_id); // Phase 38
+        await client.pushMessage({
           to: lineUserId,
           messages: [
             {

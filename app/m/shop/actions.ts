@@ -2,7 +2,7 @@
 
 import { buildGiftItems, compareVariantOrder, getProductTiers, pickPriceFromTiers, supabaseAdmin } from '@/lib/supabase';
 import { applyDiscountCode, isBankTransferAvailable, isEcpayAtmAvailable, isEcpayAvailable, isLinePayAvailable, startLinePay, type ApplyDiscountResult, type StartLinePayResult } from '../../[slug]/checkout/actions';
-import { lineClient } from '@/lib/line';
+import { lineClientFor } from '@/lib/line';
 import { bankTransferFromRow, formatBankTransferText, type BankTransfer } from '@/lib/bank-transfer';
 import { codAllowed, codPaymentPublicFromRow, COD_NOT_ALLOWED_ERROR, cvsStoreText, type CodPaymentPublic, type CvsChain } from '@/lib/cvs';
 import type { messagingApi } from '@line/bot-sdk';
@@ -670,7 +670,8 @@ export async function reportOrderLast5(
 
   // 2026-09-12:回報成功 LINE 推確認訊息 — 聊天室裡有最新狀態,舊訂單卡不再誤導
   try {
-    await lineClient.pushMessage({
+    const client = await lineClientFor(TENANT_ID); // Phase 38:用這個攤位的 LINE 帳號
+    await client.pushMessage({
       to: lineUserId,
       messages: [{
         type: 'text',
@@ -719,9 +720,10 @@ async function pushOrderConfirmation(
   const baseUrl = process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw';
   const orderUrl = tenant ? `${baseUrl}/${tenant.slug}/order/${orderNo}${accessKey ? `?k=${accessKey}` : ''}` : '';
 
+  const client = await lineClientFor(TENANT_ID); // Phase 38:用這個攤位的 LINE 帳號
   // 沒有訂單連結(理論上不會發生)→ 退回純文字
   if (!orderUrl) {
-    await lineClient.pushMessage({
+    await client.pushMessage({
       to: lineUserId,
       messages: [{ type: 'text', text: `✓ 您的訂單已建立!\n訂單編號:${orderNo}\n總計:NT$ ${totalTwd.toLocaleString()}` }],
     });
@@ -825,7 +827,7 @@ async function pushOrderConfirmation(
     },
   };
 
-  await lineClient.pushMessage({ to: lineUserId, messages: [flex] });
+  await client.pushMessage({ to: lineUserId, messages: [flex] });
 }
 
 // ====================

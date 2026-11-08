@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getTenantPublic, supabaseAdmin } from '@/lib/supabase';
-import { lineClient } from '@/lib/line';
+import { lineClientFor } from '@/lib/line';
 
 /**
  * D#14(2026-09-02):客人在訂單頁自助回報匯款後 5 碼。
@@ -57,7 +57,8 @@ export async function reportPaymentLast5(formData: FormData): Promise<void> {
         .maybeSingle();
       const lineUserId = (u as { line_user_id: string | null } | null)?.line_user_id;
       if (lineUserId) {
-        await lineClient.pushMessage({
+        const client = await lineClientFor(tenant.id); // Phase 38:用這個攤位的 LINE 帳號
+        await client.pushMessage({
           to: lineUserId,
           messages: [{
             type: 'text',
@@ -119,7 +120,8 @@ export async function reportQrPaid(formData: FormData): Promise<void> {
       const { data: u } = await supabaseAdmin.from('users').select('line_user_id').eq('id', userId).maybeSingle();
       const lineUserId = (u as { line_user_id: string | null } | null)?.line_user_id;
       if (lineUserId) {
-        await lineClient.pushMessage({
+        const client = await lineClientFor(tenant.id); // Phase 38
+        await client.pushMessage({
           to: lineUserId,
           messages: [{ type: 'text', text: `✓ 已收到您的付款回報\n訂單 ${orderNo} 等待賣家核帳中。` }],
         });

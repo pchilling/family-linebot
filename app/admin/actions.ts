@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { refundLinePayPayment } from '@/lib/linepay';
 import { refundEcpayCredit } from '@/lib/ecpay';
-import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClientFor, notifyAdmin } from '@/lib/line';
 import { cvsStoreText, isCvsChain } from '@/lib/cvs';
 import { assertRowAccess, assertTenantAccessById, requireAdminTenant } from '@/lib/super-admin';
 
@@ -1079,10 +1079,11 @@ export async function markOrderShipped(formData: FormData) {
   try {
     const { data: shipped } = await supabaseAdmin
       .from('orders')
-      .select('order_no, tracking_no, payment_method, payment_status, total_twd, discount_twd, shipping_fee_twd, shipping_method, cvs_type, cvs_store_id, cvs_store_name, access_key, tenants(slug, name), users(line_user_id)')
+      .select('tenant_id, order_no, tracking_no, payment_method, payment_status, total_twd, discount_twd, shipping_fee_twd, shipping_method, cvs_type, cvs_store_id, cvs_store_name, access_key, tenants(slug, name), users(line_user_id)')
       .eq('id', id)
       .maybeSingle();
     const s = (shipped ?? null) as unknown as {
+      tenant_id: string;
       order_no: string;
       tracking_no: string | null;
       payment_method: string | null;
@@ -1114,7 +1115,8 @@ export async function markOrderShipped(formData: FormData) {
         cvs ? '到店後超商會發簡訊,請憑姓名和手機取件,7 天內要領取。' : null,
         orderUrl ? `查看訂單:${orderUrl}` : null,
       ].filter((x): x is string => !!x);
-      await lineClient.pushMessage({ to: lineUserId, messages: [{ type: 'text', text: lines.join('\n') }] });
+      const client = await lineClientFor(s.tenant_id); // Phase 38:用這張單所屬攤位的 LINE 帳號
+      await client.pushMessage({ to: lineUserId, messages: [{ type: 'text', text: lines.join('\n') }] });
     }
   } catch (e) {
     console.warn('[markOrderShipped push]', e instanceof Error ? e.message : e);
@@ -1222,7 +1224,8 @@ export async function refundLinePayOrder(formData: FormData) {
     try {
       const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
       const tenant = await getTenantBySlug(slug);
-      await lineClient.pushMessage({
+      const client = await lineClientFor(order.tenant_id); // Phase 38
+      await client.pushMessage({
         to: lineUserId,
         messages: [
           buildPaymentFlexMessage({
@@ -1350,7 +1353,8 @@ export async function refundEcpayOrder(formData: FormData) {
     try {
       const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? 'https://stall.neop.tw').replace(/\/+$/, '');
       const tenant = await getTenantBySlug(slug);
-      await lineClient.pushMessage({
+      const client = await lineClientFor(order.tenant_id); // Phase 38
+      await client.pushMessage({
         to: lineUserId,
         messages: [
           buildPaymentFlexMessage({

@@ -1,15 +1,50 @@
 import crypto from 'node:crypto';
 import { messagingApi, WebhookEvent } from '@line/bot-sdk';
-import type { ClassRow } from './supabase';
+import { supabaseAdmin, type ClassRow } from './supabase';
 
 const { MessagingApiClient } = messagingApi;
 
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
+/** 平台預設的 LINE 帳號(環境變數,目前是愛油哇的)。推給客人請用 lineClientFor(tenantId),這個只給平台自己的事(通知負責人)用 */
 export const lineClient = new MessagingApiClient({
   channelAccessToken,
 });
+
+// ====================
+// Phase 38(2026-11-08):每攤位自己的 LINE 官方帳號
+// tenants.line_channel_access_token 有值 → 用那個攤位的帳號推;沒有 → 退回環境變數那把(愛油哇 / 過渡期)。
+// 一個 process 內照 token 快取 client,token 換了會重建。進站的 webhook 本來就用 destination 反查攤位,
+// 這裡補的是出站:所有推給客人的訊息都要用「他加的那個官方帳號」送,不然推不到(不是好友)或推錯帳號。
+// ====================
+const clientCache = new Map<string, { token: string; client: messagingApi.MessagingApiClient }>();
+
+/** 已經拿到攤位 token 時用這支(同步);null / 空 → 平台預設 */
+export function lineClientForToken(token: string | null | undefined): messagingApi.MessagingApiClient {
+  const t = (token ?? '').trim();
+  if (!t) return lineClient;
+  const cached = clientCache.get(t);
+  if (cached) return cached.client;
+  const client = new MessagingApiClient({ channelAccessToken: t });
+  clientCache.set(t, { token: t, client });
+  return client;
+}
+
+/** 依攤位 id 拿 client;查不到攤位或沒設 token → 平台預設 */
+export async function lineClientFor(tenantId: string | null | undefined): Promise<messagingApi.MessagingApiClient> {
+  if (!tenantId) return lineClient;
+  const { data, error } = await supabaseAdmin
+    .from('tenants')
+    .select('line_channel_access_token')
+    .eq('id', tenantId)
+    .maybeSingle();
+  if (error) {
+    console.error('[lineClientFor]', error.code);
+    return lineClient;
+  }
+  return lineClientForToken((data as { line_channel_access_token: string | null } | null)?.line_channel_access_token);
+}
 
 /**
  * Phase 23(2026-10-23):金流異常警報 — 推一則文字給店家負責人。
@@ -38,10 +73,12 @@ export async function notifyAdmin(title: string, lines: string[]): Promise<void>
  * LINE 用 channel secret 對 request body 做 HMAC-SHA256 base64,放 x-line-signature header
  * 用 timingSafeEqual 比對避免 timing attack
  */
-export function verifySignature(rawBody: string, signature: string | null): boolean {
-  if (!signature || !channelSecret) return false;
+export function verifySignature(rawBody: string, signature: string | null, secret: string | null = channelSecret): boolean {
+  // Phase 38:每攤位自己的 LINE 帳號 → 用該攤位的 channel secret 驗;沒設就是平台預設那把
+  const s = (secret ?? '').trim() || channelSecret;
+  if (!signature || !s) return false;
   const expected = crypto
-    .createHmac('SHA256', channelSecret)
+    .createHmac('SHA256', s)
     .update(rawBody)
     .digest('base64');
   const sigBuf = Buffer.from(signature);
@@ -770,7 +807,9 @@ export function buildNewsFlex(items: NewsForFlex[]): messagingApi.FlexMessage | 
  * ⚠️ 吃 LINE 免費額度(500 則/月,每個好友算 1 則),由後台「推播」按鈕觸發。
  * 有圖 → 純圖卡;沒圖 → 文字(標題 + 內文 + 連結)。
  */
-export async function broadcastNewsItem(n: NewsForFlex): Promise<void> {
+export async function broadcastNewsItem(n: NewsForFlex, tenantId?: string | null): Promise<void> {
+  // Phase 38:用這個攤位自己的 LINE 帳號廣播(沒設就是平台預設);不然會廣播到別攤位的好友
+  const client = await lineClientFor(tenantId);
   let message: messagingApi.Message;
   if (n.image_url) {
     message = {
@@ -794,7 +833,7 @@ export async function broadcastNewsItem(n: NewsForFlex): Promise<void> {
     getZoneUrls(n.links).forEach((u, i) => lines.push(`連結 ${i + 1}:${u}`));
     message = { type: 'text', text: lines.join('\n') };
   }
-  await lineClient.broadcast({ messages: [message] });
+  await client.broadcast({ messages: [message] });
 }
 
 function formatClassLine(c: ClassRow): string {

@@ -20,7 +20,7 @@
  * 兩邊都會進 applyEcpayPaymentResult,設計成重複呼叫不會重複處理。
  */
 import crypto from 'node:crypto';
-import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClientFor, notifyAdmin } from '@/lib/line';
 import { getTenantPaymentConfig, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { maskTail, openSecret, SecretBoxError } from '@/lib/secret-box';
 import type { PaymentKeyState } from '@/lib/linepay';
@@ -660,7 +660,9 @@ export async function applyEcpayPaymentResult(fields: EcpayFields, baseUrl: stri
   const slug = order.tenants?.slug;
   if (lineUserId && slug) {
     try {
-      await lineClient.pushMessage({
+      // Phase 38:用這張單所屬攤位的 LINE 帳號推(沒設就是愛油哇的)
+      const client = await lineClientFor(order.tenant_id);
+      await client.pushMessage({
         to: lineUserId,
         messages: [
           buildPaymentFlexMessage({
@@ -728,7 +730,8 @@ export async function applyEcpayAtmInfo(fields: EcpayFields): Promise<EcpayAtmRe
   if (lineUserId) {
     const amount = orderPayable(order); // Phase 33
     try {
-      await lineClient.pushMessage({
+      const client = await lineClientFor(order.tenant_id); // Phase 38
+      await client.pushMessage({
         to: lineUserId,
         messages: [
           {

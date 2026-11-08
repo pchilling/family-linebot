@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WebhookEvent } from '@line/bot-sdk';
-import { buildMonthlyClassesFlex, buildNewsFlex, describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, isSupportBusinessHours, lineClient, OFF_HOURS_NOTE, verifySignature } from '@/lib/line';
+import { buildMonthlyClassesFlex, buildNewsFlex, describeEvent, formatMonthlyClassesText, getContactQuickReplyItems, isSupportBusinessHours, lineClientForToken, OFF_HOURS_NOTE, verifySignature } from '@/lib/line';
 import { getClassesForCurrentMonth, getTenantByBotUserId, logMessage, supabaseAdmin, upsertUser } from '@/lib/supabase';
 import type { messagingApi } from '@line/bot-sdk';
 
@@ -21,28 +21,34 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get('x-line-signature');
 
-  if (!verifySignature(rawBody, signature)) {
+  // Phase 38(2026-11-08):每攤位自己的 LINE 帳號 — 先從 body 的 destination 找出是哪個攤位的 bot,
+  // 再用那個攤位的 channel secret 驗簽章(沒設就是平台預設那把);回覆也用該攤位的 token。
+  let body: { destination?: string; events?: WebhookEvent[] };
+  try {
+    body = JSON.parse(rawBody) as { destination?: string; events?: WebhookEvent[] };
+  } catch {
+    return NextResponse.json({ error: 'bad json' }, { status: 400 });
+  }
+  const destination = typeof body.destination === 'string' ? body.destination : '';
+  const tenant = destination ? await getTenantByBotUserId(destination) : null;
+
+  if (!verifySignature(rawBody, signature, tenant?.line_channel_secret ?? null)) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
   }
 
-  const body = JSON.parse(rawBody) as {
-    destination: string;
-    events: WebhookEvent[];
-  };
-
-  // v1:用 destination 反查 tenant;查不到就 log + 200(不可 retry storm)
-  const tenant = await getTenantByBotUserId(body.destination);
+  // 查不到攤位就 log + 200(不可 retry storm)
   if (!tenant) {
-    console.warn('[webhook] no tenant for destination', body.destination);
+    console.warn('[webhook] no tenant for destination', destination);
     return NextResponse.json({ ok: true });
   }
 
-  await Promise.all(body.events.map((event) => handleEvent(tenant.id, event)));
+  const client = lineClientForToken(tenant.line_channel_access_token);
+  await Promise.all((body.events ?? []).map((event) => handleEvent(tenant.id, event, client)));
 
   return NextResponse.json({ ok: true });
 }
 
-async function handleEvent(tenantId: string, event: WebhookEvent): Promise<void> {
+async function handleEvent(tenantId: string, event: WebhookEvent, lineClient: messagingApi.MessagingApiClient): Promise<void> {
   const lineUserId =
     'source' in event && event.source.type === 'user' ? event.source.userId : null;
 

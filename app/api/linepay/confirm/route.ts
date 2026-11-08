@@ -9,7 +9,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { confirmLinePayPayment } from '@/lib/linepay';
-import { buildPaymentFlexMessage, lineClient, notifyAdmin } from '@/lib/line';
+import { buildPaymentFlexMessage, lineClientFor, notifyAdmin } from '@/lib/line';
 import { getTenantBySlug, orderPayable, supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -117,7 +117,8 @@ export async function GET(req: NextRequest) {
   if (lineUserId) {
     try {
       const baseUrl = (process.env.NEXT_PUBLIC_PROD_URL ?? req.nextUrl.origin).replace(/\/+$/, '');
-      await lineClient.pushMessage({
+      const client = await lineClientFor(order.tenant_id); // Phase 38:用這張單所屬攤位的 LINE 帳號
+      await client.pushMessage({
         to: lineUserId,
         messages: [
           buildPaymentFlexMessage({
