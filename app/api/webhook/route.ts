@@ -31,8 +31,11 @@ export async function POST(req: NextRequest) {
   }
   const destination = typeof body.destination === 'string' ? body.destination : '';
   const tenant = destination ? await getTenantByBotUserId(destination) : null;
+  // 預設攤位(愛油哇)一律用環境變數的 secret / token,不看 DB(跟 lib/line.ts 的 lineClientFor 同一個理由);其他攤位用自己的
+  const isDefaultTenant = !!tenant && tenant.id === process.env.DEFAULT_TENANT_ID;
+  const tenantSecret = tenant && !isDefaultTenant ? tenant.line_channel_secret : null;
 
-  if (!verifySignature(rawBody, signature, tenant?.line_channel_secret ?? null)) {
+  if (!verifySignature(rawBody, signature, tenantSecret)) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
   }
 
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const client = lineClientForToken(tenant.line_channel_access_token);
+  const client = lineClientForToken(isDefaultTenant ? null : tenant.line_channel_access_token);
   await Promise.all((body.events ?? []).map((event) => handleEvent(tenant.id, event, client)));
 
   return NextResponse.json({ ok: true });

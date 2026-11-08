@@ -31,9 +31,13 @@ export function lineClientForToken(token: string | null | undefined): messagingA
   return client;
 }
 
-/** 依攤位 id 拿 client;查不到攤位或沒設 token → 平台預設 */
+/**
+ * 依攤位 id 拿 client;查不到攤位或沒設 token → 平台預設。
+ * 預設攤位(DEFAULT_TENANT_ID,愛油哇)一律用環境變數那把,不看 DB:它的 token 本來就在 env,DB 那欄是早期留的,
+ * 萬一是舊值會讓全部推播無聲失敗。其他攤位才看 DB。
+ */
 export async function lineClientFor(tenantId: string | null | undefined): Promise<messagingApi.MessagingApiClient> {
-  if (!tenantId) return lineClient;
+  if (!tenantId || tenantId === process.env.DEFAULT_TENANT_ID) return lineClient;
   const { data, error } = await supabaseAdmin
     .from('tenants')
     .select('line_channel_access_token')
