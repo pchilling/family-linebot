@@ -135,39 +135,49 @@ export async function checkCartGroupBuy(tenantId: string, productIds: string[]):
 
 type MemberLike = { id: string; line_user_id: string | null } | null;
 
+export type FollowStatus = 'none' | 'pending' | 'approved';
+
 /**
- * 追蹤 = tenant_followers 有列,或(member.line_user_id 有值且 users 表有同攤位 + line_user_id、status='active',即 LINE 好友)。
+ * 追蹤 = tenant_followers 有列且已核准(Phase 37 起 status='approved'),
+ * 或(member.line_user_id 有值且 users 表有同攤位 + line_user_id、status='active',即 LINE 好友)。
  * member null → false。
  */
 export async function isFollowing(tenantId: string, member: MemberLike): Promise<boolean> {
-  if (!member) return false;
-  const { data: follow, error } = await supabaseAdmin
-    .from('tenant_followers')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('platform_user_id', member.id)
-    .maybeSingle();
-  if (error) console.error('[isFollowing tenant_followers]', error);
-  if (follow) return true;
-
-  if (!member.line_user_id) return false;
-  const { data: lineUser, error: lineErr } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('line_user_id', member.line_user_id)
-    .eq('status', 'active')
-    .maybeSingle();
-  if (lineErr) console.error('[isFollowing users]', lineErr);
-  return !!lineUser;
+  return (await getFollowStatus(tenantId, member)) === 'approved';
 }
 
-/** 只看 tenant_followers(追蹤卡顯示起始日用);LINE 好友自動算追蹤但這裡會回 null */
-export async function getFollowRow(tenantId: string, platformUserId: string): Promise<{ created_at: string } | null> {
+/**
+ * Phase 37(2026-11-08):追蹤狀態三態 — none / pending(等攤主核准)/ approved。
+ * LINE 好友不寫 tenant_followers,直接算 approved(攤主要擋好友沒有意義,他們本來就在 LINE 裡)。
+ */
+export async function getFollowStatus(tenantId: string, member: MemberLike): Promise<FollowStatus> {
+  if (!member) return 'none';
+  const row = await getFollowRow(tenantId, member.id);
+  if (row?.status === 'approved') return 'approved';
+
+  if (member.line_user_id) {
+    const { data: lineUser, error: lineErr } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('line_user_id', member.line_user_id)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (lineErr) console.error('[getFollowStatus users]', lineErr);
+    if (lineUser) return 'approved';
+  }
+  return row?.status === 'pending' ? 'pending' : 'none';
+}
+
+/** 只看 tenant_followers(追蹤卡顯示起始日 / 申請中用);LINE 好友自動算追蹤但這裡會回 null */
+export async function getFollowRow(
+  tenantId: string,
+  platformUserId: string,
+): Promise<{ created_at: string; status: 'pending' | 'approved' } | null> {
   if (!platformUserId) return null;
   const { data, error } = await supabaseAdmin
     .from('tenant_followers')
-    .select('created_at')
+    .select('created_at, status')
     .eq('tenant_id', tenantId)
     .eq('platform_user_id', platformUserId)
     .maybeSingle();
@@ -175,18 +185,118 @@ export async function getFollowRow(tenantId: string, platformUserId: string): Pr
     console.error('[getFollowRow]', error);
     return null;
   }
-  return (data as { created_at: string } | null) ?? null;
+  const r = data as { created_at: string; status: string | null } | null;
+  if (!r) return null;
+  return { created_at: r.created_at, status: r.status === 'pending' ? 'pending' : 'approved' };
 }
 
-/** 追蹤:insert,已經追蹤(23505)就當成功 */
-export async function followTenant(tenantId: string, platformUserId: string): Promise<void> {
-  if (!tenantId || !platformUserId) return;
+/**
+ * 追蹤:insert;攤位開了「追蹤要核准」就先是 pending。
+ * 已經有列(23505)就回既有狀態(已核准的不會被改回 pending)。回傳最後的狀態給呼叫端決定 toast 文案。
+ */
+export async function followTenant(tenantId: string, platformUserId: string, requireApproval = false): Promise<'pending' | 'approved'> {
+  if (!tenantId || !platformUserId) return 'approved';
+  const status = requireApproval ? 'pending' : 'approved';
   const { error } = await supabaseAdmin
     .from('tenant_followers')
-    .insert({ tenant_id: tenantId, platform_user_id: platformUserId });
-  if (error && error.code !== '23505') {
+    .insert({ tenant_id: tenantId, platform_user_id: platformUserId, status });
+  if (error) {
+    if (error.code === '23505') {
+      const row = await getFollowRow(tenantId, platformUserId);
+      return row?.status ?? status;
+    }
     console.error('[followTenant]', error);
     throw new Error('追蹤失敗,請稍後再試');
+  }
+  return status;
+}
+
+// ---- Phase 37:後台核准追蹤 ----
+
+export type PendingFollower = {
+  id: string;
+  created_at: string;
+  platform_user_id: string;
+  display_name: string | null;
+  email: string | null;
+  has_line: boolean;
+};
+
+/** 等核准的追蹤申請(含 platform_users 的名字 / 信箱,給後台列表用) */
+export async function listPendingFollowers(tenantId: string): Promise<PendingFollower[]> {
+  const { data, error } = await supabaseAdmin
+    .from('tenant_followers')
+    .select('id, created_at, platform_user_id, platform_users(display_name, email, line_user_id)')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) {
+    console.error('[listPendingFollowers]', error);
+    return [];
+  }
+  type Row = { id: string; created_at: string; platform_user_id: string; platform_users: { display_name: string | null; email: string | null; line_user_id: string | null } | null };
+  return ((data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id,
+    created_at: r.created_at,
+    platform_user_id: r.platform_user_id,
+    display_name: r.platform_users?.display_name ?? null,
+    email: r.platform_users?.email ?? null,
+    has_line: !!r.platform_users?.line_user_id,
+  }));
+}
+
+/** 核准(status → approved)或拒絕(刪列,客人之後可以再申請);一律限 tenant_id */
+export async function setFollowerApproval(tenantId: string, followerId: string, approve: boolean): Promise<void> {
+  if (!tenantId || !followerId) return;
+  const q = approve
+    ? supabaseAdmin.from('tenant_followers').update({ status: 'approved' }).eq('tenant_id', tenantId).eq('id', followerId)
+    : supabaseAdmin.from('tenant_followers').delete().eq('tenant_id', tenantId).eq('id', followerId);
+  const { error } = await q;
+  if (error) {
+    console.error('[setFollowerApproval]', error);
+    throw new Error('儲存失敗,請稍後再試');
+  }
+}
+
+// ---- Phase 37:開團通知我 ----
+
+/** 這個人有沒有登記(還沒被通知過的那一筆) */
+export async function hasOpenNotifyRequest(tenantId: string, platformUserId: string): Promise<boolean> {
+  if (!platformUserId) return false;
+  const { data, error } = await supabaseAdmin
+    .from('group_buy_notify_requests')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('platform_user_id', platformUserId)
+    .is('notified_at', null)
+    .maybeSingle();
+  if (error) console.error('[hasOpenNotifyRequest]', error);
+  return !!data;
+}
+
+/** 登記開團通知:同一人一列,之前通知過的把 notified_at 清回 null 等下一團 */
+export async function requestOpenNotify(tenantId: string, platformUserId: string): Promise<void> {
+  if (!tenantId || !platformUserId) return;
+  const { error } = await supabaseAdmin
+    .from('group_buy_notify_requests')
+    .upsert({ tenant_id: tenantId, platform_user_id: platformUserId, notified_at: null }, { onConflict: 'tenant_id,platform_user_id' });
+  if (error) {
+    console.error('[requestOpenNotify]', error);
+    throw new Error('登記失敗,請稍後再試');
+  }
+}
+
+export async function cancelOpenNotify(tenantId: string, platformUserId: string): Promise<void> {
+  if (!tenantId || !platformUserId) return;
+  const { error } = await supabaseAdmin
+    .from('group_buy_notify_requests')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('platform_user_id', platformUserId);
+  if (error) {
+    console.error('[cancelOpenNotify]', error);
+    throw new Error('取消失敗,請稍後再試');
   }
 }
 

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { Badge, Input, Switch } from '@/lib/ui';
 import { Field, GroupHead, PanelTitle, SwitchRow } from '../settings-ui';
-import { CopyButton, DeleteIconButton, DiscountCodeForm, DiscountEnabledSwitch, GiftModeControl, GroupbuyFollowersOnlySwitch, SaveButton } from '../settings-client';
+import { CopyButton, DeleteIconButton, DiscountCodeForm, DiscountEnabledSwitch, GiftModeControl, GroupbuyFollowApprovalSwitch, GroupbuyFollowersOnlySwitch, SaveButton } from '../settings-client';
 import { GiftProductPicker, type PickerProduct } from '../gift-product-picker';
 import { IconTrash } from '@/lib/icons';
 import { siteOrigin } from '@/lib/return-to';
@@ -62,10 +62,11 @@ function dcPeriod(r: DiscountCodeRow): string {
 export default async function PromoSettingsPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   // Phase 35:groupbuy_followers_only(團購只給追蹤者看)
-  const { data } = await supabaseAdmin.from('tenants').select('id, gift_rules, groupbuy_followers_only').eq('slug', slug).maybeSingle();
+  const { data } = await supabaseAdmin.from('tenants').select('id, gift_rules, groupbuy_followers_only, groupbuy_follow_approval').eq('slug', slug).maybeSingle();
   if (!data) notFound();
-  const tenant = data as { id: string; gift_rules: { mode?: string; rules?: GiftRule[] } | null; groupbuy_followers_only: boolean | null };
+  const tenant = data as { id: string; gift_rules: { mode?: string; rules?: GiftRule[] } | null; groupbuy_followers_only: boolean | null; groupbuy_follow_approval: boolean | null };
   const groupbuyFollowersOnly = !!tenant.groupbuy_followers_only;
+  const groupbuyFollowApproval = !!tenant.groupbuy_follow_approval; // Phase 37
   const inviteUrl = `${siteOrigin()}/${slug}/groupbuy`;
 
   // Phase 33:折扣碼清單,server 端算狀態、排序(進行中 → 未開始 → 已用完 → 已結束 → 停用)
@@ -254,6 +255,12 @@ export default async function PromoSettingsPage({ params }: { params: Promise<{ 
           desc="開著時沒追蹤的人在團購分頁只看到一扇門,商品與團名不會送到他的瀏覽器;LINE 好友自動算追蹤。"
           control={<GroupbuyFollowersOnlySwitch slug={slug} enabled={groupbuyFollowersOnly} />}
         />
+        {/* Phase 37(2026-11-08):追蹤要經攤主同意 */}
+        <SwitchRow
+          title="追蹤要經我同意"
+          desc="開著時客人按「追蹤這家店」先是申請,你在左側「團購」頁核准後才算追蹤、才看得到只給追蹤者的團購;LINE 好友不用核准。"
+          control={<GroupbuyFollowApprovalSwitch slug={slug} enabled={groupbuyFollowApproval} />}
+        />
         <dl className="sx-dl">
           <dt>邀請連結</dt>
           <dd>
@@ -262,8 +269,8 @@ export default async function PromoSettingsPage({ params }: { params: Promise<{ 
               <CopyButton text={inviteUrl} title="複製邀請連結" />
             </span>
           </dd>
-          <dt>追蹤要核准</dt>
-          <dd><span className="sx-hint">之後提供</span></dd>
+          <dt>開團通知我</dt>
+          <dd><span className="sx-hint">沒開團時團購頁有「開團通知我」按鈕,開團時系統會推 LINE 給按過的人(要是這個攤位的 LINE 好友才推得到)。</span></dd>
         </dl>
       </div>
     </div>

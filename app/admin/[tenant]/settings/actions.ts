@@ -939,6 +939,27 @@ export async function setGroupbuyFollowersOnly(formData: FormData): Promise<void
   revalidatePath(`/${slug}/groupbuy`);
 }
 
+/** Phase 37(2026-11-08):追蹤要經攤主核准 — 開著時新追蹤先 pending,攤主在團購頁核准;LINE 好友不受影響 */
+export async function setGroupbuyFollowApproval(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const enabled = formData.get('enabled') === 'on';
+  if (!slug) throw new Error('無攤位資訊');
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) throw new Error('攤位不存在');
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ groupbuy_follow_approval: enabled })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[setGroupbuyFollowApproval]', error);
+    throw new Error('儲存失敗:' + error.message);
+  }
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  revalidatePath(`/${slug}/groupbuy`);
+}
+
 // ====================
 // Phase 34(2026-11-06):每攤位各自的金流金鑰(設定 → 收款)
 // tenants.payment_config jsonb,敏感欄位用 lib/secret-box.ts 加密(AES-256-GCM,金鑰 PAYMENT_CONFIG_KEY)。

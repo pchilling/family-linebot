@@ -396,6 +396,7 @@ export type TenantPublic = {
   logo_url: string | null;
   banners: MediaItem[]; // Phase 9.8:多媒體 banner,empty 時 fallback og_image_url
   groupbuy_followers_only: boolean; // Phase 35(2026-11-07):團購只給追蹤這家店的人看
+  groupbuy_follow_approval: boolean; // Phase 37(2026-11-08):追蹤要經攤主核准
 };
 
 /**
@@ -405,7 +406,7 @@ export type TenantPublic = {
 export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, description, brand_color, shop_bg_color, header_bg_color, category_order, og_image_url, logo_url, banners, groupbuy_followers_only, status')
+    .select('id, slug, name, plan, description, brand_color, shop_bg_color, header_bg_color, category_order, og_image_url, logo_url, banners, groupbuy_followers_only, groupbuy_follow_approval, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
@@ -417,6 +418,7 @@ export async function getTenantPublic(slug: string): Promise<TenantPublic | null
     banners: Array.isArray(tp.banners) ? tp.banners : [],
     category_order: Array.isArray(tp.category_order) ? tp.category_order : [],
     groupbuy_followers_only: !!tp.groupbuy_followers_only,
+    groupbuy_follow_approval: !!tp.groupbuy_follow_approval,
   };
 }
 

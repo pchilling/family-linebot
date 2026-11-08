@@ -32,7 +32,9 @@
 - 開團時可勾「推 LINE 通知給全部好友」:送出前顯示會推給幾人,並提醒推播額度。
 - 沒開團:客人看不到團購分頁(2026-11-08 改);直接打 `/{slug}/groupbuy` 網址(例如舊的邀請連結)還是開得到,
   上面一張灰卡「目前沒開團」+ 上一團的狀態;商品灰掉、不能加入。
-  「開團時通知我」按鈕下一版再做。
+  **「開團通知我」(Phase 37,2026-11-08 已做)**:灰卡上一顆按鈕,登記在 `group_buy_notify_requests`;沒登入先登入(帶 notify=1 回來自動登記)。
+  只能推 LINE:有 LINE 且是這個攤位好友的人,開團時推開團卡(攤主有勾「推全部好友」時他們已經收到,只標記);沒 LINE 的會員看到的是說明不是按鈕。
+  推過寫 notified_at,下一團要再按一次。
 
 ## 五、購物車與結帳
 
@@ -60,6 +62,9 @@
 
 - 表 `tenant_followers`:tenant_id、platform_user_id、created_at,unique(tenant_id, platform_user_id)。
 - `tenants.groupbuy_followers_only boolean default false`。
+- **追蹤要經攤主同意(Phase 37,2026-11-08 已做)**:`tenants.groupbuy_follow_approval`,預設關。開著時按「追蹤這家店」先是申請
+  (`tenant_followers.status = 'pending'`),攤主在後台「團購」頁的「等你核准的追蹤申請」核准 / 拒絕;只認 approved 為追蹤。
+  LINE 好友不用核准(本來就在 LINE 裡)。客人在門上與我的訂單頁看到「申請中」,可以取消申請。
 - 關著:團購分頁誰都看得到。
 - 開著:
   - 沒登入或沒追蹤的人,團購分頁只看到一扇門:「團購只開放給追蹤這家店的人」+「登入並追蹤這家店」。商品、價格、團名都不送到前端(server 端擋,不是畫面藏)。

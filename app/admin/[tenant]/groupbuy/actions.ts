@@ -10,8 +10,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireAdminTenant } from '@/lib/super-admin';
-import { effectiveStatus, getCurrentGroupBuy, GROUP_BUY_SELECT, type GroupBuyRow } from '@/lib/groupbuy';
-import { notifyGroupBuyArrived, notifyGroupBuyOpened } from '@/lib/groupbuy-notify';
+import { effectiveStatus, getCurrentGroupBuy, GROUP_BUY_SELECT, setFollowerApproval, type GroupBuyRow } from '@/lib/groupbuy';
+import { notifyGroupBuyArrived, notifyGroupBuyOpened, notifyGroupBuyRequesters } from '@/lib/groupbuy-notify';
 
 /** datetime-local 'YYYY-MM-DDTHH:MM'(台北)→ ISO;空字串 → null;格式不對 → throw */
 function endsAtFromForm(raw: string): string | null {
@@ -110,9 +110,37 @@ export async function createGroupBuy(formData: FormData): Promise<void> {
     sent = r.sent;
     failed = r.failed;
   }
+  // Phase 37:按過「開團通知我」的人 — 有推全部好友時他們已經收到,只標記;沒推才單獨推給他們
+  const rq = await notifyGroupBuyRequesters(tenant.id, id, notify_on_open);
+  sent += rq.sent;
+  failed += rq.failed;
 
   revalidateGroupBuy(slug);
-  redirect(`/admin/${slug}/groupbuy/${id}?saved=created${notify_on_open ? `&sent=${sent}&failed=${failed}` : ''}`);
+  redirect(`/admin/${slug}/groupbuy/${id}?saved=created${notify_on_open || rq.sent > 0 ? `&sent=${sent}&failed=${failed}` : ''}`);
+}
+
+// ====================
+// Phase 37(2026-11-08):追蹤申請核准 / 拒絕(攤位開了「追蹤要核准」才會有 pending)
+// ====================
+
+/** tenant_slug, id(tenant_followers.id) */
+export async function approveFollower(formData: FormData): Promise<void> {
+  const { slug, tenant } = await requireTenant(formData);
+  const id = String(formData.get('id') ?? '').trim();
+  await setFollowerApproval(tenant.id, id, true);
+  revalidatePath(`/admin/${slug}/groupbuy`);
+  revalidatePath(`/admin/${slug}/customers`);
+  revalidatePath(`/${slug}/groupbuy`);
+  redirect(`/admin/${slug}/groupbuy?saved=approved`);
+}
+
+export async function rejectFollower(formData: FormData): Promise<void> {
+  const { slug, tenant } = await requireTenant(formData);
+  const id = String(formData.get('id') ?? '').trim();
+  await setFollowerApproval(tenant.id, id, false);
+  revalidatePath(`/admin/${slug}/groupbuy`);
+  revalidatePath(`/admin/${slug}/customers`);
+  redirect(`/admin/${slug}/groupbuy?saved=rejected`);
 }
 
 /** id + 同上欄位(status != done 才能改);notify_on_open 只是紀錄,編輯不會重推 */

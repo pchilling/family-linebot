@@ -1809,3 +1809,28 @@ $$ language plpgsql;
 alter table tenants add column if not exists cod_payment jsonb;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ====================
+-- Phase 37(2026-11-08):團購進階 — 追蹤要經攤主同意、沒開團時「開團通知我」
+-- 1. tenants.groupbuy_follow_approval:開著時新的「追蹤這家店」先是 pending,攤主在後台團購頁核准才算追蹤(LINE 好友仍自動算追蹤)。
+--    預設關;關著時追蹤立即生效(跟 Phase 35 一樣)。
+-- 2. tenant_followers.status:'approved'(預設,舊資料全部視為已核准)/ 'pending'(等核准)。isFollowing 只認 approved。
+-- 3. group_buy_notify_requests:客人在沒開團時按「開團通知我」留的名單;開團時推 LINE 給有 LINE 且是好友的人,推過就寫 notified_at。
+--    同一人一列,下次再按就把 notified_at 清回 null。
+-- ====================
+alter table tenants add column if not exists groupbuy_follow_approval boolean not null default false;
+alter table tenant_followers add column if not exists status text not null default 'approved'
+  check (status in ('pending', 'approved'));
+create index if not exists tenant_followers_status_idx on tenant_followers(tenant_id, status);
+
+create table if not exists group_buy_notify_requests (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  platform_user_id uuid not null references platform_users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  notified_at timestamptz,
+  unique (tenant_id, platform_user_id)
+);
+alter table group_buy_notify_requests enable row level security;
+
+NOTIFY pgrst, 'reload schema';

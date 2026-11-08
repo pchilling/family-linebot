@@ -690,3 +690,19 @@ $$ language plpgsql;
 --   orders.payment_method 多 'cod'(text 欄位沒 check,不改 schema)。平台不接物流 API,錢由超商直接撥給攤主。
 alter table tenants add column if not exists cod_payment jsonb;
 NOTIFY pgrst, 'reload schema';
+
+-- Phase 37(2026-11-08)— 團購進階:tenants.groupbuy_follow_approval(追蹤要核准,預設關)、tenant_followers.status(pending / approved,預設 approved)、
+--   新表 group_buy_notify_requests(開團通知我;unique tenant+platform_user;notified_at 推過就寫)。
+alter table tenants add column if not exists groupbuy_follow_approval boolean not null default false;
+alter table tenant_followers add column if not exists status text not null default 'approved' check (status in ('pending', 'approved'));
+create index if not exists tenant_followers_status_idx on tenant_followers(tenant_id, status);
+create table if not exists group_buy_notify_requests (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id) on delete cascade,
+  platform_user_id uuid not null references platform_users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  notified_at timestamptz,
+  unique (tenant_id, platform_user_id)
+);
+alter table group_buy_notify_requests enable row level security;
+NOTIFY pgrst, 'reload schema';

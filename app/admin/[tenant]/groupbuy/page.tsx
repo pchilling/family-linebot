@@ -7,13 +7,14 @@ import {
   fmtEndsAt,
   GROUP_BUY_SELECT,
   GROUP_BUY_STATUS_LABEL,
+  listPendingFollowers,
   type GroupBuyRow,
   type GroupBuyStatus,
 } from '@/lib/groupbuy';
 import { IconUsers } from '@/lib/icons';
 import { SubmitButton } from '../../_components/submit-button';
 import { FlashToast } from '../../../_components/toast';
-import { closeGroupBuy, markGroupBuyArrived, markGroupBuyDone, markGroupBuyOrdered, reopenGroupBuy } from './actions';
+import { approveFollower, closeGroupBuy, markGroupBuyArrived, markGroupBuyDone, markGroupBuyOrdered, rejectFollower, reopenGroupBuy } from './actions';
 
 /**
  * 後台「團購」列表(Phase 35,2026-11-07)。規格:docs/GROUPBUY.md 第六節。
@@ -105,6 +106,16 @@ const CSS = `
 .gb-empty{padding:48px 16px;text-align:center;color:#71717a;font-size:14px;line-height:1.7}
 .gb-callout{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:#fafafa;border:1px solid #e4e4e7;font-size:13px;color:#52525b;line-height:1.6;margin-bottom:14px}
 .gb-callout svg{margin-top:2px;color:#71717a;flex:none}
+.gb-pend{background:#fff;border:1px solid #fde68a;border-radius:12px;margin-bottom:14px;overflow:hidden}
+.gb-pend h2{margin:0;padding:12px 16px;font-size:14px;font-weight:600;background:#fffbeb;color:#92400e;border-bottom:1px solid #fde68a;display:flex;align-items:center;gap:8px}
+.gb-pend h2 .n{font-weight:400;color:#a16207;font-size:13px}
+.gb-pend-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid #f4f4f5;font-size:13.5px;flex-wrap:wrap}
+.gb-pend-row:first-of-type{border-top:0}
+.gb-pend-row .who{flex:1 1 200px;min-width:0}
+.gb-pend-row .who b{font-weight:600}
+.gb-pend-row .who span{display:block;font-size:12px;color:#71717a}
+.gb-pend-row .when{font-size:12px;color:#71717a;font-variant-numeric:tabular-nums}
+.gb-pend-row form{margin:0;display:inline-flex;gap:6px}
 @media (max-width:767px){
   .gb-head{align-items:flex-start;flex-direction:column}
   .gb-list{border-radius:10px}
@@ -131,10 +142,12 @@ export default async function GroupBuyListPage({
   if (!tenant) notFound();
 
   const rows = await getGroupBuys(tenant.id);
-  const stats = await getStats(tenant.id, rows.map((r) => r.id));
+  // Phase 37:等核准的追蹤申請(攤位開了「追蹤要核准」才會有)
+  const [stats, pending] = await Promise.all([getStats(tenant.id, rows.map((r) => r.id)), listPendingFollowers(tenant.id)]);
   const now = new Date();
   const hasOpen = rows.some((r) => effectiveStatus(r, now) === 'open');
   const money = (n: number) => `NT$ ${n.toLocaleString()}`;
+  const fmtWhen = (iso: string) => new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
   return (
     <main style={{ padding: '28px 32px 48px' }}>
@@ -143,6 +156,8 @@ export default async function GroupBuyListPage({
       {sp.saved === 'reopened' && <FlashToast message="已重新開放收單" />}
       {sp.saved === 'ordered' && <FlashToast message="已標為已訂貨" />}
       {sp.saved === 'done' && <FlashToast message="已結團" />}
+      {sp.saved === 'approved' && <FlashToast message="已核准追蹤,這位客人現在看得到團購了" />}
+      {sp.saved === 'rejected' && <FlashToast message="已拒絕這筆追蹤申請" />}
 
       <header className="gb-head">
         <div>
@@ -165,6 +180,35 @@ export default async function GroupBuyListPage({
           <IconUsers size={15} />
           <span>目前有一團收單中,要開新團請先把它截止。團購分頁的客人現在就能看到並下單。</span>
         </div>
+      )}
+
+      {/* Phase 37:追蹤申請(設定 → 行銷 開了「追蹤要經我同意」才會有) */}
+      {pending.length > 0 && (
+        <section className="gb-pend" aria-labelledby="gb-pend-h">
+          <h2 id="gb-pend-h">
+            等你核准的追蹤申請
+            <span className="n">{pending.length} 位 · 核准後才看得到團購</span>
+          </h2>
+          {pending.map((p) => (
+            <div key={p.id} className="gb-pend-row">
+              <div className="who">
+                <b>{p.display_name?.trim() || p.email || '未留名字'}</b>
+                <span>{[p.email, p.has_line ? 'LINE 登入' : null].filter(Boolean).join(' · ') || '—'}</span>
+              </div>
+              <span className="when">{fmtWhen(p.created_at)} 申請</span>
+              <form action={approveFollower}>
+                <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                <input type="hidden" name="id" value={p.id} />
+                <SubmitButton size="sm" pendingText="處理中…">核准</SubmitButton>
+              </form>
+              <form action={rejectFollower}>
+                <input type="hidden" name="tenant_slug" value={tenant.slug} />
+                <input type="hidden" name="id" value={p.id} />
+                <SubmitButton size="sm" variant="secondary" pendingText="處理中…" confirmText="拒絕這筆追蹤申請?對方之後還是可以再申請。">拒絕</SubmitButton>
+              </form>
+            </div>
+          ))}
+        </section>
       )}
 
       <div className="gb-list">

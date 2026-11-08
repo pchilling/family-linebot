@@ -206,6 +206,60 @@ export async function notifyGroupBuyOpened(tenantId: string, groupBuyId: string)
 }
 
 /**
+ * Phase 37(2026-11-08):開團時通知按過「開團通知我」的人。
+ * 攤主有勾「推給全部好友」(alreadyBroadcast)→ 他們已經收到了,只把登記標成已通知;
+ * 沒勾 → 只推給登記名單裡「有 LINE 且是這個攤位好友」的人(沒 LINE 的推不到,一樣標已通知,下一團要再按)。
+ */
+export async function notifyGroupBuyRequesters(tenantId: string, groupBuyId: string, alreadyBroadcast: boolean): Promise<PushResult> {
+  const none: PushResult = { sent: 0, failed: 0 };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('group_buy_notify_requests')
+      .select('id, platform_users(line_user_id)')
+      .eq('tenant_id', tenantId)
+      .is('notified_at', null);
+    if (error) {
+      console.error('[notifyGroupBuyRequesters requests]', error);
+      return none;
+    }
+    type Row = { id: string; platform_users: { line_user_id: string | null } | null };
+    const rows = (data as unknown as Row[] | null) ?? [];
+    if (rows.length === 0) return none;
+
+    let result = none;
+    if (!alreadyBroadcast) {
+      const lineIds = [...new Set(rows.map((r) => r.platform_users?.line_user_id).filter((x): x is string => !!x))];
+      if (lineIds.length > 0) {
+        // 只推給這個攤位的 LINE 好友(不是好友的 push 會失敗,先濾掉省額度)
+        const { data: friends } = await supabaseAdmin
+          .from('users')
+          .select('line_user_id')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'active')
+          .in('line_user_id', lineIds);
+        const friendIds = ((friends as { line_user_id: string }[] | null) ?? []).map((f) => f.line_user_id);
+        if (friendIds.length > 0) {
+          const [tenant, gb] = await Promise.all([loadTenantForPush(tenantId), getGroupBuyById(tenantId, groupBuyId)]);
+          if (tenant && gb) {
+            const url = `${siteOrigin()}/${tenant.slug}/groupbuy`;
+            result = await multicastAll(clientFor(tenant), friendIds, buildOpenedFlex(gb, tenant.name, url));
+          }
+        }
+      }
+    }
+    const { error: markErr } = await supabaseAdmin
+      .from('group_buy_notify_requests')
+      .update({ notified_at: new Date().toISOString() })
+      .in('id', rows.map((r) => r.id));
+    if (markErr) console.error('[notifyGroupBuyRequesters mark]', markErr);
+    return result;
+  } catch (e) {
+    console.error('[notifyGroupBuyRequesters]', e);
+    return none;
+  }
+}
+
+/**
  * 到貨通知:本團每張未取消訂單、有 users.line_user_id 的客人各推一則;
  * 同一個 LINE 帳號多張單只推一則但列出全部單號,按鈕開第一張單(帶 ?k= 存取碼)。
  */

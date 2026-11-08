@@ -21,7 +21,7 @@ import {
   IconTruck,
   IconWallet,
 } from '@/lib/icons';
-import { addDiscountCode, setDiscountCodeEnabled, setGiftMode, setGroupbuyFollowersOnly, type SettingsState } from './actions';
+import { addDiscountCode, setDiscountCodeEnabled, setGiftMode, setGroupbuyFollowApproval, setGroupbuyFollowersOnly, type SettingsState } from './actions';
 
 const ITEMS = [
   { href: '', label: '基本資料', icon: IconStore },
@@ -170,6 +170,18 @@ export function GroupbuyFollowersOnlySwitch({ slug, enabled }: { slug: string; e
     <form ref={ref} action={setGroupbuyFollowersOnly} className="sx-segwrap">
       <input type="hidden" name="tenant_slug" value={slug} />
       <Switch name="enabled" defaultChecked={enabled} aria-label="團購只給追蹤這家店的人看" onChange={() => ref.current?.requestSubmit()} />
+      <ModeSaving />
+    </form>
+  );
+}
+
+/** Phase 37(2026-11-08):追蹤要經攤主核准 */
+export function GroupbuyFollowApprovalSwitch({ slug, enabled }: { slug: string; enabled: boolean }) {
+  const ref = useRef<HTMLFormElement>(null);
+  return (
+    <form ref={ref} action={setGroupbuyFollowApproval} className="sx-segwrap">
+      <input type="hidden" name="tenant_slug" value={slug} />
+      <Switch name="enabled" defaultChecked={enabled} aria-label="追蹤要經我同意" onChange={() => ref.current?.requestSubmit()} />
       <ModeSaving />
     </form>
   );

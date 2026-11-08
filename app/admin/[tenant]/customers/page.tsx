@@ -78,6 +78,7 @@ async function getFollowers(tenantId: string): Promise<{ created_at: string; use
     .from('tenant_followers')
     .select('created_at, platform_users(id, display_name, email, line_user_id)')
     .eq('tenant_id', tenantId)
+    .eq('status', 'approved') // Phase 37:等核准的不算追蹤中(在團購頁核准)
     .order('created_at', { ascending: false })
     .limit(500);
   type Row = { created_at: string; platform_users: PlatformUserLite | null };

@@ -9,7 +9,7 @@ import { getFollowRow, isFollowing } from '@/lib/groupbuy';
 import { FlashToast } from '../../_components/toast';
 import { followThisStore, unfollowThisStore } from '../groupbuy/actions';
 
-type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ saved?: string; followed?: string; unfollowed?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ saved?: string; followed?: string; requested?: string; unfollowed?: string }> };
 
 /**
  * 個人設定 → 暱稱(2026-11-01 Peter):存在 platform_users.display_name,
@@ -129,6 +129,7 @@ export default async function AccountPage({ params, searchParams }: Props) {
       {saved === '1' && <FlashToast message="已儲存暱稱" />}
       {saved === '0' && <FlashToast tone="error" message="暱稱沒存成功,請再試一次" />}
       {sp?.followed === '1' && <FlashToast message={`已追蹤 ${tenant.name}`} />}
+      {sp?.requested === '1' && <FlashToast message="已送出追蹤申請,等這家店核准" />}
       {sp?.unfollowed === '1' && <FlashToast message={`已取消追蹤 ${tenant.name}`} />}
 
       {/* 2026-11-01:個人設定 — 暱稱(評價和頁首都用這個名字) */}
@@ -147,24 +148,28 @@ export default async function AccountPage({ params, searchParams }: Props) {
         <div style={{ minWidth: 0 }}>
           <h2 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>追蹤這家店</h2>
           <p className="ui-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
-            {followRow
-              ? `追蹤中 · 自 ${fmtDate(followRow.created_at)}`
-              : following
-                ? '追蹤中 · LINE 好友自動追蹤'
-                : '追蹤這家店,開團時會在團購分頁第一時間看到。'}
+            {followRow?.status === 'pending'
+              ? `申請中 · ${fmtDate(followRow.created_at)} 送出,等店主核准`
+              : followRow
+                ? `追蹤中 · 自 ${fmtDate(followRow.created_at)}`
+                : following
+                  ? '追蹤中 · LINE 好友自動追蹤'
+                  : tenant.groupbuy_follow_approval
+                    ? '這家店的追蹤要經店主同意,送出申請後等核准。'
+                    : '追蹤這家店,開團時會在團購分頁第一時間看到。'}
           </p>
         </div>
         {followRow ? (
           <form action={unfollowThisStore}>
             <input type="hidden" name="tenant_slug" value={slug} />
             <input type="hidden" name="return_to" value={`/${slug}/account`} />
-            <button type="submit" className="ui-btn ui-btn-ghost ui-btn-sm">取消追蹤</button>
+            <button type="submit" className="ui-btn ui-btn-ghost ui-btn-sm">{followRow.status === 'pending' ? '取消申請' : '取消追蹤'}</button>
           </form>
         ) : following ? null : (
           <form action={followThisStore}>
             <input type="hidden" name="tenant_slug" value={slug} />
             <input type="hidden" name="return_to" value={`/${slug}/account`} />
-            <button type="submit" className="ui-btn ui-btn-primary ui-btn-md">追蹤這家店</button>
+            <button type="submit" className="ui-btn ui-btn-primary ui-btn-md">{tenant.groupbuy_follow_approval ? '申請追蹤這家店' : '追蹤這家店'}</button>
           </form>
         )}
       </div>
