@@ -5,9 +5,10 @@ import type { ReactNode } from 'react';
  * 後台只有一個「商品說明」文字欄位,但 Phase 24 原型的說明區是有結構的:特色段落、兩欄規格表、
  * 條列的使用方式、「注意事項」「保固」收成有框的可收合區。這裡不動資料庫,顯示時照幾條規則排:
  *   - 空一行就是分段。
- *   - 單獨一行、12 字以內、沒有標點的短句當小標(或用「## 」開頭強制當小標)。
+ *   - 單獨一行、12 字以內、沒有標點的短句當小標(或用「#」「##」「###」開頭強制當小標)。
  *   - 小標底下每一行都是「名稱:內容」→ 兩欄表格;同一段多行 → 條列(1. 開頭就是有序);其他 → 段落。
- *   - 小標是「注意事項」「保固」這類 → 整段收成可收合的框。
+ *   - 小標含「注意事項」「保固」這類字 → 整段收成可收合的框。
+ *   - 「**文字**」顯示成粗體(攤主常從 Markdown 貼過來,之前星號會原樣露出)。
  * 沒寫小標的說明就是分段顯示,跟以前差不多。網頁商店與 LIFF 商品頁共用。
  */
 
@@ -25,12 +26,15 @@ export type DescBlock =
 const HEADING_MAX_CHARS = 12;
 const LEAD_MAX_CHARS = 30;
 const SENTENCE_PUNCT = /[，。、：:；;！!？?,]/;
-const COLLAPSIBLE_TITLE = /^(注意事項|使用注意|注意|保固|退換貨|退貨|常見問題|備註|免責)/;
+const COLLAPSIBLE_TITLE = /注意事項|使用注意|保固|退換貨|退貨|常見問題|備註|免責/;
 const KEY_VALUE = /^([^：:]{1,8})[：:]\s*(.+)$/;
 const BULLET_MARK = /^[-•・*]\s*/;
 const NUMBER_MARK = /^\d+[.、)]\s*/;
+const MD_HEADING = /^#{1,6}\s+(.+)$/;
+const BOLD = /\*\*(.+?)\*\*/g;
 
 const charCount = (s: string) => [...s].length;
+const stripBold = (s: string) => s.replace(BOLD, '$1');
 
 function splitGroups(text: string): string[][] {
   const groups: string[][] = [];
@@ -51,11 +55,13 @@ function splitGroups(text: string): string[][] {
 function headingOf(group: string[], isLast: boolean): string | null {
   if (group.length !== 1) return null;
   const s = group[0];
-  if (s.startsWith('## ')) return s.slice(3).trim() || null;
+  const md = MD_HEADING.exec(s);
+  if (md) return stripBold(md[1]).trim() || null;
   if (isLast) return null; // 最後一段沒有內容可帶,不當小標
-  if (charCount(s) > HEADING_MAX_CHARS) return null;
-  if (SENTENCE_PUNCT.test(s)) return null;
-  return s;
+  const plain = stripBold(s);
+  if (charCount(plain) > HEADING_MAX_CHARS) return null;
+  if (SENTENCE_PUNCT.test(plain)) return null;
+  return plain;
 }
 
 function partOf(group: string[]): DescPart {
@@ -67,6 +73,9 @@ function partOf(group: string[]): DescPart {
     const ordered = group.every((l) => NUMBER_MARK.test(l));
     return { kind: 'list', ordered, items: group.map((l) => l.replace(ordered ? NUMBER_MARK : BULLET_MARK, '')) };
   }
+  // 只有一行但寫了「1.」「-」這種記號,也當一條清單,跟上下文長得一樣
+  if (NUMBER_MARK.test(group[0])) return { kind: 'list', ordered: true, items: [group[0].replace(NUMBER_MARK, '')] };
+  if (BULLET_MARK.test(group[0])) return { kind: 'list', ordered: false, items: [group[0].replace(BULLET_MARK, '')] };
   return { kind: 'p', lines: group };
 }
 
@@ -118,13 +127,28 @@ export const PRODUCT_DESC_CSS = `
 .pdesc>*:last-child{margin-bottom:0}
 `;
 
+/** 「**文字**」→ <strong>,其他原樣 */
+function Inline({ text }: { text: string }) {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let k = 0;
+  for (const m of text.matchAll(BOLD)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(text.slice(last, at));
+    out.push(<strong key={k++}>{m[1]}</strong>);
+    last = at + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return <>{out}</>;
+}
+
 function Lines({ lines }: { lines: string[] }) {
   return (
     <>
       {lines.map((l, i) => (
         <span key={i}>
           {i > 0 && <br />}
-          {l}
+          <Inline text={l} />
         </span>
       ))}
     </>
@@ -138,8 +162,8 @@ function Part({ part }: { part: DescPart }): ReactNode {
         <tbody>
           {part.rows.map(([k, v], i) => (
             <tr key={i}>
-              <td>{k}</td>
-              <td>{v}</td>
+              <td><Inline text={k} /></td>
+              <td><Inline text={v} /></td>
             </tr>
           ))}
         </tbody>
@@ -147,7 +171,7 @@ function Part({ part }: { part: DescPart }): ReactNode {
     );
   }
   if (part.kind === 'list') {
-    const items = part.items.map((it, i) => <li key={i}>{it}</li>);
+    const items = part.items.map((it, i) => <li key={i}><Inline text={it} /></li>);
     return part.ordered ? <ol>{items}</ol> : <ul>{items}</ul>;
   }
   return (
@@ -174,7 +198,7 @@ export function ProductDescription({ text }: { text: string }) {
     <div className="pdesc">
       <style dangerouslySetInnerHTML={{ __html: PRODUCT_DESC_CSS }} />
       {blocks.map((b, i) => {
-        if (b.kind === 'lead') return <p key={i} className="pdesc-lead">{b.text}</p>;
+        if (b.kind === 'lead') return <p key={i} className="pdesc-lead">{stripBold(b.text)}</p>;
         if (b.kind === 'p') {
           return (
             <p key={i}>
