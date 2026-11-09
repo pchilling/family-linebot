@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
 import { getTenantPublic, orderPayable, supabaseAdmin } from '@/lib/supabase';
 import { CopyButton } from './copy-button';
@@ -217,12 +218,13 @@ const CSS = `
 .od-status .no strong{font-size:.875rem;letter-spacing:.01em}
 .od-status .no em{font-style:normal;white-space:nowrap}
 .od-tl{list-style:none;margin:0;padding:0}
-.od-tl li{position:relative;display:grid;grid-template-columns:30px 1fr;column-gap:14px;padding-bottom:20px;animation:od-rise .35s ease both}
-.od-tl li:nth-child(1){animation-delay:.05s}.od-tl li:nth-child(2){animation-delay:.15s}.od-tl li:nth-child(3){animation-delay:.25s}.od-tl li:nth-child(4){animation-delay:.35s}.od-tl li:nth-child(5){animation-delay:.45s}.od-tl li:nth-child(6){animation-delay:.55s}
-.od-tl li:last-child{padding-bottom:0}
-.od-tl li::before{content:"";position:absolute;left:14px;top:30px;bottom:-2px;width:2px;background:var(--ui-line)}
-.od-tl li:last-child::before{display:none}
-.od-tl li[data-line="true"]::before{background:var(--ui-accent)}
+.od-tl li.s{position:relative;display:grid;grid-template-columns:30px 1fr;column-gap:14px;padding-bottom:20px;animation:od-rise .35s ease both}
+.od-tl li.s:nth-child(1){animation-delay:.05s}.od-tl li.s:nth-child(3){animation-delay:.15s}.od-tl li.s:nth-child(5){animation-delay:.25s}.od-tl li.s:nth-child(7){animation-delay:.35s}.od-tl li.s:nth-child(9){animation-delay:.45s}.od-tl li.s:nth-child(11){animation-delay:.55s}
+.od-tl li.s:last-child{padding-bottom:0}
+.od-tl li.s::before{content:"";position:absolute;left:14px;top:30px;bottom:-2px;width:2px;background:var(--ui-line)}
+.od-tl li.s:last-child::before{display:none}
+.od-tl li.s[data-line="true"]::before{background:var(--ui-accent)}
+.od-tl li.ln{display:none}
 .od-tl .ic{width:30px;height:30px;border-radius:50%;border:2px solid var(--ui-line);background:var(--ui-surface);display:grid;place-items:center;color:var(--ui-faint);position:relative;z-index:1;box-sizing:border-box;font-size:.75rem;font-weight:600}
 .od-tl li[data-state="done"] .ic{background:var(--ui-accent);border-color:var(--ui-accent);color:var(--ui-on-accent)}
 .od-tl li[data-state="current"] .ic{border-color:var(--ui-accent);color:var(--ui-accent)}
@@ -233,6 +235,23 @@ const CSS = `
 .od-tl .t small{font-size:.75rem;color:var(--ui-muted);font-variant-numeric:tabular-nums}
 .od-tl li[data-state="current"] .t small{color:var(--ui-ink)}
 .od-tl .t em{font-style:normal;font-size:.75rem;color:var(--ui-muted);line-height:1.5;margin-top:2px;overflow-wrap:anywhere}
+.od-nowstep{display:none;align-items:center;gap:12px;margin-top:18px;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line)}
+.od-nowstep .ic{width:34px;height:34px;border-radius:50%;border:2px solid var(--ui-accent);color:var(--ui-accent);background:var(--ui-surface);display:grid;place-items:center;flex-shrink:0;font-size:.8125rem;font-weight:600;box-sizing:border-box}
+.od-nowstep .ic[data-state="done"]{background:var(--ui-accent);color:var(--ui-on-accent)}
+.od-nowstep b{display:block;font-size:.9375rem;font-weight:600}
+.od-nowstep small{display:block;font-size:.75rem;color:var(--ui-muted);margin-top:2px;line-height:1.5;overflow-wrap:anywhere}
+/* 2026-11-09(Peter 選 C2):電腦版橫式 — 第一步靠左、最後一步靠右,圓圈之間是連接線;每步只留標題和時間,說明集中到底下「現在這一步」 */
+@media (min-width:640px){
+  .od-tl{display:flex;align-items:flex-start;padding:0 4px}
+  .od-tl li.s{display:flex;flex-direction:column;align-items:center;text-align:center;flex:0 0 auto;max-width:150px;padding-bottom:0}
+  .od-tl li.s::before{display:none}
+  .od-tl li.ln{display:block;flex:1 1 0;height:2px;background:var(--ui-line);margin:14px 8px 0}
+  .od-tl li.ln[data-on="true"]{background:var(--ui-accent)}
+  .od-tl .t{align-items:center;padding-top:8px}
+  .od-tl .t b{white-space:nowrap}
+  .od-tl .t em{display:none}
+  .od-nowstep{display:flex}
+}
 .od-card{padding:18px 20px;margin-bottom:14px}
 .od-card h2{margin:0 0 12px;font-size:.875rem;font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
 .od-card h2 span{font-size:.75rem;color:var(--ui-muted);font-weight:400}
@@ -454,23 +473,38 @@ export default async function OrderPage({ params, searchParams }: Props) {
       time: isShipped ? fmtT(order.shipped_at) : null,
       hint: isPickup ? '賣家備貨中' : '賣家準備出貨中',
       desc: isShipped && unlocked
-        ? [order.tracking_no ? `寄件單號 ${order.tracking_no}` : null, cvs ? '到店後會收到超商簡訊' : null].filter(Boolean).join(',') || null
+        ? [
+            order.tracking_no ? `寄件單號 ${order.tracking_no}` : null,
+            // 「送達 / 取貨」那步拿掉了(見下),怎麼取件寫在出貨這步
+            isPickup ? '請於營業時間至門市取貨'
+              : cvs && !isCodOrder ? `到店後會收到超商簡訊,憑姓名和手機到${order.cvs_store_name ? ` ${order.cvs_store_name} ` : '門市'}取件`
+              : cvs ? '到店後會收到超商簡訊'
+              : '請留意物流通知',
+          ].filter(Boolean).join(',') || null
         : null,
     },
-    {
-      key: 'done',
-      done: isDelivered,
-      title: isDelivered ? (isPickup || cvs ? (isCodOrder ? '已取貨付款' : '已取貨') : '已送達') : isPickup ? '取貨' : cvs ? (isCodOrder ? '到店取貨付款' : '到店取貨') : '送達',
-      time: isDelivered && isCodOrder ? fmtT(order.paid_at) : null,
-      hint: isCodOrder ? `到店後付 NT$ ${money(grandTotal)},憑姓名和手機取件` : cvs ? '等待到店通知' : isPickup ? '請於營業時間至門市取貨' : '運送中',
-      desc: !isDelivered && isShipped && cvs && unlocked ? `憑姓名和手機到${order.cvs_store_name ? ` ${order.cvs_store_name} ` : '門市'}取件` : null,
-    },
-    // Phase 36:取貨付款最後一步「完成」— 賣家確認收到超商撥款
+    // 2026-11-09(Peter 決定):宅配 / 自取 / 店到店系統不會知道客人何時收到或取走,後台也沒有「已送達」按鈕,
+    // 「送達 / 取貨」那步會永遠停在運送中、看起來像卡住 → 不顯示,出貨(備貨)就是最後一步。
+    // 取貨付款例外:超商撥款後賣家按「確認收款」會變已取貨,留「到店取貨付款 → 完成」兩步。
     ...(isCodOrder
-      ? [{ key: 'cod_done', done: isDelivered, title: '完成', time: null, hint: '賣家確認收到超商撥款後完成', desc: null }]
+      ? [
+          {
+            key: 'done',
+            done: isDelivered,
+            title: isDelivered ? '已取貨付款' : '到店取貨付款',
+            time: isDelivered ? fmtT(order.paid_at) : null,
+            hint: `到店後付 NT$ ${money(grandTotal)},憑姓名和手機取件`,
+            desc: !isDelivered && isShipped && unlocked ? `憑姓名和手機到${order.cvs_store_name ? ` ${order.cvs_store_name} ` : '門市'}取件` : null,
+          },
+          // Phase 36:取貨付款最後一步「完成」— 賣家確認收到超商撥款
+          { key: 'cod_done', done: isDelivered, title: '完成', time: null, hint: '賣家確認收到超商撥款後完成', desc: null },
+        ]
       : []),
   ];
   const currentIdx = timeline.findIndex((s) => !s.done);
+  // 全部完成(例如宅配已出貨)就把最後一步當「現在這一步」,電腦版底下的框顯示寄件單號等資訊
+  const nowIdx = currentIdx >= 0 ? currentIdx : timeline.length - 1;
+  const nowStep = timeline[nowIdx];
   const statusShort = isPickup && order.status === 'shipped' ? '已備貨' : isPickup && order.status === 'delivered' ? '已取貨' : isCodOrder && order.status === 'open' ? '待出貨' : isCodOrder && order.status === 'shipped' ? '已寄出' : order.status === 'open' && order.payment_status === 'pending' ? '待付款' : (STATUS_LABEL[order.status] ?? order.status);
   const paymentText = `${METHOD_LABEL[order.payment_method ?? 'bank'] ?? '匯款'} · ${order.payment_status === 'pending' && isCodOrder ? '到店付款' : order.payment_status === 'pending' && isOnlinePayOrder ? '等待付款' : (PAYMENT_LABEL[order.payment_status] ?? order.payment_status)}`;
   const giftCount = order.items.filter((i) => i.price_at_purchase === 0).length;
@@ -496,18 +530,36 @@ export default async function OrderPage({ params, searchParams }: Props) {
           <ol className="od-tl" aria-label="訂單進度">
             {timeline.map((s, i) => {
               const state = s.done ? 'done' : i === currentIdx ? 'current' : 'pending';
+              const lineOn = s.done && !!timeline[i + 1]?.done;
               return (
-                <li key={s.key} data-state={state} data-line={s.done && timeline[i + 1]?.done ? 'true' : 'false'} aria-current={state === 'current' ? 'step' : undefined}>
-                  <span className="ic">{s.done ? <IconCheck size={13} /> : i + 1}</span>
-                  <div className="t">
-                    <b>{s.title}</b>
-                    {s.time ? <small>{s.time}</small> : state === 'current' && s.hint ? <small>{s.hint}</small> : null}
-                    {s.desc && <em>{s.desc}</em>}
-                  </div>
-                </li>
+                <Fragment key={s.key}>
+                  <li className="s" data-state={state} data-line={lineOn ? 'true' : 'false'} aria-current={state === 'current' ? 'step' : undefined}>
+                    <span className="ic">{s.done ? <IconCheck size={13} /> : i + 1}</span>
+                    <div className="t">
+                      <b>{s.title}</b>
+                      {s.time ? <small>{s.time}</small> : state === 'current' && s.hint ? <small>{s.hint}</small> : null}
+                      {s.desc && <em>{s.desc}</em>}
+                    </div>
+                  </li>
+                  {/* 電腦版橫式的連接線;手機直式用 li.s::before 畫,這個藏起來 */}
+                  {i < timeline.length - 1 && <li className="ln" role="presentation" aria-hidden="true" data-on={lineOn ? 'true' : 'false'} />}
+                </Fragment>
               );
             })}
           </ol>
+          {/* 電腦版:現在這一步(全部完成就是最後一步)的說明集中在這裡;手機版說明直接在各步底下 */}
+          {nowStep && (() => {
+            const parts = [nowStep.done ? nowStep.time : nowStep.hint, nowStep.desc].filter(Boolean);
+            return (
+              <div className="od-nowstep">
+                <span className="ic" data-state={nowStep.done ? 'done' : 'current'}>{nowStep.done ? <IconCheck size={14} /> : nowIdx + 1}</span>
+                <div style={{ minWidth: 0 }}>
+                  <b>{nowStep.title}</b>
+                  {parts.length > 0 && <small>{parts.join(' · ')}</small>}
+                </div>
+              </div>
+            );
+          })()}
         </Card>
       )}
 
