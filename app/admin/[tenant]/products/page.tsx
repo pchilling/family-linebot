@@ -7,12 +7,14 @@
  * 其他一律點進 /products/[id] 編輯頁。
  */
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { compareVariantOrder, getTenantBySlug, isSaleActive, supabaseAdmin } from '@/lib/supabase';
 import { CategoryOrderManager } from './category-order';
 import { NewProductModal } from './new-product-modal';
 import { StockCell } from './stock-cell';
 import { ProductStatusToggle } from './status-toggle';
+import { PRODUCTS_VIEW_COOKIE, ProductViewToggle, type ProductsView } from './view-toggle';
 import { FlashToast } from '../../../_components/toast';
 
 type Variant = {
@@ -119,6 +121,8 @@ export default async function ProductsPage({
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
   const products = await getProducts(tenant.id);
+  // 2026-11-09:兩種檢視 — 表格(原本的,預設)/ 卡片;右上角切換,存 cookie
+  const view: ProductsView = (await cookies()).get(PRODUCTS_VIEW_COOKIE)?.value === 'cards' ? 'cards' : 'table';
 
   // C#8:分類顯示順序(有設定照設定,沒設定照筆劃,跟商城前台一致)
   const { data: catRow } = await supabaseAdmin
@@ -186,6 +190,32 @@ export default async function ProductsPage({
 
   const activeCount = products.filter((p) => p.status === 'active').length;
 
+  // 表格與卡片共用的每列資料
+  const rowOf = (p: Product) => {
+    const active = p.product_variants.filter((v) => v.status === 'active');
+    return {
+      cover: (p.media ?? []).find((m) => m.type === 'image')?.url ?? p.image_url,
+      stockRows: (active.length > 0 ? active : p.product_variants).map((v) => ({
+        id: v.id,
+        label: v.variant_name === 'default' ? '庫存' : v.variant_name,
+        stock: v.stock ?? 0,
+      })),
+      onSale: isSaleActive(p, now),
+      editHref: `/admin/${tenant.slug}/products/${p.id}`,
+    };
+  };
+  const pager = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', fontSize: 12.5, color: c.textMuted }}>
+      <span>
+        {hasFilter ? `${filtered.length} 個符合 · ` : ''}第 {page} / {totalPages} 頁
+      </span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {page > 1 && <a href={pageHref(page - 1)} className="ui-btn ui-btn-outline ui-btn-xs">上一頁</a>}
+        {page < totalPages && <a href={pageHref(page + 1)} className="ui-btn ui-btn-outline ui-btn-xs">下一頁</a>}
+      </div>
+    </div>
+  );
+
   return (
     // 2026-10-20:不設寬度上限,螢幕多寬就用多寬(手機版由 layout 的 CSS 另外處理)
     <main style={{ padding: '28px 32px 48px', color: c.text }}>
@@ -198,6 +228,21 @@ details summary::-webkit-details-marker { display: none; }
 details[open] .chev { transform: rotate(90deg); }
 .chev { display: inline-block; transition: transform 150ms ease; }
 .prow:hover { background: #fafafa; }
+/* 卡片檢視(2026-11-09):格狀、圖大;電腦一排 5 到 6 張,手機一欄 */
+.pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.pc-card { background: #fff; border: 1px solid #e4e4e7; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+.pc-cv { position: relative; aspect-ratio: 4 / 3; background: #f4f4f5; overflow: hidden; }
+.pc-cv img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pc-cv[data-off="true"] img { opacity: .5; }
+.pc-bd { position: absolute; top: 8px; left: 8px; display: flex; gap: 4px; flex-wrap: wrap; }
+.pc-bo { padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.pc-nm { font-weight: 600; font-size: 14px; line-height: 1.35; color: #18181b; text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pc-nm:hover { text-decoration: underline; }
+.pc-mt { font-size: 12px; color: #71717a; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pc-pr { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pc-st { padding-top: 8px; border-top: 1px solid #f4f4f5; margin-top: auto; }
+.pc-ft { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid #f4f4f5; background: #fafafa; }
+@media (max-width: 767px) { .pc-grid { grid-template-columns: 1fr; } }
 /* 手機版:layout 的全域 CSS 會把表格拆成卡片、藏表頭;這裡補欄位小標、名稱置頂、拿掉最小寬度 */
 @media (max-width: 767px) {
   .rtable { min-width: 0 !important; }
@@ -220,7 +265,8 @@ details[open] .chev { transform: rotate(90deg); }
             {products.length} 個 · 上架 {activeCount}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {products.length > 0 && <ProductViewToggle view={view} />}
           <a href={`/admin/${tenant.slug}/products/sort`} className="ui-btn ui-btn-outline ui-btn-sm">
             排序商品
           </a>
@@ -256,6 +302,50 @@ details[open] .chev { transform: rotate(90deg); }
         <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>還沒有商品,按右上角「新增商品」開始。</p>
       ) : pageProducts.length === 0 ? (
         <p style={{ color: c.textMuted, padding: 32, textAlign: 'center', fontSize: 14 }}>沒有符合條件的商品。</p>
+      ) : view === 'cards' ? (
+        <>
+          <div className="pc-grid">
+            {pageProducts.map((p) => {
+              const { cover, stockRows, onSale, editHref } = rowOf(p);
+              return (
+                <article key={p.id} id={`product-${p.id}`} className="pc-card">
+                  <div className="pc-cv" data-off={p.status === 'active' ? 'false' : 'true'}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {cover && <img src={cover} alt="" loading="lazy" />}
+                    {(p.channel === 'groupbuy' || onSale || p.badge) && (
+                      <div className="pc-bd">
+                        {p.channel === 'groupbuy' && <span className="ui-badge ui-badge-solid" style={{ padding: '0 8px', fontSize: 11 }}>團購</span>}
+                        {onSale && <span style={{ padding: '2px 7px', borderRadius: 999, background: '#fee2e2', color: '#b91c1c', fontWeight: 600, fontSize: 11 }}>特價 {p.sale_discount_pct}% off</span>}
+                        {p.badge && <span className="ui-badge" style={{ padding: '0 8px', fontSize: 11, background: '#fff' }}>{p.badge}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="pc-bo">
+                    <Link href={editHref} className="pc-nm">{p.name}</Link>
+                    <div className="pc-mt">
+                      <span>{p.category ?? '未分類'}</span>
+                      <span>·</span>
+                      <span>{p.product_variants.length} 規格</span>
+                    </div>
+                    <div className="pc-pr">{priceRange(p)}</div>
+                    <div className="pc-st">
+                      {p.track_stock === false ? (
+                        <span style={{ fontSize: 12, color: c.textMuted }}>不管理庫存</span>
+                      ) : (
+                        <StockCell tenantSlug={tenant.slug} variants={stockRows} />
+                      )}
+                    </div>
+                  </div>
+                  <div className="pc-ft">
+                    <ProductStatusToggle tenantSlug={tenant.slug} productId={p.id} initialActive={p.status === 'active'} />
+                    <Link href={editHref} className="ui-btn ui-btn-outline ui-btn-xs">編輯</Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 10, marginBottom: 24 }}>{pager}</div>
+        </>
       ) : (
         <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 24 }}>
           <div style={{ overflowX: 'auto' }}>
@@ -332,15 +422,7 @@ details[open] .chev { transform: rotate(90deg); }
               </tbody>
             </table>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: `1px solid ${c.borderSubtle}`, fontSize: 12.5, color: c.textMuted }}>
-            <span>
-              {hasFilter ? `${filtered.length} 個符合 · ` : ''}第 {page} / {totalPages} 頁
-            </span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {page > 1 && <a href={pageHref(page - 1)} className="ui-btn ui-btn-outline ui-btn-xs">上一頁</a>}
-              {page < totalPages && <a href={pageHref(page + 1)} className="ui-btn ui-btn-outline ui-btn-xs">下一頁</a>}
-            </div>
-          </div>
+          <div style={{ borderTop: `1px solid ${c.borderSubtle}` }}>{pager}</div>
         </div>
       )}
 
