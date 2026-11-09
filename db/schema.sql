@@ -1834,3 +1834,44 @@ create table if not exists group_buy_notify_requests (
 alter table group_buy_notify_requests enable row level security;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ====================
+-- 2026-11-09 清掉團購功能測試資料(Peter 決定,他自己跑)
+-- 11/8 測團購流程留下的:測試單 OW-202611-0005、商品「測試團購商品」、團「測試團(功能測試用)」。
+-- 商品被訂單明細用到(order_items.product_id on delete restrict),所以要先刪單再刪商品;
+-- 團刪掉時 orders.group_buy_id 會自動設 null。其他取消的測試單(0006–0009)是真實商品,不在這裡。
+-- ====================
+
+-- 1) 先預覽:預期 訂單 1、訂單明細 2、商品 1、規格 1、團 1,其餘 0;「其他訂單還用到這商品」或「這團的其他訂單」不是 0 就不要往下跑
+with t as (select id from tenants where slug = 'oilswa'),
+o as (select id from orders where tenant_id = (select id from t) and order_no = 'OW-202611-0005'),
+p as (select id from products where tenant_id = (select id from t) and name = '測試團購商品'),
+g as (select id from group_buys where tenant_id = (select id from t) and name = '測試團(功能測試用)')
+select
+  (select count(*) from o) as 訂單,
+  (select count(*) from order_items where order_id in (select id from o)) as 訂單明細,
+  (select count(*) from tenant_reviews where order_id in (select id from o)) as 店家評價,
+  (select count(*) from p) as 商品,
+  (select count(*) from product_variants where product_id in (select id from p)) as 規格,
+  (select count(*) from stock_movements where product_id in (select id from p)) as 庫存異動,
+  (select count(*) from order_items where product_id in (select id from p) and order_id not in (select id from o)) as 其他訂單還用到這商品,
+  (select count(*) from products where source_product_id in (select id from p)) as 複製自這商品的商品,
+  (select count(*) from g) as 團,
+  (select count(*) from orders where group_buy_id in (select id from g) and id not in (select id from o)) as 這團的其他訂單;
+
+-- 2) 確認預覽沒問題再跑這段(一個交易,中間任何一步失敗全部回復)
+begin;
+delete from orders
+ where tenant_id = (select id from tenants where slug = 'oilswa')
+   and order_no = 'OW-202611-0005';                      -- order_items、tenant_reviews 跟著刪;product_reviews.order_id 設 null
+delete from stock_movements
+ where product_id in (select id from products
+                       where tenant_id = (select id from tenants where slug = 'oilswa')
+                         and name = '測試團購商品');     -- 有的話;restrict 擋著不先刪商品刪不掉
+delete from products
+ where tenant_id = (select id from tenants where slug = 'oilswa')
+   and name = '測試團購商品';                            -- product_variants、價格階梯、商品評價 cascade
+delete from group_buys
+ where tenant_id = (select id from tenants where slug = 'oilswa')
+   and name = '測試團(功能測試用)';
+commit;
