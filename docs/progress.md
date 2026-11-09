@@ -751,3 +751,30 @@ delete from group_buys
    and name = '測試團(功能測試用)';
 commit;
 ```
+
+### 2026-11-10 清掉其餘團購測試單 0006–0009
+
+```sql
+-- ====================
+-- 2026-11-10 清掉其餘團購測試單 OW-202611-0006 ~ 0009(Peter 決定,他自己跑)
+-- 11/8 測團購時下的取消單,用的是真實商品。只刪 status = 'cancelled' 的,多一層保險。
+-- order_items、tenant_reviews 跟著刪;product_reviews.order_id 設 null。
+-- stock_movements 裡 reason = order / order_cancel 那幾筆是庫存歷史(一扣一加淨值 0),沒有 FK、保留不動。
+-- ====================
+
+-- 1) 預覽:預期 4 筆、狀態全部 cancelled
+select order_no, status, payment_status, payment_method, total_twd, created_at,
+       (select count(*) from order_items oi where oi.order_id = o.id) as 明細筆數
+  from orders o
+ where tenant_id = (select id from tenants where slug = 'oilswa')
+   and order_no in ('OW-202611-0006', 'OW-202611-0007', 'OW-202611-0008', 'OW-202611-0009')
+ order by order_no;
+
+-- 2) 確認後刪
+begin;
+delete from orders
+ where tenant_id = (select id from tenants where slug = 'oilswa')
+   and order_no in ('OW-202611-0006', 'OW-202611-0007', 'OW-202611-0008', 'OW-202611-0009')
+   and status = 'cancelled';
+commit;
+```
