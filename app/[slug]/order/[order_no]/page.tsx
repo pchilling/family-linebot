@@ -132,7 +132,8 @@ async function getOrder(tenantId: string, orderNo: string): Promise<OrderDetail 
     price_at_purchase: i.price_at_purchase,
     subtotal_twd: i.subtotal_twd,
     product_name: i.products?.name ?? '(已下架商品)',
-    variant_name: i.product_variants?.variant_name ?? null,
+    // 沒有規格的商品,系統規格名是 'default',客人不用看到(2026-11-09)
+    variant_name: i.product_variants?.variant_name && i.product_variants.variant_name !== 'default' ? i.product_variants.variant_name : null,
     is_groupbuy: i.products?.channel === 'groupbuy',
     // 縮圖:規格圖 → 商品 media 第一張圖 → 舊的 image_url
     image_url:
