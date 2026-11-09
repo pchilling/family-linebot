@@ -162,6 +162,17 @@ details summary::-webkit-details-marker { display: none; }
           限時優惠儲存失敗,請檢查折扣 % 與起訖時間。
         </div>
       )}
+      {/* 2026-11-10:被訂單 / 庫存異動用過的商品資料庫不給刪(以前會假裝刪成功) */}
+      {sp.err === 'in_use' && (
+        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
+          這個商品有訂單或庫存異動紀錄,不能刪除;要讓客人看不到請改成「下架」。
+        </div>
+      )}
+      {sp.err === 'delete' && (
+        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
+          刪除失敗,商品還在。請再試一次,持續失敗請聯絡平台。
+        </div>
+      )}
 
       {/* 跟商城同款的膠囊返回鍵 */}
       <Link
@@ -338,7 +349,7 @@ details summary::-webkit-details-marker { display: none; }
         <summary style={{ fontSize: 12.5, color: '#a1a1aa', width: 'fit-content' }}>進階:刪除這個商品</summary>
         <div style={{ marginTop: 10, padding: '12px 14px', border: '1px solid #fecaca', borderRadius: 8, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, color: '#991b1b' }}>
-            會連同 {variants.length} 個規格一起刪除,無法復原。已有訂單的商品建議改成「下架」而不是刪除。
+            會連同 {variants.length} 個規格一起刪除,無法復原。有訂單或庫存異動紀錄的商品刪不掉,請改成「下架」。
           </span>
           <form action={deleteProduct}>
             <input type="hidden" name="id" value={p.id} />

@@ -544,7 +544,25 @@ export async function deleteProduct(formData: FormData) {
   const id = String(formData.get('id'));
   const slug = String(formData.get('tenant_slug') || '').trim();
   await assertRowAccess('products', id);
-  await supabaseAdmin.from('products').delete().eq('id', id);
+
+  // 2026-11-10:order_items.product_id / stock_movements.product_id 都是 on delete restrict,
+  // 被訂單或庫存異動用過的商品資料庫會擋。以前沒接錯誤,刪失敗照樣跳「商品已刪除」。
+  // 先查有沒有用到,有就回編輯頁說「只能下架」;真的刪也要看 error。
+  const [{ count: orderCount }, { count: moveCount }] = await Promise.all([
+    supabaseAdmin.from('order_items').select('id', { count: 'exact', head: true }).eq('product_id', id),
+    supabaseAdmin.from('stock_movements').select('id', { count: 'exact', head: true }).eq('product_id', id),
+  ]);
+  if ((orderCount ?? 0) > 0 || (moveCount ?? 0) > 0) {
+    if (slug) redirect(`/admin/${slug}/products/${id}?err=in_use`);
+    return;
+  }
+
+  const { error } = await supabaseAdmin.from('products').delete().eq('id', id);
+  if (error) {
+    console.error('[deleteProduct]', error.code);
+    if (slug) redirect(`/admin/${slug}/products/${id}?err=delete`);
+    return;
+  }
   revalidateProductRoutes(formData);
   // 從編輯頁刪的話,商品已經不在了,回列表
   if (slug && String(formData.get('return_to') || '') === 'edit') {
