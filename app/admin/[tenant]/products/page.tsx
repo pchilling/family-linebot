@@ -14,8 +14,12 @@ import { CategoryOrderManager } from './category-order';
 import { NewProductModal } from './new-product-modal';
 import { StockCell } from './stock-cell';
 import { ProductStatusToggle } from './status-toggle';
-import { PRODUCTS_VIEW_COOKIE, ProductViewToggle, type ProductsView } from './view-toggle';
+import { ProductViewToggle, type ProductsView } from './view-toggle';
 import { FlashToast } from '../../../_components/toast';
+
+// 跟 view-toggle.tsx 裡的字串同名。不能從那支 'use client' 模組 import:
+// server component 拿到的會是 client reference 代理物件而不是字串,cookies().get() 永遠查不到(2026-11-09 踩到)。
+const PRODUCTS_VIEW_COOKIE = 'admin_products_view';
 
 type Variant = {
   id: string;

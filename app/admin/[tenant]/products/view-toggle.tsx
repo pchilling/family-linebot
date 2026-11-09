@@ -9,7 +9,8 @@ import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 
 export type ProductsView = 'table' | 'cards';
-export const PRODUCTS_VIEW_COOKIE = 'admin_products_view';
+// page.tsx(server component)也寫了一份同名字串;這裡的不要 export 給 server 用,client 模組的匯出到 server 端會變成 client reference
+const PRODUCTS_VIEW_COOKIE = 'admin_products_view';
 
 export function ProductViewToggle({ view }: { view: ProductsView }) {
   const router = useRouter();
