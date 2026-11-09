@@ -28,7 +28,8 @@ const LEAD_MAX_CHARS = 30;
 const SENTENCE_PUNCT = /[，。、：:；;！!？?,]/;
 const COLLAPSIBLE_TITLE = /注意事項|使用注意|保固|退換貨|退貨|常見問題|備註|免責/;
 const KEY_VALUE = /^([^：:]{1,8})[：:]\s*(.+)$/;
-const BULLET_MARK = /^[-•・*]\s*/;
+// 「*」當項目符號,但「**粗體**」開頭的不算(不然會被吃掉一顆星,粗體就壞了)
+const BULLET_MARK = /^(?:[-•・]|\*(?!\*))\s*/;
 const NUMBER_MARK = /^\d+[.、)]\s*/;
 const MD_HEADING = /^#{1,6}\s+(.+)$/;
 const BOLD = /\*\*(.+?)\*\*/g;
