@@ -15,6 +15,7 @@ type Variant = {
   variant_name: string;
   attributes: Record<string, unknown> | null;
   price_twd: number;
+  member_price_twd?: number | null; // 2026-11-17:會員價(只顯示)
   stock: number;
   image_url: string | null;
   is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
@@ -48,6 +49,8 @@ type Props = {
   groupBuy?: GroupBuyPublic | null;
   /** Phase 35:false = 沒開團 / 已截止,購買鈕停用 */
   canBuy?: boolean;
+  /** 2026-11-17:攤位開了會員價才傳;規格有填會員價就在售價下方多一行(只顯示,結帳用售價) */
+  memberPrice?: { enrollUrl: string | null } | null;
 };
 
 const money = (n: number) => n.toLocaleString('en-US');
@@ -116,6 +119,9 @@ export const PD_CSS = `
 .pd-sale{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:.8125rem}
 .pd-gb-off{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:8px;background:#fafafa;border:1px solid var(--ui-line);color:#52525b;font-size:.8125rem;line-height:1.6}
 .pd-gb-off b{color:var(--ui-ink);font-weight:600}
+.pd-member{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-top:8px;font-size:.8125rem;line-height:1.6;color:var(--ui-muted)}
+.pd-member b{color:var(--ui-ink);font-weight:600;font-size:.9375rem}
+.pd-member a{color:var(--ui-ink);text-decoration:underline;text-underline-offset:3px}
 .pd-gb-on{display:flex;align-items:center;gap:8px;font-size:.8125rem;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.5}
 .pd-qty{display:inline-flex;align-items:center;border:1px solid var(--ui-line);border-radius:6px;height:40px;overflow:hidden;background:var(--ui-surface)}
 .pd-qty button{width:40px;height:40px;border:0;background:transparent;font:inherit;font-size:1.125rem;cursor:pointer;color:var(--ui-ink)}
@@ -163,6 +169,7 @@ export function VariantSelector({
   trackStock = true,
   groupBuy = null,
   canBuy = true,
+  memberPrice = null,
 }: Props) {
   const router = useRouter();
   // Phase 35:不管理庫存 → 每個規格都算有貨
@@ -325,6 +332,14 @@ export function VariantSelector({
               {variantLabel && <span className="ui-muted" style={{ fontSize: '.875rem' }}>{variantLabel}</span>}
               {!saleActive && savedPerUnit > 0 && <span style={{ fontSize: '.75rem', color: '#15803d', fontWeight: 600 }}>量購價,省 NT$ {money(savedPerUnit)}/件</span>}
             </div>
+            {/* 2026-11-17:會員價 — 只顯示,這裡下單一律用上面的售價 */}
+            {memberPrice && typeof selected?.member_price_twd === 'number' && selected.member_price_twd > 0 && (
+              <div className="pd-member">
+                <span>會員價 <b className="ui-num">NT$ {money(selected.member_price_twd)}</b></span>
+                <span>入會後可以用這個價格在官網自己買。</span>
+                {memberPrice.enrollUrl && <a href={memberPrice.enrollUrl} target="_blank" rel="noopener noreferrer">了解怎麼入會</a>}
+              </div>
+            )}
           </div>
 
           {saleActive && (

@@ -1961,3 +1961,22 @@ select t.slug, t.name, t.status, t.created_at,
 begin;
 delete from tenants where slug = 'petershop';
 commit;
+
+
+-- ====================
+-- 2026-11-17 會員價顯示 + LINE 好友也要核准(皮德的攤位的封閉團購用)
+-- product_variants.member_price_twd:會員價,只顯示在商品頁,結帳一律用 price_twd。
+-- tenants.enroll_url:會員價旁「了解怎麼入會」的連結。
+-- 兩個都只有 tenants.features.member_price = true 的攤位會用到(後台欄位、商品頁那一行都看這個開關)。
+-- 「LINE 好友也要核准」不用改資料表:攤位開了 groupbuy_follow_approval 時,lib/groupbuy.ts 不再自動把 LINE 好友算成已追蹤。
+-- ====================
+
+-- 0) 先看:哪些攤位開了「追蹤要經我同意」(這些攤位的 LINE 好友之後要申請 + 核准才看得到團購)
+select slug, name, groupbuy_followers_only, groupbuy_follow_approval
+  from tenants
+ where groupbuy_follow_approval = true;
+
+-- 1) 加欄位(只新增,不動現有資料)
+alter table product_variants add column if not exists member_price_twd integer
+  check (member_price_twd is null or member_price_twd >= 0);
+alter table tenants add column if not exists enroll_url text;

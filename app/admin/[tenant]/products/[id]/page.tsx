@@ -7,7 +7,7 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { compareVariantOrder, getTenantBySlug, supabaseAdmin, type PriceTier } from '@/lib/supabase';
+import { compareVariantOrder, getTenantBySlug, hasFeature, supabaseAdmin, type PriceTier } from '@/lib/supabase';
 import { IconChevronLeft, IconExternal } from '@/lib/icons';
 import { deleteProduct, updateProduct, updateProductSale } from '../../../actions';
 import { SubmitButton } from '../../../_components/submit-button';
@@ -98,7 +98,7 @@ export default async function ProductEditPage({
       .from('products')
       .select(
         `id, sku, slug, name, description, price_twd, cost_twd, image_url, media, sale_discount_pct, sale_start_at, sale_end_at, share_focus_x, category, badge, badge_color, status, channel, track_stock,
-         product_variants(id, sku, variant_name, price_twd, cost_twd, stock, image_url, is_bundle, status, sort_order)`,
+         product_variants(id, sku, variant_name, price_twd, cost_twd, member_price_twd, stock, image_url, is_bundle, status, sort_order)`,
       )
       .eq('tenant_id', tenant.id)
       .eq('id', id)
@@ -219,6 +219,7 @@ details summary::-webkit-details-marker { display: none; }
           defaultPrice={p.price_twd}
           variants={variants}
           tiers={tiers}
+          memberPriceOn={hasFeature(tenant, 'member_price')}
         />
         ),
 

@@ -636,6 +636,9 @@ export async function saveVariantsBulk(formData: FormData): Promise<void> {
   const names = formData.getAll('v_name').map(String);
   const prices = formData.getAll('v_price').map(String);
   const costs = formData.getAll('v_cost').map(String);
+  // 2026-11-17:會員價 — 只有開了 member_price 的攤位表單才有這欄;沒送就不動這個欄位
+  const memberPrices = formData.getAll('v_member').map(String);
+  const hasMemberPrices = memberPrices.length === names.length && names.length > 0;
   const stocks = formData.getAll('v_stock').map(String);
   const statuses = formData.getAll('v_status').map(String);
   const bundles = formData.getAll('v_bundle').map(String);
@@ -667,6 +670,7 @@ export async function saveVariantsBulk(formData: FormData): Promise<void> {
       status: statuses[i] || 'active',
       is_bundle: bundles[i] === '1',
       sort_order: i, // 畫面上的順序就是顯示順序
+      ...(hasMemberPrices ? { member_price_twd: numOrNull(memberPrices[i]) } : {}),
     };
     const id = (ids[i] || '').trim();
     if (id) {

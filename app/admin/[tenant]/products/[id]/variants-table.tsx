@@ -18,6 +18,7 @@ export type VariantRowData = {
   variant_name: string;
   price_twd: number;
   cost_twd: number | null;
+  member_price_twd?: number | null; // 2026-11-17:會員價(只顯示)
   stock: number;
   status: string;
   is_bundle: boolean;
@@ -33,6 +34,7 @@ type VRow = {
   name: string;
   price: string;
   cost: string;
+  member: string;
   stock: string;
   status: string;
   bundle: boolean;
@@ -51,6 +53,7 @@ function toVRow(v: VariantRowData): VRow {
     name: v.variant_name,
     price: String(v.price_twd),
     cost: v.cost_twd === null ? '' : String(v.cost_twd),
+    member: v.member_price_twd === null || v.member_price_twd === undefined ? '' : String(v.member_price_twd),
     stock: String(v.stock),
     status: v.status,
     bundle: v.is_bundle,
@@ -89,6 +92,7 @@ export function VariantsTable({
   defaultPrice,
   variants,
   tiers,
+  memberPriceOn = false,
 }: {
   tenantSlug: string;
   tenantId: string;
@@ -97,6 +101,8 @@ export function VariantsTable({
   defaultPrice: number;
   variants: VariantRowData[];
   tiers: TierRowData[];
+  /** 2026-11-17:攤位開了 member_price 才多一欄「會員價」 */
+  memberPriceOn?: boolean;
 }) {
   const initialRows = useMemo(() => variants.map(toVRow), [variants]);
   const initialTiers = useMemo(() => tiers.map(toTRow), [tiers]);
@@ -130,7 +136,7 @@ export function VariantsTable({
   function addRow() {
     setRows((rs) => [
       ...rs,
-      { key: nextKey(), id: null, sku: '', name: '', price: String(defaultPrice), cost: '', stock: '0', status: 'active', bundle: false, image_url: null },
+      { key: nextKey(), id: null, sku: '', name: '', price: String(defaultPrice), cost: '', member: '', stock: '0', status: 'active', bundle: false, image_url: null },
     ]);
   }
   function patchTier(key: string, p: Partial<TRow>) {
@@ -177,6 +183,7 @@ export function VariantsTable({
                 <th scope="col" style={th}>規格名稱</th>
                 <th scope="col" style={{ ...th, width: 104 }}>售價</th>
                 <th scope="col" style={{ ...th, width: 96 }}>成本</th>
+                {memberPriceOn && <th scope="col" style={{ ...th, width: 104 }}>會員價</th>}
                 <th scope="col" style={{ ...th, width: 88 }}>庫存</th>
                 <th scope="col" style={{ ...th, width: 96 }}>狀態</th>
                 <th scope="col" style={{ ...th, width: 70, textAlign: 'center' }}>組合品</th>
@@ -203,6 +210,9 @@ export function VariantsTable({
                     </td>
                     <td data-label="售價" style={cell}><input name="v_price" type="number" min={0} value={r.price} onChange={(e) => patch(r.key, { price: e.target.value })} required aria-label="售價" style={numInput} /></td>
                     <td data-label="成本" style={cell}><input name="v_cost" type="number" min={0} value={r.cost} onChange={(e) => patch(r.key, { cost: e.target.value })} aria-label="成本" placeholder="—" style={numInput} /></td>
+                    {memberPriceOn && (
+                      <td data-label="會員價(只顯示,結帳用售價)" style={cell}><input name="v_member" type="number" min={0} value={r.member} onChange={(e) => patch(r.key, { member: e.target.value })} aria-label="會員價" placeholder="—" title="只顯示在商品頁,結帳一律用售價" style={numInput} /></td>
+                    )}
                     <td data-label="庫存" style={cell}><input name="v_stock" type="number" min={0} value={r.stock} onChange={(e) => patch(r.key, { stock: e.target.value })} aria-label="庫存" style={{ ...numInput, ...(Number(r.stock) <= 0 ? { background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' } : {}) }} /></td>
                     <td data-label="狀態" style={cell}>
                       <select name="v_status" value={r.status} onChange={(e) => patch(r.key, { status: e.target.value })} aria-label="狀態" style={input}>

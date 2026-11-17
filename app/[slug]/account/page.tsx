@@ -80,6 +80,7 @@ export default async function AccountPage({ params, searchParams }: Props) {
   if (!member) redirect(loginHref(slug, `/${slug}/account`));
 
   // Phase 35(2026-11-07):追蹤這家店 — tenant_followers 有列(顯示起始日、可取消);LINE 好友自動算追蹤(沒按鈕)
+  // 2026-11-17:攤位開了「追蹤要經我同意」時 LINE 好友不自動算(isFollowing 回 false),會看到「申請追蹤這家店」
   const [followRow, following] = await Promise.all([getFollowRow(tenant.id, member.id), isFollowing(tenant.id, member)]);
 
   const base = () =>

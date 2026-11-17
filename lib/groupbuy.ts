@@ -140,6 +140,7 @@ export type FollowStatus = 'none' | 'pending' | 'approved';
 /**
  * 追蹤 = tenant_followers 有列且已核准(Phase 37 起 status='approved'),
  * 或(member.line_user_id 有值且 users 表有同攤位 + line_user_id、status='active',即 LINE 好友)。
+ * 2026-11-17:攤位開了「追蹤要經我同意」時 LINE 好友不再自動算,一樣要申請 + 核准。
  * member null → false。
  */
 export async function isFollowing(tenantId: string, member: MemberLike): Promise<boolean> {
@@ -148,7 +149,9 @@ export async function isFollowing(tenantId: string, member: MemberLike): Promise
 
 /**
  * Phase 37(2026-11-08):追蹤狀態三態 — none / pending(等攤主核准)/ approved。
- * LINE 好友不寫 tenant_followers,直接算 approved(攤主要擋好友沒有意義,他們本來就在 LINE 裡)。
+ * LINE 好友不寫 tenant_followers,直接算 approved。
+ * 2026-11-17(Peter):攤位開了「追蹤要經我同意」(tenants.groupbuy_follow_approval)時,LINE 好友也要核准 —
+ * 加官方帳號是誰都能做的事,自動放行等於團購還是公開的。沒開核准的攤位照舊自動算。
  */
 export async function getFollowStatus(tenantId: string, member: MemberLike): Promise<FollowStatus> {
   if (!member) return 'none';
@@ -156,6 +159,12 @@ export async function getFollowStatus(tenantId: string, member: MemberLike): Pro
   if (row?.status === 'approved') return 'approved';
 
   if (member.line_user_id) {
+    const { data: t, error: tErr } = await supabaseAdmin.from('tenants').select('groupbuy_follow_approval').eq('id', tenantId).maybeSingle();
+    if (tErr) console.error('[getFollowStatus tenants]', tErr);
+    // 讀不到設定時當成要核准(寧可多擋,不要誤放)
+    const needApproval = tErr ? true : !!(t as { groupbuy_follow_approval?: boolean | null } | null)?.groupbuy_follow_approval;
+    if (needApproval) return row?.status === 'pending' ? 'pending' : 'none';
+
     const { data: lineUser, error: lineErr } = await supabaseAdmin
       .from('users')
       .select('id')
@@ -313,7 +322,7 @@ export async function unfollowTenant(tenantId: string, platformUserId: string): 
   }
 }
 
-/** 團購分頁能不能看:開關關 → 誰都能看;開 → 要追蹤(含 LINE 好友) */
+/** 團購分頁能不能看:開關關 → 誰都能看;開 → 要追蹤(LINE 好友自動算,但攤位開了「追蹤要經我同意」就一樣要核准) */
 export async function canViewGroupBuy(
   tenant: { id: string; groupbuy_followers_only: boolean },
   member: MemberLike,

@@ -397,6 +397,8 @@ export type TenantPublic = {
   banners: MediaItem[]; // Phase 9.8:多媒體 banner,empty 時 fallback og_image_url
   groupbuy_followers_only: boolean; // Phase 35(2026-11-07):團購只給追蹤這家店的人看
   groupbuy_follow_approval: boolean; // Phase 37(2026-11-08):追蹤要經攤主核准
+  member_price: boolean; // 2026-11-17:features.member_price — 商品頁顯示會員價(只顯示,結帳用售價)
+  enroll_url: string | null; // 2026-11-17:會員價旁「了解怎麼入會」的連結
 };
 
 /**
@@ -406,12 +408,12 @@ export type TenantPublic = {
 export async function getTenantPublic(slug: string): Promise<TenantPublic | null> {
   const { data, error } = await supabaseAdmin
     .from('tenants')
-    .select('id, slug, name, plan, description, brand_color, shop_bg_color, header_bg_color, category_order, og_image_url, logo_url, banners, groupbuy_followers_only, groupbuy_follow_approval, status')
+    .select('id, slug, name, plan, description, brand_color, shop_bg_color, header_bg_color, category_order, og_image_url, logo_url, banners, groupbuy_followers_only, groupbuy_follow_approval, features, enroll_url, status')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
   if ((data as { status?: string }).status && (data as { status?: string }).status !== 'active') return null;
-  const { status: _status, ...rest } = data as TenantPublic & { status?: string };
+  const { status: _status, features, ...rest } = data as TenantPublic & { status?: string; features?: Record<string, unknown> | null };
   const tp = rest as TenantPublic;
   return {
     ...tp,
@@ -419,6 +421,8 @@ export async function getTenantPublic(slug: string): Promise<TenantPublic | null
     category_order: Array.isArray(tp.category_order) ? tp.category_order : [],
     groupbuy_followers_only: !!tp.groupbuy_followers_only,
     groupbuy_follow_approval: !!tp.groupbuy_follow_approval,
+    member_price: features?.member_price === true,
+    enroll_url: tp.enroll_url ?? null,
   };
 }
 
@@ -540,6 +544,7 @@ export type VariantPublic = {
   variant_name: string;
   attributes: Record<string, unknown> | null;
   price_twd: number;
+  member_price_twd?: number | null; // 2026-11-17:會員價(只顯示;攤位開了 member_price 才會給客人看)
   stock: number;
   image_url: string | null;
   is_bundle: boolean; // Phase 16.4:組合品(固定價,不參與分階)
@@ -587,7 +592,7 @@ export async function getProductBySlug(
   slugOrId: string,
 ): Promise<ProductDetail | null> {
   const cols =
-    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, channel, track_stock, product_variants(id, sku, variant_name, attributes, price_twd, stock, image_url, is_bundle, status, sort_order)';
+    'id, slug, name, description, image_url, media, category, sale_discount_pct, sale_start_at, sale_end_at, channel, track_stock, product_variants(id, sku, variant_name, attributes, price_twd, member_price_twd, stock, image_url, is_bundle, status, sort_order)';
   // 先試 slug
   let { data } = await supabaseAdmin
     .from('products')

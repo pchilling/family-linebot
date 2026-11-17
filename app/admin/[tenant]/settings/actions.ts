@@ -961,6 +961,33 @@ export async function setGroupbuyFollowApproval(formData: FormData): Promise<voi
 }
 
 // ====================
+// 2026-11-17:會員價的入會連結(設定 → 行銷 → 會員價),tenants.enroll_url。
+// 只有 features.member_price 開著的攤位能存;留空 = 清掉。
+// ====================
+export async function saveEnrollUrl(formData: FormData): Promise<void> {
+  const slug = String(formData.get('tenant_slug') ?? '').trim();
+  const raw = String(formData.get('enroll_url') ?? '').trim();
+  if (!slug) throw new Error('無攤位資訊');
+
+  const tenant = await requireAdminTenant(slug);
+  if (!tenant) throw new Error('攤位不存在');
+  if (!hasFeature(tenant, 'member_price')) throw new Error('這個攤位沒有開會員價功能');
+  if (raw && !raw.toLowerCase().startsWith('https://')) throw new Error('入會連結要是 https:// 開頭的網址');
+  if (raw.length > 500 || raw.includes(' ')) throw new Error('入會連結格式不對');
+
+  const { error } = await supabaseAdmin
+    .from('tenants')
+    .update({ enroll_url: raw || null })
+    .eq('id', tenant.id);
+  if (error) {
+    console.error('[saveEnrollUrl]', error);
+    throw new Error('儲存失敗:' + error.message);
+  }
+  revalidatePath(`/admin/${slug}/settings`, 'layout');
+  revalidatePath(`/${slug}`, 'layout');
+}
+
+// ====================
 // Phase 34(2026-11-06):每攤位各自的金流金鑰(設定 → 收款)
 // tenants.payment_config jsonb,敏感欄位用 lib/secret-box.ts 加密(AES-256-GCM,金鑰 PAYMENT_CONFIG_KEY)。
 // 這個檔是 'use server',每個 export 都是公開端點:只 export 三支 action,回傳值只有 {status, error?} / {ok, error?};

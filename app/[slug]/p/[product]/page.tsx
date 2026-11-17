@@ -172,6 +172,7 @@ export default async function ProductDetailPage({ params }: Props) {
         trackStock={item.track_stock}
         groupBuy={groupBuy}
         canBuy={canBuy}
+        memberPrice={tenant.member_price ? { enrollUrl: tenant.enroll_url } : null}
       />
 
       {item.description && (

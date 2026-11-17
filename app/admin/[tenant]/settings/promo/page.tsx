@@ -6,7 +6,7 @@ import { CopyButton, DeleteIconButton, DiscountCodeForm, DiscountEnabledSwitch, 
 import { GiftProductPicker, type PickerProduct } from '../gift-product-picker';
 import { IconTrash } from '@/lib/icons';
 import { siteOrigin } from '@/lib/return-to';
-import { addGiftRule, deleteDiscountCode, deleteGiftRule } from '../actions';
+import { addGiftRule, deleteDiscountCode, deleteGiftRule, saveEnrollUrl } from '../actions';
 
 type GiftRule = {
   threshold_twd: number;
@@ -62,9 +62,11 @@ function dcPeriod(r: DiscountCodeRow): string {
 export default async function PromoSettingsPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   // Phase 35:groupbuy_followers_only(團購只給追蹤者看)
-  const { data } = await supabaseAdmin.from('tenants').select('id, gift_rules, groupbuy_followers_only, groupbuy_follow_approval').eq('slug', slug).maybeSingle();
+  const { data } = await supabaseAdmin.from('tenants').select('id, gift_rules, groupbuy_followers_only, groupbuy_follow_approval, features, enroll_url').eq('slug', slug).maybeSingle();
   if (!data) notFound();
-  const tenant = data as { id: string; gift_rules: { mode?: string; rules?: GiftRule[] } | null; groupbuy_followers_only: boolean | null; groupbuy_follow_approval: boolean | null };
+  const tenant = data as { id: string; gift_rules: { mode?: string; rules?: GiftRule[] } | null; groupbuy_followers_only: boolean | null; groupbuy_follow_approval: boolean | null; features: Record<string, unknown> | null; enroll_url: string | null };
+  // 2026-11-17:會員價(features.member_price 開著的攤位才有)
+  const memberPriceOn = tenant.features?.member_price === true;
   const groupbuyFollowersOnly = !!tenant.groupbuy_followers_only;
   const groupbuyFollowApproval = !!tenant.groupbuy_follow_approval; // Phase 37
   const inviteUrl = `${siteOrigin()}/${slug}/groupbuy`;
@@ -252,13 +254,13 @@ export default async function PromoSettingsPage({ params }: { params: Promise<{ 
         />
         <SwitchRow
           title="團購只給追蹤這家店的人看"
-          desc="開著時沒追蹤的人在團購分頁只看到一扇門,商品與團名不會送到他的瀏覽器;LINE 好友自動算追蹤。"
+          desc="開著時沒追蹤的人在團購分頁只看到一扇門,商品與團名不會送到他的瀏覽器;LINE 好友自動算追蹤(下面「追蹤要經我同意」開著時除外)。"
           control={<GroupbuyFollowersOnlySwitch slug={slug} enabled={groupbuyFollowersOnly} />}
         />
         {/* Phase 37(2026-11-08):追蹤要經攤主同意 */}
         <SwitchRow
           title="追蹤要經我同意"
-          desc="開著時客人按「追蹤這家店」先是申請,你在左側「團購」頁核准後才算追蹤、才看得到只給追蹤者的團購;LINE 好友不用核准。"
+          desc="開著時客人按「追蹤這家店」先是申請,你在左側「團購」頁核准後才算追蹤、才看得到只給追蹤者的團購;LINE 好友也一樣要核准。"
           control={<GroupbuyFollowApprovalSwitch slug={slug} enabled={groupbuyFollowApproval} />}
         />
         <dl className="sx-dl">
@@ -273,6 +275,28 @@ export default async function PromoSettingsPage({ params }: { params: Promise<{ 
           <dd><span className="sx-hint">沒開團時團購頁有「開團通知我」按鈕,開團時系統會推 LINE 給按過的人(要是這個攤位的 LINE 好友才推得到)。</span></dd>
         </dl>
       </div>
+
+      {/* 2026-11-17:會員價 — 只有開了 member_price 的攤位看得到 */}
+      {memberPriceOn && (
+        <>
+          <hr className="sx-sep" />
+          <div className="sx-group">
+            <GroupHead
+              title="會員價"
+              desc="商品規格填了會員價,商品頁會在售價下方多顯示一行會員價;只是給客人看,結帳一律用售價。"
+            />
+            <form action={saveEnrollUrl} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="hidden" name="tenant_slug" value={slug} />
+              <Field label="入會連結" optional htmlFor="enroll-url" hint="會員價旁邊的「了解怎麼入會」會連到這裡。留空就不顯示連結。">
+                <Input id="enroll-url" name="enroll_url" type="url" defaultValue={tenant.enroll_url ?? ''} placeholder="https://" />
+              </Field>
+              <div>
+                <SaveButton>儲存</SaveButton>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
     </div>
   );
 }
