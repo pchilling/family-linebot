@@ -1898,3 +1898,30 @@ delete from orders
    and order_no in ('OW-202611-0006', 'OW-202611-0007', 'OW-202611-0008', 'OW-202611-0009')
    and status = 'cancelled';
 commit;
+
+
+-- ====================
+-- 皮德的攤位(2026-11-17):Peter 個人攤位,封閉團購(Peter 自己跑)
+-- 團購只給追蹤者看 + 追蹤要經攤主同意,兩個都開;features.member_price = 顯示會員價(之後才會用到)。
+-- 沒金流帳號,收款先走匯款。寫法同 RE:K。
+-- ====================
+insert into tenants (slug, name, owner_user_id, plan, features, status, order_prefix,
+                     groupbuy_followers_only, groupbuy_follow_approval)
+  values (
+    'pchilling',
+    '皮德的攤位',
+    (select id from platform_users where line_user_id = 'U25423dee75701ec1e3b8bdae2f826924'),
+    'free',
+    '{"member_price": true}'::jsonb,
+    'active',
+    'PC',
+    true,
+    true
+  )
+  on conflict (slug) do nothing;
+
+insert into tenant_members (tenant_id, user_id, role)
+  select t.id, t.owner_user_id, 'owner'
+    from tenants t
+    where t.slug = 'pchilling' and t.owner_user_id is not null
+  on conflict (tenant_id, user_id) do nothing;
