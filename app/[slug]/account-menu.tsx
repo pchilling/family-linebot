@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SIGNOUT_URL, safeReturnTo } from '@/lib/return-to';
 import { LoginModal } from './login-modal';
 
-type Me = { id: string; name: string | null; avatarUrl: string | null; email: string | null; phone: string | null };
+type Me = { id: string; name: string | null; avatarUrl: string | null; email: string | null; phone: string | null; adminSlugs?: string[] };
 
 const CSS = `
 .am{position:relative;display:inline-flex}
@@ -35,6 +35,7 @@ type Props = {
 
 /**
  * 頁首右上角的帳號區(Phase 26):未登入顯示「登入」(按了彈出登入視窗),登入後顯示頭像,點開下拉(我的訂單、我的收藏、登出)。
+ * 是任一攤位成員的人多一項「我的後台」(2026-11-17):是這個攤位的成員就進這個攤位的後台,不是就進自己的第一個攤位。
  * 會員資料用 /api/auth/me 在瀏覽器端問,頁面本身不讀 cookie(商品頁才能維持快取)。
  * 網址帶 ?login=1 會自動打開登入視窗(登入失敗導回、或要登入才能看的頁面導過來時用),
  * 可再帶 error=<代碼>、return_to=<站內路徑>;讀完就把這幾個參數從網址拿掉。
@@ -125,6 +126,9 @@ export function AccountMenu({ slug, tenantName, logoUrl, ready, emailOn }: Props
     );
   }
 
+  const adminSlugs = me.adminSlugs ?? [];
+  const adminSlug = adminSlugs.includes(slug) ? slug : adminSlugs[0];
+
   const label = me.name || (me.email ? me.email.split('@')[0] : '會員');
   const initial = label.slice(0, 1).toUpperCase();
   const avatar = (
@@ -160,6 +164,12 @@ export function AccountMenu({ slug, tenantName, logoUrl, ready, emailOn }: Props
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
             我的收藏
           </a>
+          {adminSlug && (
+            <a role="menuitem" href={`/admin/${adminSlug}`} className="am-item" onClick={() => setOpen(false)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 9l1-5h16l1 5" /><path d="M4 9v11h16V9" /><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" /><path d="M10 20v-6h4v6" /></svg>
+              我的後台
+            </a>
+          )}
           <div className="am-sep" />
           <form action={SIGNOUT_URL} method="post">
             <input type="hidden" name="return_to" value={`/${slug}`} />
