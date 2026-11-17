@@ -1925,3 +1925,39 @@ insert into tenant_members (tenant_id, user_id, role)
     from tenants t
     where t.slug = 'pchilling' and t.owner_user_id is not null
   on conflict (tenant_id, user_id) do nothing;
+
+
+-- ====================
+-- 2026-11-17 補上皮德的攤位的擁有者(Peter 自己跑)
+-- 開攤位那段 SQL 第一次跑時 LINE ID 那格是說明文字,找不到人,攤位建成 owner_user_id = null、也沒有 tenant_members。
+-- 這裡直接用 platform_users.id(phsiung957 那一筆)補上。
+-- ====================
+update tenants
+   set owner_user_id = '59f07f39-04ef-4b5d-bc38-932aa1c26e04'
+ where slug = 'pchilling' and owner_user_id is null;
+
+insert into tenant_members (tenant_id, user_id, role)
+  select t.id, t.owner_user_id, 'owner'
+    from tenants t
+   where t.slug = 'pchilling' and t.owner_user_id is not null
+  on conflict (tenant_id, user_id) do nothing;
+
+
+-- ====================
+-- 2026-11-17 刪掉測試攤位 petershop(Peter 決定,他自己跑)
+-- 5/26 測「讓別人申請開店」時建的,名稱「我測試測試」、status = rejected、商品 0、訂單 0、成員 1。
+-- tenants 底下的表都是 on delete cascade,成員那一筆會跟著刪;platform_users 的帳號保留不動。
+-- ====================
+
+-- 1) 預覽:預期 1 列,商品數 0、訂單數 0
+select t.slug, t.name, t.status, t.created_at,
+       (select count(*) from products p where p.tenant_id = t.id) as 商品數,
+       (select count(*) from orders o where o.tenant_id = t.id) as 訂單數,
+       (select count(*) from tenant_members m where m.tenant_id = t.id) as 成員數
+  from tenants t
+ where t.slug = 'petershop';
+
+-- 2) 確認後刪
+begin;
+delete from tenants where slug = 'petershop';
+commit;
