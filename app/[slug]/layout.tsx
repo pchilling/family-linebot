@@ -89,7 +89,7 @@ export default async function TenantLayout({ children, params }: Props) {
 a.shop-rating{text-decoration:none}a.shop-rating:hover b{text-decoration:underline;text-underline-offset:3px}
 @media (max-width:420px){.shop-rating{display:none}}
 .shop-nav{display:flex;gap:20px;font-size:.875rem;font-weight:500}
-.shop-nav a{text-decoration:none;color:var(--ui-muted);display:inline-flex;align-items:center;gap:6px}.shop-nav a:hover{color:var(--ui-ink)}
+.shop-nav a{text-decoration:none;color:var(--ui-muted);display:inline-flex;align-items:center;gap:6px}.shop-nav a:hover{color:var(--ui-ink)}html[data-member="1"] .shop-nav a.guest-only{display:none}
 .shop-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;flex-shrink:0}
 .shop-tabs{display:none;border-bottom:1px solid var(--ui-line);background:var(--ui-header)}
 .shop-tabs-in{display:flex}
@@ -136,7 +136,8 @@ a.shop-rating{text-decoration:none}a.shop-rating:hover b{text-decoration:underli
           <nav className="shop-nav" aria-label="主選單">
             <a href={`/${slug}`}>攤位</a>
             {hasOpenGroupBuy && <a href={`/${slug}/groupbuy`}>團購<span className="shop-dot" aria-label="收單中" /></a>}
-            <a href={`/${slug}/order-lookup`}>查訂單</a>
+            {/* 2026-11-17:登入後藏起來(頭像選單的「我的訂單」已涵蓋);AccountMenu 問到會員後在 <html> 標 data-member */}
+            <a href={`/${slug}/order-lookup`} className="guest-only">查訂單</a>
           </nav>
           {/* Phase 26:購物車 icon + 帳號(未登入「登入」/ 登入後頭像選單) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

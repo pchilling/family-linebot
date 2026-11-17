@@ -68,6 +68,9 @@ export function AccountMenu({ slug, tenantName, logoUrl, ready, emailOn }: Props
       .then((d: { member: Me | null }) => {
         if (!alive) return;
         setMe(d.member ?? null);
+        // 登入後頁首的「查訂單」藏起來(layout 的 CSS 看這個屬性)
+        if (d.member) document.documentElement.dataset.member = '1';
+        else delete document.documentElement.dataset.member;
         if (!d.member && pendingRef.current) setLogin(pendingRef.current);
         pendingRef.current = null;
       })
@@ -163,6 +166,10 @@ export function AccountMenu({ slug, tenantName, logoUrl, ready, emailOn }: Props
           <a role="menuitem" href={`/${slug}?fav=1`} className="am-item" onClick={() => setOpen(false)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
             我的收藏
+          </a>
+          <a role="menuitem" href={`/${slug}/account#settings`} className="am-item" onClick={() => setOpen(false)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>
+            帳號設定
           </a>
           {adminSlug && (
             <a role="menuitem" href={`/admin/${adminSlug}`} className="am-item" onClick={() => setOpen(false)}>

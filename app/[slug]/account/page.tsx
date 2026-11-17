@@ -132,9 +132,9 @@ export default async function AccountPage({ params, searchParams }: Props) {
       {sp?.requested === '1' && <FlashToast message="已送出追蹤申請,等這家店核准" />}
       {sp?.unfollowed === '1' && <FlashToast message={`已取消追蹤 ${tenant.name}`} />}
 
-      {/* 2026-11-01:個人設定 — 暱稱(評價和頁首都用這個名字) */}
-      <div className="ui-card" style={{ padding: 18, marginBottom: 16 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: '.9375rem', fontWeight: 600 }}>個人設定</h2>
+      {/* 2026-11-01:個人設定 — 暱稱(評價和頁首都用這個名字);2026-11-17 改叫「帳號設定」,頭像選單的「帳號設定」跳到這裡(#settings) */}
+      <div id="settings" className="ui-card" style={{ padding: 18, marginBottom: 16, scrollMarginTop: 80 }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '.9375rem', fontWeight: 600 }}>帳號設定</h2>
         <p className="ui-muted" style={{ margin: '0 0 12px', fontSize: '.8125rem', lineHeight: 1.6 }}>暱稱會顯示在你的評價上,不想用本名就改這裡。</p>
         <form action={saveNickname} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="hidden" name="slug" value={slug} />
